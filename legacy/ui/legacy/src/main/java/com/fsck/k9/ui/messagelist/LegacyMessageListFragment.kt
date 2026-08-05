@@ -11,6 +11,7 @@ import android.view.MenuInflater
 import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
+import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.ActivityResultLauncher
 import androidx.annotation.Discouraged
@@ -222,6 +223,9 @@ class LegacyMessageListFragment :
     private var currentFolder: FolderInfoHolder? = null
     private var remoteSearchFuture: Future<*>? = null
     private var extraSearchResults: List<String>? = null
+    private var hasRemoteSearchFailed = false
+    private var searchStatusBar: View? = null
+    private var searchStatusText: TextView? = null
     private var threadTitle: String? = null
     private var allAccounts = false
     private var sortType = SortType.SORT_DATE
@@ -480,6 +484,7 @@ class LegacyMessageListFragment :
 
     private fun initializeMessageListLayout(view: View) {
         initializeSwipeRefreshLayout(view)
+        initializeSearchStatusBar(view)
         initializeFloatingActionButton(view)
         initializeRecyclerView(view)
         initializeRecentChangesSnackbar()
@@ -488,6 +493,20 @@ class LegacyMessageListFragment :
         initializeSortSettings()
 
         loadMessageList()
+    }
+
+    private fun initializeSearchStatusBar(view: View) {
+        searchStatusBar = view.findViewById(R.id.search_status_bar)
+        searchStatusText = view.findViewById(R.id.search_status_text)
+    }
+
+    private fun showSearchStatus(text: String) {
+        searchStatusText?.text = text
+        searchStatusBar?.visibility = View.VISIBLE
+    }
+
+    private fun hideSearchStatus() {
+        searchStatusBar?.visibility = View.GONE
     }
 
     private fun initializeSwipeRefreshLayout(view: View) {
@@ -812,6 +831,8 @@ class LegacyMessageListFragment :
                 loadSearchResults,
                 activityListener,
             )
+        } else if (isRemoteSearchAllowed) {
+            onRemoteSearch()
         }
     }
 
@@ -844,6 +865,8 @@ class LegacyMessageListFragment :
         itemTouchHelper = null
         swipeRefreshLayout = null
         floatingActionButton = null
+        searchStatusBar = null
+        searchStatusText = null
 
         if (isNewMessagesView && !requireActivity().isChangingConfigurations) {
             account?.id?.let { messagingController.clearNewMessages(it) }
@@ -934,14 +957,20 @@ class LegacyMessageListFragment :
 
     private fun onRemoteSearchRequested() {
         val folderId = currentFolder!!.databaseId
-        val queryString = localSearch.remoteSearchArguments
+        val queryString = localSearch.remoteSearchArguments ?: return
 
         isRemoteSearch = true
+        hasRemoteSearchFailed = false
         swipeRefreshLayout?.isEnabled = false
 
         val account = this.account ?: return
 
-        remoteSearchFuture = messagingController.searchRemoteMessages(
+        // Widen the visible search to all folders and accounts so that results found by the
+        // cascading remote search show up in this list.
+        localSearch = createManualQuerySearch(queryString)
+        loadMessageList(forceUpdate = true)
+
+        remoteSearchFuture = messagingController.searchRemoteMessagesCascading(
             account.id,
             folderId,
             queryString,
@@ -1404,12 +1433,18 @@ class LegacyMessageListFragment :
     }
 
     private fun updateFooterText() {
+        // While a remote search is running, the MessagingListener callbacks supply progress messages
+        // for the footer. Don't overwrite them here.
+        if (remoteSearchFuture != null) return
+
         val currentFolder = this.currentFolder
         val account = this.account
 
         val footerText = if (initialMessageListLoad) {
             null
-        } else if (localSearch.isManualSearch || currentFolder == null || account == null) {
+        } else if (localSearch.isManualSearch) {
+            getSearchResultsFooterText()
+        } else if (currentFolder == null || account == null) {
             null
         } else if (currentFolder.loading) {
             getString(R.string.status_loading_more)
@@ -1422,6 +1457,25 @@ class LegacyMessageListFragment :
         }
 
         updateFooterText(footerText)
+    }
+
+    private fun getSearchResultsFooterText(): String? {
+        val extraSearchResults = this.extraSearchResults
+        return if (hasRemoteSearchFailed) {
+            getString(R.string.remote_search_error)
+        } else if (!extraSearchResults.isNullOrEmpty()) {
+            // A remote search found more results than were downloaded. Offer to load more.
+            account?.let { getString(R.string.load_more_messages_fmt, it.remoteSearchNumResults) }
+        } else if (adapter.viewItems.any { it is MessageListViewItem.Message }) {
+            null
+        } else if (isRemoteSearch) {
+            // A remote search completed without results; say so instead of showing a generic message.
+            getString(R.string.remote_search_no_results)
+        } else if (isRemoteSearchAllowed) {
+            getString(R.string.search_no_results_search_server_prompt)
+        } else {
+            getString(R.string.search_no_results)
+        }
     }
 
     override fun updateFooterText(text: String?) {
@@ -2049,6 +2103,9 @@ class LegacyMessageListFragment :
                 add(MessageListViewItem.InAppNotificationBannerList)
             }
             addAll(messageListItems.map { MessageListViewItem.Message(it) })
+            // Keep the current footer (e.g. remote search progress) across list rebuilds.
+            // updateFooterText() below recomputes it when no remote search is running.
+            adapter.viewItems.filterIsInstance<MessageListViewItem.Footer>().firstOrNull()?.let { add(it) }
         }
 
         rememberedSelected?.let {
@@ -2070,8 +2127,8 @@ class LegacyMessageListFragment :
 
         currentFolder?.let { currentFolder ->
             currentFolder.moreMessages = messageListInfo.hasMoreMessages
-            updateFooterText()
         }
+        updateFooterText()
     }
 
     private fun resetActionMode() {
@@ -2353,6 +2410,7 @@ class LegacyMessageListFragment :
 
         override fun remoteSearchFailed(folderServerId: String?, err: String?) {
             handler.post {
+                hasRemoteSearchFailed = true
                 activity?.let { activity ->
                     Toast.makeText(activity, R.string.remote_search_error, Toast.LENGTH_LONG).show()
                 }
@@ -2361,7 +2419,40 @@ class LegacyMessageListFragment :
 
         override fun remoteSearchStarted(folderId: Long) {
             handler.progress(true)
-            handler.updateFooter(getString(R.string.remote_search_sending_query))
+
+            handler.post {
+                if (isAdded) {
+                    updateFooterText(null)
+                    showSearchStatus(getString(R.string.remote_search_sending_query))
+                }
+            }
+        }
+
+        override fun remoteSearchCascadeProgress(
+            accountUuid: String,
+            accountName: String,
+            folderName: String,
+            folderIndex: Int,
+            folderCount: Int,
+        ) {
+            handler.post {
+                if (!isAdded) return@post
+
+                val folderLabel = if (accountUuid == account?.uuid) folderName else "$accountName / $folderName"
+                showSearchStatus(
+                    getString(R.string.remote_search_status_searching, folderLabel, folderIndex, folderCount),
+                )
+            }
+        }
+
+        override fun remoteSearchDownloadProgress(folderName: String, completed: Int, total: Int) {
+            handler.post {
+                if (!isAdded) return@post
+
+                showSearchStatus(
+                    getString(R.string.remote_search_downloading_progress, completed, total, folderName),
+                )
+            }
         }
 
         override fun enableProgressIndicator(enable: Boolean) {
@@ -2377,30 +2468,13 @@ class LegacyMessageListFragment :
             handler.progress(false)
             handler.remoteSearchFinished()
 
-            extraSearchResults = extraResults
-            if (extraResults != null && extraResults.isNotEmpty()) {
-                handler.updateFooter(String.format(getString(R.string.load_more_messages_fmt), maxResults))
-            } else {
-                handler.updateFooter(null)
+            handler.post {
+                extraSearchResults = extraResults
+                hideSearchStatus()
+                if (isAdded) {
+                    updateFooterText()
+                }
             }
-        }
-
-        override fun remoteSearchServerQueryComplete(folderId: Long, numResults: Int, maxResults: Int) {
-            handler.progress(true)
-
-            val footerText = if (maxResults != 0 && numResults > maxResults) {
-                resources.getQuantityString(
-                    R.plurals.remote_search_downloading_limited,
-                    maxResults,
-                    maxResults,
-                    numResults,
-                )
-            } else {
-                resources.getQuantityString(R.plurals.remote_search_downloading, numResults, numResults)
-            }
-
-            handler.updateFooter(footerText)
-            informUserOfStatus()
         }
 
         private fun informUserOfStatus() {
