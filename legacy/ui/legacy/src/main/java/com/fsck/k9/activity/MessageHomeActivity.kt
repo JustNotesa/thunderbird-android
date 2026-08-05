@@ -44,6 +44,7 @@ import com.fsck.k9.ui.managefolders.ManageFoldersActivity
 import com.fsck.k9.ui.messagelist.DefaultFolderProvider
 import com.fsck.k9.ui.messagelist.MessageListFragmentBridgeContract
 import com.fsck.k9.ui.messagelist.MessageListFragmentBridgeContract.MessageListFragmentListener
+import com.fsck.k9.ui.messagelist.createManualQuerySearch
 import com.fsck.k9.ui.messageview.MessageViewContainerFragment
 import com.fsck.k9.ui.messageview.MessageViewContainerFragment.MessageViewContainerListener
 import com.fsck.k9.ui.messageview.MessageViewFragment.MessageViewFragmentListener
@@ -72,7 +73,6 @@ import net.thunderbird.feature.search.legacy.LocalMessageSearch
 import net.thunderbird.feature.search.legacy.SearchAccount
 import net.thunderbird.feature.search.legacy.api.MessageSearchField
 import net.thunderbird.feature.search.legacy.api.SearchAttribute
-import net.thunderbird.feature.search.legacy.api.SearchCondition
 import net.thunderbird.feature.search.legacy.serialization.LocalMessageSearchSerializer
 import org.koin.android.ext.android.inject
 import org.koin.core.component.KoinComponent
@@ -486,51 +486,7 @@ open class MessageHomeActivity :
             // Query was received from Search Dialog
             val query = queryString.trim()
 
-            val search = LocalMessageSearch().apply {
-                isManualSearch = true
-                or(
-                    SearchCondition(
-                        MessageSearchField.SENDER,
-                        SearchAttribute.CONTAINS,
-                        query,
-                    ),
-                )
-                or(
-                    SearchCondition(
-                        MessageSearchField.TO,
-                        SearchAttribute.CONTAINS,
-                        query,
-                    ),
-                )
-                or(
-                    SearchCondition(
-                        MessageSearchField.CC,
-                        SearchAttribute.CONTAINS,
-                        query,
-                    ),
-                )
-                or(
-                    SearchCondition(
-                        MessageSearchField.BCC,
-                        SearchAttribute.CONTAINS,
-                        query,
-                    ),
-                )
-                or(
-                    SearchCondition(
-                        MessageSearchField.SUBJECT,
-                        SearchAttribute.CONTAINS,
-                        query,
-                    ),
-                )
-                or(
-                    SearchCondition(
-                        MessageSearchField.MESSAGE_CONTENTS,
-                        SearchAttribute.CONTAINS,
-                        query,
-                    ),
-                )
-            }
+            val search = createManualQuerySearch(query)
 
             val appData = intent.getBundleExtra(SearchManager.APP_DATA)
             if (appData != null) {
