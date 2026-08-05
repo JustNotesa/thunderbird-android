@@ -507,7 +507,7 @@ public class MessagingController implements MessagingControllerRegistry, Messagi
                 messageServerIds = messageServerIds.subList(0, resultLimit);
             }
 
-            loadSearchResultsSynchronous(account, messageServerIds, localFolder);
+            loadSearchResultsSynchronous(account, messageServerIds, localFolder, listener);
         } catch (Exception e) {
             if (Thread.currentThread().isInterrupted()) {
                 Log.i(e, "Caught exception on aborted remote search; safe to ignore.");
@@ -542,7 +542,7 @@ public class MessagingController implements MessagingControllerRegistry, Messagi
 
                 localFolder.open();
 
-                loadSearchResultsSynchronous(account, messageServerIds, localFolder);
+                loadSearchResultsSynchronous(account, messageServerIds, localFolder, listener);
             } catch (MessagingException e) {
                 Log.e(e, "Exception in loadSearchResults");
             } finally {
@@ -553,18 +553,164 @@ public class MessagingController implements MessagingControllerRegistry, Messagi
         });
     }
 
-    private void loadSearchResultsSynchronous(LegacyAccountDto account, List<String> messageServerIds, LocalFolder localFolder)
-            throws MessagingException {
+    private void loadSearchResultsSynchronous(LegacyAccountDto account, List<String> messageServerIds,
+            LocalFolder localFolder, MessagingListener listener) throws MessagingException {
 
         Backend backend = getBackend(account);
         String folderServerId = localFolder.getServerId();
+        String folderName = localFolder.getName();
+        int total = messageServerIds.size();
+        int current = 0;
 
         for (String messageServerId : messageServerIds) {
+            current++;
+            if (listener != null) {
+                listener.remoteSearchDownloadProgress(folderName, current, total);
+            }
+
             LocalMessage localMessage = localFolder.getMessage(messageServerId);
 
             if (localMessage == null) {
                 backend.downloadMessageStructure(folderServerId, messageServerId);
             }
+        }
+    }
+
+    public Future<?> searchRemoteMessagesCascading(String startAccountUuid, long startFolderId, String query,
+            Set<Flag> requiredFlags, Set<Flag> forbiddenFlags, MessagingListener listener) {
+        Log.i("searchRemoteMessagesCascading (acct = %s, startFolderId = %d, query = %s)", startAccountUuid,
+                startFolderId, query);
+
+        return threadPool.submit(() -> searchRemoteMessagesCascadingSynchronous(startAccountUuid, startFolderId, query,
+                requiredFlags, forbiddenFlags, listener));
+    }
+
+    @VisibleForTesting
+    void searchRemoteMessagesCascadingSynchronous(String startAccountUuid, long startFolderId, String query,
+            Set<Flag> requiredFlags, Set<Flag> forbiddenFlags, MessagingListener listener) {
+        if (listener != null) {
+            listener.remoteSearchStarted(startFolderId);
+        }
+
+        try {
+            List<CascadeSearchTarget> targets = buildCascadeSearchTargets(startAccountUuid, startFolderId);
+            int folderCount = targets.size();
+            int folderIndex = 0;
+
+            for (CascadeSearchTarget target : targets) {
+                if (Thread.currentThread().isInterrupted()) {
+                    break;
+                }
+
+                folderIndex++;
+                if (listener != null) {
+                    listener.remoteSearchCascadeProgress(target.account.getUuid(), target.account.getDisplayName(),
+                            target.folderName, folderIndex, folderCount);
+                }
+
+                try {
+                    searchSingleFolderOnServer(target.account, target.folderId, query, requiredFlags, forbiddenFlags,
+                            listener);
+                } catch (Exception e) {
+                    if (Thread.currentThread().isInterrupted()) {
+                        break;
+                    }
+                    Log.e(e, "Cascading remote search failed for folder %s of account %s", target.folderName,
+                            target.account.getUuid());
+                }
+            }
+        } catch (Exception e) {
+            if (Thread.currentThread().isInterrupted()) {
+                Log.i(e, "Caught exception on aborted cascading remote search; safe to ignore.");
+            } else {
+                Log.e(e, "Could not complete cascading remote search");
+                if (listener != null) {
+                    listener.remoteSearchFailed(null, e.getMessage());
+                }
+            }
+        } finally {
+            if (listener != null) {
+                listener.remoteSearchFinished(startFolderId, 0, 0, null);
+            }
+        }
+    }
+
+    private void searchSingleFolderOnServer(LegacyAccountDto account, long folderId, String query,
+            Set<Flag> requiredFlags, Set<Flag> forbiddenFlags, MessagingListener listener) throws MessagingException {
+        LocalStore localStore = localStoreProvider.getInstance(account);
+        LocalFolder localFolder = localStore.getFolder(folderId);
+        if (!localFolder.exists()) {
+            throw new MessagingException("Folder not found");
+        }
+
+        localFolder.open();
+        String folderServerId = localFolder.getServerId();
+
+        Backend backend = getBackend(account);
+        boolean performFullTextSearch = account.isRemoteSearchFullText();
+        List<String> messageServerIds = backend.search(folderServerId, query, requiredFlags, forbiddenFlags,
+                performFullTextSearch);
+
+        messageServerIds = localFolder.extractNewMessages(messageServerIds);
+
+        int resultLimit = account.getRemoteSearchNumResults();
+        if (resultLimit > 0 && messageServerIds.size() > resultLimit) {
+            messageServerIds = messageServerIds.subList(0, resultLimit);
+        }
+
+        loadSearchResultsSynchronous(account, messageServerIds, localFolder, listener);
+    }
+
+    private List<CascadeSearchTarget> buildCascadeSearchTargets(String startAccountUuid, long startFolderId)
+            throws MessagingException {
+        List<LegacyAccountDto> orderedAccounts = new ArrayList<>();
+        for (LegacyAccountDto account : preferences.getAccounts()) {
+            if (account.getUuid().equals(startAccountUuid)) {
+                orderedAccounts.add(0, account);
+            } else {
+                orderedAccounts.add(account);
+            }
+        }
+
+        List<CascadeSearchTarget> targets = new ArrayList<>();
+        for (LegacyAccountDto account : orderedAccounts) {
+            if (!isPushCapable(account)) {
+                // The backend of this account does not support server-side search.
+                continue;
+            }
+
+            boolean isStartAccount = account.getUuid().equals(startAccountUuid);
+            MessageStore messageStore = messageStoreManager.getMessageStore(account);
+            List<CascadeSearchTarget> accountTargets = messageStore.getFolders(true, folder ->
+                    new CascadeSearchTarget(account, folder.getId(), folder.getName(), folder.getServerId()));
+
+            for (CascadeSearchTarget target : accountTargets) {
+                if (target.serverId == null) {
+                    continue;
+                }
+
+                if (isStartAccount && target.folderId == startFolderId) {
+                    targets.add(0, target);
+                } else {
+                    targets.add(target);
+                }
+            }
+        }
+
+        return targets;
+    }
+
+    private static class CascadeSearchTarget {
+        final LegacyAccountDto account;
+        final long folderId;
+        final String folderName;
+        final String serverId;
+
+        CascadeSearchTarget(LegacyAccountDto account, long folderId, String folderName, String serverId) {
+            this.account = account;
+            this.folderId = folderId;
+            this.folderName = folderName;
+            this.serverId = serverId;
         }
     }
 

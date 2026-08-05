@@ -32,17 +32,56 @@
             android:layout_height="match_parent"
             >
 
-            <androidx.recyclerview.widget.RecyclerView
-                android:id="@+id/message_list"
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:clipToPadding="false"
-                android:fadingEdge="none"
-                android:paddingBottom="@dimen/floatingActionButtonSpacing"
-                android:scrollbarStyle="outsideOverlay"
-                android:scrollbars="vertical"
-                tools:listitem="@layout/message_list_item"
-                />
+                android:orientation="vertical"
+                >
+
+                <LinearLayout
+                    android:id="@+id/search_status_bar"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="?attr/colorSurface"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:paddingHorizontal="16dp"
+                    android:paddingVertical="12dp"
+                    android:visibility="gone"
+                    tools:visibility="visible"
+                    >
+
+                    <ProgressBar
+                        android:layout_width="20dp"
+                        android:layout_height="20dp"
+                        android:indeterminate="true"
+                        />
+
+                    <com.google.android.material.textview.MaterialTextView
+                        android:id="@+id/search_status_text"
+                        android:textAppearance="?attr/textAppearanceBodyMedium"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="12dp"
+                        tools:text="Searching Inbox on server (1 of 14)"
+                        />
+
+                </LinearLayout>
+
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/message_list"
+                    android:layout_width="match_parent"
+                    android:layout_height="0dp"
+                    android:layout_weight="1"
+                    android:clipToPadding="false"
+                    android:fadingEdge="none"
+                    android:paddingBottom="@dimen/floatingActionButtonSpacing"
+                    android:scrollbarStyle="outsideOverlay"
+                    android:scrollbars="vertical"
+                    tools:listitem="@layout/message_list_item"
+                    />
+
+            </LinearLayout>
 
             <androidx.compose.ui.platform.ComposeView
                 android:id="@+id/banner_global_compose_view"

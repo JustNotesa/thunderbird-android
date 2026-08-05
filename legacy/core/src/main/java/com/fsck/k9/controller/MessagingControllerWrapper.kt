@@ -62,6 +62,22 @@ class MessagingControllerWrapper(
         listener,
     )
 
+    fun searchRemoteMessagesCascading(
+        id: AccountId,
+        startFolderId: Long,
+        query: String?,
+        requiredFlags: Set<Flag>?,
+        forbiddenFlags: Set<Flag>?,
+        listener: MessagingListener,
+    ): Future<*>? = messagingController.searchRemoteMessagesCascading(
+        id.toString(),
+        startFolderId,
+        query,
+        requiredFlags,
+        forbiddenFlags,
+        listener,
+    )
+
     fun expunge(id: AccountId, folderId: Long) {
         val account = getAccountDtoOrThrow(id)
         messagingController.expunge(account, folderId)
