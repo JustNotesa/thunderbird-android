@@ -604,8 +604,8 @@ public class MessagingController implements MessagingControllerRegistry, Messagi
 
                 folderIndex++;
                 if (listener != null) {
-                    listener.remoteSearchCascadeProgress(target.account.getUuid(), target.account.getDisplayName(),
-                            target.folderName, folderIndex, folderCount);
+                    listener.remoteSearchCascadeProgress(target.account.getId().toString(),
+                            target.account.getDisplayName(), target.folderName, folderIndex, folderCount);
                 }
 
                 try {
@@ -616,7 +616,7 @@ public class MessagingController implements MessagingControllerRegistry, Messagi
                         break;
                     }
                     Log.e(e, "Cascading remote search failed for folder %s of account %s", target.folderName,
-                            target.account.getUuid());
+                            target.account.getId().toString());
                 }
             }
         } catch (Exception e) {
@@ -665,7 +665,7 @@ public class MessagingController implements MessagingControllerRegistry, Messagi
             throws MessagingException {
         List<LegacyAccountDto> orderedAccounts = new ArrayList<>();
         for (LegacyAccountDto account : preferences.getAccounts()) {
-            if (account.getUuid().equals(startAccountUuid)) {
+            if (account.getId().toString().equals(startAccountUuid)) {
                 orderedAccounts.add(0, account);
             } else {
                 orderedAccounts.add(account);
@@ -679,7 +679,7 @@ public class MessagingController implements MessagingControllerRegistry, Messagi
                 continue;
             }
 
-            boolean isStartAccount = account.getUuid().equals(startAccountUuid);
+            boolean isStartAccount = account.getId().toString().equals(startAccountUuid);
             MessageStore messageStore = messageStoreManager.getMessageStore(account);
             List<CascadeSearchTarget> accountTargets = messageStore.getFolders(true, folder ->
                     new CascadeSearchTarget(account, folder.getId(), folder.getName(), folder.getServerId()));

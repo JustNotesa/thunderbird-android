@@ -2438,7 +2438,8 @@ class LegacyMessageListFragment :
             handler.post {
                 if (!isAdded) return@post
 
-                val folderLabel = if (accountUuid == account?.uuid) folderName else "$accountName / $folderName"
+                val isCurrentAccount = accountUuid == account?.id?.toString()
+                val folderLabel = if (isCurrentAccount) folderName else "$accountName / $folderName"
                 showSearchStatus(
                     getString(R.string.remote_search_status_searching, folderLabel, folderIndex, folderCount),
                 )
