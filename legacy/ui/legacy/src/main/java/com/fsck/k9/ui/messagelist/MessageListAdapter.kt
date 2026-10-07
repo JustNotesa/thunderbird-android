@@ -20,6 +20,7 @@ import com.fsck.k9.ui.messagelist.item.FooterViewHolder
 import com.fsck.k9.ui.messagelist.item.MessageListViewHolder
 import com.fsck.k9.ui.messagelist.item.MessageViewHolder
 import com.fsck.k9.ui.messagelist.item.MessageViewHolderColors
+import com.fsck.k9.ui.messagelist.item.SearchStatusViewHolder
 import net.thunderbird.core.featureflag.FeatureFlagProvider
 import net.thunderbird.core.featureflag.FeatureFlagResult
 import net.thunderbird.core.featureflag.keys.GeneratedFeatureFlagKey
@@ -30,10 +31,12 @@ import net.thunderbird.feature.notification.api.ui.action.NotificationAction
 
 private const val FOOTER_ID = 1L
 private const val IN_APP_NOTIFICATION_BANNER_INLINE_LIST_ID = -1L
+private const val SEARCH_STATUS_ID = -2L
 
 private const val TYPE_MESSAGE = 0
 private const val TYPE_FOOTER = 1
 private const val TYPE_IN_APP_NOTIFICATION_BANNER_INLINE_LIST = 2
+private const val TYPE_SEARCH_STATUS = 3
 
 @Suppress("LongParameterList")
 class MessageListAdapter internal constructor(
@@ -141,6 +144,10 @@ class MessageListAdapter internal constructor(
         listItemListener.onFooterClicked()
     }
 
+    private val searchMessageContentsClickListener = OnClickListener {
+        listItemListener.onSearchMessageContentsClicked()
+    }
+
     private val starClickListener = OnClickListener { view: View ->
         val parentView = view.parent as View
         val messageListItem = getItemFromView(parentView) ?: return@OnClickListener
@@ -228,6 +235,9 @@ class MessageListAdapter internal constructor(
 
             TYPE_FOOTER -> FooterViewHolder.create(layoutInflater, parent, footerClickListener)
 
+            TYPE_SEARCH_STATUS ->
+                SearchStatusViewHolder.create(layoutInflater, parent, searchMessageContentsClickListener)
+
             TYPE_IN_APP_NOTIFICATION_BANNER_INLINE_LIST if isInAppNotificationEnabled ->
                 BannerInlineListInAppNotificationViewHolder(
                     view = ComposeView(context = parent.context),
@@ -298,6 +308,12 @@ class MessageListAdapter internal constructor(
                 val footerViewHolder = holder as FooterViewHolder
                 val footer = viewItems[position] as MessageListViewItem.Footer
                 footerViewHolder.bind(footer.text)
+            }
+
+            TYPE_SEARCH_STATUS -> {
+                val searchStatusViewHolder = holder as SearchStatusViewHolder
+                val searchStatus = viewItems[position] as MessageListViewItem.SearchStatus
+                searchStatusViewHolder.bind(searchStatus.status)
             }
 
             else -> {
@@ -409,6 +425,7 @@ private class MessageListDiffCallback(
                 if newItem is MessageListViewItem.Message -> oldItem.item.uniqueId == newItem.item.uniqueId
 
             is MessageListViewItem.Footer if newItem is MessageListViewItem.Footer -> true
+            is MessageListViewItem.SearchStatus if newItem is MessageListViewItem.SearchStatus -> true
             else -> false
         }
     }
@@ -423,6 +440,7 @@ interface MessageListItemActionListener {
     fun onToggleMessageSelection(item: MessageListItem)
     fun onToggleMessageFlag(item: MessageListItem)
     fun onMessageFolderClicked(messageListItem: MessageListItem) = Unit
+    fun onSearchMessageContentsClicked() = Unit
     fun onFooterClicked()
     fun filterInAppNotificationEvents(notification: InAppNotification): Boolean
     fun onNotificationActionClicked(action: NotificationAction)
@@ -445,5 +463,10 @@ sealed interface MessageListViewItem {
     data class Footer(val text: String) : MessageListViewItem {
         override val viewId: Long = FOOTER_ID
         override val viewType: Int = TYPE_FOOTER
+    }
+
+    data class SearchStatus(val status: ServerSearchStatus) : MessageListViewItem {
+        override val viewId: Long = SEARCH_STATUS_ID
+        override val viewType: Int = TYPE_SEARCH_STATUS
     }
 }

@@ -487,6 +487,39 @@ class MessageListAdapterTest : RobolectricTest() {
         }
     }
 
+    @Test
+    fun `search status should be displayed as a row of the list`() {
+        val adapter = createAdapter()
+        val status = ServerSearchStatus.Running(title = "Sending query to server")
+        adapter.viewItems = listOf(
+            MessageListViewItem.SearchStatus(status),
+            MessageListViewItem.Message(createMessageListItem()),
+        )
+
+        val holder = adapter.onCreateViewHolder(LinearLayout(context), adapter.getItemViewType(0))
+        adapter.onBindViewHolder(holder, 0)
+
+        assertThat(holder.itemView.findViewById<MaterialTextView>(R.id.search_status_text).text.toString())
+            .isEqualTo("Sending query to server")
+    }
+
+    @Test
+    fun `click on button of search status should request search of the message contents`() {
+        val adapter = createAdapter()
+        val status = ServerSearchStatus.Ended(
+            title = "Server search finished",
+            result = ServerSearchStatus.Result.COMPLETE,
+            isMessageContentsSearchOffered = true,
+        )
+        adapter.viewItems = listOf(MessageListViewItem.SearchStatus(status))
+        val holder = adapter.onCreateViewHolder(LinearLayout(context), adapter.getItemViewType(0))
+        adapter.onBindViewHolder(holder, 0)
+
+        holder.itemView.findViewById<View>(R.id.search_contents_button).performClick()
+
+        verify(listItemListener).onSearchMessageContentsClicked()
+    }
+
     fun createAdapter(
         fontSizes: FontSizes = createFontSizes(),
         previewLines: Int = 0,

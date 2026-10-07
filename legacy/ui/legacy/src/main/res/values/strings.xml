@@ -871,10 +871,15 @@
     <string name="account_settings_remote_search_num_results_entries_500">500</string>
     <string name="account_settings_remote_search_num_results_entries_1000">1000</string>
     <string name="account_settings_remote_search_num_label">Server search limit</string>
+    <string name="local_search_status">Searching on this device</string>
     <string name="remote_search_sending_query">Sending query to server</string>
     <string name="remote_search_status_progress">Server search: folder %1$d of %2$d</string>
     <string name="remote_search_contents_status_progress">Content search: folder %1$d of %2$d</string>
     <string name="remote_search_contents_action">Also search message contents</string>
+    <string name="remote_search_finished">Server search finished</string>
+    <string name="remote_search_contents_finished">Content search finished</string>
+    <string name="remote_search_stopped">Server search stopped</string>
+    <string name="remote_search_stopped_details">Pull down to search again.</string>
     <plurals name="remote_search_results_limited">
         <item quantity="one">%d more result on the server was not loaded because of the server search limit</item>
         <item quantity="other">%d more results on the server were not loaded because of the server search limit</item>
@@ -884,7 +889,8 @@
         <item quantity="one">%1$d message found. Latest: %2$s</item>
         <item quantity="other">%1$d messages found. Latest: %2$s</item>
     </plurals>
-    <string name="remote_search_incomplete">Server search incomplete: %1$d of %2$d folders could not be searched</string>
+    <string name="remote_search_incomplete">Server search incomplete</string>
+    <string name="remote_search_incomplete_details">%1$d of %2$d folders could not be searched.</string>
     <plurals name="remote_search_downloading">
         <item quantity="one">Fetching %d result</item>
         <item quantity="other">Fetching %d results</item>
@@ -897,6 +903,7 @@
 
     <string name="account_settings_search">Search</string>
     <string name="action_remote_search">Search messages on server</string>
+    <string name="remote_search_unavailable">Server search unavailable</string>
     <string name="remote_search_unavailable_no_network">A network connection is required for server search.</string>
     <string name="search_no_results">No messages found</string>
     <string name="remote_search_no_results">No messages found on the server</string>
