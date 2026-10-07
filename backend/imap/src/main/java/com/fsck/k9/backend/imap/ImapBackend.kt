@@ -4,6 +4,7 @@ import com.fsck.k9.backend.api.Backend
 import com.fsck.k9.backend.api.BackendPusher
 import com.fsck.k9.backend.api.BackendPusherCallback
 import com.fsck.k9.backend.api.BackendStorage
+import com.fsck.k9.backend.api.StorageQuota
 import com.fsck.k9.backend.api.SyncConfig
 import com.fsck.k9.backend.api.SyncListener
 import com.fsck.k9.mail.BodyFactory
@@ -177,5 +178,11 @@ class ImapBackend(
 
     override fun createPusher(callback: BackendPusherCallback): BackendPusher {
         return ImapBackendPusher(imapStore, powerManager, idleRefreshManager, pushConfigProvider, callback, accountName)
+    }
+
+    override fun getStorageQuota(): StorageQuota? {
+        return imapStore.getStorageQuota()?.let { imapStorageQuota ->
+            StorageQuota(usedBytes = imapStorageQuota.usedBytes, limitBytes = imapStorageQuota.limitBytes)
+        }
     }
 }

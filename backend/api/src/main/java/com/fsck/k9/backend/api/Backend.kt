@@ -91,4 +91,12 @@ interface Backend {
     fun sendMessage(message: Message)
 
     fun createPusher(callback: BackendPusherCallback): BackendPusher
+
+    /**
+     * Returns how much storage the account uses on the server and how much it is allowed to use.
+     *
+     * @return `null` if the server doesn't report it.
+     */
+    @Throws(MessagingException::class)
+    fun getStorageQuota(): StorageQuota? = null
 }

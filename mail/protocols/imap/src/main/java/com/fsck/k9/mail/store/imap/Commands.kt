@@ -21,4 +21,5 @@ internal object Commands {
     const val UID_MOVE: String = "UID MOVE"
     const val UID_EXPUNGE: String = "UID EXPUNGE"
     const val ENABLE: String = "ENABLE UTF8=ACCEPT"
+    const val GETQUOTAROOT: String = "GETQUOTAROOT"
 }

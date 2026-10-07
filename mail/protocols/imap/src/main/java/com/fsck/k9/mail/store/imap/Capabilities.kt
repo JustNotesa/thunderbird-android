@@ -21,4 +21,5 @@ internal object Capabilities {
     const val ENABLE: String = "ENABLE"
     const val CREATE_SPECIAL_USE: String = "CREATE-SPECIAL-USE"
     const val UTF8_ACCEPT: String = "UTF8=ACCEPT"
+    const val QUOTA: String = "QUOTA"
 }

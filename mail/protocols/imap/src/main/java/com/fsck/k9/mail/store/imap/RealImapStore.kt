@@ -118,6 +118,29 @@ internal open class RealImapStore(
         }
     }
 
+    @Throws(MessagingException::class)
+    override fun getStorageQuota(): ImapStorageQuota? {
+        val connection = getConnection()
+
+        return try {
+            if (connection.hasCapability(Capabilities.QUOTA)) {
+                val encodedInbox = ImapUtility.encodeString(RealImapFolder.INBOX)
+                val responses = connection.executeSimpleCommand("${Commands.GETQUOTAROOT} $encodedInbox")
+                QuotaResponse.parse(responses)
+            } else {
+                null
+            }
+        } catch (e: IOException) {
+            connection.close()
+            throw MessagingException("Unable to get storage quota.", e)
+        } catch (e: MessagingException) {
+            connection.close()
+            throw e
+        } finally {
+            releaseConnection(connection)
+        }
+    }
+
     private fun limitToSubscribedFolders(
         folders: List<FolderListItem>,
         subscribedFolders: List<FolderListItem>,

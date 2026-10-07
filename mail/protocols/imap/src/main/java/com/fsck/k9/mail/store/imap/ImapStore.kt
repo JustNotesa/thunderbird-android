@@ -19,6 +19,14 @@ interface ImapStore {
     @Throws(MessagingException::class)
     fun getFolders(): List<FolderListItem>
 
+    /**
+     * Returns how much storage the account uses on the server and how much it is allowed to use.
+     *
+     * @return `null` if the server doesn't report it.
+     */
+    @Throws(MessagingException::class)
+    fun getStorageQuota(): ImapStorageQuota? = null
+
     fun closeAllConnections()
 
     fun fetchImapPrefix()

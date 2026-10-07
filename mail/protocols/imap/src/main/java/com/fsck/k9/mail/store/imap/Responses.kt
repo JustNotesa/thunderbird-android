@@ -17,4 +17,5 @@ internal object Responses {
     const val SEARCH: String = "SEARCH"
     const val UIDVALIDITY: String = "UIDVALIDITY"
     const val ENABLED: String = "ENABLED"
+    const val QUOTA: String = "QUOTA"
 }
