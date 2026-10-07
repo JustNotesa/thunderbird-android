@@ -1,5 +1,6 @@
 package com.fsck.k9.ui.messagelist
 
+import android.animation.ObjectAnimator
 import android.app.SearchManager
 import android.content.Context
 import android.content.Intent
@@ -11,6 +12,7 @@ import android.view.MenuInflater
 import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
+import android.view.animation.LinearInterpolator
 import android.widget.AutoCompleteTextView
 import android.widget.ProgressBar
 import android.widget.TextView
@@ -134,6 +136,7 @@ import net.thunderbird.feature.mail.message.list.R as MessageListApiR
 const val MAXIMUM_MESSAGE_SORT_OVERRIDES = 3
 const val MINIMUM_CLICK_INTERVAL = 200L
 private const val AUTOMATIC_REMOTE_SEARCH_DELAY = 2000L
+private const val COUNTDOWN_PROGRESS_MAX = 1000
 const val RECENT_CHANGES_SNACKBAR_DURATION = 10 * 1000
 
 private const val TAG = "BaseMessageListFragment"
@@ -240,6 +243,11 @@ class LegacyMessageListFragment :
     private var remoteSearchProblem: String? = null
     private var remoteSearchProblemReason: String? = null
     private var remoteSearchFoundCount = 0
+    private var remoteSearchNotLoadedCount = 0
+    private var isSearchingMessageContents = false
+    private var hasSearchedMessageContents = false
+    private var searchContentsButton: View? = null
+    private var searchCountdownAnimator: ObjectAnimator? = null
     private var searchStatusBar: View? = null
     private var searchStatusText: TextView? = null
     private var searchStatusSpinner: View? = null
@@ -524,6 +532,10 @@ class LegacyMessageListFragment :
         searchStatusProgress = view.findViewById(R.id.search_status_progress)
         searchStatusFolder = view.findViewById(R.id.search_status_folder)
         searchStatusDetail = view.findViewById(R.id.search_status_detail)
+        searchContentsButton = view.findViewById<View>(R.id.search_contents_button).apply {
+            setOnClickListener { onSearchMessageContentsClicked() }
+        }
+        updateSearchContentsButton()
 
         // Restore a problem reported by a previous remote search, e.g. after returning from a message.
         hideSearchStatus()
@@ -533,6 +545,7 @@ class LegacyMessageListFragment :
      * Display a simple status message, e.g. while the remote search is being started.
      */
     private fun showSearchStatus(text: String) {
+        cancelSearchCountdown()
         searchStatusText?.text = text
         searchStatusSpinner?.isVisible = true
         searchStatusErrorIcon?.isVisible = false
@@ -543,10 +556,57 @@ class LegacyMessageListFragment :
     }
 
     /**
+     * Display a status message together with a bar that runs down during [duration] milliseconds.
+     */
+    private fun showSearchCountdown(text: String, duration: Long) {
+        showSearchStatus(text)
+
+        val progressBar = searchStatusProgress ?: return
+        searchStatusSpinner?.isVisible = false
+        progressBar.max = COUNTDOWN_PROGRESS_MAX
+        progressBar.progress = COUNTDOWN_PROGRESS_MAX
+        progressBar.isVisible = true
+        searchCountdownAnimator = ObjectAnimator.ofInt(progressBar, "progress", COUNTDOWN_PROGRESS_MAX, 0).apply {
+            this.duration = duration
+            interpolator = LinearInterpolator()
+            start()
+        }
+    }
+
+    private fun cancelSearchCountdown() {
+        searchCountdownAnimator?.cancel()
+        searchCountdownAnimator = null
+    }
+
+    /**
+     * Offer to also search the contents of the messages on the server once the regular server search is done.
+     */
+    private fun updateSearchContentsButton() {
+        searchContentsButton?.isVisible = isRemoteSearchSupported &&
+            isRemoteSearch &&
+            remoteSearchFuture == null &&
+            !hasSearchedMessageContents
+    }
+
+    private fun onSearchMessageContentsClicked() {
+        if (connectivityManager.isNetworkAvailable()) {
+            onRemoteSearchRequested(searchMessageContents = true)
+        } else {
+            Toast.makeText(activity, getText(R.string.remote_search_unavailable_no_network), Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /**
      * Display which folder the remote search is working on and how many folders there are in total.
      */
     private fun showSearchProgress(folderIndex: Int, folderCount: Int, folderLabel: String) {
-        searchStatusText?.text = getString(R.string.remote_search_status_progress, folderIndex, folderCount)
+        cancelSearchCountdown()
+        val statusText = if (isSearchingMessageContents) {
+            R.string.remote_search_contents_status_progress
+        } else {
+            R.string.remote_search_status_progress
+        }
+        searchStatusText?.text = getString(statusText, folderIndex, folderCount)
         searchStatusSpinner?.isVisible = true
         searchStatusErrorIcon?.isVisible = false
         searchStatusProgress?.apply {
@@ -573,6 +633,7 @@ class LegacyMessageListFragment :
      * remote search is started.
      */
     private fun showSearchProblem(text: String, reason: String?) {
+        cancelSearchCountdown()
         searchStatusText?.text = text
         searchStatusSpinner?.isVisible = false
         searchStatusErrorIcon?.isVisible = true
@@ -589,6 +650,7 @@ class LegacyMessageListFragment :
      * Hide the progress of the remote search. A problem reported by the remote search remains visible.
      */
     private fun hideSearchStatus() {
+        cancelSearchCountdown()
         val problem = remoteSearchProblem
         if (problem != null) {
             showSearchProblem(problem, remoteSearchProblemReason)
@@ -816,6 +878,7 @@ class LegacyMessageListFragment :
             sortDateAscending,
             activeMessage,
             legacyViewModel.messageSortOverrides.toMap(),
+            legacyViewModel.remoteSearchResults.toSet(),
         )
 
         if (forceUpdate) {
@@ -974,6 +1037,8 @@ class LegacyMessageListFragment :
         searchStatusProgress = null
         searchStatusFolder = null
         searchStatusDetail = null
+        searchContentsButton = null
+        cancelSearchCountdown()
 
         if (isNewMessagesView && !requireActivity().isChangingConfigurations) {
             account?.id?.let { messagingController.clearNewMessages(it) }
@@ -1072,15 +1137,17 @@ class LegacyMessageListFragment :
         changeSort(sortType, sortAscending)
     }
 
-    private fun onRemoteSearchRequested() {
+    private fun onRemoteSearchRequested(searchMessageContents: Boolean = false) {
         val folderId = currentFolder!!.databaseId
         val queryString = localSearch.remoteSearchArguments ?: return
 
         isRemoteSearch = true
+        isSearchingMessageContents = searchMessageContents
         hasRemoteSearchFailed = false
         remoteSearchProblem = null
         remoteSearchProblemReason = null
         remoteSearchFoundCount = 0
+        remoteSearchNotLoadedCount = 0
         swipeRefreshLayout?.isEnabled = false
 
         val account = this.account ?: return
@@ -1096,9 +1163,11 @@ class LegacyMessageListFragment :
             queryString,
             null,
             null,
+            searchMessageContents,
             activityListener,
         )
 
+        updateSearchContentsButton()
         invalidateMenu()
     }
 
@@ -1622,6 +1691,12 @@ class LegacyMessageListFragment :
         val extraSearchResults = this.extraSearchResults
         return if (hasRemoteSearchFailed) {
             getString(R.string.remote_search_error)
+        } else if (remoteSearchNotLoadedCount > 0) {
+            resources.getQuantityString(
+                R.plurals.remote_search_results_limited,
+                remoteSearchNotLoadedCount,
+                remoteSearchNotLoadedCount,
+            )
         } else if (!extraSearchResults.isNullOrEmpty()) {
             // A remote search found more results than were downloaded. Offer to load more.
             account?.let { getString(R.string.load_more_messages_fmt, it.remoteSearchNumResults) }
@@ -2077,6 +2152,8 @@ class LegacyMessageListFragment :
     override fun onStop() {
         // If we represent a remote search, then kill that before going back.
         if (isRemoteSearch && remoteSearchFuture != null) {
+            // An aborted search of the message contents can be started again.
+            isSearchingMessageContents = false
             try {
                 logger.info(logTag) { "Remote search in progress, attempting to abort..." }
 
@@ -2309,7 +2386,7 @@ class LegacyMessageListFragment :
         val recyclerView = recyclerView ?: return
 
         isAutomaticRemoteSearchScheduled = true
-        showSearchStatus(getString(R.string.remote_search_starting_soon))
+        showSearchCountdown(getString(R.string.remote_search_starting_soon), AUTOMATIC_REMOTE_SEARCH_DELAY)
         recyclerView.postDelayed(automaticRemoteSearchRunnable, AUTOMATIC_REMOTE_SEARCH_DELAY)
     }
 
@@ -2651,6 +2728,26 @@ class LegacyMessageListFragment :
             }
         }
 
+        override fun remoteSearchFolderResults(accountUuid: String, folderId: Long, messageServerIds: List<String>) {
+            handler.post {
+                if (!isAdded) return@post
+
+                // The server decides what matches. Display its results even if the local search doesn't find them,
+                // e.g. because the message contents haven't been downloaded.
+                val accountId = AccountIdFactory.of(accountUuid)
+                val messageReferences = messageServerIds.map { MessageReference(accountId, folderId, it) }
+                if (legacyViewModel.remoteSearchResults.addAll(messageReferences)) {
+                    loadMessageList()
+                }
+            }
+        }
+
+        override fun remoteSearchResultsLimited(notLoadedCount: Int) {
+            handler.post {
+                remoteSearchNotLoadedCount = notLoadedCount
+            }
+        }
+
         override fun remoteSearchMessageDownloaded(folderName: String, subject: String?) {
             handler.post {
                 if (!isAdded) return@post
@@ -2683,7 +2780,13 @@ class LegacyMessageListFragment :
 
             handler.post {
                 extraSearchResults = extraResults
+                if (isSearchingMessageContents) {
+                    isSearchingMessageContents = false
+                    // Offer the search again if it didn't cover all folders
+                    hasSearchedMessageContents = remoteSearchProblem == null
+                }
                 hideSearchStatus()
+                updateSearchContentsButton()
                 swipeRefreshLayout?.isEnabled = isPullToRefreshAllowed
                 if (isAdded) {
                     updateFooterText()

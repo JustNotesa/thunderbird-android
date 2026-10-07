@@ -866,6 +866,12 @@
     <string name="remote_search_starting_soon">Server search starts in a moment</string>
     <string name="remote_search_sending_query">Sending query to server</string>
     <string name="remote_search_status_progress">Searching on server: folder %1$d of %2$d</string>
+    <string name="remote_search_contents_status_progress">Searching message contents on server: folder %1$d of %2$d</string>
+    <string name="remote_search_contents_action">Also search message contents on the server</string>
+    <plurals name="remote_search_results_limited">
+        <item quantity="one">%d more result on the server was not loaded because of the server search limit</item>
+        <item quantity="other">%d more results on the server were not loaded because of the server search limit</item>
+    </plurals>
     <string name="remote_search_status_downloading">Downloading result %1$d of %2$d</string>
     <plurals name="remote_search_status_found">
         <item quantity="one">%1$d message found. Latest: %2$s</item>

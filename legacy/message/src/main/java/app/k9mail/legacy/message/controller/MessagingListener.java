@@ -41,6 +41,8 @@ public interface MessagingListener {
     void remoteSearchDownloadProgress(String folderName, int completed, int total);
     void remoteSearchMessageDownloaded(String folderName, String subject);
     void remoteSearchCascadeIncomplete(int failedFolderCount, int folderCount, String reason);
+    void remoteSearchFolderResults(String accountUuid, long folderId, List<String> messageServerIds);
+    void remoteSearchResultsLimited(int notLoadedCount);
     void remoteSearchFinished(long folderId, int numResults, int maxResults, List<String> extraResults);
     void remoteSearchFailed(String folderServerId, String err);
 

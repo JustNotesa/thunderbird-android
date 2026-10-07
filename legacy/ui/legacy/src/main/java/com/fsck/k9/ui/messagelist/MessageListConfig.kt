@@ -12,6 +12,10 @@ data class MessageListConfig(
     val sortDateAscending: Boolean,
     val activeMessage: MessageReference?,
     val sortOverrides: Map<MessageReference, MessageSortOverride>,
+    /**
+     * Messages to display even if they don't match [search], e.g. messages a server search found by their contents.
+     */
+    val includedMessages: Set<MessageReference> = emptySet(),
 )
 
 data class MessageSortOverride(

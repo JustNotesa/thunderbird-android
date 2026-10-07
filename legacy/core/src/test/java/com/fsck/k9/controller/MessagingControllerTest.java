@@ -3,6 +3,7 @@ package com.fsck.k9.controller;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
@@ -340,7 +341,7 @@ public class MessagingControllerTest extends K9RobolectricTest {
             throws Exception {
         setupCascadingRemoteSearch(3);
 
-        controller.searchRemoteMessagesCascadingSynchronous(accountUuid, 1L, "query", null, null, listener);
+        controller.searchRemoteMessagesCascadingSynchronous(accountUuid, 1L, "query", null, null, false, listener);
 
         verify(backend, times(3)).search(anyString(), eq("query"), nullable(Set.class), nullable(Set.class), eq(false));
         verify(listener, never()).remoteSearchCascadeIncomplete(anyInt(), anyInt(), nullable(String.class));
@@ -354,7 +355,7 @@ public class MessagingControllerTest extends K9RobolectricTest {
         when(backend.search(eq("folder2"), anyString(), nullable(Set.class), nullable(Set.class), eq(false)))
             .thenThrow(new MessagingException("IO Error", new IOException("Connection reset")));
 
-        controller.searchRemoteMessagesCascadingSynchronous(accountUuid, 1L, "query", null, null, listener);
+        controller.searchRemoteMessagesCascadingSynchronous(accountUuid, 1L, "query", null, null, false, listener);
 
         verify(backend, times(3)).search(anyString(), eq("query"), nullable(Set.class), nullable(Set.class), eq(false));
         verify(listener).remoteSearchCascadeIncomplete(1, 3, "Connection reset");
@@ -368,11 +369,53 @@ public class MessagingControllerTest extends K9RobolectricTest {
         when(backend.search(anyString(), anyString(), nullable(Set.class), nullable(Set.class), eq(false)))
             .thenThrow(new MessagingException("IO Error", new IOException("Unable to resolve host")));
 
-        controller.searchRemoteMessagesCascadingSynchronous(accountUuid, 1L, "query", null, null, listener);
+        controller.searchRemoteMessagesCascadingSynchronous(accountUuid, 1L, "query", null, null, false, listener);
 
         verify(backend, times(3)).search(anyString(), eq("query"), nullable(Set.class), nullable(Set.class), eq(false));
         verify(listener).remoteSearchCascadeIncomplete(10, 10, "Unable to resolve host");
         verify(listener).remoteSearchFinished(1L, 0, 0, null);
+    }
+
+    @Test
+    public void searchRemoteMessagesCascadingSynchronous_searchingMessageContents_shouldPerformFullTextSearch()
+            throws Exception {
+        setupCascadingRemoteSearch(2);
+
+        controller.searchRemoteMessagesCascadingSynchronous(accountUuid, 1L, "query", null, null, true, listener);
+
+        verify(backend, times(2)).search(anyString(), eq("query"), nullable(Set.class), nullable(Set.class), eq(true));
+    }
+
+    @Test
+    public void searchRemoteMessagesCascadingSynchronous_shouldReportMessagesFoundInFolder() throws Exception {
+        setupCascadingRemoteSearch(2);
+        when(backend.search(eq("folder2"), anyString(), nullable(Set.class), nullable(Set.class), eq(false)))
+            .thenReturn(Arrays.asList("uid1", "uid2"));
+
+        controller.searchRemoteMessagesCascadingSynchronous(accountUuid, 1L, "query", null, null, false, listener);
+
+        verify(listener).remoteSearchFolderResults(accountUuid, 2L, Arrays.asList("uid1", "uid2"));
+        verify(listener, never()).remoteSearchFolderResults(eq(accountUuid), eq(1L), ArgumentMatchers.<String>anyList());
+        verify(listener, never()).remoteSearchResultsLimited(anyInt());
+    }
+
+    @Test
+    public void searchRemoteMessagesCascadingSynchronous_withMoreResultsThanLimit_shouldReportNotLoadedResults()
+            throws Exception {
+        setupCascadingRemoteSearch(1);
+        account.setRemoteSearchNumResults(2);
+        List<String> foundMessages = Arrays.asList("uid1", "uid2", "uid3", "uid4", "uid5");
+        when(backend.search(eq("folder1"), anyString(), nullable(Set.class), nullable(Set.class), eq(false)))
+            .thenReturn(foundMessages);
+        when(localStore.getFolder(1L).extractNewMessages(ArgumentMatchers.<String>anyList())).thenReturn(foundMessages);
+
+        controller.searchRemoteMessagesCascadingSynchronous(accountUuid, 1L, "query", null, null, false, listener);
+
+        verify(backend).downloadMessageStructure("folder1", "uid1");
+        verify(backend).downloadMessageStructure("folder1", "uid2");
+        verify(backend, never()).downloadMessageStructure("folder1", "uid3");
+        verify(listener).remoteSearchFolderResults(accountUuid, 1L, Arrays.asList("uid1", "uid2"));
+        verify(listener).remoteSearchResultsLimited(3);
     }
 
     private void setupCascadingRemoteSearch(int folderCount) throws Exception {

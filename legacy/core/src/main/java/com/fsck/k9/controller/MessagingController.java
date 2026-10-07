@@ -583,17 +583,27 @@ public class MessagingController implements MessagingControllerRegistry, Messagi
         }
     }
 
+    /**
+     * Search all folders of all accounts on the server, starting with the given folder.
+     *
+     * @param searchMessageContents
+     *         {@code true} to also search the contents of the messages instead of only the sender, recipients and
+     *         subject. This is slower.
+     */
     public Future<?> searchRemoteMessagesCascading(String startAccountUuid, long startFolderId, String query,
-            Set<Flag> requiredFlags, Set<Flag> forbiddenFlags, MessagingListener listener) {
-        Log.i("searchRemoteMessagesCascading (acct = %s, startFolderId = %d)", startAccountUuid, startFolderId);
+            Set<Flag> requiredFlags, Set<Flag> forbiddenFlags, boolean searchMessageContents,
+            MessagingListener listener) {
+        Log.i("searchRemoteMessagesCascading (acct = %s, startFolderId = %d, contents = %b)", startAccountUuid,
+                startFolderId, searchMessageContents);
 
         return threadPool.submit(() -> searchRemoteMessagesCascadingSynchronous(startAccountUuid, startFolderId, query,
-                requiredFlags, forbiddenFlags, listener));
+                requiredFlags, forbiddenFlags, searchMessageContents, listener));
     }
 
     @VisibleForTesting
     void searchRemoteMessagesCascadingSynchronous(String startAccountUuid, long startFolderId, String query,
-            Set<Flag> requiredFlags, Set<Flag> forbiddenFlags, MessagingListener listener) {
+            Set<Flag> requiredFlags, Set<Flag> forbiddenFlags, boolean searchMessageContents,
+            MessagingListener listener) {
         if (listener != null) {
             listener.remoteSearchStarted(startFolderId);
         }
@@ -603,6 +613,7 @@ public class MessagingController implements MessagingControllerRegistry, Messagi
             int folderCount = targets.size();
             int folderIndex = 0;
             int failedFolderCount = 0;
+            int notLoadedResultCount = 0;
             String failureReason = null;
             Map<String, Integer> consecutiveFailures = new HashMap<>();
             Set<String> unreachableAccounts = new HashSet<>();
@@ -626,8 +637,8 @@ public class MessagingController implements MessagingControllerRegistry, Messagi
                 }
 
                 try {
-                    searchSingleFolderOnServer(target.account, target.folderId, query, requiredFlags, forbiddenFlags,
-                            listener);
+                    notLoadedResultCount += searchSingleFolderOnServer(target.account, target.folderId, query,
+                            requiredFlags, forbiddenFlags, searchMessageContents, listener);
                     consecutiveFailures.remove(accountUuid);
                 } catch (Exception e) {
                     if (Thread.currentThread().isInterrupted()) {
@@ -647,8 +658,13 @@ public class MessagingController implements MessagingControllerRegistry, Messagi
                 }
             }
 
-            if (failedFolderCount > 0 && listener != null && !Thread.currentThread().isInterrupted()) {
-                listener.remoteSearchCascadeIncomplete(failedFolderCount, folderCount, failureReason);
+            if (listener != null && !Thread.currentThread().isInterrupted()) {
+                if (failedFolderCount > 0) {
+                    listener.remoteSearchCascadeIncomplete(failedFolderCount, folderCount, failureReason);
+                }
+                if (notLoadedResultCount > 0) {
+                    listener.remoteSearchResultsLimited(notLoadedResultCount);
+                }
             }
         } catch (Exception e) {
             if (Thread.currentThread().isInterrupted()) {
@@ -674,8 +690,12 @@ public class MessagingController implements MessagingControllerRegistry, Messagi
         return rootCause.getLocalizedMessage();
     }
 
-    private void searchSingleFolderOnServer(LegacyAccountDto account, long folderId, String query,
-            Set<Flag> requiredFlags, Set<Flag> forbiddenFlags, MessagingListener listener) throws MessagingException {
+    /**
+     * @return The number of search results that were not loaded because of the account's server search limit.
+     */
+    private int searchSingleFolderOnServer(LegacyAccountDto account, long folderId, String query,
+            Set<Flag> requiredFlags, Set<Flag> forbiddenFlags, boolean searchMessageContents,
+            MessagingListener listener) throws MessagingException {
         LocalStore localStore = localStoreProvider.getInstance(account);
         LocalFolder localFolder = localStore.getFolder(folderId);
         if (!localFolder.exists()) {
@@ -686,18 +706,28 @@ public class MessagingController implements MessagingControllerRegistry, Messagi
         String folderServerId = localFolder.getServerId();
 
         Backend backend = getBackend(account);
-        boolean performFullTextSearch = account.isRemoteSearchFullText();
-        List<String> messageServerIds = backend.search(folderServerId, query, requiredFlags, forbiddenFlags,
+        boolean performFullTextSearch = searchMessageContents || account.isRemoteSearchFullText();
+        List<String> foundMessageServerIds = backend.search(folderServerId, query, requiredFlags, forbiddenFlags,
                 performFullTextSearch);
 
-        messageServerIds = localFolder.extractNewMessages(messageServerIds);
+        List<String> newMessageServerIds = localFolder.extractNewMessages(foundMessageServerIds);
+        List<String> notLoadedMessageServerIds = Collections.emptyList();
 
         int resultLimit = account.getRemoteSearchNumResults();
-        if (resultLimit > 0 && messageServerIds.size() > resultLimit) {
-            messageServerIds = messageServerIds.subList(0, resultLimit);
+        if (resultLimit > 0 && newMessageServerIds.size() > resultLimit) {
+            notLoadedMessageServerIds = newMessageServerIds.subList(resultLimit, newMessageServerIds.size());
+            newMessageServerIds = newMessageServerIds.subList(0, resultLimit);
         }
 
-        loadSearchResultsSynchronous(account, messageServerIds, localFolder, listener);
+        loadSearchResultsSynchronous(account, newMessageServerIds, localFolder, listener);
+
+        if (listener != null && !foundMessageServerIds.isEmpty()) {
+            List<String> availableMessageServerIds = new ArrayList<>(foundMessageServerIds);
+            availableMessageServerIds.removeAll(notLoadedMessageServerIds);
+            listener.remoteSearchFolderResults(account.getUuid(), folderId, availableMessageServerIds);
+        }
+
+        return notLoadedMessageServerIds.size();
     }
 
     private List<CascadeSearchTarget> buildCascadeSearchTargets(String startAccountUuid, long startFolderId)
