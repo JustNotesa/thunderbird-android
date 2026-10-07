@@ -1,9 +1,12 @@
 package com.fsck.k9.mail.store.imap;
 
 
+import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 
 import net.thunderbird.core.common.mail.Flag;
+import net.thunderbird.core.common.mail.SearchQueryKt;
 
 
 class UidSearchCommandBuilder {
@@ -46,15 +49,23 @@ class UidSearchCommandBuilder {
             return;
         }
 
-        String encodedQuery = ImapUtility.encodeString(queryString);
-        if (performFullTextSearch) {
-            builder.append(" TEXT ").append(encodedQuery);
-        } else {
-            builder.append(" OR OR OR OR SUBJECT ").append(encodedQuery)
-                    .append(" FROM ").append(encodedQuery)
-                    .append(" TO ").append(encodedQuery)
-                    .append(" CC ").append(encodedQuery)
-                    .append(" BCC ").append(encodedQuery);
+        // A message has to match every term of the query. Search keys that follow each other are combined with AND.
+        List<String> searchTerms = SearchQueryKt.splitSearchQuery(queryString);
+        if (searchTerms.isEmpty()) {
+            searchTerms = Collections.singletonList(queryString);
+        }
+
+        for (String searchTerm : searchTerms) {
+            String encodedTerm = ImapUtility.encodeString(searchTerm);
+            if (performFullTextSearch) {
+                builder.append(" TEXT ").append(encodedTerm);
+            } else {
+                builder.append(" OR OR OR OR SUBJECT ").append(encodedTerm)
+                        .append(" FROM ").append(encodedTerm)
+                        .append(" TO ").append(encodedTerm)
+                        .append(" CC ").append(encodedTerm)
+                        .append(" BCC ").append(encodedTerm);
+            }
         }
     }
 

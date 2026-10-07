@@ -35,4 +35,36 @@ public class UidSearchCommandBuilderTest {
         assertEquals("UID SEARCH OR OR OR OR SUBJECT \"query\" FROM \"query\" TO \"query\" CC \"query\"" +
                 " BCC \"query\" NOT DELETED", command);
     }
+
+    @Test
+    public void build_withMultipleWords_shouldRequireEveryWord() {
+        String command = new UidSearchCommandBuilder()
+                .performFullTextSearch(false)
+                .queryString("alice invoice")
+                .build();
+
+        assertEquals("UID SEARCH OR OR OR OR SUBJECT \"alice\" FROM \"alice\" TO \"alice\" CC \"alice\"" +
+                " BCC \"alice\" OR OR OR OR SUBJECT \"invoice\" FROM \"invoice\" TO \"invoice\"" +
+                " CC \"invoice\" BCC \"invoice\"", command);
+    }
+
+    @Test
+    public void build_withMultipleWordsAndFullTextSearch_shouldRequireEveryWord() {
+        String command = new UidSearchCommandBuilder()
+                .performFullTextSearch(true)
+                .queryString("alice invoice")
+                .build();
+
+        assertEquals("UID SEARCH TEXT \"alice\" TEXT \"invoice\"", command);
+    }
+
+    @Test
+    public void build_withQuotedText_shouldSearchForPhrase() {
+        String command = new UidSearchCommandBuilder()
+                .performFullTextSearch(true)
+                .queryString("\"alice example\" invoice")
+                .build();
+
+        assertEquals("UID SEARCH TEXT \"alice example\" TEXT \"invoice\"", command);
+    }
 }

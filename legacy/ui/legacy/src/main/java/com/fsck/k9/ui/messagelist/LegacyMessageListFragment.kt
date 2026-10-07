@@ -1154,7 +1154,7 @@ class LegacyMessageListFragment :
     }
 
     private fun onRemoteSearchRequested(searchMessageContents: Boolean = false) {
-        val queryString = localSearch.remoteSearchArguments ?: return
+        val queryString = manualSearchQuery ?: return
 
         isRemoteSearch = true
         isSearchingMessageContents = searchMessageContents
@@ -2308,6 +2308,13 @@ class LegacyMessageListFragment :
             Toast.makeText(activity, getText(R.string.remote_search_unavailable_no_network), Toast.LENGTH_SHORT).show()
         }
     }
+
+    /**
+     * The query the user has entered for a manual search.
+     */
+    private val manualSearchQuery: String?
+        get() = activity?.intent?.getStringExtra(SearchManager.QUERY)?.trim()?.takeIf { it.isNotEmpty() }
+            ?: localSearch.remoteSearchArguments
 
     private val hasAccountSupportingRemoteSearch: Boolean by lazy { messagingController.supportsRemoteSearch() }
 
