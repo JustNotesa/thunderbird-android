@@ -933,19 +933,17 @@ class LegacyMessageListFragment :
         val title = when {
             isUnifiedFolders -> getString(R.string.integrated_inbox_title)
             isNewMessagesView -> getString(R.string.new_messages_title)
-            isManualSearch -> getString(R.string.search_results)
+            // The search results display the search field with their query instead of a title.
+            isManualSearch -> ""
             isThreadDisplay -> threadTitle ?: ""
             isSingleFolderMode -> currentFolder!!.displayName
             else -> ""
         }
 
-        val subtitle = account.let { account ->
-            if (account == null || isUnifiedFolders || accountManager.getAccounts().size == 1) {
-                null
-            } else {
-                account.profile.name
-            }
-        }
+        val subtitle = account
+            ?.takeUnless { isUnifiedFolders || isManualSearch }
+            ?.takeIf { accountManager.getAccounts().size > 1 }
+            ?.profile?.name
 
         fragmentListener.setMessageListTitle(title, subtitle)
     }
@@ -1375,7 +1373,9 @@ class LegacyMessageListFragment :
         initializeSearchSuggestions(searchView)
 
         if (isManualSearch) {
-            // The search results display their query so it can be changed.
+            // The search results display their query so it can be changed. Leave room for the other toolbar actions.
+            searchView.maxWidth = resources.displayMetrics.widthPixels -
+                resources.getDimensionPixelSize(R.dimen.messageListSearchResultsToolbarReservedWidth)
             searchView.setIconifiedByDefault(false)
             searchView.setQuery(initialSearchViewQuery ?: manualSearchQuery, false)
             searchView.clearFocus()

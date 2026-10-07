@@ -5,6 +5,8 @@
 
     <dimen name="message_view_pager_page_margin">16dp</dimen>
     <dimen name="messageListSwipeThreshold">72dp</dimen>
+    <!-- Navigation icon and overflow menu next to the search field of the search results -->
+    <dimen name="messageListSearchResultsToolbarReservedWidth">120dp</dimen>
     <dimen name="messageListSwipeIconPadding">24dp</dimen>
     <dimen name="messageListSwipeTextPadding">12dp</dimen>
 
