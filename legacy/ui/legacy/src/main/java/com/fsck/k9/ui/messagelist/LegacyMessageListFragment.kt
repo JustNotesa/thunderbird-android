@@ -1,6 +1,5 @@
 package com.fsck.k9.ui.messagelist
 
-import android.animation.ObjectAnimator
 import android.app.SearchManager
 import android.content.Context
 import android.content.Intent
@@ -12,7 +11,6 @@ import android.view.MenuInflater
 import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
-import android.view.animation.LinearInterpolator
 import android.widget.AutoCompleteTextView
 import android.widget.ProgressBar
 import android.widget.TextView
@@ -35,6 +33,7 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsCompat.Type.systemBars
 import androidx.core.view.isGone
+import androidx.core.view.isInvisible
 import androidx.core.view.isVisible
 import androidx.core.view.setPadding
 import androidx.core.view.updateLayoutParams
@@ -135,9 +134,8 @@ import net.thunderbird.feature.mail.message.list.R as MessageListApiR
 
 const val MAXIMUM_MESSAGE_SORT_OVERRIDES = 3
 const val MINIMUM_CLICK_INTERVAL = 200L
-private const val AUTOMATIC_REMOTE_SEARCH_DELAY = 2000L
-private const val COUNTDOWN_PROGRESS_MAX = 1000
 private const val NO_FOLDER_ID = -1L
+private const val PROBLEM_MAX_LINES = 3
 const val RECENT_CHANGES_SNACKBAR_DURATION = 10 * 1000
 
 private const val TAG = "BaseMessageListFragment"
@@ -235,10 +233,8 @@ class LegacyMessageListFragment :
     private var hasRemoteSearchFailed = false
     private var isAutomaticRemoteSearchScheduled = false
     private val automaticRemoteSearchRunnable = Runnable {
-        if (isResumed && isRemoteSearchAllowed && connectivityManager.isNetworkAvailable()) {
+        if (isResumed && isRemoteSearchAllowed) {
             onRemoteSearchRequested()
-        } else if (remoteSearchFuture == null) {
-            hideSearchStatus()
         }
     }
     private var remoteSearchProblem: String? = null
@@ -248,7 +244,6 @@ class LegacyMessageListFragment :
     private var isSearchingMessageContents = false
     private var hasSearchedMessageContents = false
     private var searchContentsButton: View? = null
-    private var searchCountdownAnimator: ObjectAnimator? = null
     private var searchStatusBar: View? = null
     private var searchStatusText: TextView? = null
     private var searchStatusSpinner: View? = null
@@ -563,37 +558,21 @@ class LegacyMessageListFragment :
      * Display a simple status message, e.g. while the remote search is being started.
      */
     private fun showSearchStatus(text: String) {
-        cancelSearchCountdown()
-        searchStatusText?.text = text
+        searchStatusText?.apply {
+            maxLines = 1
+            this.text = text
+        }
         searchStatusSpinner?.isVisible = true
         searchStatusErrorIcon?.isVisible = false
-        searchStatusProgress?.isVisible = false
-        searchStatusFolder?.isVisible = false
-        searchStatusDetail?.isVisible = false
-        searchStatusBar?.visibility = View.VISIBLE
-    }
-
-    /**
-     * Display a status message together with a bar that runs down during [duration] milliseconds.
-     */
-    private fun showSearchCountdown(text: String, duration: Long) {
-        showSearchStatus(text)
-
-        val progressBar = searchStatusProgress ?: return
-        searchStatusSpinner?.isVisible = false
-        progressBar.max = COUNTDOWN_PROGRESS_MAX
-        progressBar.progress = COUNTDOWN_PROGRESS_MAX
-        progressBar.isVisible = true
-        searchCountdownAnimator = ObjectAnimator.ofInt(progressBar, "progress", COUNTDOWN_PROGRESS_MAX, 0).apply {
-            this.duration = duration
-            interpolator = LinearInterpolator()
-            start()
+        // Reserve the space of the progress details so the message list doesn't move while the search is running.
+        searchStatusProgress?.isInvisible = true
+        searchStatusFolder?.isInvisible = true
+        searchStatusDetail?.apply {
+            maxLines = 1
+            this.text = null
+            isInvisible = true
         }
-    }
-
-    private fun cancelSearchCountdown() {
-        searchCountdownAnimator?.cancel()
-        searchCountdownAnimator = null
+        searchStatusBar?.visibility = View.VISIBLE
     }
 
     /**
@@ -618,13 +597,15 @@ class LegacyMessageListFragment :
      * Display which folder the remote search is working on and how many folders there are in total.
      */
     private fun showSearchProgress(folderIndex: Int, folderCount: Int, folderLabel: String) {
-        cancelSearchCountdown()
         val statusText = if (isSearchingMessageContents) {
             R.string.remote_search_contents_status_progress
         } else {
             R.string.remote_search_status_progress
         }
-        searchStatusText?.text = getString(statusText, folderIndex, folderCount)
+        searchStatusText?.apply {
+            maxLines = 1
+            text = getString(statusText, folderIndex, folderCount)
+        }
         searchStatusSpinner?.isVisible = true
         searchStatusErrorIcon?.isVisible = false
         searchStatusProgress?.apply {
@@ -635,6 +616,10 @@ class LegacyMessageListFragment :
         searchStatusFolder?.apply {
             text = folderLabel
             isVisible = true
+        }
+        searchStatusDetail?.let { detail ->
+            // Keeps its space even while there is nothing to display
+            if (!detail.isVisible) detail.isInvisible = true
         }
         searchStatusBar?.visibility = View.VISIBLE
     }
@@ -651,13 +636,16 @@ class LegacyMessageListFragment :
      * remote search is started.
      */
     private fun showSearchProblem(text: String, reason: String?) {
-        cancelSearchCountdown()
-        searchStatusText?.text = text
+        searchStatusText?.apply {
+            maxLines = PROBLEM_MAX_LINES
+            this.text = text
+        }
         searchStatusSpinner?.isVisible = false
         searchStatusErrorIcon?.isVisible = true
         searchStatusProgress?.isVisible = false
         searchStatusFolder?.isVisible = false
         searchStatusDetail?.apply {
+            maxLines = PROBLEM_MAX_LINES
             this.text = reason
             isVisible = !reason.isNullOrBlank()
         }
@@ -668,7 +656,6 @@ class LegacyMessageListFragment :
      * Hide the progress of the remote search. A problem reported by the remote search remains visible.
      */
     private fun hideSearchStatus() {
-        cancelSearchCountdown()
         val problem = remoteSearchProblem
         if (problem != null) {
             showSearchProblem(problem, remoteSearchProblemReason)
@@ -1063,7 +1050,6 @@ class LegacyMessageListFragment :
         searchStatusFolder = null
         searchStatusDetail = null
         searchContentsButton = null
-        cancelSearchCountdown()
 
         if (isNewMessagesView && !requireActivity().isChangingConfigurations) {
             account?.id?.let { messagingController.clearNewMessages(it) }
@@ -1129,7 +1115,7 @@ class LegacyMessageListFragment :
         updateTitle()
 
         if (!initialMessageListLoad) {
-            scheduleAutomaticRemoteSearch()
+            startAutomaticRemoteSearch()
         }
     }
 
@@ -1138,9 +1124,6 @@ class LegacyMessageListFragment :
 
         recyclerView?.removeCallbacks(automaticRemoteSearchRunnable)
         isAutomaticRemoteSearchScheduled = false
-        if (remoteSearchFuture == null) {
-            hideSearchStatus()
-        }
 
         messagingControllerRegistry.removeListener(activityListener)
     }
@@ -2436,20 +2419,25 @@ class LegacyMessageListFragment :
         }
         updateFooterText()
 
-        scheduleAutomaticRemoteSearch()
+        startAutomaticRemoteSearch()
     }
 
     /**
-     * Once the local search results are displayed, continue with a server search after a short delay.
+     * Continue with a server search as soon as the local search results are displayed.
      */
-    private fun scheduleAutomaticRemoteSearch() {
+    private fun startAutomaticRemoteSearch() {
         if (!isResumed || isAutomaticRemoteSearchScheduled || !isRemoteSearchAllowed) return
-        if (!connectivityManager.isNetworkAvailable()) return
         val recyclerView = recyclerView ?: return
 
         isAutomaticRemoteSearchScheduled = true
-        showSearchCountdown(getString(R.string.remote_search_starting_soon), AUTOMATIC_REMOTE_SEARCH_DELAY)
-        recyclerView.postDelayed(automaticRemoteSearchRunnable, AUTOMATIC_REMOTE_SEARCH_DELAY)
+        if (connectivityManager.isNetworkAvailable()) {
+            // Don't start the search from within the list update that triggered it.
+            recyclerView.post(automaticRemoteSearchRunnable)
+        } else {
+            remoteSearchProblem = getString(R.string.remote_search_unavailable_no_network)
+            remoteSearchProblemReason = null
+            hideSearchStatus()
+        }
     }
 
     private fun resetActionMode() {

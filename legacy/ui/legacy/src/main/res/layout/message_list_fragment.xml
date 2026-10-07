@@ -99,7 +99,9 @@
                             android:textAppearance="?attr/textAppearanceBodyMedium"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            tools:text="Searching on server: folder 12 of 290"
+                            android:ellipsize="end"
+                            android:maxLines="1"
+                            tools:text="Server search: folder 12 of 290"
                             />
 
                     </LinearLayout>
@@ -136,7 +138,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="2dp"
                         android:ellipsize="end"
-                        android:maxLines="2"
+                        android:maxLines="1"
                         android:visibility="gone"
                         tools:text="3 messages found. Latest: Quarterly report"
                         tools:visibility="visible"

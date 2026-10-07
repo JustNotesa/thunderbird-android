@@ -864,10 +864,9 @@
     <string name="account_settings_remote_search_num_results_entries_500">500</string>
     <string name="account_settings_remote_search_num_results_entries_1000">1000</string>
     <string name="account_settings_remote_search_num_label">Server search limit</string>
-    <string name="remote_search_starting_soon">Server search starts in a moment</string>
     <string name="remote_search_sending_query">Sending query to server</string>
-    <string name="remote_search_status_progress">Searching on server: folder %1$d of %2$d</string>
-    <string name="remote_search_contents_status_progress">Searching message contents on server: folder %1$d of %2$d</string>
+    <string name="remote_search_status_progress">Server search: folder %1$d of %2$d</string>
+    <string name="remote_search_contents_status_progress">Content search: folder %1$d of %2$d</string>
     <string name="remote_search_contents_action">Also search message contents</string>
     <plurals name="remote_search_results_limited">
         <item quantity="one">%d more result on the server was not loaded because of the server search limit</item>
