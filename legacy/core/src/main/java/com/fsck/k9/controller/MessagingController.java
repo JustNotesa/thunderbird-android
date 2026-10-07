@@ -124,6 +124,7 @@ public class MessagingController implements MessagingControllerRegistry, Messagi
     public static final Set<Flag> SYNC_FLAGS = EnumSet.of(Flag.SEEN, Flag.FLAGGED, Flag.ANSWERED, Flag.FORWARDED);
 
     private static final int MAX_CONSECUTIVE_CASCADE_SEARCH_FAILURES = 3;
+    private static final long NO_START_FOLDER_ID = -1L;
 
     private static final long FOLDER_LIST_STALENESS_THRESHOLD = 30 * 60 * 1000L;
 
@@ -584,14 +585,19 @@ public class MessagingController implements MessagingControllerRegistry, Messagi
     }
 
     /**
-     * Search all folders of all accounts on the server, starting with the given folder.
+     * Search all folders of all accounts on the server.
      *
+     * @param startAccountUuid
+     *         The account to search first, or {@code null} if the search wasn't started from a single account.
+     * @param startFolderId
+     *         The folder of the start account to search first, or {@code null} if the search wasn't started from a
+     *         single folder.
      * @param searchMessageContents
      *         {@code true} to also search the contents of the messages instead of only the sender, recipients and
      *         subject. This is slower.
      */
-    public Future<?> searchRemoteMessagesCascading(String startAccountUuid, long startFolderId, String query,
-            Set<Flag> requiredFlags, Set<Flag> forbiddenFlags, boolean searchMessageContents,
+    public Future<?> searchRemoteMessagesCascading(@Nullable String startAccountUuid, @Nullable Long startFolderId,
+            String query, Set<Flag> requiredFlags, Set<Flag> forbiddenFlags, boolean searchMessageContents,
             MessagingListener listener) {
         Log.i("searchRemoteMessagesCascading (acct = %s, startFolderId = %d, contents = %b)", startAccountUuid,
                 startFolderId, searchMessageContents);
@@ -601,11 +607,12 @@ public class MessagingController implements MessagingControllerRegistry, Messagi
     }
 
     @VisibleForTesting
-    void searchRemoteMessagesCascadingSynchronous(String startAccountUuid, long startFolderId, String query,
-            Set<Flag> requiredFlags, Set<Flag> forbiddenFlags, boolean searchMessageContents,
+    void searchRemoteMessagesCascadingSynchronous(@Nullable String startAccountUuid, @Nullable Long startFolderId,
+            String query, Set<Flag> requiredFlags, Set<Flag> forbiddenFlags, boolean searchMessageContents,
             MessagingListener listener) {
+        long listenerFolderId = startFolderId != null ? startFolderId : NO_START_FOLDER_ID;
         if (listener != null) {
-            listener.remoteSearchStarted(startFolderId);
+            listener.remoteSearchStarted(listenerFolderId);
         }
 
         try {
@@ -677,7 +684,7 @@ public class MessagingController implements MessagingControllerRegistry, Messagi
             }
         } finally {
             if (listener != null) {
-                listener.remoteSearchFinished(startFolderId, 0, 0, null);
+                listener.remoteSearchFinished(listenerFolderId, 0, 0, null);
             }
         }
     }
@@ -730,8 +737,8 @@ public class MessagingController implements MessagingControllerRegistry, Messagi
         return notLoadedMessageServerIds.size();
     }
 
-    private List<CascadeSearchTarget> buildCascadeSearchTargets(String startAccountUuid, long startFolderId)
-            throws MessagingException {
+    private List<CascadeSearchTarget> buildCascadeSearchTargets(@Nullable String startAccountUuid,
+            @Nullable Long startFolderId) throws MessagingException {
         List<LegacyAccountDto> orderedAccounts = new ArrayList<>();
         for (LegacyAccountDto account : preferences.getAccounts()) {
             if (account.getId().toString().equals(startAccountUuid)) {
@@ -758,7 +765,7 @@ public class MessagingController implements MessagingControllerRegistry, Messagi
                     continue;
                 }
 
-                if (isStartAccount && target.folderId == startFolderId) {
+                if (isStartAccount && startFolderId != null && target.folderId == startFolderId) {
                     targets.add(0, target);
                 } else {
                     targets.add(target);
@@ -1979,6 +1986,18 @@ public class MessagingController implements MessagingControllerRegistry, Messagi
 
     public boolean isCopyCapable(final LegacyAccountDto account) {
         return getBackend(account).getSupportsCopy();
+    }
+
+    /**
+     * @return {@code true} if at least one account supports searching messages on the server.
+     */
+    public boolean supportsRemoteSearch() {
+        for (LegacyAccountDto account : preferences.getAccounts()) {
+            if (isPushCapable(account)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public boolean isPushCapable(LegacyAccountDto account) {

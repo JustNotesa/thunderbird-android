@@ -67,6 +67,8 @@ import org.robolectric.RuntimeEnvironment;
 import org.robolectric.shadows.ShadowLog;
 
 import static java.util.Collections.emptyList;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.nullable;
@@ -416,6 +418,47 @@ public class MessagingControllerTest extends K9RobolectricTest {
         verify(backend, never()).downloadMessageStructure("folder1", "uid3");
         verify(listener).remoteSearchFolderResults(accountId.toString(), 1L, Arrays.asList("uid1", "uid2"));
         verify(listener).remoteSearchResultsLimited(3);
+    }
+
+    @Test
+    public void searchRemoteMessagesCascadingSynchronous_withoutStartFolder_shouldSearchAllFolders()
+            throws Exception {
+        setupCascadingRemoteSearch(3);
+
+        controller.searchRemoteMessagesCascadingSynchronous(null, null, "query", null, null, false, listener);
+
+        verify(backend).search(eq("folder1"), eq("query"), nullable(Set.class), nullable(Set.class), eq(false));
+        verify(backend).search(eq("folder2"), eq("query"), nullable(Set.class), nullable(Set.class), eq(false));
+        verify(backend).search(eq("folder3"), eq("query"), nullable(Set.class), nullable(Set.class), eq(false));
+        verify(listener).remoteSearchFinished(-1L, 0, 0, null);
+    }
+
+    @Test
+    public void searchRemoteMessagesCascadingSynchronous_withStartFolder_shouldSearchStartFolderFirst()
+            throws Exception {
+        setupCascadingRemoteSearch(3);
+
+        controller.searchRemoteMessagesCascadingSynchronous(accountId.toString(), 3L, "query", null, null, false,
+            listener);
+
+        InOrder inOrder = inOrder(backend);
+        inOrder.verify(backend).search(eq("folder3"), anyString(), nullable(Set.class), nullable(Set.class), eq(false));
+        inOrder.verify(backend).search(eq("folder1"), anyString(), nullable(Set.class), nullable(Set.class), eq(false));
+        inOrder.verify(backend).search(eq("folder2"), anyString(), nullable(Set.class), nullable(Set.class), eq(false));
+    }
+
+    @Test
+    public void supportsRemoteSearch_withAccountSupportingIt_shouldReturnTrue() {
+        when(backend.isPushCapable()).thenReturn(true);
+
+        assertTrue(controller.supportsRemoteSearch());
+    }
+
+    @Test
+    public void supportsRemoteSearch_withoutAccountSupportingIt_shouldReturnFalse() {
+        when(backend.isPushCapable()).thenReturn(false);
+
+        assertFalse(controller.supportsRemoteSearch());
     }
 
     private void setupCascadingRemoteSearch(int folderCount) throws Exception {

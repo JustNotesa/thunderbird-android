@@ -67,15 +67,15 @@ class MessagingControllerWrapper(
     )
 
     fun searchRemoteMessagesCascading(
-        id: AccountId,
-        startFolderId: Long,
+        id: AccountId?,
+        startFolderId: Long?,
         query: String?,
         requiredFlags: Set<Flag>?,
         forbiddenFlags: Set<Flag>?,
         searchMessageContents: Boolean,
         listener: MessagingListener,
     ): Future<*>? = messagingController.searchRemoteMessagesCascading(
-        id.toString(),
+        id?.toString(),
         startFolderId,
         query,
         requiredFlags,
@@ -216,6 +216,8 @@ class MessagingControllerWrapper(
         val account = getAccountDtoOrNull(id) ?: return false
         return messagingController.supportsExpunge(account)
     }
+
+    fun supportsRemoteSearch(): Boolean = messagingController.supportsRemoteSearch()
 
     fun isPushCapable(id: AccountId): Boolean {
         val account = getAccountDtoOrNull(id) ?: return false

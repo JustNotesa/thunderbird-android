@@ -137,6 +137,7 @@ const val MAXIMUM_MESSAGE_SORT_OVERRIDES = 3
 const val MINIMUM_CLICK_INTERVAL = 200L
 private const val AUTOMATIC_REMOTE_SEARCH_DELAY = 2000L
 private const val COUNTDOWN_PROGRESS_MAX = 1000
+private const val NO_FOLDER_ID = -1L
 const val RECENT_CHANGES_SNACKBAR_DURATION = 10 * 1000
 
 private const val TAG = "BaseMessageListFragment"
@@ -962,8 +963,15 @@ class LegacyMessageListFragment :
     }
 
     override fun onFooterClicked() {
-        val account = this.account ?: return
-        val currentFolder = this.currentFolder ?: return
+        val account = this.account
+        val currentFolder = this.currentFolder
+        if (account == null || currentFolder == null) {
+            // A search spanning multiple folders or accounts only offers to continue on the server.
+            if (isRemoteSearchAllowed) {
+                onRemoteSearch()
+            }
+            return
+        }
 
         if (currentFolder.moreMessages && !localSearch.isManualSearch) {
             val folderId = currentFolder.databaseId
@@ -1146,7 +1154,6 @@ class LegacyMessageListFragment :
     }
 
     private fun onRemoteSearchRequested(searchMessageContents: Boolean = false) {
-        val folderId = currentFolder!!.databaseId
         val queryString = localSearch.remoteSearchArguments ?: return
 
         isRemoteSearch = true
@@ -1158,16 +1165,16 @@ class LegacyMessageListFragment :
         remoteSearchNotLoadedCount = 0
         swipeRefreshLayout?.isEnabled = false
 
-        val account = this.account ?: return
-
         // Widen the visible search to all folders and accounts so that results found by the
         // cascading remote search show up in this list.
         localSearch = createManualQuerySearch(queryString)
         loadMessageList(forceUpdate = true)
 
+        // The account and folder the search was started from are searched first. A search that was started from
+        // multiple folders or accounts, e.g. the Unified Folders, has neither.
         remoteSearchFuture = messagingController.searchRemoteMessagesCascading(
-            account.id,
-            folderId,
+            account?.id,
+            currentFolder?.databaseId,
             queryString,
             null,
             null,
@@ -2171,14 +2178,11 @@ class LegacyMessageListFragment :
                     logger.error(logTag) { "Could not cancel remote search future." }
                 }
 
-                // Closing the folder will kill off the connection if we're mid-search.
-                val searchAccount = account!!
-
                 // Send a remoteSearchFinished() message for good measure.
                 activityListener.remoteSearchFinished(
-                    currentFolder!!.databaseId,
+                    currentFolder?.databaseId ?: NO_FOLDER_ID,
                     0,
-                    searchAccount.remoteSearchNumResults,
+                    account?.remoteSearchNumResults ?: 0,
                     null,
                 )
             } catch (e: Exception) {
@@ -2305,10 +2309,10 @@ class LegacyMessageListFragment :
         }
     }
 
+    private val hasAccountSupportingRemoteSearch: Boolean by lazy { messagingController.supportsRemoteSearch() }
+
     private val isRemoteSearchSupported: Boolean
-        get() = isManualSearch &&
-            isSingleFolderMode &&
-            (account?.id?.let { messagingController.isPushCapable(it) } == true)
+        get() = isManualSearch && hasAccountSupportingRemoteSearch
 
     private val isRemoteSearchAllowed: Boolean
         get() = !isRemoteSearch && isRemoteSearchSupported
