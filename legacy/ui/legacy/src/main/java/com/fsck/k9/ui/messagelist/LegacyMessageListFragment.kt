@@ -318,11 +318,20 @@ class LegacyMessageListFragment :
         }
 
     override fun isSearchViewCollapsed(): Boolean {
-        return searchView?.isIconified != false
+        val searchView = searchView ?: return true
+
+        // The search results always display the search field. It only counts as open while it is being edited.
+        return if (isManualSearch) !searchView.hasFocus() else searchView.isIconified
     }
 
     override fun expandSearchView() {
-        searchView?.isIconified = false
+        val searchView = searchView ?: return
+
+        if (isManualSearch) {
+            searchView.requestFocus()
+        } else {
+            searchView.isIconified = false
+        }
     }
 
     override val isShowAccountIndicator: Boolean
@@ -1358,9 +1367,6 @@ class LegacyMessageListFragment :
 
     private fun prepareSearchMenu(menu: Menu) {
         val searchItem = menu.findItem(R.id.search)
-        searchItem.isVisible = !isManualSearch
-
-        if (!searchItem.isVisible) return
 
         searchView?.let { searchView ->
             searchItem.actionView = searchView
@@ -1385,8 +1391,15 @@ class LegacyMessageListFragment :
 
         initializeSearchSuggestions(searchView)
 
-        searchView.setQuery(initialSearchViewQuery, false)
-        searchView.isIconified = initialSearchViewIconified
+        if (isManualSearch) {
+            // The search results display their query so it can be changed.
+            searchView.setIconifiedByDefault(false)
+            searchView.setQuery(initialSearchViewQuery ?: manualSearchQuery, false)
+            searchView.clearFocus()
+        } else {
+            searchView.setQuery(initialSearchViewQuery, false)
+            searchView.isIconified = initialSearchViewIconified
+        }
 
         this.searchView = searchView
     }
@@ -1425,8 +1438,32 @@ class LegacyMessageListFragment :
             searchHistory.add(query)
         }
 
-        onSearchRequested(query)
-        collapseSearchView()
+        if (isManualSearch) {
+            replaceSearch(query)
+        } else {
+            onSearchRequested(query)
+            collapseSearchView()
+        }
+    }
+
+    /**
+     * Display the results for [query] instead of the current search results. The new search covers the same
+     * account and folder as the current one.
+     */
+    private fun replaceSearch(query: String) {
+        searchView?.clearFocus()
+
+        val currentIntent = requireActivity().intent
+        val searchIntent = Intent(requireContext(), MessageSearchActivity::class.java).apply {
+            action = Intent.ACTION_SEARCH
+            putExtra(SearchManager.QUERY, query)
+            putExtra(SearchManager.APP_DATA, currentIntent.getBundleExtra(SearchManager.APP_DATA))
+
+            addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        }
+
+        startActivity(searchIntent)
     }
 
     private fun prepareMenu(menu: Menu) {
@@ -1489,8 +1526,14 @@ class LegacyMessageListFragment :
 
     override fun collapseSearchView() {
         searchView?.let { searchView ->
-            searchView.setQuery(null, false)
-            searchView.isIconified = true
+            if (isManualSearch) {
+                // Discard the changes to the query of the displayed search results
+                searchView.setQuery(manualSearchQuery, false)
+                searchView.clearFocus()
+            } else {
+                searchView.setQuery(null, false)
+                searchView.isIconified = true
+            }
         }
     }
 
