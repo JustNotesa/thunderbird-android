@@ -331,7 +331,7 @@ public class MessagingControllerTest extends K9RobolectricTest {
         setupRemoteSearch();
         when(localNewMessage2.getSubject()).thenReturn("Subject");
 
-        controller.searchRemoteMessagesSynchronous(accountUuid, FOLDER_ID, "query", reqFlags, forbiddenFlags, listener);
+        controller.searchRemoteMessagesSynchronous(accountId, FOLDER_ID, "query", reqFlags, forbiddenFlags, listener);
 
         verify(listener).remoteSearchMessageDownloaded(nullable(String.class), eq("Subject"));
     }
@@ -341,7 +341,7 @@ public class MessagingControllerTest extends K9RobolectricTest {
             throws Exception {
         setupCascadingRemoteSearch(3);
 
-        controller.searchRemoteMessagesCascadingSynchronous(accountUuid, 1L, "query", null, null, false, listener);
+        controller.searchRemoteMessagesCascadingSynchronous(accountId.toString(), 1L, "query", null, null, false, listener);
 
         verify(backend, times(3)).search(anyString(), eq("query"), nullable(Set.class), nullable(Set.class), eq(false));
         verify(listener, never()).remoteSearchCascadeIncomplete(anyInt(), anyInt(), nullable(String.class));
@@ -355,7 +355,7 @@ public class MessagingControllerTest extends K9RobolectricTest {
         when(backend.search(eq("folder2"), anyString(), nullable(Set.class), nullable(Set.class), eq(false)))
             .thenThrow(new MessagingException("IO Error", new IOException("Connection reset")));
 
-        controller.searchRemoteMessagesCascadingSynchronous(accountUuid, 1L, "query", null, null, false, listener);
+        controller.searchRemoteMessagesCascadingSynchronous(accountId.toString(), 1L, "query", null, null, false, listener);
 
         verify(backend, times(3)).search(anyString(), eq("query"), nullable(Set.class), nullable(Set.class), eq(false));
         verify(listener).remoteSearchCascadeIncomplete(1, 3, "Connection reset");
@@ -369,7 +369,7 @@ public class MessagingControllerTest extends K9RobolectricTest {
         when(backend.search(anyString(), anyString(), nullable(Set.class), nullable(Set.class), eq(false)))
             .thenThrow(new MessagingException("IO Error", new IOException("Unable to resolve host")));
 
-        controller.searchRemoteMessagesCascadingSynchronous(accountUuid, 1L, "query", null, null, false, listener);
+        controller.searchRemoteMessagesCascadingSynchronous(accountId.toString(), 1L, "query", null, null, false, listener);
 
         verify(backend, times(3)).search(anyString(), eq("query"), nullable(Set.class), nullable(Set.class), eq(false));
         verify(listener).remoteSearchCascadeIncomplete(10, 10, "Unable to resolve host");
@@ -381,7 +381,7 @@ public class MessagingControllerTest extends K9RobolectricTest {
             throws Exception {
         setupCascadingRemoteSearch(2);
 
-        controller.searchRemoteMessagesCascadingSynchronous(accountUuid, 1L, "query", null, null, true, listener);
+        controller.searchRemoteMessagesCascadingSynchronous(accountId.toString(), 1L, "query", null, null, true, listener);
 
         verify(backend, times(2)).search(anyString(), eq("query"), nullable(Set.class), nullable(Set.class), eq(true));
     }
@@ -392,10 +392,10 @@ public class MessagingControllerTest extends K9RobolectricTest {
         when(backend.search(eq("folder2"), anyString(), nullable(Set.class), nullable(Set.class), eq(false)))
             .thenReturn(Arrays.asList("uid1", "uid2"));
 
-        controller.searchRemoteMessagesCascadingSynchronous(accountUuid, 1L, "query", null, null, false, listener);
+        controller.searchRemoteMessagesCascadingSynchronous(accountId.toString(), 1L, "query", null, null, false, listener);
 
-        verify(listener).remoteSearchFolderResults(accountUuid, 2L, Arrays.asList("uid1", "uid2"));
-        verify(listener, never()).remoteSearchFolderResults(eq(accountUuid), eq(1L), ArgumentMatchers.<String>anyList());
+        verify(listener).remoteSearchFolderResults(accountId.toString(), 2L, Arrays.asList("uid1", "uid2"));
+        verify(listener, never()).remoteSearchFolderResults(eq(accountId.toString()), eq(1L), ArgumentMatchers.<String>anyList());
         verify(listener, never()).remoteSearchResultsLimited(anyInt());
     }
 
@@ -409,12 +409,12 @@ public class MessagingControllerTest extends K9RobolectricTest {
             .thenReturn(foundMessages);
         when(localStore.getFolder(1L).extractNewMessages(ArgumentMatchers.<String>anyList())).thenReturn(foundMessages);
 
-        controller.searchRemoteMessagesCascadingSynchronous(accountUuid, 1L, "query", null, null, false, listener);
+        controller.searchRemoteMessagesCascadingSynchronous(accountId.toString(), 1L, "query", null, null, false, listener);
 
         verify(backend).downloadMessageStructure("folder1", "uid1");
         verify(backend).downloadMessageStructure("folder1", "uid2");
         verify(backend, never()).downloadMessageStructure("folder1", "uid3");
-        verify(listener).remoteSearchFolderResults(accountUuid, 1L, Arrays.asList("uid1", "uid2"));
+        verify(listener).remoteSearchFolderResults(accountId.toString(), 1L, Arrays.asList("uid1", "uid2"));
         verify(listener).remoteSearchResultsLimited(3);
     }
 

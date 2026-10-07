@@ -1106,7 +1106,7 @@ open class MessageHomeActivity :
 
     override fun showFolder(account: LegacyAccount, folderId: Long) {
         val search = LocalMessageSearch().apply {
-            addAccountUuid(account.uuid)
+            addAccountUuid(account.id.toString())
             addAllowedFolder(folderId)
         }
 

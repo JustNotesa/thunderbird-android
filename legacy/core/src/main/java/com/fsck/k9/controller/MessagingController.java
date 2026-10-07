@@ -724,7 +724,7 @@ public class MessagingController implements MessagingControllerRegistry, Messagi
         if (listener != null && !foundMessageServerIds.isEmpty()) {
             List<String> availableMessageServerIds = new ArrayList<>(foundMessageServerIds);
             availableMessageServerIds.removeAll(notLoadedMessageServerIds);
-            listener.remoteSearchFolderResults(account.getUuid(), folderId, availableMessageServerIds);
+            listener.remoteSearchFolderResults(account.getId().toString(), folderId, availableMessageServerIds);
         }
 
         return notLoadedMessageServerIds.size();
