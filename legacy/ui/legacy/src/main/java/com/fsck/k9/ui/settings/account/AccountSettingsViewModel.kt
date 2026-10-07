@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.asLiveData
 import androidx.lifecycle.viewModelScope
 import app.k9mail.legacy.mailstore.MessageStoreManager
+import com.fsck.k9.backend.BackendManager
 import com.fsck.k9.mailstore.SpecialFolderSelectionStrategy
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -28,6 +29,7 @@ class AccountSettingsViewModel(
     private val remoteFolderQueryRepository: RemoteFolderQueryRepository,
     private val specialFolderSelectionStrategy: SpecialFolderSelectionStrategy,
     private val messageStoreManager: MessageStoreManager,
+    private val backendManager: BackendManager,
     private val logger: Logger,
     private val backgroundDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
@@ -41,6 +43,13 @@ class AccountSettingsViewModel(
      * The storage the messages and attachments of the account occupy on the device.
      */
     val localStorageSize: LiveData<LocalStorageSize> = localStorageSizeLiveData
+
+    private val serverStorageLiveData = MutableLiveData<ServerStorage>()
+
+    /**
+     * The storage the account uses on the server.
+     */
+    val serverStorage: LiveData<ServerStorage> = serverStorageLiveData
 
     fun getAccount(accountId: AccountId): LiveData<LegacyAccountDto?> {
         if (this.accountId != accountId) {
@@ -94,6 +103,26 @@ class AccountSettingsViewModel(
         return foldersLiveData
     }
 
+    fun loadServerStorage(account: LegacyAccountDto) {
+        serverStorageLiveData.value = ServerStorage.Loading
+
+        viewModelScope.launch {
+            serverStorageLiveData.value = withContext(backgroundDispatcher) {
+                try {
+                    val storageQuota = backendManager.getBackend(account.id).getStorageQuota()
+                    if (storageQuota != null) {
+                        ServerStorage.Known(usedBytes = storageQuota.usedBytes, limitBytes = storageQuota.limitBytes)
+                    } else {
+                        ServerStorage.NotReported
+                    }
+                } catch (e: MessagingException) {
+                    logger.error(TAG, e) { "Couldn't determine the storage used on the server" }
+                    ServerStorage.Unknown
+                }
+            }
+        }
+    }
+
     private fun loadFolders(account: LegacyAccountDto) {
         viewModelScope.launch {
             val remoteFolderInfo = withContext(backgroundDispatcher) {
@@ -133,6 +162,20 @@ class AccountSettingsViewModel(
 sealed interface LocalStorageSize {
     data class Known(val bytes: Long) : LocalStorageSize
     data object Unknown : LocalStorageSize
+}
+
+sealed interface ServerStorage {
+    data object Loading : ServerStorage
+    data class Known(val usedBytes: Long, val limitBytes: Long) : ServerStorage {
+        val freeBytes: Long
+            get() = (limitBytes - usedBytes).coerceAtLeast(0L)
+    }
+
+    /**
+     * The server doesn't tell how much storage is used.
+     */
+    data object NotReported : ServerStorage
+    data object Unknown : ServerStorage
 }
 
 data class RemoteFolderInfo(

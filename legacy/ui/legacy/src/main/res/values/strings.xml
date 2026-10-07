@@ -517,9 +517,13 @@
     <string name="account_settings_mail_check_frequency_label">Folder poll frequency</string>
 
     <string name="account_settings_mail_display_count_label">Local folder size</string>
-    <string name="account_settings_local_storage_title">Storage used on this device</string>
-    <string name="account_settings_local_storage_calculating">Calculating…</string>
-    <string name="account_settings_local_storage_unknown">Could not be determined</string>
+    <string name="account_settings_storage_device">On this device: %s</string>
+    <string name="account_settings_storage_device_calculating">On this device: calculating…</string>
+    <string name="account_settings_storage_device_unknown">On this device: could not be determined</string>
+    <string name="account_settings_storage_server">On the server: %1$s used, %2$s free</string>
+    <string name="account_settings_storage_server_checking">On the server: checking…</string>
+    <string name="account_settings_storage_server_not_reported">On the server: not reported by the server</string>
+    <string name="account_settings_storage_server_unknown">On the server: could not be determined</string>
 
     <string name="account_settings_autodownload_message_size_label">Fetch messages up to</string>
     <string name="account_settings_autodownload_message_size_1">1 KiB</string>

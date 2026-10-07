@@ -68,6 +68,8 @@ class AccountSettingsFragment : PreferenceFragmentCompat(), ConfirmationDialogFr
     private val vibrator: Vibrator by inject()
     private val appNameProvider: AppNameProvider by inject()
 
+    private val sizeFormatter: SizeFormatter by lazy { SizeFormatter(resources) }
+
     private lateinit var dataStore: AccountSettingsDataStore
 
     private var notificationSoundPreference: NotificationSoundPreference? = null
@@ -102,7 +104,7 @@ class AccountSettingsFragment : PreferenceFragmentCompat(), ConfirmationDialogFr
         initializeGeneralSettings()
         initializeReadingMail()
         initializeFetchingMail()
-        initializeLocalStorage()
+        initializeStorageInfo(account)
         initializeSearch()
         initializeIncomingServer()
         initializeComposition()
@@ -157,7 +159,7 @@ class AccountSettingsFragment : PreferenceFragmentCompat(), ConfirmationDialogFr
         initializeCryptoSettings(account)
 
         // Messages might have been downloaded or removed since the size was displayed the last time
-        if (findPreference<Preference>(PREFERENCE_LOCAL_STORAGE) != null) {
+        if (findPreference<Preference>(PREFERENCE_STORAGE_INFO) != null) {
             viewModel.loadLocalStorageSize(account)
         }
 
@@ -202,14 +204,40 @@ class AccountSettingsFragment : PreferenceFragmentCompat(), ConfirmationDialogFr
         }
     }
 
-    private fun initializeLocalStorage() {
-        val localStoragePreference = findPreference<Preference>(PREFERENCE_LOCAL_STORAGE) ?: return
+    private fun initializeStorageInfo(account: LegacyAccountDto) {
+        val storageInfoPreference = findPreference<Preference>(PREFERENCE_STORAGE_INFO) ?: return
 
-        viewModel.localStorageSize.observe(this) { localStorageSize ->
-            localStoragePreference.summary = when (localStorageSize) {
-                is LocalStorageSize.Known -> SizeFormatter(resources).formatSize(localStorageSize.bytes)
-                LocalStorageSize.Unknown -> getString(R.string.account_settings_local_storage_unknown)
+        fun updateStorageInfo() {
+            val deviceInfo = formatDeviceStorage(viewModel.localStorageSize.value)
+            val serverInfo = formatServerStorage(viewModel.serverStorage.value)
+            storageInfoPreference.summary = "$deviceInfo\n$serverInfo"
+        }
+
+        viewModel.localStorageSize.observe(this) { updateStorageInfo() }
+        viewModel.serverStorage.observe(this) { updateStorageInfo() }
+        viewModel.loadServerStorage(account)
+    }
+
+    private fun formatDeviceStorage(localStorageSize: LocalStorageSize?): String {
+        return when (localStorageSize) {
+            is LocalStorageSize.Known -> {
+                getString(R.string.account_settings_storage_device, sizeFormatter.formatSize(localStorageSize.bytes))
             }
+            LocalStorageSize.Unknown -> getString(R.string.account_settings_storage_device_unknown)
+            null -> getString(R.string.account_settings_storage_device_calculating)
+        }
+    }
+
+    private fun formatServerStorage(serverStorage: ServerStorage?): String {
+        return when (serverStorage) {
+            is ServerStorage.Known -> getString(
+                R.string.account_settings_storage_server,
+                sizeFormatter.formatSize(serverStorage.usedBytes),
+                sizeFormatter.formatSize(serverStorage.freeBytes),
+            )
+            ServerStorage.NotReported -> getString(R.string.account_settings_storage_server_not_reported)
+            ServerStorage.Unknown -> getString(R.string.account_settings_storage_server_unknown)
+            ServerStorage.Loading, null -> getString(R.string.account_settings_storage_server_checking)
         }
     }
 
@@ -546,7 +574,7 @@ class AccountSettingsFragment : PreferenceFragmentCompat(), ConfirmationDialogFr
 
         private const val PREFERENCE_READING_MAIL = "reading_mail"
         private const val PREFERENCE_FETCHING_MAIL = "fetching_mail"
-        private const val PREFERENCE_LOCAL_STORAGE = "local_storage"
+        private const val PREFERENCE_STORAGE_INFO = "storage_info"
         private const val PREFERENCE_SEARCH = "search"
         private const val PREFERENCE_INCOMING_SERVER = "incoming"
         private const val PREFERENCE_COMPOSITION = "composition"

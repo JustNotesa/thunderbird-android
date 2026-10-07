@@ -41,6 +41,7 @@ val settingsUiModule = module {
             remoteFolderQueryRepository = get(),
             specialFolderSelectionStrategy = get(),
             messageStoreManager = get(),
+            backendManager = get(),
             logger = get(),
         )
     }
