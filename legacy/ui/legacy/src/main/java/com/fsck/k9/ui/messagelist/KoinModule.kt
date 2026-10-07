@@ -37,4 +37,5 @@ val messageListUiModule = module {
         )
     }
     single { SortTypeToastProvider() }
+    single { SearchHistory(context = get()) }
 }

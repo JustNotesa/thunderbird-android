@@ -11,11 +11,13 @@ import android.view.MenuInflater
 import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
+import android.widget.AutoCompleteTextView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.ActivityResultLauncher
 import androidx.annotation.Discouraged
 import androidx.annotation.StringRes
+import androidx.appcompat.R as AppCompatR
 import androidx.appcompat.view.ActionMode
 import androidx.appcompat.widget.SearchView
 import androidx.compose.animation.animateContentSize
@@ -162,6 +164,7 @@ class LegacyMessageListFragment :
     private val recentChangesViewModel: RecentChangesViewModel by viewModel()
 
     private val generalSettingsManager: GeneralSettingsManager by inject()
+    private val searchHistory: SearchHistory by inject()
     private val sortTypeToastProvider: SortTypeToastProvider by inject()
     private val folderNameFormatter: FolderNameFormatter by inject { parametersOf(requireContext()) }
     private val messagingController: MessagingControllerWrapper by inject()
@@ -1183,8 +1186,7 @@ class LegacyMessageListFragment :
         searchView.setOnQueryTextListener(
             object : SearchView.OnQueryTextListener {
                 override fun onQueryTextSubmit(query: String): Boolean {
-                    onSearchRequested(query)
-                    collapseSearchView()
+                    submitSearch(query)
                     return true
                 }
 
@@ -1194,10 +1196,50 @@ class LegacyMessageListFragment :
             },
         )
 
+        initializeSearchSuggestions(searchView)
+
         searchView.setQuery(initialSearchViewQuery, false)
         searchView.isIconified = initialSearchViewIconified
 
         this.searchView = searchView
+    }
+
+    /**
+     * Suggest the most recent search queries below the search field.
+     */
+    private fun initializeSearchSuggestions(searchView: SearchView) {
+        val searchHistoryAdapter = SearchHistoryAdapter(
+            context = searchView.context,
+            queries = { if (isSearchHistoryEnabled) searchHistory.getQueries() else emptyList() },
+            onRemoveQuery = { query -> searchHistory.remove(query) },
+        )
+        searchView.suggestionsAdapter = searchHistoryAdapter
+
+        // Display the suggestions as soon as the search field is opened, not only once the user has typed something.
+        searchView.findViewById<AutoCompleteTextView>(AppCompatR.id.search_src_text)?.threshold = 0
+
+        searchView.setOnSuggestionListener(
+            object : SearchView.OnSuggestionListener {
+                override fun onSuggestionSelect(position: Int): Boolean = false
+
+                override fun onSuggestionClick(position: Int): Boolean {
+                    searchHistoryAdapter.getQuery(position)?.let { query -> submitSearch(query) }
+                    return true
+                }
+            },
+        )
+    }
+
+    private val isSearchHistoryEnabled: Boolean
+        get() = generalSettingsManager.getConfig().privacy.isSearchHistoryEnabled
+
+    private fun submitSearch(query: String) {
+        if (isSearchHistoryEnabled) {
+            searchHistory.add(query)
+        }
+
+        onSearchRequested(query)
+        collapseSearchView()
     }
 
     private fun prepareMenu(menu: Menu) {

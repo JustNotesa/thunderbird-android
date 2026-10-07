@@ -59,6 +59,10 @@ class DefaultPrivacySettingsPreferenceManager(
             key = PrivacySettingKey.IncognitoKeyboard.value,
             defValue = PRIVACY_SETTINGS_DEFAULT_INCOGNITO_KEYBOARD,
         ),
+        isSearchHistoryEnabled = storage.getBoolean(
+            key = PrivacySettingKey.SearchHistoryEnabled.value,
+            defValue = PRIVACY_SETTINGS_DEFAULT_SEARCH_HISTORY_ENABLED,
+        ),
     )
 
     private fun writeConfig(config: PrivacySettings) {
@@ -70,6 +74,10 @@ class DefaultPrivacySettingsPreferenceManager(
                 storageEditor.putBoolean(
                     PrivacySettingKey.IncognitoKeyboard.value,
                     config.isIncognitoKeyboardEnabled,
+                )
+                storageEditor.putBoolean(
+                    PrivacySettingKey.SearchHistoryEnabled.value,
+                    config.isSearchHistoryEnabled,
                 )
                 storageEditor.commit().also { commited ->
                     logger.verbose(TAG) { "writeConfig: storageEditor.commit() resulted in: $commited" }

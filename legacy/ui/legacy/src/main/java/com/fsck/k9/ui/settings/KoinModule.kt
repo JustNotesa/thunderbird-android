@@ -28,6 +28,7 @@ val settingsUiModule = module {
             appLanguageManager = get(),
             generalSettingsManager = get(),
             telemetryManager = get(),
+            searchHistory = get(),
         )
     }
     single(named("SaveSettingsExecutorService")) {
