@@ -59,6 +59,12 @@ interface MessageListFragmentBridgeContract {
         fun showThread(account: LegacyAccount, threadRootId: Long)
         fun openMessage(messageReference: MessageReference)
         fun showFolder(account: LegacyAccount, folderId: Long)
+
+        /**
+         * `true` if the message list is displayed on top of search results the user can return to.
+         */
+        val canReturnToSearchResults: Boolean
+        fun returnToSearchResults()
         fun setMessageListTitle(title: String, subtitle: String? = null)
         fun onCompose(account: LegacyAccount?)
         fun startSearch(query: String, account: LegacyAccount?, folderId: Long?): Boolean

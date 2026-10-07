@@ -513,6 +513,7 @@ class LegacyMessageListFragment :
 
     private fun initializeMessageListLayout(view: View) {
         initializeSwipeRefreshLayout(view)
+        initializeBackToSearchResults(view)
         initializeSearchStatusBar(view)
         initializeFloatingActionButton(view)
         initializeRecyclerView(view)
@@ -522,6 +523,13 @@ class LegacyMessageListFragment :
         initializeSortSettings()
 
         loadMessageList()
+    }
+
+    private fun initializeBackToSearchResults(view: View) {
+        view.findViewById<View>(R.id.back_to_search_results).apply {
+            isVisible = fragmentListener.canReturnToSearchResults && !isThreadDisplay
+            setOnClickListener { fragmentListener.returnToSearchResults() }
+        }
     }
 
     private fun initializeSearchStatusBar(view: View) {

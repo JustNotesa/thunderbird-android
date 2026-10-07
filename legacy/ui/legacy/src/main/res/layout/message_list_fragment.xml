@@ -38,6 +38,24 @@
                 android:orientation="vertical"
                 >
 
+                <com.google.android.material.textview.MaterialTextView
+                    android:id="@+id/back_to_search_results"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="?attr/selectableItemBackground"
+                    android:drawablePadding="12dp"
+                    android:gravity="center_vertical"
+                    android:minHeight="48dp"
+                    android:paddingHorizontal="16dp"
+                    android:text="@string/back_to_search_results"
+                    android:textAppearance="?attr/textAppearanceLabelLarge"
+                    android:textColor="?attr/colorPrimary"
+                    android:visibility="gone"
+                    app:drawableStartCompat="@drawable/ic_arrow_back"
+                    app:drawableTint="?attr/colorPrimary"
+                    tools:visibility="visible"
+                    />
+
                 <LinearLayout
                     android:id="@+id/search_status_bar"
                     android:layout_width="match_parent"
