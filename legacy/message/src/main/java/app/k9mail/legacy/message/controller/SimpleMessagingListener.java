@@ -98,6 +98,14 @@ public abstract class SimpleMessagingListener implements MessagingListener {
     }
 
     @Override
+    public void remoteSearchMessageDownloaded(String folderName, String subject) {
+    }
+
+    @Override
+    public void remoteSearchCascadeIncomplete(int failedFolderCount, int folderCount, String reason) {
+    }
+
+    @Override
     public void remoteSearchFinished(long folderId, int numResults, int maxResults, List<String> extraResults) {
     }
 

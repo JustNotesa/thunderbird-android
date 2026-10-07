@@ -43,27 +43,85 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:background="?attr/colorSurface"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal"
+                    android:orientation="vertical"
                     android:paddingHorizontal="16dp"
                     android:paddingVertical="12dp"
                     android:visibility="gone"
                     tools:visibility="visible"
                     >
 
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal"
+                        >
+
+                        <ProgressBar
+                            android:id="@+id/search_status_spinner"
+                            android:layout_width="20dp"
+                            android:layout_height="20dp"
+                            android:layout_marginEnd="12dp"
+                            android:indeterminate="true"
+                            />
+
+                        <ImageView
+                            android:id="@+id/search_status_error_icon"
+                            android:layout_width="20dp"
+                            android:layout_height="20dp"
+                            android:layout_marginEnd="12dp"
+                            android:contentDescription="@null"
+                            android:visibility="gone"
+                            app:srcCompat="@drawable/ic_error"
+                            app:tint="?attr/colorError"
+                            />
+
+                        <com.google.android.material.textview.MaterialTextView
+                            android:id="@+id/search_status_text"
+                            android:textAppearance="?attr/textAppearanceBodyMedium"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            tools:text="Searching on server: folder 12 of 290"
+                            />
+
+                    </LinearLayout>
+
                     <ProgressBar
-                        android:layout_width="20dp"
-                        android:layout_height="20dp"
-                        android:indeterminate="true"
+                        android:id="@+id/search_status_progress"
+                        style="?android:attr/progressBarStyleHorizontal"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp"
+                        android:visibility="gone"
+                        tools:max="290"
+                        tools:progress="11"
+                        tools:visibility="visible"
                         />
 
                     <com.google.android.material.textview.MaterialTextView
-                        android:id="@+id/search_status_text"
-                        android:textAppearance="?attr/textAppearanceBodyMedium"
+                        android:id="@+id/search_status_folder"
+                        android:textAppearance="?attr/textAppearanceBodySmall"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginStart="12dp"
-                        tools:text="Searching Inbox on server (1 of 14)"
+                        android:layout_marginTop="4dp"
+                        android:ellipsize="middle"
+                        android:singleLine="true"
+                        android:visibility="gone"
+                        tools:text="Projects/Customers/2026"
+                        tools:visibility="visible"
+                        />
+
+                    <com.google.android.material.textview.MaterialTextView
+                        android:id="@+id/search_status_detail"
+                        android:textAppearance="?attr/textAppearanceBodySmall"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:ellipsize="end"
+                        android:maxLines="2"
+                        android:visibility="gone"
+                        tools:text="3 messages found. Latest: Quarterly report"
+                        tools:visibility="visible"
                         />
 
                 </LinearLayout>

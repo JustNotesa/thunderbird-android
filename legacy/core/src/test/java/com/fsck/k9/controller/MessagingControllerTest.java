@@ -1,6 +1,7 @@
 package com.fsck.k9.controller;
 
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -28,6 +29,9 @@ import com.fsck.k9.mailstore.LocalFolder;
 import com.fsck.k9.mailstore.LocalMessage;
 import com.fsck.k9.mailstore.LocalStore;
 import com.fsck.k9.mailstore.LocalStoreProvider;
+import app.k9mail.legacy.mailstore.FolderDetailsAccessor;
+import app.k9mail.legacy.mailstore.FolderMapper;
+import app.k9mail.legacy.mailstore.ListenableMessageStore;
 import app.k9mail.legacy.mailstore.MessageStoreManager;
 import com.fsck.k9.mailstore.OutboxState;
 import com.fsck.k9.mailstore.OutboxStateRepository;
@@ -62,6 +66,7 @@ import org.robolectric.RuntimeEnvironment;
 import org.robolectric.shadows.ShadowLog;
 
 import static java.util.Collections.emptyList;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.ArgumentMatchers.eq;
@@ -70,6 +75,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
@@ -317,6 +323,86 @@ public class MessagingControllerTest extends K9RobolectricTest {
         controller.searchRemoteMessagesSynchronous(accountId, FOLDER_ID, "query", reqFlags, forbiddenFlags, listener);
 
         verify(listener).remoteSearchFinished(FOLDER_ID, 0, 50, Collections.<String>emptyList());
+    }
+
+    @Test
+    public void searchRemoteMessagesSynchronous_shouldNotifyAboutDownloadedMessage() throws Exception {
+        setupRemoteSearch();
+        when(localNewMessage2.getSubject()).thenReturn("Subject");
+
+        controller.searchRemoteMessagesSynchronous(accountUuid, FOLDER_ID, "query", reqFlags, forbiddenFlags, listener);
+
+        verify(listener).remoteSearchMessageDownloaded(nullable(String.class), eq("Subject"));
+    }
+
+    @Test
+    public void searchRemoteMessagesCascadingSynchronous_withoutFailures_shouldNotReportIncompleteSearch()
+            throws Exception {
+        setupCascadingRemoteSearch(3);
+
+        controller.searchRemoteMessagesCascadingSynchronous(accountUuid, 1L, "query", null, null, listener);
+
+        verify(backend, times(3)).search(anyString(), eq("query"), nullable(Set.class), nullable(Set.class), eq(false));
+        verify(listener, never()).remoteSearchCascadeIncomplete(anyInt(), anyInt(), nullable(String.class));
+        verify(listener).remoteSearchFinished(1L, 0, 0, null);
+    }
+
+    @Test
+    public void searchRemoteMessagesCascadingSynchronous_withFailingFolder_shouldSearchOtherFoldersAndReportFailure()
+            throws Exception {
+        setupCascadingRemoteSearch(3);
+        when(backend.search(eq("folder2"), anyString(), nullable(Set.class), nullable(Set.class), eq(false)))
+            .thenThrow(new MessagingException("IO Error", new IOException("Connection reset")));
+
+        controller.searchRemoteMessagesCascadingSynchronous(accountUuid, 1L, "query", null, null, listener);
+
+        verify(backend, times(3)).search(anyString(), eq("query"), nullable(Set.class), nullable(Set.class), eq(false));
+        verify(listener).remoteSearchCascadeIncomplete(1, 3, "Connection reset");
+        verify(listener).remoteSearchFinished(1L, 0, 0, null);
+    }
+
+    @Test
+    public void searchRemoteMessagesCascadingSynchronous_withUnreachableServer_shouldStopTryingAndReportFailure()
+            throws Exception {
+        setupCascadingRemoteSearch(10);
+        when(backend.search(anyString(), anyString(), nullable(Set.class), nullable(Set.class), eq(false)))
+            .thenThrow(new MessagingException("IO Error", new IOException("Unable to resolve host")));
+
+        controller.searchRemoteMessagesCascadingSynchronous(accountUuid, 1L, "query", null, null, listener);
+
+        verify(backend, times(3)).search(anyString(), eq("query"), nullable(Set.class), nullable(Set.class), eq(false));
+        verify(listener).remoteSearchCascadeIncomplete(10, 10, "Unable to resolve host");
+        verify(listener).remoteSearchFinished(1L, 0, 0, null);
+    }
+
+    private void setupCascadingRemoteSearch(int folderCount) throws Exception {
+        List<FolderDetailsAccessor> folders = new ArrayList<>();
+        for (long folderId = 1; folderId <= folderCount; folderId++) {
+            LocalFolder cascadeLocalFolder = mock(LocalFolder.class);
+            when(cascadeLocalFolder.exists()).thenReturn(true);
+            when(cascadeLocalFolder.getServerId()).thenReturn("folder" + folderId);
+            when(cascadeLocalFolder.extractNewMessages(ArgumentMatchers.<String>anyList()))
+                .thenReturn(Collections.<String>emptyList());
+            when(localStore.getFolder(folderId)).thenReturn(cascadeLocalFolder);
+
+            FolderDetailsAccessor folder = mock(FolderDetailsAccessor.class);
+            when(folder.getId()).thenReturn(folderId);
+            when(folder.getName()).thenReturn("Folder " + folderId);
+            when(folder.getServerId()).thenReturn("folder" + folderId);
+            folders.add(folder);
+        }
+
+        ListenableMessageStore messageStore = mock(ListenableMessageStore.class);
+        when(messageStore.getFolders(eq(true), ArgumentMatchers.<FolderMapper<Object>>any())).thenAnswer(invocation -> {
+            FolderMapper<Object> mapper = invocation.getArgument(1);
+            List<Object> result = new ArrayList<>();
+            for (FolderDetailsAccessor folder : folders) {
+                result.add(mapper.map(folder));
+            }
+            return result;
+        });
+        when(messageStoreManager.getMessageStore(account)).thenReturn(messageStore);
+        when(backend.isPushCapable()).thenReturn(true);
     }
 
     @Test

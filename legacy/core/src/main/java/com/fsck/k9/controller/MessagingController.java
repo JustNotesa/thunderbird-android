@@ -123,6 +123,8 @@ import static net.thunderbird.core.common.mail.Flag.X_REMOTE_COPY_STARTED;
 public class MessagingController implements MessagingControllerRegistry, MessagingControllerMailChecker {
     public static final Set<Flag> SYNC_FLAGS = EnumSet.of(Flag.SEEN, Flag.FLAGGED, Flag.ANSWERED, Flag.FORWARDED);
 
+    private static final int MAX_CONSECUTIVE_CASCADE_SEARCH_FAILURES = 3;
+
     private static final long FOLDER_LIST_STALENESS_THRESHOLD = 30 * 60 * 1000L;
 
     private final Context context;
@@ -572,14 +574,18 @@ public class MessagingController implements MessagingControllerRegistry, Messagi
 
             if (localMessage == null) {
                 backend.downloadMessageStructure(folderServerId, messageServerId);
+
+                LocalMessage downloadedMessage = localFolder.getMessage(messageServerId);
+                if (listener != null && downloadedMessage != null) {
+                    listener.remoteSearchMessageDownloaded(folderName, downloadedMessage.getSubject());
+                }
             }
         }
     }
 
     public Future<?> searchRemoteMessagesCascading(String startAccountUuid, long startFolderId, String query,
             Set<Flag> requiredFlags, Set<Flag> forbiddenFlags, MessagingListener listener) {
-        Log.i("searchRemoteMessagesCascading (acct = %s, startFolderId = %d, query = %s)", startAccountUuid,
-                startFolderId, query);
+        Log.i("searchRemoteMessagesCascading (acct = %s, startFolderId = %d)", startAccountUuid, startFolderId);
 
         return threadPool.submit(() -> searchRemoteMessagesCascadingSynchronous(startAccountUuid, startFolderId, query,
                 requiredFlags, forbiddenFlags, listener));
@@ -596,6 +602,10 @@ public class MessagingController implements MessagingControllerRegistry, Messagi
             List<CascadeSearchTarget> targets = buildCascadeSearchTargets(startAccountUuid, startFolderId);
             int folderCount = targets.size();
             int folderIndex = 0;
+            int failedFolderCount = 0;
+            String failureReason = null;
+            Map<String, Integer> consecutiveFailures = new HashMap<>();
+            Set<String> unreachableAccounts = new HashSet<>();
 
             for (CascadeSearchTarget target : targets) {
                 if (Thread.currentThread().isInterrupted()) {
@@ -603,21 +613,42 @@ public class MessagingController implements MessagingControllerRegistry, Messagi
                 }
 
                 folderIndex++;
+                String accountUuid = target.account.getId().toString();
+                if (unreachableAccounts.contains(accountUuid)) {
+                    // Don't keep trying the remaining folders of an account whose server can't be reached.
+                    failedFolderCount++;
+                    continue;
+                }
+
                 if (listener != null) {
-                    listener.remoteSearchCascadeProgress(target.account.getId().toString(),
-                            target.account.getDisplayName(), target.folderName, folderIndex, folderCount);
+                    listener.remoteSearchCascadeProgress(accountUuid, target.account.getDisplayName(),
+                            target.folderName, folderIndex, folderCount);
                 }
 
                 try {
                     searchSingleFolderOnServer(target.account, target.folderId, query, requiredFlags, forbiddenFlags,
                             listener);
+                    consecutiveFailures.remove(accountUuid);
                 } catch (Exception e) {
                     if (Thread.currentThread().isInterrupted()) {
                         break;
                     }
-                    Log.e(e, "Cascading remote search failed for folder %s of account %s", target.folderName,
-                            target.account.getId().toString());
+                    Log.e(e, "Cascading remote search failed for folder %d of account %s", target.folderId,
+                            accountUuid);
+
+                    failedFolderCount++;
+                    failureReason = getRootCauseMessage(e);
+                    Integer previousFailures = consecutiveFailures.get(accountUuid);
+                    int failures = previousFailures == null ? 1 : previousFailures + 1;
+                    consecutiveFailures.put(accountUuid, failures);
+                    if (failures >= MAX_CONSECUTIVE_CASCADE_SEARCH_FAILURES) {
+                        unreachableAccounts.add(accountUuid);
+                    }
                 }
+            }
+
+            if (failedFolderCount > 0 && listener != null && !Thread.currentThread().isInterrupted()) {
+                listener.remoteSearchCascadeIncomplete(failedFolderCount, folderCount, failureReason);
             }
         } catch (Exception e) {
             if (Thread.currentThread().isInterrupted()) {
@@ -633,6 +664,14 @@ public class MessagingController implements MessagingControllerRegistry, Messagi
                 listener.remoteSearchFinished(startFolderId, 0, 0, null);
             }
         }
+    }
+
+    private static String getRootCauseMessage(Throwable throwable) {
+        Throwable rootCause = throwable;
+        while (rootCause.getCause() != null && rootCause.getCause() != rootCause) {
+            rootCause = rootCause.getCause();
+        }
+        return rootCause.getLocalizedMessage();
     }
 
     private void searchSingleFolderOnServer(LegacyAccountDto account, long folderId, String query,
