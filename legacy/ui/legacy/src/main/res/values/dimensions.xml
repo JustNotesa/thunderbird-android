@@ -12,6 +12,8 @@
     <dimen name="messageListContactPictureSize">40dp</dimen>
     <dimen name="messageListHorizontalPadding">16dp</dimen>
     <dimen name="messageListFolderButtonSize">32dp</dimen>
+    <dimen name="messageListFolderTouchTargetHeight">40dp</dimen>
+    <dimen name="messageListFolderTouchTargetInset">4dp</dimen>
     <!-- The folder button is taller than the text line it is centered on. These keep it clear of the star above and
          inside the list item below. -->
     <dimen name="messageListFolderPreviewMinHeight">35dp</dimen>

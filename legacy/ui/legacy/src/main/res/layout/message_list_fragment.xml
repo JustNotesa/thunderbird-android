@@ -129,13 +129,14 @@
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/search_contents_button"
                     style="@style/Widget.Material3.Button.TonalButton.Icon"
-                    android:layout_width="match_parent"
+                    android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
+                    android:layout_gravity="center_horizontal"
                     android:layout_marginHorizontal="16dp"
                     android:layout_marginVertical="4dp"
                     android:text="@string/remote_search_contents_action"
                     android:visibility="gone"
-                    app:icon="@drawable/ic_search"
+                    app:icon="@drawable/ic_find_in_page"
                     tools:visibility="visible"
                     />
 

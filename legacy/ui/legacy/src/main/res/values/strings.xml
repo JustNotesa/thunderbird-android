@@ -867,7 +867,7 @@
     <string name="remote_search_sending_query">Sending query to server</string>
     <string name="remote_search_status_progress">Searching on server: folder %1$d of %2$d</string>
     <string name="remote_search_contents_status_progress">Searching message contents on server: folder %1$d of %2$d</string>
-    <string name="remote_search_contents_action">Also search message contents on the server</string>
+    <string name="remote_search_contents_action">Also search message contents</string>
     <plurals name="remote_search_results_limited">
         <item quantity="one">%d more result on the server was not loaded because of the server search limit</item>
         <item quantity="other">%d more results on the server were not loaded because of the server search limit</item>

@@ -4,6 +4,8 @@ import android.content.res.ColorStateList
 import android.content.res.Resources
 import android.graphics.Typeface
 import android.graphics.drawable.Drawable
+import android.graphics.drawable.InsetDrawable
+import android.graphics.drawable.RippleDrawable
 import android.text.Spannable
 import android.text.SpannableStringBuilder
 import android.text.style.AbsoluteSizeSpan
@@ -37,6 +39,7 @@ import net.thunderbird.core.preference.display.visualSettings.message.list.UiDen
 import net.thunderbird.feature.mail.message.list.R as MessageListR
 
 private const val FOLDER_BUTTON_BACKGROUND_ALPHA = 0x24
+private const val FOLDER_RIPPLE_ALPHA = 0x3D
 
 @Suppress("TooManyFunctions")
 class MessageViewHolder(
@@ -65,6 +68,13 @@ class MessageViewHolder(
     val previewContinuationView: MaterialTextView = view.findViewById(R.id.preview_continuation)
     val folderNameView: MaterialTextView = view.findViewById(R.id.folder_name)
     val folderButtonView: ImageView = view.findViewById(R.id.folder_button)
+
+    // The drawable is shared between list items, but each item uses the color of its account.
+    private val folderRipple: RippleDrawable? by lazy {
+        val background = folderNameClickAreaView.background?.mutate()
+        folderNameClickAreaView.background = background
+        (background as? InsetDrawable)?.drawable as? RippleDrawable
+    }
     val folderNameClickAreaView: View = view.findViewById(R.id.folder_name_click_area)
 
     @Suppress("LongMethod", "CyclomaticComplexMethod")
@@ -188,6 +198,9 @@ class MessageViewHolder(
         )
         folderNameClickAreaView.contentDescription =
             res.getString(R.string.message_list_content_description_open_folder, folderName)
+        folderRipple?.setColor(
+            ColorStateList.valueOf(ColorUtils.setAlphaComponent(accountColor, FOLDER_RIPPLE_ALPHA)),
+        )
 
         // The text is set by updatePreviewContinuation() once the preview has been laid out.
         previewContinuationView.text = null

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Pressed state of the folder label and button of a message list item. The view is taller than what is drawn so it
+     is easier to hit. -->
+<inset
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:insetTop="@dimen/messageListFolderTouchTargetInset"
+    android:insetBottom="@dimen/messageListFolderTouchTargetInset"
+    >
+    <ripple android:color="?attr/colorControlHighlight">
+        <item android:id="@android:id/mask">
+            <shape android:shape="rectangle">
+                <corners android:radius="@dimen/messageListFolderButtonSize" />
+                <solid android:color="@android:color/white" />
+            </shape>
+        </item>
+    </ripple>
+</inset>
