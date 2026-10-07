@@ -34,6 +34,7 @@ import com.fsck.k9.notification.NotificationSettingsUpdater
 import com.fsck.k9.ui.R
 import com.fsck.k9.ui.base.extensions.withArguments
 import com.fsck.k9.ui.endtoend.AutocryptKeyTransferActivity
+import com.fsck.k9.ui.helper.SizeFormatter
 import com.fsck.k9.ui.settings.onClick
 import com.fsck.k9.ui.settings.oneTimeClickListener
 import com.fsck.k9.ui.settings.remove
@@ -101,6 +102,7 @@ class AccountSettingsFragment : PreferenceFragmentCompat(), ConfirmationDialogFr
         initializeGeneralSettings()
         initializeReadingMail()
         initializeFetchingMail()
+        initializeLocalStorage()
         initializeSearch()
         initializeIncomingServer()
         initializeComposition()
@@ -154,6 +156,11 @@ class AccountSettingsFragment : PreferenceFragmentCompat(), ConfirmationDialogFr
         val account = getAccount()
         initializeCryptoSettings(account)
 
+        // Messages might have been downloaded or removed since the size was displayed the last time
+        if (findPreference<Preference>(PREFERENCE_LOCAL_STORAGE) != null) {
+            viewModel.loadLocalStorageSize(account)
+        }
+
         // Don't update the notification preferences when resuming after the user has selected a new notification sound
         // via NotificationSoundPreference. Otherwise we race the background thread and might read data from the old
         // NotificationChannel, overwriting the notification sound with the previous value.
@@ -192,6 +199,17 @@ class AccountSettingsFragment : PreferenceFragmentCompat(), ConfirmationDialogFr
                 target = FeatureLauncherTarget.AccountFetchingMailSettings(accountId),
                 launcher = launcherForActivityResult,
             )
+        }
+    }
+
+    private fun initializeLocalStorage() {
+        val localStoragePreference = findPreference<Preference>(PREFERENCE_LOCAL_STORAGE) ?: return
+
+        viewModel.localStorageSize.observe(this) { localStorageSize ->
+            localStoragePreference.summary = when (localStorageSize) {
+                is LocalStorageSize.Known -> SizeFormatter(resources).formatSize(localStorageSize.bytes)
+                LocalStorageSize.Unknown -> getString(R.string.account_settings_local_storage_unknown)
+            }
         }
     }
 
@@ -528,6 +546,7 @@ class AccountSettingsFragment : PreferenceFragmentCompat(), ConfirmationDialogFr
 
         private const val PREFERENCE_READING_MAIL = "reading_mail"
         private const val PREFERENCE_FETCHING_MAIL = "fetching_mail"
+        private const val PREFERENCE_LOCAL_STORAGE = "local_storage"
         private const val PREFERENCE_SEARCH = "search"
         private const val PREFERENCE_INCOMING_SERVER = "incoming"
         private const val PREFERENCE_COMPOSITION = "composition"

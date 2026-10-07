@@ -26,6 +26,15 @@
         android:title="@string/account_settings_sync"
         />
 
+    <Preference
+        android:icon="@drawable/ic_save"
+        android:key="local_storage"
+        android:persistent="false"
+        android:selectable="false"
+        android:summary="@string/account_settings_local_storage_calculating"
+        android:title="@string/account_settings_local_storage_title"
+        />
+
 
     <PreferenceScreen
         android:icon="@drawable/ic_edit"

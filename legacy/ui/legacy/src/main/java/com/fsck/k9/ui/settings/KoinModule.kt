@@ -35,7 +35,15 @@ val settingsUiModule = module {
         Executors.newSingleThreadExecutor(NamedThreadFactory("SaveSettings"))
     }
 
-    viewModel { AccountSettingsViewModel(get(), get(), get()) }
+    viewModel {
+        AccountSettingsViewModel(
+            accountManager = get(),
+            remoteFolderQueryRepository = get(),
+            specialFolderSelectionStrategy = get(),
+            messageStoreManager = get(),
+            logger = get(),
+        )
+    }
     single {
         AccountSettingsDataStoreFactory(
             preferences = get(),
