@@ -858,6 +858,20 @@ class LegacyMessageListFragment :
         }
     }
 
+    override fun onMessageFolderClicked(messageListItem: MessageListItem) {
+        if (!isActive) return
+
+        val clickTime = SystemClock.elapsedRealtime()
+        if (clickTime - lastMessageClick < MINIMUM_CLICK_INTERVAL) return
+
+        if (adapter.selectedCount > 0) {
+            toggleMessageSelect(messageListItem)
+        } else {
+            lastMessageClick = clickTime
+            fragmentListener.showFolder(messageListItem.account, messageListItem.folderId)
+        }
+    }
+
     override fun onDestroyView() {
         coordinatorLayout = null
         recyclerView = null

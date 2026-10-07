@@ -58,6 +58,7 @@ interface MessageListFragmentBridgeContract {
         fun setMessageListProgress(level: Int)
         fun showThread(account: LegacyAccount, threadRootId: Long)
         fun openMessage(messageReference: MessageReference)
+        fun showFolder(account: LegacyAccount, folderId: Long)
         fun setMessageListTitle(title: String, subtitle: String? = null)
         fun onCompose(account: LegacyAccount?)
         fun startSearch(query: String, account: LegacyAccount?, folderId: Long?): Boolean

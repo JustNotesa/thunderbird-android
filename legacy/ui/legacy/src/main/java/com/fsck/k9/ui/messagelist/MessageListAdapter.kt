@@ -147,6 +147,12 @@ class MessageListAdapter internal constructor(
         listItemListener.onToggleMessageFlag(messageListItem)
     }
 
+    private val folderClickListener = OnClickListener { view: View ->
+        val parentView = view.parent as View
+        val messageListItem = getItemFromView(parentView) ?: return@OnClickListener
+        listItemListener.onMessageFolderClicked(messageListItem)
+    }
+
     private val contactPictureContainerClickListener = OnClickListener { view: View ->
         val parentView = view.parent as View
         val messageListItem = getItemFromView(parentView) ?: return@OnClickListener
@@ -246,6 +252,7 @@ class MessageListAdapter internal constructor(
             onLongClickListener = messageLongClickedListener,
             contactPictureContainerClickListener = contactPictureContainerClickListener,
             starClickListener = starClickListener,
+            folderClickListener = folderClickListener,
         )
 
     private fun createComposableMessageViewHolder(parent: ViewGroup): MessageListViewHolder =
@@ -415,6 +422,7 @@ interface MessageListItemActionListener {
     fun onMessageClicked(messageListItem: MessageListItem)
     fun onToggleMessageSelection(item: MessageListItem)
     fun onToggleMessageFlag(item: MessageListItem)
+    fun onMessageFolderClicked(messageListItem: MessageListItem) = Unit
     fun onFooterClicked()
     fun filterInAppNotificationEvents(notification: InAppNotification): Boolean
     fun onNotificationActionClicked(action: NotificationAction)

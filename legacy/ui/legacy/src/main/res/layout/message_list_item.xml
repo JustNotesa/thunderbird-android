@@ -57,14 +57,67 @@
         android:lineSpacingMultiplier="@dimen/messageListDefaultLineSpacingMultiplier"
         android:singleLine="false"
         android:textAppearance="?attr/textAppearanceBodyMedium"
-        app:layout_constraintBottom_toBottomOf="@+id/bottom_guideline"
+        app:layout_constraintBottom_toTopOf="@+id/preview_continuation"
         app:layout_constraintEnd_toStartOf="@+id/star"
         app:layout_constraintStart_toEndOf="@+id/barrier_start"
         app:layout_constraintTop_toTopOf="@+id/barrier_first_line_bottom"
         app:layout_constraintVertical_bias="0.0"
+        app:layout_constraintVertical_chainStyle="packed"
         app:layout_goneMarginEnd="@dimen/messageListHorizontalPadding"
         tools:maxLines="2"
         tools:text="Sender – Message preview text that can span multiple lines. Users can specify in settings how much of that is displayed."
+        />
+
+    <com.google.android.material.textview.MaterialTextView
+        android:id="@+id/preview_continuation"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="8dp"
+        android:bufferType="spannable"
+        android:ellipsize="end"
+        android:singleLine="true"
+        android:textAppearance="?attr/textAppearanceBodyMedium"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="@+id/bottom_guideline"
+        app:layout_constraintEnd_toStartOf="@+id/folder_name"
+        app:layout_constraintStart_toEndOf="@+id/barrier_start"
+        app:layout_constraintTop_toBottomOf="@+id/preview"
+        tools:text="continued preview text"
+        tools:visibility="visible"
+        />
+
+    <com.google.android.material.textview.MaterialTextView
+        android:id="@+id/folder_name"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="8dp"
+        android:ellipsize="end"
+        android:singleLine="true"
+        android:textAppearance="?attr/textAppearanceLabelSmall"
+        android:visibility="gone"
+        app:layout_constrainedWidth="true"
+        app:layout_constraintBaseline_toBaselineOf="@+id/preview_continuation"
+        app:layout_constraintEnd_toStartOf="@+id/folder_button"
+        app:layout_constraintHorizontal_bias="1.0"
+        app:layout_constraintStart_toEndOf="@+id/barrier_start"
+        tools:text="AB / Inbox"
+        tools:visibility="visible"
+        />
+
+    <ImageView
+        android:id="@+id/folder_button"
+        android:layout_width="@dimen/messageListFolderButtonSize"
+        android:layout_height="@dimen/messageListFolderButtonSize"
+        android:layout_marginEnd="12dp"
+        android:background="@drawable/message_list_folder_button_background"
+        android:contentDescription="@null"
+        android:padding="6dp"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="@+id/preview_continuation"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="@+id/preview_continuation"
+        app:srcCompat="@drawable/ic_folder_open"
+        tools:visibility="visible"
         />
 
     <ImageView
@@ -229,6 +282,18 @@
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toTopOf="parent"
+        />
+
+    <View
+        android:id="@+id/folder_name_click_area"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:background="?attr/selectableItemBackground"
+        android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="@+id/folder_name"
+        app:layout_constraintTop_toTopOf="@+id/preview_continuation"
         />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

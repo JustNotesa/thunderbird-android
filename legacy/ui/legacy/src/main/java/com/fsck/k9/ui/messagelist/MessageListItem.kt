@@ -28,6 +28,11 @@ data class MessageListItem(
     val threadRoot: Long,
     @get:ColorInt
     val contactColor: Int,
+    /**
+     * The display name of the folder containing the message. Only set when the folder should be shown, e.g. in
+     * search results spanning multiple folders.
+     */
+    val folderName: String? = null,
 ) {
     val messageReference: MessageReference
         get() = MessageReference(account.id, folderId, messageUid)

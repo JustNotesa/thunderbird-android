@@ -1,6 +1,8 @@
 package com.fsck.k9.ui.messagelist
 
+import android.app.Activity
 import android.content.Context
+import android.os.Looper
 import android.text.Spannable
 import android.text.style.AbsoluteSizeSpan
 import android.view.ContextThemeWrapper
@@ -13,8 +15,10 @@ import androidx.core.view.isGone
 import androidx.core.view.isVisible
 import assertk.Assert
 import assertk.assertThat
+import assertk.assertions.isEmpty
 import assertk.assertions.isEqualTo
 import assertk.assertions.isNull
+import assertk.assertions.startsWith
 import assertk.assertions.support.expected
 import com.fsck.k9.FontSizes
 import com.fsck.k9.FontSizes.Companion.FONT_DEFAULT
@@ -42,8 +46,12 @@ import net.thunderbird.feature.account.storage.profile.AvatarTypeDto
 import net.thunderbird.feature.account.storage.profile.ProfileDto
 import org.junit.Test
 import org.mockito.kotlin.mock
+import org.mockito.kotlin.verify
 import org.robolectric.Robolectric
+import org.robolectric.Shadows.shadowOf
+import org.robolectric.annotation.GraphicsMode
 
+private const val LIST_ITEM_WIDTH = 1080
 private const val SOME_ACCOUNT_UUID = "6b84207b-25de-4dab-97c3-953bbf03fec6"
 private const val FIRST_LINE_DEFAULT_FONT_SIZE = 16f
 private const val SECOND_LINE_DEFAULT_FONT_SIZE = 14f
@@ -231,6 +239,80 @@ class MessageListAdapterTest : RobolectricTest() {
         val view = adapter.createAndBindView(messageListItem)
 
         assertThat(view.firstLineView.textString).isMissingSubjectText()
+    }
+
+    @Test
+    fun withoutFolderName_shouldHideFolderNameView() {
+        val adapter = createAdapter()
+        val messageListItem = createMessageListItem(folderName = null)
+
+        val view = adapter.createAndBindView(messageListItem)
+
+        assertThat(view.folderNameView).isGone()
+        assertThat(view.folderButtonView).isGone()
+        assertThat(view.previewContinuationView).isGone()
+        assertThat(view.folderNameClickAreaView).isGone()
+    }
+
+    @Test
+    fun withFolderName_shouldShowFolderName() {
+        val adapter = createAdapter()
+        val messageListItem = createMessageListItem(folderName = "Archive")
+
+        val view = adapter.createAndBindView(messageListItem)
+
+        assertThat(view.folderNameView).isVisible()
+        assertThat(view.folderNameView.text.toString()).isEqualTo("ab / Archive")
+        assertThat(view.folderNameView.currentTextColor).isEqualTo(0xFF00FF)
+        assertThat(view.folderButtonView).isVisible()
+        assertThat(view.previewContinuationView).isVisible()
+        assertThat(view.folderNameClickAreaView).isVisible()
+    }
+
+    @Test
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    fun withFolderName_shouldContinuePreviewTextNextToFolder() {
+        val adapter = createAdapter(previewLines = 1)
+        val messageListItem = createMessageListItem(
+            displayName = "Sender",
+            previewText = "word ".repeat(100).trim(),
+            folderName = "Archive",
+        )
+        val view = adapter.createAndBindView(messageListItem)
+
+        view.layoutInWindow()
+
+        val previewLayout = view.secondLineView.layout
+        val expectedContinuation = view.secondLineView.text.toString().substring(previewLayout.getLineEnd(0)).trim()
+        assertThat(view.previewContinuationView.text.toString()).isEqualTo(expectedContinuation)
+        assertThat(expectedContinuation).startsWith("word")
+    }
+
+    @Test
+    @GraphicsMode(GraphicsMode.Mode.NATIVE)
+    fun withFolderNameAndShortPreview_shouldNotContinuePreviewText() {
+        val adapter = createAdapter(previewLines = 2)
+        val messageListItem = createMessageListItem(
+            displayName = "Sender",
+            previewText = "Short",
+            folderName = "Archive",
+        )
+        val view = adapter.createAndBindView(messageListItem)
+
+        view.layoutInWindow()
+
+        assertThat(view.previewContinuationView.text.toString()).isEmpty()
+    }
+
+    @Test
+    fun folderNameClick_shouldNotifyListener() {
+        val adapter = createAdapter()
+        val messageListItem = createMessageListItem(folderName = "Archive")
+        val view = adapter.createAndBindView(messageListItem)
+
+        view.folderNameClickAreaView.performClick()
+
+        verify(listItemListener).onMessageFolderClicked(messageListItem)
     }
 
     @Test
@@ -467,6 +549,7 @@ class MessageListAdapterTest : RobolectricTest() {
         messageUid: String = "irrelevant",
         databaseId: Long = 0L,
         threadRoot: Long = 0L,
+        folderName: String? = null,
     ): MessageListItem {
         return MessageListItem(
             account,
@@ -490,6 +573,7 @@ class MessageListAdapterTest : RobolectricTest() {
             databaseId,
             threadRoot,
             contactColor = -1,
+            folderName = folderName,
         )
     }
 
@@ -545,6 +629,17 @@ class MessageListAdapterTest : RobolectricTest() {
         return holder.itemView
     }
 
+    private fun View.layoutInWindow() {
+        // Posted runnables only run for views attached to a window
+        Robolectric.buildActivity(Activity::class.java).setup().get().setContentView(this)
+        measure(
+            View.MeasureSpec.makeMeasureSpec(LIST_ITEM_WIDTH, View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
+        )
+        layout(0, 0, measuredWidth, measuredHeight)
+        shadowOf(Looper.getMainLooper()).idle()
+    }
+
     fun secondLine(senderOrSubject: String, preview: String) = "$senderOrSubject – $preview"
 
     val View.accountIndicatorView: View get() = findViewById(R.id.account_color_chip)
@@ -555,6 +650,10 @@ class MessageListAdapterTest : RobolectricTest() {
     val View.secondLineView: MaterialTextView get() = findViewById(R.id.preview)
     val View.attachmentCountView: View get() = findViewById(R.id.attachment)
     val View.dateView: MaterialTextView get() = findViewById(R.id.date)
+    val View.folderNameView: MaterialTextView get() = findViewById(R.id.folder_name)
+    val View.folderNameClickAreaView: View get() = findViewById(R.id.folder_name_click_area)
+    val View.folderButtonView: View get() = findViewById(R.id.folder_button)
+    val View.previewContinuationView: MaterialTextView get() = findViewById(R.id.preview_continuation)
 
     private fun Assert<View>.isVisible() = given { actual ->
         if (!actual.isVisible) {

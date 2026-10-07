@@ -47,6 +47,7 @@ object Icons {
         val Favorite = R.drawable.ic_favorite
         val FilterList = R.drawable.ic_filter_list
         val Folder = R.drawable.ic_folder
+        val FolderOpen = R.drawable.ic_folder_open
         val Forum = R.drawable.ic_forum
         val Forward = R.drawable.ic_forward
         val Group = R.drawable.ic_group

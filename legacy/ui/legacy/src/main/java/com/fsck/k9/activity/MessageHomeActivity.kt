@@ -1085,6 +1085,20 @@ open class MessageHomeActivity :
         progressBar!!.progress = level
     }
 
+    override fun showFolder(account: LegacyAccount, folderId: Long) {
+        val search = LocalMessageSearch().apply {
+            addAccountUuid(account.uuid)
+            addAllowedFolder(folderId)
+        }
+
+        // Display the folder in a new activity without navigation drawer. That way going back returns directly to
+        // the message list (e.g. search results) the folder was opened from.
+        val intent = Intent(this, MessageSearchActivity::class.java).apply {
+            putExtra(EXTRA_SEARCH, LocalMessageSearchSerializer.serialize(search))
+        }
+        startActivity(intent)
+    }
+
     override fun openMessage(messageReference: MessageReference) {
         val account = accountManager.getById(messageReference.accountId) ?: error("Account not found")
         val folderId = messageReference.folderId

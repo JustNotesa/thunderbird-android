@@ -1,6 +1,8 @@
 package com.fsck.k9.ui.messagelist
 
 import app.k9mail.legacy.mailstore.MessageListRepository
+import app.k9mail.legacy.ui.folder.FolderNameFormatter
+import com.fsck.k9.activity.FolderInfoHolder
 import com.fsck.k9.contacts.ContactLetterBitmapCreator
 import com.fsck.k9.helper.MessageHelper
 import com.fsck.k9.mailstore.LocalStoreProvider
@@ -9,6 +11,7 @@ import com.fsck.k9.search.getLegacyAccounts
 import net.thunderbird.core.android.account.LegacyAccount
 import net.thunderbird.core.android.account.LegacyAccountManager
 import net.thunderbird.core.android.account.SortType
+import net.thunderbird.core.common.exception.MessagingException
 import net.thunderbird.core.featureflag.FeatureFlagProvider
 import net.thunderbird.core.featureflag.keys.GeneratedFeatureFlagKey
 import net.thunderbird.core.preference.display.visualSettings.message.list.MessageListPreferencesManager
@@ -28,6 +31,7 @@ class MessageListLoader(
     private val outboxFolderManager: OutboxFolderManager,
     private val featureFlagProvider: FeatureFlagProvider,
     private val contactLetterBitmapCreator: ContactLetterBitmapCreator,
+    private val folderNameFormatter: FolderNameFormatter,
 ) {
 
     fun getMessageList(config: MessageListConfig): MessageListInfo {
@@ -69,7 +73,7 @@ class MessageListLoader(
             },
         )
 
-        return when {
+        val messageListItems = when {
             threadId != null -> {
                 messageListRepository.getThread(accountId, threadId, sortOrder, mapper)
             }
@@ -83,6 +87,34 @@ class MessageListLoader(
                 val (selection, selectionArgs) = buildSelection(account, config)
                 messageListRepository.getMessages(accountId, selection, selectionArgs, sortOrder, mapper)
             }
+        }
+
+        return if (config.search.isManualSearch) {
+            messageListItems.withFolderNames(account)
+        } else {
+            messageListItems
+        }
+    }
+
+    /**
+     * Search results can span multiple folders. Add the folder name so the user can tell where a message is stored.
+     */
+    private fun List<MessageListItem>.withFolderNames(account: LegacyAccount): List<MessageListItem> {
+        val folderNames = map { it.folderId }
+            .distinct()
+            .associateWith { folderId -> loadFolderDisplayName(account, folderId) }
+
+        return map { it.copy(folderName = folderNames[it.folderId]) }
+    }
+
+    private fun loadFolderDisplayName(account: LegacyAccount, folderId: Long): String? {
+        return try {
+            val localFolder = localStoreProvider.getInstanceByLegacyAccount(account).getFolder(folderId)
+            localFolder.open()
+            FolderInfoHolder(folderNameFormatter, outboxFolderManager, localFolder, account).displayName
+        } catch (e: MessagingException) {
+            Log.w(e, "Couldn't load folder name")
+            null
         }
     }
 
