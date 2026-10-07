@@ -4,21 +4,30 @@ import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntSize
 import app.k9mail.legacy.ui.folder.FolderNameFormatter
 import net.thunderbird.components.ui.bolt.atom.icon.Icon
 import net.thunderbird.components.ui.bolt.atom.icon.Icons
@@ -34,6 +43,8 @@ import net.thunderbird.feature.navigation.drawer.dropdown.domain.entity.UnifiedD
 import net.thunderbird.feature.navigation.drawer.dropdown.domain.entity.UnifiedDisplayFolderType
 import net.thunderbird.feature.navigation.drawer.dropdown.ui.common.AnimatedExpandIcon
 
+private const val REVEALED_NEIGHBOR_COUNT = 2
+
 @Composable
 internal fun FolderListItem(
     displayFolder: DisplayFolder,
@@ -46,8 +57,11 @@ internal fun FolderListItem(
     treeFolder: DisplayTreeFolder? = null,
     parentPrefix: String? = "",
     indentationLevel: Int = 1,
+    folderIdToReveal: String? = null,
+    onFolderReveal: () -> Unit = {},
 ) {
-    val isExpanded = rememberSaveable(isExpandInitial) { mutableStateOf(isExpandInitial) }
+    val isExpanded = rememberExpandedState(isExpandInitial, treeFolder, selectedFolderId)
+    val folderRevealer = rememberFolderRevealer(folderIdToReveal == displayFolder.id, onFolderReveal)
 
     var unreadCount = displayFolder.unreadMessageCount
     var starredCount = displayFolder.starredMessageCount
@@ -83,31 +97,122 @@ internal fun FolderListItem(
                     else -> onClick(displayFolder)
                 }
             },
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .bringIntoViewRequester(folderRevealer.requester)
+                .onSizeChanged { folderRevealer.size = it },
             icon = { Icon(imageVector = mapFolderIcon(displayFolder)) },
         )
 
         // Managing children
-        if (!isExpanded.value) return
-        if (treeFolder === null) return
-        for (child in treeFolder.children) {
-            val displayParent = treeFolder.displayFolder
-            val displayChild = child.displayFolder
-            if (displayChild == null) continue
-            FolderListItem(
-                displayFolder = displayChild,
+        if (isExpanded.value && treeFolder !== null) {
+            FolderListItemChildren(
+                treeFolder = treeFolder,
                 selectedFolderId = selectedFolderId,
                 showStarredCount = showStarredCount,
                 onClick = onClick,
                 folderNameFormatter = folderNameFormatter,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(start = BoltTheme.spacings.double * indentationLevel),
-                treeFolder = child,
-                parentPrefix = if (displayParent is MailDisplayFolder) displayParent.folder.name else null,
-                indentationLevel = indentationLevel + 1,
+                indentationLevel = indentationLevel,
+                folderIdToReveal = folderIdToReveal,
+                onFolderReveal = onFolderReveal,
             )
         }
+    }
+}
+
+@Composable
+private fun ColumnScope.FolderListItemChildren(
+    treeFolder: DisplayTreeFolder,
+    selectedFolderId: String?,
+    showStarredCount: Boolean,
+    onClick: (DisplayFolder) -> Unit,
+    folderNameFormatter: FolderNameFormatter,
+    indentationLevel: Int,
+    folderIdToReveal: String?,
+    onFolderReveal: () -> Unit,
+) {
+    for (child in treeFolder.children) {
+        val displayParent = treeFolder.displayFolder
+        val displayChild = child.displayFolder
+        if (displayChild == null) continue
+        FolderListItem(
+            displayFolder = displayChild,
+            selectedFolderId = selectedFolderId,
+            showStarredCount = showStarredCount,
+            onClick = onClick,
+            folderNameFormatter = folderNameFormatter,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = BoltTheme.spacings.double * indentationLevel),
+            treeFolder = child,
+            parentPrefix = if (displayParent is MailDisplayFolder) displayParent.folder.name else null,
+            indentationLevel = indentationLevel + 1,
+            folderIdToReveal = folderIdToReveal,
+            onFolderReveal = onFolderReveal,
+        )
+    }
+}
+
+/**
+ * Whether the folders below the folder are displayed.
+ *
+ * The folders above the selected folder are expanded, so the folders next to it can be reached. This only happens
+ * once per selected folder, so the user is still able to collapse them.
+ */
+@Composable
+private fun rememberExpandedState(
+    isExpandInitial: Boolean,
+    treeFolder: DisplayTreeFolder?,
+    selectedFolderId: String?,
+): MutableState<Boolean> {
+    val containsSelectedFolder = remember(treeFolder, selectedFolderId) {
+        treeFolder?.containsFolder(selectedFolderId) == true
+    }
+    val isExpanded = rememberSaveable(isExpandInitial) { mutableStateOf(isExpandInitial || containsSelectedFolder) }
+
+    val expandedForFolderId = rememberSaveable { mutableStateOf(selectedFolderId.takeIf { containsSelectedFolder }) }
+    LaunchedEffect(selectedFolderId, containsSelectedFolder) {
+        if (containsSelectedFolder && expandedForFolderId.value != selectedFolderId) {
+            expandedForFolderId.value = selectedFolderId
+            isExpanded.value = true
+        }
+    }
+
+    return isExpanded
+}
+
+/**
+ * Scrolls the folder into view when requested, together with the folders next to it.
+ */
+@Composable
+private fun rememberFolderRevealer(
+    isRevealRequested: Boolean,
+    onFolderReveal: () -> Unit,
+): FolderRevealer {
+    val folderRevealer = remember { FolderRevealer() }
+    val margin = with(LocalDensity.current) { (BoltTheme.sizes.minTouchTarget * REVEALED_NEIGHBOR_COUNT).toPx() }
+
+    LaunchedEffect(isRevealRequested) {
+        if (isRevealRequested) {
+            try {
+                folderRevealer.reveal(margin)
+            } finally {
+                onFolderReveal()
+            }
+        }
+    }
+
+    return folderRevealer
+}
+
+private class FolderRevealer {
+    val requester = BringIntoViewRequester()
+    var size = IntSize.Zero
+
+    suspend fun reveal(margin: Float) {
+        requester.bringIntoView(
+            Rect(left = 0f, top = -margin, right = size.width.toFloat(), bottom = size.height + margin),
+        )
     }
 }
 
