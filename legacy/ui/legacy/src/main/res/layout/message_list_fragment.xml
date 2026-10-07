@@ -146,19 +146,30 @@
 
                 </LinearLayout>
 
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/search_contents_button"
-                    style="@style/Widget.Material3.Button.TonalButton.Icon"
-                    android:layout_width="wrap_content"
+                <!-- Takes the place of the status of the server search once it has finished. It is given the same
+                     height so the message list doesn't move. -->
+                <FrameLayout
+                    android:id="@+id/search_contents_button_container"
+                    android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_gravity="center_horizontal"
-                    android:layout_marginHorizontal="16dp"
-                    android:layout_marginVertical="4dp"
-                    android:text="@string/remote_search_contents_action"
+                    android:background="?attr/colorSurface"
                     android:visibility="gone"
-                    app:icon="@drawable/ic_find_in_page"
                     tools:visibility="visible"
-                    />
+                    >
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/search_contents_button"
+                        style="@style/Widget.Material3.Button.TonalButton.Icon"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_gravity="center"
+                        android:layout_marginHorizontal="16dp"
+                        android:layout_marginVertical="4dp"
+                        android:text="@string/remote_search_contents_action"
+                        app:icon="@drawable/ic_find_in_page"
+                        />
+
+                </FrameLayout>
 
                 <androidx.recyclerview.widget.RecyclerView
                     android:id="@+id/message_list"

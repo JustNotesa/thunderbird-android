@@ -243,7 +243,8 @@ class LegacyMessageListFragment :
     private var remoteSearchNotLoadedCount = 0
     private var isSearchingMessageContents = false
     private var hasSearchedMessageContents = false
-    private var searchContentsButton: View? = null
+    private var searchContentsButtonContainer: View? = null
+    private var searchStatusHeight = 0
     private var searchStatusBar: View? = null
     private var searchStatusText: TextView? = null
     private var searchStatusSpinner: View? = null
@@ -545,9 +546,8 @@ class LegacyMessageListFragment :
         searchStatusProgress = view.findViewById(R.id.search_status_progress)
         searchStatusFolder = view.findViewById(R.id.search_status_folder)
         searchStatusDetail = view.findViewById(R.id.search_status_detail)
-        searchContentsButton = view.findViewById<View>(R.id.search_contents_button).apply {
-            setOnClickListener { onSearchMessageContentsClicked() }
-        }
+        searchContentsButtonContainer = view.findViewById(R.id.search_contents_button_container)
+        view.findViewById<View>(R.id.search_contents_button).setOnClickListener { onSearchMessageContentsClicked() }
         updateSearchContentsButton()
 
         // Restore a problem reported by a previous remote search, e.g. after returning from a message.
@@ -579,7 +579,15 @@ class LegacyMessageListFragment :
      * Offer to also search the contents of the messages on the server once the regular server search is done.
      */
     private fun updateSearchContentsButton() {
-        searchContentsButton?.isVisible = isRemoteSearchSupported &&
+        val container = searchContentsButtonContainer ?: return
+
+        // When the button replaces the status of the server search it takes up the same space, so the message list
+        // doesn't move.
+        val replacesSearchStatus = searchStatusBar?.isVisible == false && searchStatusHeight > 0
+        container.updateLayoutParams {
+            height = if (replacesSearchStatus) searchStatusHeight else ViewGroup.LayoutParams.WRAP_CONTENT
+        }
+        container.isVisible = isRemoteSearchSupported &&
             isRemoteSearch &&
             remoteSearchFuture == null &&
             !hasSearchedMessageContents
@@ -660,7 +668,12 @@ class LegacyMessageListFragment :
         if (problem != null) {
             showSearchProblem(problem, remoteSearchProblemReason)
         } else {
-            searchStatusBar?.visibility = View.GONE
+            searchStatusBar?.let { searchStatusBar ->
+                if (searchStatusBar.isVisible) {
+                    searchStatusHeight = searchStatusBar.height
+                }
+                searchStatusBar.visibility = View.GONE
+            }
         }
     }
 
@@ -1047,7 +1060,7 @@ class LegacyMessageListFragment :
         searchStatusProgress = null
         searchStatusFolder = null
         searchStatusDetail = null
-        searchContentsButton = null
+        searchContentsButtonContainer = null
 
         if (isNewMessagesView && !requireActivity().isChangingConfigurations) {
             account?.id?.let { messagingController.clearNewMessages(it) }
