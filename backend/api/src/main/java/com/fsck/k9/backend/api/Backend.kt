@@ -78,6 +78,21 @@ interface Backend {
         performFullTextSearch: Boolean,
     ): List<String>
 
+    /**
+     * Like [search], but reports what the search is doing at the moment to [listener].
+     */
+    @Throws(MessagingException::class)
+    fun search(
+        folderServerId: String,
+        query: String?,
+        requiredFlags: Set<Flag>?,
+        forbiddenFlags: Set<Flag>?,
+        performFullTextSearch: Boolean,
+        listener: SearchListener,
+    ): List<String> {
+        return search(folderServerId, query, requiredFlags, forbiddenFlags, performFullTextSearch)
+    }
+
     @Throws(MessagingException::class)
     fun fetchPart(folderServerId: String, messageServerId: String, part: Part, bodyFactory: BodyFactory)
 

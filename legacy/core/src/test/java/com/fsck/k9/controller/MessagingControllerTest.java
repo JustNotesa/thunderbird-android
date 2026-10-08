@@ -18,6 +18,8 @@ import com.fsck.k9.K9RobolectricTest;
 import com.fsck.k9.Preferences;
 import com.fsck.k9.backend.BackendManager;
 import com.fsck.k9.backend.api.Backend;
+import com.fsck.k9.backend.api.SearchListener;
+import com.fsck.k9.backend.api.SearchStep;
 import com.fsck.k9.mail.AuthType;
 import com.fsck.k9.mail.AuthenticationFailedException;
 import com.fsck.k9.mail.CertificateChainException;
@@ -69,6 +71,7 @@ import org.robolectric.shadows.ShadowLog;
 import static java.util.Collections.emptyList;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.nullable;
@@ -345,7 +348,8 @@ public class MessagingControllerTest extends K9RobolectricTest {
 
         controller.searchRemoteMessagesCascadingSynchronous(accountId.toString(), 1L, "query", null, null, false, listener);
 
-        verify(backend, times(3)).search(anyString(), eq("query"), nullable(Set.class), nullable(Set.class), eq(false));
+        verify(backend, times(3)).search(anyString(), eq("query"), nullable(Set.class), nullable(Set.class), eq(false),
+            any(SearchListener.class));
         verify(listener, never()).remoteSearchCascadeIncomplete(anyInt(), anyInt(), nullable(String.class));
         verify(listener).remoteSearchFinished(1L, 0, 0, null);
     }
@@ -354,12 +358,14 @@ public class MessagingControllerTest extends K9RobolectricTest {
     public void searchRemoteMessagesCascadingSynchronous_withFailingFolder_shouldSearchOtherFoldersAndReportFailure()
             throws Exception {
         setupCascadingRemoteSearch(3);
-        when(backend.search(eq("folder2"), anyString(), nullable(Set.class), nullable(Set.class), eq(false)))
+        when(backend.search(eq("folder2"), anyString(), nullable(Set.class), nullable(Set.class), eq(false),
+            any(SearchListener.class)))
             .thenThrow(new MessagingException("IO Error", new IOException("Connection reset")));
 
         controller.searchRemoteMessagesCascadingSynchronous(accountId.toString(), 1L, "query", null, null, false, listener);
 
-        verify(backend, times(3)).search(anyString(), eq("query"), nullable(Set.class), nullable(Set.class), eq(false));
+        verify(backend, times(3)).search(anyString(), eq("query"), nullable(Set.class), nullable(Set.class), eq(false),
+            any(SearchListener.class));
         verify(listener).remoteSearchCascadeIncomplete(1, 3, "Connection reset");
         verify(listener).remoteSearchFinished(1L, 0, 0, null);
     }
@@ -368,12 +374,14 @@ public class MessagingControllerTest extends K9RobolectricTest {
     public void searchRemoteMessagesCascadingSynchronous_withUnreachableServer_shouldStopTryingAndReportFailure()
             throws Exception {
         setupCascadingRemoteSearch(10);
-        when(backend.search(anyString(), anyString(), nullable(Set.class), nullable(Set.class), eq(false)))
+        when(backend.search(anyString(), anyString(), nullable(Set.class), nullable(Set.class), eq(false),
+            any(SearchListener.class)))
             .thenThrow(new MessagingException("IO Error", new IOException("Unable to resolve host")));
 
         controller.searchRemoteMessagesCascadingSynchronous(accountId.toString(), 1L, "query", null, null, false, listener);
 
-        verify(backend, times(3)).search(anyString(), eq("query"), nullable(Set.class), nullable(Set.class), eq(false));
+        verify(backend, times(3)).search(anyString(), eq("query"), nullable(Set.class), nullable(Set.class), eq(false),
+            any(SearchListener.class));
         verify(listener).remoteSearchCascadeIncomplete(10, 10, "Unable to resolve host");
         verify(listener).remoteSearchFinished(1L, 0, 0, null);
     }
@@ -385,13 +393,15 @@ public class MessagingControllerTest extends K9RobolectricTest {
 
         controller.searchRemoteMessagesCascadingSynchronous(accountId.toString(), 1L, "query", null, null, true, listener);
 
-        verify(backend, times(2)).search(anyString(), eq("query"), nullable(Set.class), nullable(Set.class), eq(true));
+        verify(backend, times(2)).search(anyString(), eq("query"), nullable(Set.class), nullable(Set.class), eq(true),
+            any(SearchListener.class));
     }
 
     @Test
     public void searchRemoteMessagesCascadingSynchronous_shouldReportMessagesFoundInFolder() throws Exception {
         setupCascadingRemoteSearch(2);
-        when(backend.search(eq("folder2"), anyString(), nullable(Set.class), nullable(Set.class), eq(false)))
+        when(backend.search(eq("folder2"), anyString(), nullable(Set.class), nullable(Set.class), eq(false),
+            any(SearchListener.class)))
             .thenReturn(Arrays.asList("uid1", "uid2"));
 
         controller.searchRemoteMessagesCascadingSynchronous(accountId.toString(), 1L, "query", null, null, false, listener);
@@ -407,7 +417,8 @@ public class MessagingControllerTest extends K9RobolectricTest {
         setupCascadingRemoteSearch(1);
         account.setRemoteSearchNumResults(2);
         List<String> foundMessages = Arrays.asList("uid1", "uid2", "uid3", "uid4", "uid5");
-        when(backend.search(eq("folder1"), anyString(), nullable(Set.class), nullable(Set.class), eq(false)))
+        when(backend.search(eq("folder1"), anyString(), nullable(Set.class), nullable(Set.class), eq(false),
+            any(SearchListener.class)))
             .thenReturn(foundMessages);
         when(localStore.getFolder(1L).extractNewMessages(ArgumentMatchers.<String>anyList())).thenReturn(foundMessages);
 
@@ -427,9 +438,12 @@ public class MessagingControllerTest extends K9RobolectricTest {
 
         controller.searchRemoteMessagesCascadingSynchronous(null, null, "query", null, null, false, listener);
 
-        verify(backend).search(eq("folder1"), eq("query"), nullable(Set.class), nullable(Set.class), eq(false));
-        verify(backend).search(eq("folder2"), eq("query"), nullable(Set.class), nullable(Set.class), eq(false));
-        verify(backend).search(eq("folder3"), eq("query"), nullable(Set.class), nullable(Set.class), eq(false));
+        verify(backend).search(eq("folder1"), eq("query"), nullable(Set.class), nullable(Set.class), eq(false),
+            any(SearchListener.class));
+        verify(backend).search(eq("folder2"), eq("query"), nullable(Set.class), nullable(Set.class), eq(false),
+            any(SearchListener.class));
+        verify(backend).search(eq("folder3"), eq("query"), nullable(Set.class), nullable(Set.class), eq(false),
+            any(SearchListener.class));
         verify(listener).remoteSearchFinished(-1L, 0, 0, null);
     }
 
@@ -442,9 +456,31 @@ public class MessagingControllerTest extends K9RobolectricTest {
             listener);
 
         InOrder inOrder = inOrder(backend);
-        inOrder.verify(backend).search(eq("folder3"), anyString(), nullable(Set.class), nullable(Set.class), eq(false));
-        inOrder.verify(backend).search(eq("folder1"), anyString(), nullable(Set.class), nullable(Set.class), eq(false));
-        inOrder.verify(backend).search(eq("folder2"), anyString(), nullable(Set.class), nullable(Set.class), eq(false));
+        inOrder.verify(backend).search(eq("folder3"), anyString(), nullable(Set.class), nullable(Set.class), eq(false),
+            any(SearchListener.class));
+        inOrder.verify(backend).search(eq("folder1"), anyString(), nullable(Set.class), nullable(Set.class), eq(false),
+            any(SearchListener.class));
+        inOrder.verify(backend).search(eq("folder2"), anyString(), nullable(Set.class), nullable(Set.class), eq(false),
+            any(SearchListener.class));
+    }
+
+    @Test
+    public void searchRemoteMessagesCascadingSynchronous_shouldReportWhatTheSearchIsDoing() throws Exception {
+        setupCascadingRemoteSearch(1);
+        when(backend.search(eq("folder1"), anyString(), nullable(Set.class), nullable(Set.class), eq(false),
+            any(SearchListener.class)))
+            .thenAnswer(invocation -> {
+                SearchListener searchListener = invocation.getArgument(5);
+                searchListener.onSearchStep(SearchStep.CONNECTING);
+                searchListener.onSearchStep(SearchStep.WAITING_FOR_RESPONSE);
+                return Collections.emptyList();
+            });
+
+        controller.searchRemoteMessagesCascadingSynchronous(accountId.toString(), 1L, "query", null, null, false, listener);
+
+        InOrder inOrder = inOrder(listener);
+        inOrder.verify(listener).remoteSearchStep(SearchStep.CONNECTING);
+        inOrder.verify(listener).remoteSearchStep(SearchStep.WAITING_FOR_RESPONSE);
     }
 
     @Test

@@ -4,6 +4,7 @@ import com.fsck.k9.backend.api.Backend
 import com.fsck.k9.backend.api.BackendPusher
 import com.fsck.k9.backend.api.BackendPusherCallback
 import com.fsck.k9.backend.api.BackendStorage
+import com.fsck.k9.backend.api.SearchListener
 import com.fsck.k9.backend.api.StorageQuota
 import com.fsck.k9.backend.api.SyncConfig
 import com.fsck.k9.backend.api.SyncListener
@@ -152,6 +153,24 @@ class ImapBackend(
             requiredFlags = requiredFlags,
             forbiddenFlags = forbiddenFlags,
             performFullTextSearch = performFullTextSearch,
+        )
+    }
+
+    override fun search(
+        folderServerId: String,
+        query: String?,
+        requiredFlags: Set<Flag>?,
+        forbiddenFlags: Set<Flag>?,
+        performFullTextSearch: Boolean,
+        listener: SearchListener,
+    ): List<String> {
+        return commandSearch.search(
+            folderServerId = folderServerId,
+            query = query,
+            requiredFlags = requiredFlags,
+            forbiddenFlags = forbiddenFlags,
+            performFullTextSearch = performFullTextSearch,
+            listener = listener,
         )
     }
 

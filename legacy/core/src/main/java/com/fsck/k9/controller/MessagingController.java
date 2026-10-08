@@ -715,7 +715,11 @@ public class MessagingController implements MessagingControllerRegistry, Messagi
         Backend backend = getBackend(account);
         boolean performFullTextSearch = searchMessageContents || account.isRemoteSearchFullText();
         List<String> foundMessageServerIds = backend.search(folderServerId, query, requiredFlags, forbiddenFlags,
-                performFullTextSearch);
+                performFullTextSearch, step -> {
+                    if (listener != null) {
+                        listener.remoteSearchStep(step);
+                    }
+                });
 
         List<String> newMessageServerIds = localFolder.extractNewMessages(foundMessageServerIds);
         List<String> notLoadedMessageServerIds = Collections.emptyList();

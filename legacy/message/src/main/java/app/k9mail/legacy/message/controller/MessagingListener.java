@@ -4,6 +4,7 @@ package app.k9mail.legacy.message.controller;
 
 import java.util.List;
 import android.content.Context;
+import com.fsck.k9.backend.api.SearchStep;
 import com.fsck.k9.mail.Message;
 import com.fsck.k9.mail.Part;
 import net.thunderbird.core.android.account.LegacyAccountDto;
@@ -38,6 +39,7 @@ public interface MessagingListener {
     void remoteSearchServerQueryComplete(long folderId, int numResults, int maxResults);
     void remoteSearchCascadeProgress(String accountUuid, String accountName, String folderName, int folderIndex,
             int folderCount);
+    void remoteSearchStep(SearchStep step);
     void remoteSearchDownloadProgress(String folderName, int completed, int total);
     void remoteSearchMessageDownloaded(String folderName, String subject);
     void remoteSearchCascadeIncomplete(int failedFolderCount, int folderCount, String reason);
