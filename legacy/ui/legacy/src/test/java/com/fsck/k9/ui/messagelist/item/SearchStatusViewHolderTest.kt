@@ -143,7 +143,7 @@ class SearchStatusViewHolderTest : RobolectricTest() {
         assertThat(view.contentsButtonView.isVisible).isTrue()
         assertThat(view.messageView).all {
             transform { it.height }.isGreaterThanOrEqualTo(view.messageView.lineHeight)
-            transform { it.maxLines }.isEqualTo(view.messageView.height / view.messageView.lineHeight)
+            transform { it.maxLines }.isEqualTo(1)
         }
     }
 

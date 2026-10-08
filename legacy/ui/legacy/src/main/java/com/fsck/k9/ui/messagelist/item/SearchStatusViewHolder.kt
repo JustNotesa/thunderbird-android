@@ -42,11 +42,11 @@ class SearchStatusViewHolder(view: View) : MessageListViewHolder(view) {
         // Reserve the space for the button and one line of text above it.
         val unspecified = MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED)
         contentsButton.measure(unspecified, unspecified)
-        details.minHeight = contentsButton.measuredHeight + message.lineHeight
+        details.minHeight = contentsButton.measuredHeight + message.lineHeight + message.paddingBottom
 
         // Display as many lines of the message as fit into the space that is available.
         message.addOnLayoutChangeListener { _, _, top, _, bottom, _, _, _, _ ->
-            val maxLines = ((bottom - top) / message.lineHeight).coerceAtLeast(1)
+            val maxLines = ((bottom - top - message.paddingBottom) / message.lineHeight).coerceAtLeast(1)
             if (message.maxLines != maxLines) {
                 message.post { message.maxLines = maxLines }
             }

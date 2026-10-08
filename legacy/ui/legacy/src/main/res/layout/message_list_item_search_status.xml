@@ -57,10 +57,12 @@
 
     </LinearLayout>
 
+    <!-- Starts below the text of the title, next to the icon -->
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/search_status_details"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:layout_marginStart="32dp"
         android:layout_marginTop="8dp"
         >
 
@@ -114,6 +116,7 @@
             android:layout_width="0dp"
             android:layout_height="0dp"
             android:ellipsize="end"
+            android:paddingBottom="4dp"
             android:visibility="invisible"
             app:layout_constraintBottom_toTopOf="@id/search_contents_button"
             app:layout_constraintEnd_toEndOf="parent"
