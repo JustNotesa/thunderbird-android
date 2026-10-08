@@ -73,7 +73,7 @@ class SearchStatusViewHolder(view: View) : MessageListViewHolder(view) {
             progress.progress = searchProgress.folderIndex - 1
         }
         folder.text = status.progress?.folderLabel
-        detail.text = status.detail
+        detail.text = status.activity ?: status.detail
 
         message.isInvisible = true
         contentsButton.isVisible = false

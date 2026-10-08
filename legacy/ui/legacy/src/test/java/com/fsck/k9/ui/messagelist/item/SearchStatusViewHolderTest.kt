@@ -108,6 +108,22 @@ class SearchStatusViewHolderTest : RobolectricTest() {
     }
 
     @Test
+    fun `running search should display what it is doing instead of what it has found`() {
+        val testSubject = createViewHolder()
+
+        testSubject.bind(
+            ServerSearchStatus.Running(
+                title = "Server search: folder 3 of 10",
+                progress = ServerSearchStatus.Progress(folderIndex = 3, folderCount = 10, folderLabel = "Projects"),
+                detail = "2 messages found",
+                activity = "Connecting to the server… 5 s",
+            ),
+        )
+
+        assertThat(testSubject.itemView.detailView.text.toString()).isEqualTo("Connecting to the server… 5 s")
+    }
+
+    @Test
     fun `ended search should display problem`() {
         val testSubject = createViewHolder()
 

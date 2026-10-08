@@ -56,6 +56,7 @@ import com.fsck.k9.K9
 import com.fsck.k9.activity.FolderInfoHolder
 import com.fsck.k9.activity.MessageSearchActivity
 import com.fsck.k9.activity.misc.ContactPicture
+import com.fsck.k9.backend.api.SearchStep
 import com.fsck.k9.controller.MessagingControllerWrapper
 import com.fsck.k9.fragment.ConfirmationDialogFragment
 import com.fsck.k9.fragment.ConfirmationDialogFragment.ConfirmationDialogFragmentListener
@@ -132,6 +133,8 @@ import net.thunderbird.feature.mail.message.list.R as MessageListApiR
 const val MAXIMUM_MESSAGE_SORT_OVERRIDES = 3
 const val MINIMUM_CLICK_INTERVAL = 200L
 private const val NO_FOLDER_ID = -1L
+private const val SEARCH_STEP_UPDATE_INTERVAL = 1000L
+private const val MILLISECONDS_PER_SECOND = 1000L
 const val RECENT_CHANGES_SNACKBAR_DURATION = 10 * 1000
 
 private const val TAG = "BaseMessageListFragment"
@@ -241,6 +244,9 @@ class LegacyMessageListFragment :
     private var hasSearchedMessageContents = false
     private var isRemoteSearchStopped = false
     private var searchStatus: ServerSearchStatus? = null
+    private var searchStep: SearchStep? = null
+    private var searchStepStartTime = 0L
+    private val searchStepRunnable = Runnable { showSearchStep() }
     private var threadTitle: String? = null
     private var allAccounts = false
     private var sortType = SortType.SORT_DATE
@@ -562,6 +568,7 @@ class LegacyMessageListFragment :
         } else {
             R.string.remote_search_status_progress
         }
+        endSearchStep()
         showSearchStatus(
             ServerSearchStatus.Running(
                 title = getString(statusText, folderIndex, folderCount),
@@ -572,8 +579,45 @@ class LegacyMessageListFragment :
     }
 
     private fun showSearchDetail(text: String) {
+        endSearchStep()
         val status = searchStatus as? ServerSearchStatus.Running ?: return
-        showSearchStatus(status.copy(detail = text))
+        showSearchStatus(status.copy(detail = text, activity = null))
+    }
+
+    /**
+     * Remember what the remote search is doing at the moment.
+     *
+     * It is only displayed when it takes a while, e.g. because the server can't be reached. Otherwise the text would
+     * change all the time while one folder after the other is searched.
+     */
+    private fun startSearchStep(step: SearchStep) {
+        handler.removeCallbacks(searchStepRunnable)
+        searchStep = step
+        searchStepStartTime = SystemClock.elapsedRealtime()
+        handler.postDelayed(searchStepRunnable, SEARCH_STEP_UPDATE_INTERVAL)
+    }
+
+    private fun endSearchStep() {
+        handler.removeCallbacks(searchStepRunnable)
+        searchStep = null
+    }
+
+    /**
+     * Display what the remote search has been doing for how long, so it doesn't look like it is stuck.
+     */
+    private fun showSearchStep() {
+        val step = searchStep ?: return
+        val status = searchStatus as? ServerSearchStatus.Running ?: return
+        val context = context ?: return
+
+        val text = when (step) {
+            SearchStep.CONNECTING -> R.string.remote_search_step_connecting
+            SearchStep.WAITING_FOR_RESPONSE -> R.string.remote_search_step_waiting
+        }
+        val seconds = (SystemClock.elapsedRealtime() - searchStepStartTime) / MILLISECONDS_PER_SECOND
+        showSearchStatus(status.copy(activity = context.getString(text, seconds)))
+
+        handler.postDelayed(searchStepRunnable, SEARCH_STEP_UPDATE_INTERVAL)
     }
 
     /**
@@ -581,6 +625,7 @@ class LegacyMessageListFragment :
      * next remote search is started.
      */
     private fun showSearchOutcome() {
+        endSearchStep()
         val context = context ?: return
         val problem = remoteSearchProblem
         // A search that has failed altogether needs its space to say why. It can be started again by pulling down.
@@ -2725,6 +2770,15 @@ class LegacyMessageListFragment :
                 val isCurrentAccount = accountUuid == account?.id?.toString()
                 val folderLabel = if (isCurrentAccount) folderName else "$accountName / $folderName"
                 showSearchProgress(folderIndex, folderCount, folderLabel)
+            }
+        }
+
+        override fun remoteSearchStep(step: SearchStep) {
+            handler.post {
+                // A search that has ended in the meantime doesn't do anything anymore.
+                if (remoteSearchFuture != null) {
+                    startSearchStep(step)
+                }
             }
         }
 
