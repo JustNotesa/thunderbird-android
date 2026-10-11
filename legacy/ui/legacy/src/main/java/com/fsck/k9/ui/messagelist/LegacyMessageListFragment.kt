@@ -2614,7 +2614,8 @@ class LegacyMessageListFragment :
                 handler.postDelayed(loadedMessagesDisplayedRunnable, LOADED_MESSAGES_SETTLING_TIME)
             }
         }
-        if (messageCountBeforeLoading > 0) {
+        // A folder that only has a few messages on the device, e.g. search results, hasn't been looked at yet.
+        if (messageCountBeforeLoading >= messageCountFillingScreen) {
             messagingController.loadNextMessages(account.id, currentFolder.databaseId, onFinished)
         } else {
             messagingController.loadFirstMessages(
