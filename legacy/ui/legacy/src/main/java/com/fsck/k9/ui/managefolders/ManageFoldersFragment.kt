@@ -278,6 +278,15 @@ class ManageFoldersFragment : Fragment() {
         }
     }
 
+    override fun onDestroyView() {
+        // The screen of a single folder keeps the name of the account, but the accounts can't be chosen there
+        val activity = requireActivity() as AppCompatActivity
+        activity.supportActionBar?.subtitle = account.displayName
+        activity.findViewById<Toolbar>(BaseR.id.toolbar).setOnClickListener(null)
+
+        super.onDestroyView()
+    }
+
     /**
      * The toolbar tells which account the folders belong to, also on the screens of the single folders. With more
      * than one account, it leads to the folders of another one.
@@ -323,8 +332,7 @@ class ManageFoldersFragment : Fragment() {
 
         showAccountList(activity, isVisible = false)
         toolbar.setOnClickListener {
-            // On the screen of a single folder there is no list of accounts. Go back to the folders first.
-            view?.findViewById<View>(R.id.account_list)?.let { showAccountList(activity, !it.isVisible) }
+            showAccountList(activity, isVisible = !accountList.isVisible)
         }
     }
 
