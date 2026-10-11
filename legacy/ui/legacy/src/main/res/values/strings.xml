@@ -220,6 +220,15 @@
     <string name="message_compose_choose_signature_default">Default signature</string>
     <string name="message_compose_choose_signature_none">No signature</string>
     <string name="message_compose_edit_signature_title">Edit signature for this message</string>
+    <string name="message_compose_format_bold">Bold</string>
+    <string name="message_compose_format_italic">Italic</string>
+    <string name="message_compose_format_underline">Underline</string>
+    <!-- The letter on the button that makes text bold. -->
+    <string name="message_compose_format_bold_button"><b>B</b></string>
+    <!-- The letter on the button that makes text italic. -->
+    <string name="message_compose_format_italic_button"><i>I</i></string>
+    <!-- The letter on the button that underlines text. -->
+    <string name="message_compose_format_underline_button"><u>U</u></string>
     <string name="message_compose_quote_header_separator">-------- Original Message --------</string>
     <string name="message_compose_quote_header_subject">Subject:</string>
     <string name="message_compose_quote_header_send_date">Sent:</string>

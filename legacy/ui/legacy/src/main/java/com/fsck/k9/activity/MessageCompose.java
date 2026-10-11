@@ -55,6 +55,9 @@ import android.text.InputType;
 import android.view.GestureDetector;
 import android.view.MotionEvent;
 import android.widget.FrameLayout;
+import com.fsck.k9.ui.compose.richtext.MessageFormattingToolbar;
+import net.thunderbird.feature.mail.message.composer.richtext.FormattedRange;
+import net.thunderbird.feature.mail.message.composer.richtext.RichTextHtmlConverter;
 import androidx.appcompat.app.ActionBar;
 import androidx.core.content.IntentCompat;
 import androidx.core.os.BundleCompat;
@@ -251,6 +254,7 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
     private final WebViewConfigProvider webViewConfigProvider = DI.get(WebViewConfigProvider.class);
     private final DisplayHtml displayHtml = DI.get(DisplayHtmlUiFactory.class).createForMessageCompose();
     private final HtmlSignatureSanitizer htmlSignatureSanitizer = DI.get(HtmlSignatureSanitizer.class);
+    private final RichTextHtmlConverter richTextHtmlConverter = DI.get(RichTextHtmlConverter.class);
 
     private final IntentDataMapper indentDataMapper = DI.get(IntentDataMapper.class);
 
@@ -317,6 +321,7 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
     private EditText signatureView;
     private MessageWebView signatureHtmlPreview;
     private EditText messageContentView;
+    private MessageFormattingToolbar messageFormattingToolbar;
     private LinearLayout attachmentsView;
 
     private String referencedMessageIds;
@@ -423,6 +428,12 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
         messageContentView = findViewById(R.id.message_content);
         messageContentView.getInputExtras(true).putBoolean("allowEmoji", true);
         applyIncognitoKeyboardSetting(messageContentView);
+        messageFormattingToolbar = new MessageFormattingToolbar(
+                findViewById(R.id.message_format_toolbar),
+                messageContentView,
+                findViewById(R.id.message_format_bold),
+                findViewById(R.id.message_format_italic),
+                findViewById(R.id.message_format_underline));
 
         attachmentsView = findViewById(R.id.attachments);
 
@@ -873,6 +884,7 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
                 .setReplyTo(replyToPresenter.getAddresses())
                 .setMessageFormat(currentMessageFormat)
                 .setText(CrLfConverter.toCrLf(messageContentView.getText()))
+                .setTextHtml(getFormattedMessageContentHtml())
                 .setAttachments(attachmentPresenter.getAttachments())
                 .setInlineAttachments(attachmentPresenter.getInlineAttachments())
                 .setSignature(CrLfConverter.toCrLf(signatureView.getText()))
@@ -887,6 +899,23 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
         quotedMessagePresenter.builderSetProperties(builder);
 
         return builder;
+    }
+
+    /**
+     * The message text as HTML if the user formatted it and the message is sent as HTML, {@code null} otherwise.
+     */
+    @Nullable
+    private String getFormattedMessageContentHtml() {
+        if (currentMessageFormat != SimpleMessageFormat.HTML) {
+            return null;
+        }
+
+        List<FormattedRange> formattedRanges = messageFormattingToolbar.getFormattedRanges();
+        if (formattedRanges.isEmpty()) {
+            return null;
+        }
+
+        return richTextHtmlConverter.toHtmlFragment(messageContentView.getText().toString(), formattedRanges);
     }
 
     private void checkToSendMessage() {
@@ -2019,6 +2048,9 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
         // This method will later be used to enable/disable the rich text editing mode.
 
         currentMessageFormat = format;
+        if (messageFormattingToolbar != null) {
+            messageFormattingToolbar.setVisible(format == SimpleMessageFormat.HTML);
+        }
     }
 
     public void updateMessageFormat() {
