@@ -1167,8 +1167,9 @@ open class MessageHomeActivity :
             val fragment = MessageViewContainerFragment.newInstance(
                 reference = messageReference,
                 isShowAccountIndicator = isShowAccountIndicator,
-                // In a list that covers more than one folder the user can't tell where the message is stored
-                isShowFolder = !singleFolderMode,
+                // In a list that covers more than one folder the user can't tell where the message is stored. Search
+                // results do, even when the search was started from a single folder.
+                isShowFolder = !singleFolderMode || search?.isManualSearch == true,
             )
             supportFragmentManager.commitNow {
                 replace(R.id.message_view_container, fragment, FRAGMENT_TAG_MESSAGE_VIEW_CONTAINER)
