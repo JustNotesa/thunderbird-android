@@ -3,6 +3,7 @@ package net.thunderbird.feature.account.settings.impl.ui.signature
 import app.cash.turbine.test
 import assertk.assertThat
 import assertk.assertions.containsExactly
+import assertk.assertions.isEmpty
 import assertk.assertions.isEqualTo
 import assertk.assertions.isFalse
 import assertk.assertions.isNotNull
@@ -30,12 +31,17 @@ import net.thunderbird.feature.account.settings.impl.domain.AccountSettingsDomai
 import net.thunderbird.feature.account.settings.impl.domain.AccountSettingsDomainContract.UpdateSignaturesCommand
 import net.thunderbird.feature.account.settings.impl.domain.AccountSettingsDomainContract.UseCase
 import net.thunderbird.feature.account.settings.impl.domain.AccountSignatures
+import net.thunderbird.feature.account.settings.impl.ui.signature.SignatureSettingsContract.EditorMode
 import net.thunderbird.feature.account.settings.impl.ui.signature.SignatureSettingsContract.Effect
 import net.thunderbird.feature.account.settings.impl.ui.signature.SignatureSettingsContract.Error
 import net.thunderbird.feature.account.settings.impl.ui.signature.SignatureSettingsContract.Event
 import net.thunderbird.feature.account.storage.profile.AvatarDto
 import net.thunderbird.feature.account.storage.profile.AvatarTypeDto
 import net.thunderbird.feature.account.storage.profile.ProfileDto
+import net.thunderbird.feature.mail.message.composer.richtext.FormattedRange
+import net.thunderbird.feature.mail.message.composer.richtext.FormattedText
+import net.thunderbird.feature.mail.message.composer.richtext.RichTextHtmlConverter
+import net.thunderbird.feature.mail.message.composer.richtext.TextFormat
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class SignatureSettingsViewModelTest {
@@ -89,13 +95,12 @@ class SignatureSettingsViewModelTest {
         // Act
         testSubject.event(Event.OnAddClick)
         testSubject.event(Event.OnNameChange("  Work "))
-        testSubject.event(Event.OnTextChange(WORK_SIGNATURE.text))
-        testSubject.event(Event.OnIsHtmlChange(true))
+        testSubject.event(Event.OnFormattedTextChange("Jane Doe", emptyList()))
         testSubject.event(Event.OnSaveClick)
         advanceUntilIdle()
 
         // Assert
-        val expected = WORK_SIGNATURE.copy(id = GENERATED_ID)
+        val expected = AccountSignature(id = GENERATED_ID, name = "Work", text = "Jane Doe", isHtml = false)
         assertThat(commands).containsExactly(UpdateSignaturesCommand.Save(expected))
         assertThat(testSubject.state.value.signatures).containsExactly(expected)
         assertThat(testSubject.state.value.editor).isNull()
@@ -104,35 +109,150 @@ class SignatureSettingsViewModelTest {
     @Test
     fun `should keep the id when saving an edited signature`() = runTest {
         // Arrange
-        val testSubject = createTestSubject(signatures = listOf(WORK_SIGNATURE))
+        val testSubject = createTestSubject(signatures = listOf(PRIVATE_SIGNATURE))
         advanceUntilIdle()
 
         // Act
-        testSubject.event(Event.OnSignatureClick(WORK_SIGNATURE.id))
+        testSubject.event(Event.OnSignatureClick(PRIVATE_SIGNATURE.id))
         testSubject.event(Event.OnNameChange("Office"))
         testSubject.event(Event.OnSaveClick)
         advanceUntilIdle()
 
         // Assert
-        assertThat(commands).containsExactly(UpdateSignaturesCommand.Save(WORK_SIGNATURE.copy(name = "Office")))
+        assertThat(commands).containsExactly(UpdateSignaturesCommand.Save(PRIVATE_SIGNATURE.copy(name = "Office")))
     }
 
     @Test
-    fun `should offer a sanitized preview for an HTML signature only`() = runTest {
+    fun `should save text the user formatted as HTML`() = runTest {
         // Arrange
         val testSubject = createTestSubject()
         advanceUntilIdle()
 
         // Act
         testSubject.event(Event.OnAddClick)
-        testSubject.event(Event.OnTextChange("<b>Jane</b>"))
-        val previewOfTextSignature = testSubject.state.value.editor?.previewHtml
-        testSubject.event(Event.OnIsHtmlChange(true))
+        testSubject.event(Event.OnNameChange("Work"))
+        testSubject.event(Event.OnFormattedTextChange("Jane Doe", listOf(FormattedRange(0, 4, TextFormat.Bold))))
+        testSubject.event(Event.OnSaveClick)
+        advanceUntilIdle()
+
+        // Assert
+        assertThat(commands).containsExactly(
+            UpdateSignaturesCommand.Save(
+                AccountSignature(id = GENERATED_ID, name = "Work", text = "html[Jane Doe|Bold:0-4]", isHtml = true),
+            ),
+        )
+    }
+
+    @Test
+    fun `should open an HTML signature the formatted editor can show as formatted text`() = runTest {
+        // Arrange
+        val testSubject = createTestSubject(signatures = listOf(WORK_SIGNATURE))
+        advanceUntilIdle()
+
+        // Act
+        testSubject.event(Event.OnSignatureClick(WORK_SIGNATURE.id))
+
+        // Assert
+        val editor = testSubject.state.value.editor!!
+        assertThat(editor.mode).isEqualTo(EditorMode.Formatted)
+        assertThat(editor.text).isEqualTo("text of <b>Jane Doe</b>")
+        assertThat(editor.ranges).containsExactly(FormattedRange(0, 4, TextFormat.Bold))
+        assertThat(editor.previewHtml).isNull()
+    }
+
+    @Test
+    fun `should open an HTML signature the formatted editor can not show as HTML code with a preview`() = runTest {
+        // Arrange
+        val testSubject = createTestSubject(signatures = listOf(LINK_SIGNATURE))
+        advanceUntilIdle()
+
+        // Act
+        testSubject.event(Event.OnSignatureClick(LINK_SIGNATURE.id))
+        testSubject.event(Event.OnSaveClick)
+        advanceUntilIdle()
+
+        // Assert
+        assertThat(commands).containsExactly(UpdateSignaturesCommand.Save(LINK_SIGNATURE))
+    }
+
+    @Test
+    fun `should show a sanitized preview while editing HTML code`() = runTest {
+        // Arrange
+        val testSubject = createTestSubject(signatures = listOf(LINK_SIGNATURE))
+        advanceUntilIdle()
+
+        // Act
+        testSubject.event(Event.OnSignatureClick(LINK_SIGNATURE.id))
+        val modeAfterOpening = testSubject.state.value.editor?.mode
         testSubject.event(Event.OnTextChange("<i>Jane</i>"))
 
         // Assert
-        assertThat(previewOfTextSignature).isNull()
+        assertThat(modeAfterOpening).isEqualTo(EditorMode.Code)
         assertThat(testSubject.state.value.editor?.previewHtml).isEqualTo("sanitized:<i>Jane</i>")
+    }
+
+    @Test
+    fun `switching to HTML code should turn the formatted text into HTML`() = runTest {
+        // Arrange
+        val testSubject = createTestSubject()
+        advanceUntilIdle()
+        testSubject.event(Event.OnAddClick)
+        testSubject.event(Event.OnFormattedTextChange("Jane Doe", listOf(FormattedRange(0, 4, TextFormat.Bold))))
+
+        // Act
+        testSubject.event(Event.OnModeChange(EditorMode.Code))
+
+        // Assert
+        val editor = testSubject.state.value.editor!!
+        assertThat(editor.mode).isEqualTo(EditorMode.Code)
+        assertThat(editor.text).isEqualTo("html[Jane Doe|Bold:0-4]")
+        assertThat(editor.ranges).isEmpty()
+        assertThat(editor.previewHtml).isEqualTo("sanitized:html[Jane Doe|Bold:0-4]")
+    }
+
+    @Test
+    fun `switching to formatted text should ask first when it would remove HTML`() = runTest {
+        // Arrange
+        val testSubject = createTestSubject(signatures = listOf(LINK_SIGNATURE))
+        advanceUntilIdle()
+        testSubject.event(Event.OnSignatureClick(LINK_SIGNATURE.id))
+
+        // Act
+        testSubject.event(Event.OnModeChange(EditorMode.Formatted))
+        val editorWhileAsking = testSubject.state.value.editor!!
+        testSubject.event(Event.OnFormattedModeDismiss)
+        val editorAfterDismissing = testSubject.state.value.editor!!
+        testSubject.event(Event.OnModeChange(EditorMode.Formatted))
+        testSubject.event(Event.OnFormattedModeConfirm)
+
+        // Assert
+        assertThat(editorWhileAsking.isConfirmingFormattedMode).isTrue()
+        assertThat(editorWhileAsking.mode).isEqualTo(EditorMode.Code)
+        assertThat(editorAfterDismissing.isConfirmingFormattedMode).isFalse()
+        assertThat(editorAfterDismissing.text).isEqualTo(LINK_SIGNATURE.text)
+        val editor = testSubject.state.value.editor!!
+        assertThat(editor.mode).isEqualTo(EditorMode.Formatted)
+        assertThat(editor.text).isEqualTo("text of ${LINK_SIGNATURE.text}")
+        assertThat(editor.isConfirmingFormattedMode).isFalse()
+    }
+
+    @Test
+    fun `switching to formatted text should not ask when nothing would be removed`() = runTest {
+        // Arrange
+        val testSubject = createTestSubject()
+        advanceUntilIdle()
+        testSubject.event(Event.OnAddClick)
+        testSubject.event(Event.OnModeChange(EditorMode.Code))
+        testSubject.event(Event.OnTextChange("<b>Jane</b>"))
+
+        // Act
+        testSubject.event(Event.OnModeChange(EditorMode.Formatted))
+
+        // Assert
+        val editor = testSubject.state.value.editor!!
+        assertThat(editor.mode).isEqualTo(EditorMode.Formatted)
+        assertThat(editor.isConfirmingFormattedMode).isFalse()
+        assertThat(editor.text).isEqualTo("text of <b>Jane</b>")
     }
 
     @Test
@@ -276,19 +396,19 @@ class SignatureSettingsViewModelTest {
     fun `should leave after saving the signature the screen was opened for`() = runTest {
         // Arrange
         val testSubject = createTestSubject(
-            signatures = listOf(WORK_SIGNATURE),
-            initialSignatureId = WORK_SIGNATURE.id,
+            signatures = listOf(PRIVATE_SIGNATURE),
+            initialSignatureId = PRIVATE_SIGNATURE.id,
         )
         advanceUntilIdle()
 
         testSubject.effect.test {
             // Act
-            testSubject.event(Event.OnTextChange("Jane"))
+            testSubject.event(Event.OnFormattedTextChange("Jane", emptyList()))
             testSubject.event(Event.OnSaveClick)
             advanceUntilIdle()
 
             // Assert
-            assertThat(commands).containsExactly(UpdateSignaturesCommand.Save(WORK_SIGNATURE.copy(text = "Jane")))
+            assertThat(commands).containsExactly(UpdateSignaturesCommand.Save(PRIVATE_SIGNATURE.copy(text = "Jane")))
             assertThat(awaitItem()).isEqualTo(Effect.NavigateBack)
             cancelAndIgnoreRemainingEvents()
         }
@@ -326,6 +446,7 @@ class SignatureSettingsViewModelTest {
             },
             logger = TestLogger(),
             htmlSignatureSanitizer = { html -> "sanitized:$html" },
+            richTextHtmlConverter = FakeRichTextHtmlConverter(),
             initialSignatureId = initialSignatureId,
             dispatcher = mainDispatcher.testDispatcher,
             signatureIdGenerator = { GENERATED_ID },
@@ -359,6 +480,12 @@ class SignatureSettingsViewModelTest {
 
         val WORK_SIGNATURE = AccountSignature(id = "work", name = "Work", text = "<b>Jane Doe</b>", isHtml = true)
         val PRIVATE_SIGNATURE = AccountSignature(id = "private", name = "Private", text = "Cheers\nJane")
+        val LINK_SIGNATURE = AccountSignature(
+            id = "link",
+            name = "Link",
+            text = """<a href="https://example.com">Jane</a>""",
+            isHtml = true,
+        )
 
         fun createLegacyAccount(
             accountId: AccountId,
@@ -410,4 +537,20 @@ class SignatureSettingsViewModelTest {
             signatures = signatures,
         )
     }
+}
+
+/**
+ * Writes HTML that shows what it was made from, reads every HTML as text with the first four characters in bold, and
+ * can't represent links.
+ */
+private class FakeRichTextHtmlConverter : RichTextHtmlConverter {
+    override fun toHtmlFragment(text: String, ranges: List<FormattedRange>): String {
+        return "html[$text|${ranges.joinToString { "${it.format}:${it.start}-${it.end}" }}]"
+    }
+
+    override fun fromHtmlFragment(html: String): FormattedText {
+        return FormattedText(text = "text of $html", ranges = listOf(FormattedRange(0, 4, TextFormat.Bold)))
+    }
+
+    override fun canRepresent(html: String): Boolean = "<a " !in html
 }

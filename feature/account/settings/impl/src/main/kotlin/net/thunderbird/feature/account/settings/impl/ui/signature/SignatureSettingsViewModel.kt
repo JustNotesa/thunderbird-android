@@ -9,7 +9,6 @@ import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import net.thunderbird.components.core.outcome.handle
-import net.thunderbird.core.android.account.AccountSignature
 import net.thunderbird.core.logging.Logger
 import net.thunderbird.core.ui.contract.mvi.BaseViewModel
 import net.thunderbird.feature.account.AccountId
@@ -19,10 +18,12 @@ import net.thunderbird.feature.account.settings.impl.domain.AccountSettingsDomai
 import net.thunderbird.feature.account.settings.impl.domain.AccountSignatures
 import net.thunderbird.feature.account.settings.impl.domain.toAccountSignatures
 import net.thunderbird.feature.account.settings.impl.ui.signature.SignatureSettingsContract.Editor
+import net.thunderbird.feature.account.settings.impl.ui.signature.SignatureSettingsContract.EditorEvent
 import net.thunderbird.feature.account.settings.impl.ui.signature.SignatureSettingsContract.Effect
 import net.thunderbird.feature.account.settings.impl.ui.signature.SignatureSettingsContract.Error
 import net.thunderbird.feature.account.settings.impl.ui.signature.SignatureSettingsContract.Event
 import net.thunderbird.feature.account.settings.impl.ui.signature.SignatureSettingsContract.State
+import net.thunderbird.feature.mail.message.composer.richtext.RichTextHtmlConverter
 import net.thunderbird.feature.mail.message.composer.signature.HtmlSignatureSanitizer
 
 private const val TAG = "SignatureSettingsViewModel"
@@ -33,12 +34,15 @@ internal class SignatureSettingsViewModel(
     private val getLegacyAccount: UseCase.GetLegacyAccount,
     private val updateSignatures: UseCase.UpdateSignatures,
     private val logger: Logger,
-    private val htmlSignatureSanitizer: HtmlSignatureSanitizer,
+    htmlSignatureSanitizer: HtmlSignatureSanitizer,
+    richTextHtmlConverter: RichTextHtmlConverter,
     private val initialSignatureId: String? = null,
     private val dispatcher: CoroutineDispatcher = Dispatchers.Main,
     private val signatureIdGenerator: () -> String = { UUID.randomUUID().toString() },
     initialState: State = State(),
 ) : BaseViewModel<State, Event, Effect>(initialState), SignatureSettingsContract.ViewModel {
+
+    private val editorMapper = SignatureEditorMapper(htmlSignatureSanitizer, richTextHtmlConverter)
 
     /**
      * `true` while editing the signature the screen was opened for. Leaving that editor leaves the screen.
@@ -58,11 +62,9 @@ internal class SignatureSettingsViewModel(
 
             is Event.OnSignatureClick -> editSignature(event.signatureId)
 
-            is Event.OnNameChange -> updateEditor { it.copy(name = event.name) }
-
-            is Event.OnTextChange -> updateEditor { it.copy(text = event.text) }
-
-            is Event.OnIsHtmlChange -> updateEditor { it.copy(isHtml = event.isHtml) }
+            is EditorEvent -> updateState { state ->
+                state.copy(editor = state.editor?.let { editorMapper.onEvent(it, event) })
+            }
 
             Event.OnSaveClick -> saveSignature()
 
@@ -90,34 +92,12 @@ internal class SignatureSettingsViewModel(
 
     private fun editSignature(signatureId: String) {
         val signature = state.value.signatures.find { it.id == signatureId } ?: return
-        updateState {
-            it.copy(
-                editor = Editor(
-                    signatureId = signature.id,
-                    name = signature.name,
-                    text = signature.text,
-                    isHtml = signature.isHtml,
-                ).withPreview(),
-            )
-        }
+        updateState { it.copy(editor = editorMapper.toEditor(signature)) }
     }
-
-    private fun updateEditor(update: (Editor) -> Editor) {
-        updateState { state -> state.copy(editor = state.editor?.let(update)?.withPreview()) }
-    }
-
-    private fun Editor.withPreview() = copy(
-        previewHtml = if (isHtml) htmlSignatureSanitizer.sanitize(text) else null,
-    )
 
     private fun saveSignature() {
         val editor = state.value.editor?.takeIf { it.canSave } ?: return
-        val signature = AccountSignature(
-            id = editor.signatureId ?: signatureIdGenerator(),
-            name = editor.name.trim(),
-            text = editor.text,
-            isHtml = editor.isHtml,
-        )
+        val signature = editorMapper.toSignature(editor, editor.signatureId ?: signatureIdGenerator())
 
         viewModelScope.launch(dispatcher) {
             updateSignatures(accountId, UpdateSignaturesCommand.Save(signature)).handle(
