@@ -258,6 +258,9 @@ class LegacyMessageListFragment :
 
     @Volatile
     private var hasLoadingMessagesFailed = false
+
+    @Volatile
+    private var loadingMessagesFailureReason: String? = null
     private var searchStatus: ServerSearchStatus? = null
     private var searchStep: SearchStep? = null
     private var searchStepStartTime = 0L
@@ -1780,7 +1783,12 @@ class LegacyMessageListFragment :
         } else if (!currentFolder.moreMessages) {
             null
         } else if (hasLoadingMessagesFailed) {
-            getString(R.string.message_list_load_more_messages_failed)
+            val reason = loadingMessagesFailureReason
+            if (reason.isNullOrBlank()) {
+                getString(R.string.message_list_load_more_messages_failed)
+            } else {
+                getString(R.string.message_list_load_more_messages_failed_reason, reason)
+            }
         } else {
             // More messages are loaded when the user gets here. Tapping is only needed if that wasn't possible.
             getString(R.string.message_list_load_more_messages_action)
@@ -3174,6 +3182,7 @@ class LegacyMessageListFragment :
         override fun synchronizeMailboxFailed(account: LegacyAccountDto, folderId: Long, message: String) {
             if (updateForMe(account, folderId)) {
                 // Displayed in the footer of the message list, and keeps messages from being loaded again and again
+                loadingMessagesFailureReason = message
                 hasLoadingMessagesFailed = true
                 handler.progress(false)
                 handler.folderLoading(folderId, false)
