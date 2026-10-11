@@ -70,6 +70,7 @@ import com.fsck.k9.ui.helper.DisplayHtmlUiFactory;
 import com.fsck.k9.view.MessageWebView;
 import com.fsck.k9.view.WebViewConfigProvider;
 import kotlin.Unit;
+import net.thunderbird.core.android.account.AccountSignature;
 import net.thunderbird.core.android.account.LegacyAccountDto;
 import net.thunderbird.feature.account.AccountId;
 import net.thunderbird.feature.account.usecase.GetDefaultAccountId;
@@ -1306,6 +1307,8 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
             showPopupMenu(attachmentMenuAnchor);
         } else if (id == R.id.read_receipt) {
             onReadReceipt();
+        } else if (id == R.id.choose_signature) {
+            showChooseSignatureDialog();
         } else {
             return super.onOptionsItemSelected(item);
         }
@@ -1336,7 +1339,81 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
 
         recipientPresenter.onPrepareOptionsMenu(menu);
 
+        menu.findItem(R.id.choose_signature).setVisible(!account.getSignatures().isEmpty());
+
         return true;
+    }
+
+    private void showChooseSignatureDialog() {
+        final List<AccountSignature> signatures = account.getSignatures();
+        final Identity defaultIdentity = findAccountIdentity();
+        final boolean hasDefaultSignature = defaultIdentity.getSignatureUse();
+
+        final List<String> labels = new ArrayList<>();
+        if (hasDefaultSignature) {
+            labels.add(getString(R.string.message_compose_choose_signature_default));
+        }
+        for (AccountSignature signature : signatures) {
+            labels.add(signature.getName());
+        }
+        labels.add(getString(R.string.message_compose_choose_signature_none));
+
+        new MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.message_compose_choose_signature_action)
+                .setItems(labels.toArray(new String[0]), (dialog, which) -> {
+                    if (which == labels.size() - 1) {
+                        removeSignature();
+                    } else if (hasDefaultSignature && which == 0) {
+                        applySignature(defaultIdentity.getSignature(), defaultIdentity.getSignatureIsHtml());
+                    } else {
+                        AccountSignature signature = signatures.get(hasDefaultSignature ? which - 1 : which);
+                        applySignature(signature.getText(), signature.isHtml());
+                    }
+                })
+                .setNegativeButton(com.fsck.k9.ui.base.R.string.cancel_action, null)
+                .show();
+    }
+
+    /**
+     * The identity as saved in the account. {@link #identity} can't be used for this because its signature is
+     * replaced when the user chooses another one.
+     */
+    private Identity findAccountIdentity() {
+        Identity emailMatch = null;
+        for (Identity accountIdentity : account.getIdentities()) {
+            if (accountIdentity.getEmail() != null && accountIdentity.getEmail().equalsIgnoreCase(identity.getEmail())) {
+                if (Objects.equals(accountIdentity.getName(), identity.getName())) {
+                    return accountIdentity;
+                }
+                if (emailMatch == null) {
+                    emailMatch = accountIdentity;
+                }
+            }
+        }
+
+        return emailMatch != null ? emailMatch : account.getIdentity(0);
+    }
+
+    private void removeSignature() {
+        // The signature text is cleared as well, so a draft saved now doesn't bring the old signature back.
+        identity = identity
+                .withSignatureUse(false)
+                .withSignature("")
+                .withSignatureIsHtml(false);
+        signatureView.setText("");
+        updateSignature();
+        signatureChanged = true;
+        changesMadeSinceLastSave = true;
+    }
+
+    private void applySignature(String signature, boolean isHtml) {
+        identity = identity
+                .withSignatureUse(true)
+                .withSignature(signature)
+                .withSignatureIsHtml(isHtml);
+        updateSignature();
+        signatureChanged = true;
+        changesMadeSinceLastSave = true;
     }
 
 
