@@ -101,6 +101,26 @@ the 'composer theme' setting).
                 android:text="@string/message_compose_format_underline_button"
                 android:textAllCaps="false"
                 />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/message_format_size"
+                style="?attr/materialButtonOutlinedStyle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:text="@string/message_compose_format_size"
+                android:textAllCaps="false"
+                />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/message_format_font"
+                style="?attr/materialButtonOutlinedStyle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:text="@string/message_compose_format_font"
+                android:textAllCaps="false"
+                />
         </LinearLayout>
 
         <!-- We have to use "wrap_content" (not "0dip") for "layout_height", otherwise the

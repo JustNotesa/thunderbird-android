@@ -228,6 +228,15 @@
     <string name="message_compose_format_bold">Bold</string>
     <string name="message_compose_format_italic">Italic</string>
     <string name="message_compose_format_underline">Underline</string>
+    <string name="message_compose_format_size">Size</string>
+    <string name="message_compose_format_size_small">Small</string>
+    <string name="message_compose_format_size_normal">Normal</string>
+    <string name="message_compose_format_size_large">Large</string>
+    <string name="message_compose_format_size_huge">Huge</string>
+    <string name="message_compose_format_font">Font</string>
+    <string name="message_compose_format_font_default">Sans serif</string>
+    <string name="message_compose_format_font_serif">Serif</string>
+    <string name="message_compose_format_font_monospace">Fixed width</string>
     <!-- The letter on the button that makes text bold. -->
     <string name="message_compose_format_bold_button"><b>B</b></string>
     <!-- The letter on the button that makes text italic. -->

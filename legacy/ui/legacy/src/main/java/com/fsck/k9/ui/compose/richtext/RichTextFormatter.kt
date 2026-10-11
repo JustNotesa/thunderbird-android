@@ -1,12 +1,9 @@
 package com.fsck.k9.ui.compose.richtext
 
-import android.graphics.Typeface
 import android.text.Editable
 import android.text.SpannableStringBuilder
 import android.text.Spanned
 import android.text.style.CharacterStyle
-import android.text.style.StyleSpan
-import android.text.style.UnderlineSpan
 import net.thunderbird.feature.mail.message.composer.richtext.FormattedRange
 import net.thunderbird.feature.mail.message.composer.richtext.FormattedText
 import net.thunderbird.feature.mail.message.composer.richtext.TextFormat
@@ -36,6 +33,30 @@ internal object RichTextFormatter {
             val flags = if (start == end) Spanned.SPAN_INCLUSIVE_INCLUSIVE else Spanned.SPAN_EXCLUSIVE_INCLUSIVE
             text.setSpan(format.createSpan(), start, end, flags)
         }
+    }
+
+    /**
+     * Gives the selected text or, without a selection, what is typed next the [format] of [group]. `null` removes
+     * the formats of the group, which leaves the normal size or the default font.
+     */
+    fun select(text: Editable, group: TextFormat.Group, format: TextFormat?, selectionStart: Int, selectionEnd: Int) {
+        val start = minOf(selectionStart, selectionEnd).coerceIn(0, text.length)
+        val end = maxOf(selectionStart, selectionEnd).coerceIn(0, text.length)
+
+        for (groupFormat in TextFormat.of(group)) {
+            text.removeFormat(groupFormat, start, end)
+        }
+        if (format != null) {
+            text.setSpan(format.createSpan(), start, end, getSpanFlagsFor(start, end))
+        }
+    }
+
+    /**
+     * The format of [group] the whole selection has or, without a selection, text typed at the cursor gets. `null`
+     * means the normal size or the default font.
+     */
+    fun activeFormat(text: Spanned, group: TextFormat.Group, selectionStart: Int, selectionEnd: Int): TextFormat? {
+        return TextFormat.of(group).firstOrNull { format -> isActive(text, format, selectionStart, selectionEnd) }
     }
 
     /**
@@ -118,7 +139,7 @@ internal object RichTextFormatter {
             if (spanEnd < start || spanStart > end) continue
 
             removeSpan(span)
-            val remainingFormats = span.formats() - format
+            val remainingFormats = span.textFormats() - format
             // Put back what the removed span did besides the format being removed, e.g. the italic of a bold italic.
             for (remainingFormat in remainingFormats) {
                 setSpan(remainingFormat.createSpan(), spanStart, spanEnd, getSpanFlagsFor(spanStart, spanEnd))
@@ -140,28 +161,6 @@ internal object RichTextFormatter {
         return getSpans(0, length, CharacterStyle::class.java)
             // The keyboard underlines the word being typed with a span of its own.
             .filter { span -> getSpanFlags(span) and Spanned.SPAN_COMPOSING == 0 }
-            .filter { span -> format in span.formats() }
-    }
-
-    private fun CharacterStyle.formats(): Set<TextFormat> {
-        return when (this) {
-            is StyleSpan -> when (style) {
-                Typeface.BOLD -> setOf(TextFormat.Bold)
-                Typeface.ITALIC -> setOf(TextFormat.Italic)
-                Typeface.BOLD_ITALIC -> setOf(TextFormat.Bold, TextFormat.Italic)
-                else -> emptySet()
-            }
-
-            is UnderlineSpan -> setOf(TextFormat.Underline)
-            else -> emptySet()
-        }
-    }
-
-    private fun TextFormat.createSpan(): CharacterStyle {
-        return when (this) {
-            TextFormat.Bold -> StyleSpan(Typeface.BOLD)
-            TextFormat.Italic -> StyleSpan(Typeface.ITALIC)
-            TextFormat.Underline -> UnderlineSpan()
-        }
+            .filter { span -> format in span.textFormats() }
     }
 }

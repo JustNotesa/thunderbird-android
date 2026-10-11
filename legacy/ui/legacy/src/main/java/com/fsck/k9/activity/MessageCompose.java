@@ -434,9 +434,6 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
         messageFormattingToolbar = new MessageFormattingToolbar(
                 findViewById(R.id.message_format_toolbar),
                 messageContentView,
-                findViewById(R.id.message_format_bold),
-                findViewById(R.id.message_format_italic),
-                findViewById(R.id.message_format_underline),
                 () -> changesMadeSinceLastSave = true);
 
         attachmentsView = findViewById(R.id.attachments);

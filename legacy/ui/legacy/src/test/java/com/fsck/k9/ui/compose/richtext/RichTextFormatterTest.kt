@@ -189,4 +189,54 @@ class RichTextFormatterTest : RobolectricTest() {
             FormattedRange(3, 10, TextFormat.Underline),
         )
     }
+
+    @Test
+    fun `select should give the selection one size and replace the size it had`() {
+        // Arrange
+        val text = SpannableStringBuilder("Hello Jane")
+        RichTextFormatter.select(text, TextFormat.Group.Size, TextFormat.SizeSmall, 0, 10)
+
+        // Act
+        RichTextFormatter.select(text, TextFormat.Group.Size, TextFormat.SizeHuge, 6, 10)
+
+        // Assert
+        assertThat(RichTextFormatter.formattedRanges(text)).containsExactly(
+            FormattedRange(0, 6, TextFormat.SizeSmall),
+            FormattedRange(6, 10, TextFormat.SizeHuge),
+        )
+        assertThat(RichTextFormatter.activeFormat(text, TextFormat.Group.Size, 6, 10)).isEqualTo(TextFormat.SizeHuge)
+    }
+
+    @Test
+    fun `select without a format should go back to the default font and keep other formatting`() {
+        // Arrange
+        val text = SpannableStringBuilder("Hello Jane")
+        RichTextFormatter.toggle(text, TextFormat.Bold, selectionStart = 0, selectionEnd = 10)
+        RichTextFormatter.select(text, TextFormat.Group.Font, TextFormat.FontSerif, 0, 10)
+
+        // Act
+        RichTextFormatter.select(text, TextFormat.Group.Font, null, 0, 5)
+
+        // Assert
+        assertThat(RichTextFormatter.formattedRanges(text)).containsExactly(
+            FormattedRange(0, 10, TextFormat.Bold),
+            FormattedRange(5, 10, TextFormat.FontSerif),
+        )
+        assertThat(RichTextFormatter.activeFormat(text, TextFormat.Group.Font, 0, 5)).isEqualTo(null)
+    }
+
+    @Test
+    fun `select without selection should set the font of what is typed next`() {
+        // Arrange
+        val text = SpannableStringBuilder("Hello ")
+
+        // Act
+        RichTextFormatter.select(text, TextFormat.Group.Font, TextFormat.FontMonospace, 6, 6)
+        text.insert(6, "Jane")
+
+        // Assert
+        assertThat(RichTextFormatter.formattedRanges(text)).containsExactly(
+            FormattedRange(6, 10, TextFormat.FontMonospace),
+        )
+    }
 }
