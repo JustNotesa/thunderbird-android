@@ -46,6 +46,7 @@ import com.fsck.k9.ui.R
 import com.fsck.k9.ui.base.BaseActivity
 import com.fsck.k9.ui.managefolders.ManageFoldersActivity
 import com.fsck.k9.ui.messagelist.DefaultFolderProvider
+import com.fsck.k9.ui.messagelist.FolderOrigin
 import com.fsck.k9.ui.messagelist.MessageListFragmentBridgeContract
 import com.fsck.k9.ui.messagelist.MessageListFragmentBridgeContract.MessageListFragmentListener
 import com.fsck.k9.ui.messagelist.createManualQuerySearch
@@ -145,10 +146,16 @@ open class MessageHomeActivity :
     private var singleFolderMode = false
 
     /**
-     * `true` if this activity was opened on top of search results to display the folder of a search result. Going
-     * back then returns to the search results instead of the default folder.
+     * Set if this activity was opened on top of another one to display the folder of a message. Going back then
+     * returns there instead of the default folder.
      */
-    private var isOpenedFromSearchResults = false
+    private var openedFrom: FolderOrigin? = null
+
+    /**
+     * `true` as long as the folder this activity was opened for is displayed. The way back is only offered there,
+     * not in the folders the user moves on to.
+     */
+    private var isOriginFolderDisplayed = false
 
     private var messageListActivityConfig: MessageListActivityConfig? = null
 
@@ -183,8 +190,13 @@ open class MessageHomeActivity :
             return
         }
 
-        isOpenedFromSearchResults = savedInstanceState?.getBoolean(STATE_OPENED_FROM_SEARCH_RESULTS)
-            ?: intent.getBooleanExtra(EXTRA_OPENED_FROM_SEARCH_RESULTS, false)
+        val openedFromName = if (savedInstanceState != null) {
+            savedInstanceState.getString(STATE_OPENED_FROM)
+        } else {
+            intent.getStringExtra(EXTRA_OPENED_FROM)
+        }
+        openedFrom = FolderOrigin.entries.find { it.name == openedFromName }
+        isOriginFolderDisplayed = savedInstanceState?.getBoolean(STATE_ORIGIN_FOLDER_DISPLAYED) ?: (openedFrom != null)
 
         if (useSplitView()) {
             setLayout(R.layout.split_message_list)
@@ -315,6 +327,7 @@ open class MessageHomeActivity :
         }
 
         setIntent(intent)
+        isOriginFolderDisplayed = false
 
         // Start with a fresh fragment back stack
         supportFragmentManager.popBackStackImmediate(
@@ -646,7 +659,8 @@ open class MessageHomeActivity :
         outState.putSerializable(STATE_DISPLAY_MODE, displayMode)
         outState.putBoolean(STATE_MESSAGE_VIEW_ONLY, messageViewOnly)
         outState.putBoolean(STATE_MESSAGE_LIST_WAS_DISPLAYED, messageListWasDisplayed)
-        outState.putBoolean(STATE_OPENED_FROM_SEARCH_RESULTS, isOpenedFromSearchResults)
+        outState.putString(STATE_OPENED_FROM, openedFrom?.name)
+        outState.putBoolean(STATE_ORIGIN_FOLDER_DISPLAYED, isOriginFolderDisplayed)
     }
 
     public override fun onRestoreInstanceState(savedInstanceState: Bundle) {
@@ -776,6 +790,7 @@ open class MessageHomeActivity :
     }
 
     private fun performSearch(search: LocalMessageSearch) {
+        isOriginFolderDisplayed = false
         initializeFromLocalSearch(search)
 
         val fragmentManager = supportFragmentManager
@@ -822,8 +837,8 @@ open class MessageHomeActivity :
             }
         } else if (!isSearchViewCollapsed()) {
             collapseSearchView()
-        } else if (isOpenedFromSearchResults && supportFragmentManager.backStackEntryCount == 0) {
-            // Return to the search results this activity was opened from
+        } else if (openedFrom != null && supportFragmentManager.backStackEntryCount == 0) {
+            // Return to the search results or the message this activity was opened from
             finish()
         } else if (isDrawerEnabled && account != null && supportFragmentManager.backStackEntryCount == 0) {
             returnToDefaultFolderOrLeave(callback)
@@ -1105,24 +1120,34 @@ open class MessageHomeActivity :
     }
 
     override fun showFolder(account: LegacyAccount, folderId: Long) {
+        showFolder(account.id.toString(), folderId, FolderOrigin.SEARCH_RESULTS)
+    }
+
+    private fun showFolder(accountUuid: String, folderId: Long, origin: FolderOrigin) {
         val search = LocalMessageSearch().apply {
-            addAccountUuid(account.id.toString())
+            addAccountUuid(accountUuid)
             addAllowedFolder(folderId)
         }
 
-        // Display the folder in a new activity on top of the search results. It has the navigation drawer so other
-        // folders can be opened from there, but going back returns to the search results.
+        if (isDrawerEnabled) {
+            // The user is already browsing folders here. Display the folder like one chosen in the drawer.
+            actionDisplaySearch(this, search, noThreading = false, newTask = false)
+            return
+        }
+
+        // Search results don't have the navigation drawer. Display the folder in a new activity on top of them. Other
+        // folders can be opened from there, but going back returns to the search results or the message.
         val intent = Intent(this, MessageHomeActivity::class.java).apply {
             putExtra(EXTRA_SEARCH, LocalMessageSearchSerializer.serialize(search))
-            putExtra(EXTRA_OPENED_FROM_SEARCH_RESULTS, true)
+            putExtra(EXTRA_OPENED_FROM, origin.name)
         }
         startActivity(intent)
     }
 
-    override val canReturnToSearchResults: Boolean
-        get() = isOpenedFromSearchResults
+    override val folderOrigin: FolderOrigin?
+        get() = openedFrom.takeIf { isOriginFolderDisplayed }
 
-    override fun returnToSearchResults() {
+    override fun returnToFolderOrigin() {
         finish()
     }
 
@@ -1548,7 +1573,7 @@ open class MessageHomeActivity :
         const val EXTRA_ACCOUNT = "account_uuid"
         private const val EXTRA_MESSAGE_REFERENCE = "message_reference"
         private const val EXTRA_MESSAGE_VIEW_ONLY = "message_view_only"
-        private const val EXTRA_OPENED_FROM_SEARCH_RESULTS = "opened_from_search_results"
+        private const val EXTRA_OPENED_FROM = "opened_from"
 
         // used for remote search
         const val EXTRA_SEARCH_ACCOUNT = "com.fsck.k9.search_account"
@@ -1557,7 +1582,8 @@ open class MessageHomeActivity :
         private const val STATE_DISPLAY_MODE = "displayMode"
         private const val STATE_MESSAGE_VIEW_ONLY = "messageViewOnly"
         private const val STATE_MESSAGE_LIST_WAS_DISPLAYED = "messageListWasDisplayed"
-        private const val STATE_OPENED_FROM_SEARCH_RESULTS = "openedFromSearchResults"
+        private const val STATE_OPENED_FROM = "openedFrom"
+        private const val STATE_ORIGIN_FOLDER_DISPLAYED = "originFolderDisplayed"
 
         private const val FIRST_FRAGMENT_TRANSACTION = "first"
         private const val FRAGMENT_TAG_MESSAGE_VIEW_CONTAINER = "MessageViewContainerFragment"

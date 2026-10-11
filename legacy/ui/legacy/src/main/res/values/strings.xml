@@ -78,6 +78,7 @@
     <string name="search_everywhere_action">Search everywhere</string>
     <string name="search_results">Search results</string>
     <string name="back_to_search_results">Back to search results</string>
+    <string name="back_to_message">Back to message</string>
     <string name="new_messages_title">New messages</string>
     <string name="folders_action">Manage folders</string>
     <string name="account_settings_action">Account settings</string>

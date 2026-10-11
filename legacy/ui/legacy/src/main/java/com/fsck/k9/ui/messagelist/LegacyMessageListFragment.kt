@@ -12,6 +12,7 @@ import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
 import android.widget.AutoCompleteTextView
+import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.ActivityResultLauncher
 import androidx.annotation.Discouraged
@@ -527,9 +528,16 @@ class LegacyMessageListFragment :
     }
 
     private fun initializeBackToSearchResults(view: View) {
-        view.findViewById<View>(R.id.back_to_search_results).apply {
-            isVisible = fragmentListener.canReturnToSearchResults && !isThreadDisplay
-            setOnClickListener { fragmentListener.returnToSearchResults() }
+        val folderOrigin = fragmentListener.folderOrigin.takeUnless { isThreadDisplay }
+        view.findViewById<TextView>(R.id.back_to_search_results).apply {
+            isVisible = folderOrigin != null
+            setText(
+                when (folderOrigin) {
+                    FolderOrigin.MESSAGE -> R.string.back_to_message
+                    else -> R.string.back_to_search_results
+                },
+            )
+            setOnClickListener { fragmentListener.returnToFolderOrigin() }
         }
     }
 
