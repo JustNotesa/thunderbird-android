@@ -1,6 +1,8 @@
 package com.fsck.k9.ui.managefolders
 
 import androidx.appcompat.widget.Toolbar
+import androidx.appcompat.widget.PopupMenu
+import androidx.core.view.children
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import android.graphics.drawable.ColorDrawable
@@ -284,22 +286,26 @@ class ManageFoldersFragment : Fragment() {
             return
         }
 
-        activity.supportActionBar?.subtitle = getString(R.string.folder_management_account, currentAccount.displayName)
+        val subtitle = getString(R.string.folder_management_account, currentAccount.displayName)
+        activity.supportActionBar?.subtitle = subtitle
         toolbar.setOnClickListener {
-            MaterialAlertDialogBuilder(activity)
-                .setTitle(R.string.folder_management_choose_account)
-                .setSingleChoiceItems(
-                    accounts.map { it.displayName }.toTypedArray(),
-                    accounts.indexOfFirst { it.id == currentAccount.id },
-                ) { dialog, index ->
-                    dialog.dismiss()
-                    if (accounts[index].id != currentAccount.id) {
-                        ManageFoldersActivity.launch(activity, accounts[index])
-                        activity.finish()
-                    }
+            // Opens right below the name of the account
+            val anchor = toolbar.children.firstOrNull { it is TextView && it.text.toString() == subtitle } ?: toolbar
+            val popupMenu = PopupMenu(activity, anchor)
+            accounts.forEachIndexed { index, account ->
+                popupMenu.menu.add(ACCOUNT_MENU_GROUP, index, index, account.displayName)
+                    .isChecked = account.id == currentAccount.id
+            }
+            popupMenu.menu.setGroupCheckable(ACCOUNT_MENU_GROUP, true, true)
+            popupMenu.setOnMenuItemClickListener { item ->
+                val selectedAccount = accounts[item.itemId]
+                if (selectedAccount.id != currentAccount.id) {
+                    ManageFoldersActivity.launch(activity, selectedAccount)
+                    activity.finish()
                 }
-                .setNegativeButton(BaseR.string.cancel_action, null)
-                .show()
+                true
+            }
+            popupMenu.show()
         }
     }
 
@@ -432,6 +438,7 @@ class ManageFoldersFragment : Fragment() {
     companion object {
         const val EXTRA_ACCOUNT = "account"
 
+        private const val ACCOUNT_MENU_GROUP = 1
         private const val DRAGGED_FOLDER_ALPHA = 0.3f
         private const val DROP_TARGET_HIGHLIGHT_ALPHA = 40
         private const val DRAG_SCROLL_EDGE_FRACTION = 6
