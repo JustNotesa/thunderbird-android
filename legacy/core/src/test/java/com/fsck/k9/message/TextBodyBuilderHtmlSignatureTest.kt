@@ -121,13 +121,13 @@ class TextBodyBuilderHtmlSignatureTest {
     }
 }
 
-private class FakeHtmlSignatureSanitizer(
+internal class FakeHtmlSignatureSanitizer(
     private val sanitizedSignature: String,
 ) : HtmlSignatureSanitizer {
     override fun sanitize(html: String): String = sanitizedSignature
 }
 
-private class FakeGeneralSettingsManager(
+internal class FakeGeneralSettingsManager(
     private var generalSettings: GeneralSettings = GeneralSettings(
         platformConfigProvider = FakePlatformConfigProvider(),
     ),

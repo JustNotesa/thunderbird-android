@@ -58,6 +58,7 @@ public abstract class MessageBuilder {
     private Identity identity;
     private SimpleMessageFormat messageFormat;
     private String text;
+    private String textHtml;
     private List<Attachment> attachments;
     private Map<String, Attachment> inlineAttachments;
     private String signature;
@@ -322,6 +323,7 @@ public abstract class MessageBuilder {
      */
     private TextBody buildText(boolean isDraft, SimpleMessageFormat simpleMessageFormat) {
         final TextBodyBuilder textBodyBuilder = new TextBodyBuilder(text, settingsManager, htmlSignatureSanitizer);
+        textBodyBuilder.setMessageContentHtml(textHtml);
 
         /*
          * Find out if we need to include the original message as quoted text.
@@ -436,6 +438,15 @@ public abstract class MessageBuilder {
 
     public MessageBuilder setText(String text) {
         this.text = text;
+        return this;
+    }
+
+    /**
+     * Sets the message text as an HTML fragment, for text the user formatted. The HTML part of the message is built
+     * from it; the plain text part still comes from {@link #setText(String)}.
+     */
+    public MessageBuilder setTextHtml(String textHtml) {
+        this.textHtml = textHtml;
         return this;
     }
 

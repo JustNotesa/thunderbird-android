@@ -23,6 +23,7 @@ class TextBodyBuilder {
     private boolean mSignatureIsHtml = false;
 
     private String mMessageContent;
+    private String mMessageContentHtml;
     private String mSignature;
     private String mQuotedText;
     private InsertableHtmlContent mQuotedTextHtml;
@@ -61,7 +62,7 @@ class TextBodyBuilder {
             }
 
             // Convert the text to HTML
-            text = textToHtmlFragment(text);
+            text = getMessageContentHtml();
 
             // Save length of the body. This is used when thawing drafts.
             composedMessageLength = text.length();
@@ -108,7 +109,7 @@ class TextBodyBuilder {
 
         } else {
             // Convert the text to HTML
-            text = textToHtmlFragment(text);
+            text = getMessageContentHtml();
 
             composedMessageLength = text.length();
             composedMessageOffset = HTML_AND_BODY_START.length();
@@ -217,8 +218,20 @@ class TextBodyBuilder {
         return mQuotedTextHtml;
     }
 
-    private String textToHtmlFragment(String text) {
-        return HtmlConverter.textToHtmlFragment(text);
+    private String getMessageContentHtml() {
+        if (mMessageContentHtml != null) {
+            return mMessageContentHtml;
+        }
+
+        return HtmlConverter.textToHtmlFragment(mMessageContent);
+    }
+
+    /**
+     * Sets the HTML fragment to use for the user-supplied text in {@link #buildTextHtml()} instead of converting the
+     * plain text. Used when the user formatted the text.
+     */
+    public void setMessageContentHtml(String messageContentHtml) {
+        mMessageContentHtml = messageContentHtml;
     }
 
     public void setSignature(String signature) {
