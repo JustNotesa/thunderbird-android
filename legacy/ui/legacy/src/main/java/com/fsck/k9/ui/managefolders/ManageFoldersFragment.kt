@@ -1,8 +1,12 @@
 package com.fsck.k9.ui.managefolders
 
 import androidx.appcompat.widget.Toolbar
-import androidx.appcompat.widget.PopupMenu
-import androidx.core.view.children
+import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.ViewCompositionStrategy
+import androidx.core.view.isVisible
+import kotlinx.collections.immutable.toImmutableList
+import net.thunderbird.core.ui.theme.api.FeatureThemeProvider
+import net.thunderbird.feature.account.storage.mapper.AvatarDataMapper
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import android.graphics.drawable.ColorDrawable
@@ -55,6 +59,8 @@ class ManageFoldersFragment : Fragment() {
     private val folderNameFormatter: FolderNameFormatter by inject()
     private val messagingController: MessagingController by inject()
     private val preferences: Preferences by inject()
+    private val avatarMapper: AvatarDataMapper by inject()
+    private val themeProvider: FeatureThemeProvider by inject()
     private val folderIconProvider: FolderIconProvider by inject { parametersOf(requireActivity().theme) }
 
     private lateinit var account: LegacyAccountDto
@@ -286,27 +292,55 @@ class ManageFoldersFragment : Fragment() {
             return
         }
 
-        val subtitle = getString(R.string.folder_management_account, currentAccount.displayName)
-        activity.supportActionBar?.subtitle = subtitle
-        toolbar.setOnClickListener {
-            // Opens right below the name of the account
-            val anchor = toolbar.children.firstOrNull { it is TextView && it.text.toString() == subtitle } ?: toolbar
-            val popupMenu = PopupMenu(activity, anchor)
-            accounts.forEachIndexed { index, account ->
-                popupMenu.menu.add(ACCOUNT_MENU_GROUP, index, index, account.displayName)
-                    .isChecked = account.id == currentAccount.id
+        val accountList = requireView().findViewById<ComposeView>(R.id.account_list)
+        val folderManagementAccounts = accounts.map { account ->
+            FolderManagementAccount(
+                uuid = account.id.toString(),
+                name = account.displayName,
+                email = account.email,
+                color = account.chipColor,
+                avatar = avatarMapper.toDomain(account.avatar),
+            )
+        }.toImmutableList()
+        val currentAccountUuid = currentAccount.id.toString()
+        accountList.setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
+        accountList.setContent {
+            themeProvider.WithTheme {
+                FolderManagementAccountList(
+                    accounts = folderManagementAccounts,
+                    selectedAccountUuid = currentAccountUuid,
+                    onAccountClick = { selectedAccount ->
+                        showAccountList(activity, isVisible = false)
+                        val account = accounts.first { it.id.toString() == selectedAccount.uuid }
+                        if (account.id != currentAccount.id) {
+                            ManageFoldersActivity.launch(activity, account)
+                            activity.finish()
+                        }
+                    },
+                )
             }
-            popupMenu.menu.setGroupCheckable(ACCOUNT_MENU_GROUP, true, true)
-            popupMenu.setOnMenuItemClickListener { item ->
-                val selectedAccount = accounts[item.itemId]
-                if (selectedAccount.id != currentAccount.id) {
-                    ManageFoldersActivity.launch(activity, selectedAccount)
-                    activity.finish()
-                }
-                true
-            }
-            popupMenu.show()
         }
+
+        showAccountList(activity, isVisible = false)
+        toolbar.setOnClickListener {
+            // On the screen of a single folder there is no list of accounts. Go back to the folders first.
+            view?.findViewById<View>(R.id.account_list)?.let { showAccountList(activity, !it.isVisible) }
+        }
+    }
+
+    /**
+     * The accounts are displayed above the folders after tapping the name of the current one.
+     */
+    private fun showAccountList(activity: AppCompatActivity, isVisible: Boolean) {
+        requireView().findViewById<View>(R.id.account_list).isVisible = isVisible
+        requireView().findViewById<View>(R.id.account_list_scrim).apply {
+            this.isVisible = isVisible
+            setOnClickListener { showAccountList(activity, isVisible = false) }
+        }
+        activity.supportActionBar?.subtitle = getString(
+            if (isVisible) R.string.folder_management_account_expanded else R.string.folder_management_account,
+            account.displayName,
+        )
     }
 
     private fun updateFolderList(displayFolders: List<DisplayFolder>) {
@@ -438,7 +472,6 @@ class ManageFoldersFragment : Fragment() {
     companion object {
         const val EXTRA_ACCOUNT = "account"
 
-        private const val ACCOUNT_MENU_GROUP = 1
         private const val DRAGGED_FOLDER_ALPHA = 0.3f
         private const val DROP_TARGET_HIGHLIGHT_ALPHA = 40
         private const val DRAG_SCROLL_EDGE_FRACTION = 6

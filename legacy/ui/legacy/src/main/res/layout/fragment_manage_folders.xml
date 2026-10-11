@@ -1,36 +1,59 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout
+<FrameLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
     tools:context=".managefolders.ManageFoldersFragment"
     >
 
-    <!-- Says how folders are moved. While a folder is being dragged, it is where to drop the folder to move it to
-         the top level. -->
-    <com.google.android.material.textview.MaterialTextView
-        android:id="@+id/folder_move_target"
-        android:textAppearance="?attr/textAppearanceBodySmall"
+    <LinearLayout
         android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        >
+
+        <!-- Says how folders are moved. While a folder is being dragged, it is where to drop the folder to move it to
+             the top level. -->
+        <com.google.android.material.textview.MaterialTextView
+            android:id="@+id/folder_move_target"
+            android:textAppearance="?attr/textAppearanceBodySmall"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:minHeight="48dp"
+            android:paddingHorizontal="16dp"
+            android:paddingVertical="8dp"
+            android:text="@string/folder_move_hint"
+            />
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/folderList"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_weight="1"
+            android:scrollbars="vertical"
+            app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
+            tools:listitem="@layout/folder_list_item"
+            />
+
+    </LinearLayout>
+
+    <!-- The accounts to choose from float above the folders after tapping the name of the account in the toolbar.
+         Tapping next to them closes them. -->
+    <View
+        android:id="@+id/account_list_scrim"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone"
+        />
+
+    <androidx.compose.ui.platform.ComposeView
+        android:id="@+id/account_list"
+        android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:gravity="center_vertical"
-        android:minHeight="48dp"
-        android:paddingHorizontal="16dp"
-        android:paddingVertical="8dp"
-        android:text="@string/folder_move_hint"
+        android:visibility="gone"
         />
 
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/folderList"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        android:scrollbars="vertical"
-        app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
-        tools:listitem="@layout/folder_list_item"
-        />
-
-</LinearLayout>
+</FrameLayout>
