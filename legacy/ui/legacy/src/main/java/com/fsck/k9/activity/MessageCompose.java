@@ -51,6 +51,10 @@ import androidx.activity.OnBackPressedCallback;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.StringRes;
+import android.text.InputType;
+import android.view.GestureDetector;
+import android.view.MotionEvent;
+import android.widget.FrameLayout;
 import androidx.appcompat.app.ActionBar;
 import androidx.core.content.IntentCompat;
 import androidx.core.os.BundleCompat;
@@ -554,6 +558,7 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
         }
         SignaturePreviewWebView.configureForSignaturePreview(
                 signatureHtmlPreview, webViewConfigProvider.createForMessageCompose());
+        setUpHtmlSignatureEditing();
         updateSignature();
         signatureView.addTextChangedListener(signTextWatcher);
 
@@ -1459,6 +1464,52 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
         }
 
         return emailMatch != null ? emailMatch : account.getIdentity(0);
+    }
+
+    /**
+     * An HTML signature is shown rendered, so it can't be edited in place like a plain text one. Tapping it opens its
+     * source instead.
+     */
+    @SuppressLint("ClickableViewAccessibility")
+    private void setUpHtmlSignatureEditing() {
+        final GestureDetector gestureDetector = new GestureDetector(this, new GestureDetector.SimpleOnGestureListener() {
+            @Override
+            public boolean onSingleTapUp(@NonNull MotionEvent event) {
+                showEditHtmlSignatureDialog();
+                return true;
+            }
+        });
+        signatureHtmlPreview.setOnTouchListener((view, event) -> gestureDetector.onTouchEvent(event));
+        signatureHtmlPreview.setContentDescription(getString(R.string.message_compose_edit_signature_title));
+    }
+
+    private void showEditHtmlSignatureDialog() {
+        final int padding = getResources().getDimensionPixelSize(R.dimen.message_compose_edit_signature_padding);
+        final EditText input = new EditText(this);
+        input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE
+                | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
+        input.setText(signatureView.getText());
+        applyIncognitoKeyboardSetting(input);
+
+        final FrameLayout container = new FrameLayout(this);
+        container.setPadding(padding, padding, padding, 0);
+        container.addView(input);
+
+        new MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.message_compose_edit_signature_title)
+                .setView(container)
+                .setPositiveButton(com.fsck.k9.ui.base.R.string.okay_action, (dialog, which) -> {
+                    String signature = input.getText().toString();
+                    if (signature.trim().isEmpty()) {
+                        removeSignature();
+                    } else {
+                        // Only this message gets the changed signature, the saved one stays as it is.
+                        applySignature(signature, true);
+                        appliedSignatureId = null;
+                    }
+                })
+                .setNegativeButton(com.fsck.k9.ui.base.R.string.cancel_action, null)
+                .show();
     }
 
     private void removeSignature() {

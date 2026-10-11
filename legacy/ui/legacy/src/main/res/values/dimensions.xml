@@ -36,4 +36,7 @@
     <!-- Edit Identity -->
     <dimen name="edit_identity_screen_padding">16dp</dimen>
     <dimen name="edit_identity_screen_signature_layout_spacing">8dp</dimen>
+
+    <!-- Message Compose -->
+    <dimen name="message_compose_edit_signature_padding">24dp</dimen>
 </resources>
