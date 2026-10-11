@@ -19,13 +19,26 @@ data class FormattedRange(
 )
 
 /**
- * Converts message text the user formatted in the composer into the HTML the message is sent as.
+ * Message text with `\n` line breaks and the parts of it that are formatted.
  */
-fun interface RichTextHtmlConverter {
+data class FormattedText(
+    val text: String,
+    val ranges: List<FormattedRange>,
+)
+
+/**
+ * Converts message text the user formatted in the composer into the HTML the message is sent as, and back.
+ */
+interface RichTextHtmlConverter {
     /**
      * @param text the message text as the user typed it, with `\n` line breaks
      * @param ranges the formatted parts of [text]; they may overlap
      * @return an HTML fragment for the body of the message
      */
     fun toHtmlFragment(text: String, ranges: List<FormattedRange>): String
+
+    /**
+     * Reads back an HTML fragment written by [toHtmlFragment], e.g. from a draft that is opened again.
+     */
+    fun fromHtmlFragment(html: String): FormattedText
 }

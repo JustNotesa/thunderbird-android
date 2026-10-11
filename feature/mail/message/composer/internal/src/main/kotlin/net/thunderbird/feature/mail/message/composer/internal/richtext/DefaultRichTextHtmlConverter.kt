@@ -1,6 +1,11 @@
 package net.thunderbird.feature.mail.message.composer.internal.richtext
 
+import com.fleeksoft.ksoup.Ksoup
+import com.fleeksoft.ksoup.nodes.Element
+import com.fleeksoft.ksoup.nodes.Node
+import com.fleeksoft.ksoup.nodes.TextNode
 import net.thunderbird.feature.mail.message.composer.richtext.FormattedRange
+import net.thunderbird.feature.mail.message.composer.richtext.FormattedText
 import net.thunderbird.feature.mail.message.composer.richtext.RichTextHtmlConverter
 import net.thunderbird.feature.mail.message.composer.richtext.TextFormat
 
@@ -28,6 +33,45 @@ internal class DefaultRichTextHtmlConverter : RichTextHtmlConverter {
                 formats.asReversed().forEach { append("</${it.tag}>") }
             }
             append(DIV_END)
+        }
+    }
+
+    override fun fromHtmlFragment(html: String): FormattedText {
+        val text = StringBuilder()
+        val ranges = mutableListOf<FormattedRange>()
+        appendNodes(Ksoup.parseBodyFragment(html).body().childNodes(), text, ranges)
+
+        return FormattedText(text = text.toString(), ranges = ranges.sortedWith(compareBy({ it.start }, { it.format })))
+    }
+
+    private fun appendNodes(nodes: List<Node>, text: StringBuilder, ranges: MutableList<FormattedRange>) {
+        for (node in nodes) {
+            when (node) {
+                is TextNode -> text.append(node.getWholeText().replace(NON_BREAKING_SPACE_CHARACTER, ' '))
+                is Element -> appendElement(node, text, ranges)
+                else -> Unit
+            }
+        }
+    }
+
+    private fun appendElement(element: Element, text: StringBuilder, ranges: MutableList<FormattedRange>) {
+        val tag = element.normalName()
+        if (tag == "br") {
+            text.append('\n')
+            return
+        }
+
+        // Every block starts on a line of its own.
+        if (tag in BLOCK_TAGS && text.isNotEmpty() && !text.endsWith('\n')) {
+            text.append('\n')
+        }
+
+        val start = text.length
+        appendNodes(element.childNodes(), text, ranges)
+
+        val format = FORMAT_BY_TAG[tag]
+        if (format != null && start < text.length) {
+            ranges.add(FormattedRange(start = start, end = text.length, format = format))
         }
     }
 
@@ -69,5 +113,15 @@ internal class DefaultRichTextHtmlConverter : RichTextHtmlConverter {
         const val DIV_START = """<div dir="auto">"""
         const val DIV_END = "</div>"
         const val NON_BREAKING_SPACE = "&nbsp;"
+        const val NON_BREAKING_SPACE_CHARACTER = '\u00A0'
+
+        val BLOCK_TAGS = setOf("div", "p")
+        val FORMAT_BY_TAG = mapOf(
+            "b" to TextFormat.Bold,
+            "strong" to TextFormat.Bold,
+            "i" to TextFormat.Italic,
+            "em" to TextFormat.Italic,
+            "u" to TextFormat.Underline,
+        )
     }
 }

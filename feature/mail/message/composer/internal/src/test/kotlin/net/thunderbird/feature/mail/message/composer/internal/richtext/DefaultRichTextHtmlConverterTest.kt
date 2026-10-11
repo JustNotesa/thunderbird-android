@@ -4,6 +4,7 @@ import assertk.assertThat
 import assertk.assertions.isEqualTo
 import kotlin.test.Test
 import net.thunderbird.feature.mail.message.composer.richtext.FormattedRange
+import net.thunderbird.feature.mail.message.composer.richtext.FormattedText
 import net.thunderbird.feature.mail.message.composer.richtext.TextFormat
 
 class DefaultRichTextHtmlConverterTest {
@@ -99,5 +100,66 @@ class DefaultRichTextHtmlConverterTest {
 
         // Assert
         assertThat(result).isEqualTo("""<div dir="auto">ab<b>cd</b></div>""")
+    }
+
+    @Test
+    fun `fromHtmlFragment should read back what toHtmlFragment wrote`() {
+        // Arrange
+        val text = " Hello Jane,\n\nthis is <important> & \"urgent\".  Bye"
+        val ranges = listOf(
+            FormattedRange(start = 7, end = 11, format = TextFormat.Bold),
+            FormattedRange(start = 14, end = 30, format = TextFormat.Italic),
+            FormattedRange(start = 22, end = 33, format = TextFormat.Underline),
+        )
+        val html = testSubject.toHtmlFragment(text, ranges)
+
+        // Act
+        val result = testSubject.fromHtmlFragment(html)
+
+        // Assert
+        assertThat(result.text).isEqualTo(text)
+        assertThat(testSubject.toHtmlFragment(result.text, result.ranges)).isEqualTo(html)
+    }
+
+    @Test
+    fun `fromHtmlFragment should report formatted ranges by their position in the text`() {
+        // Act
+        val result = testSubject.fromHtmlFragment("""<div dir="auto">Hello <b>Jane</b>,<br><i><u>hi</u></i></div>""")
+
+        // Assert
+        assertThat(result).isEqualTo(
+            FormattedText(
+                text = "Hello Jane,\nhi",
+                ranges = listOf(
+                    FormattedRange(start = 6, end = 10, format = TextFormat.Bold),
+                    FormattedRange(start = 12, end = 14, format = TextFormat.Italic),
+                    FormattedRange(start = 12, end = 14, format = TextFormat.Underline),
+                ),
+            ),
+        )
+    }
+
+    @Test
+    fun `fromHtmlFragment should read text without formatting`() {
+        // Act
+        val result = testSubject.fromHtmlFragment("""<div dir="auto">one<br>two</div>""")
+
+        // Assert
+        assertThat(result).isEqualTo(FormattedText(text = "one\ntwo", ranges = emptyList()))
+    }
+
+    @Test
+    fun `fromHtmlFragment should start every block on a new line`() {
+        // Act
+        val result = testSubject.fromHtmlFragment("<div>one</div><div><strong>two</strong></div><p><em>three</em></p>")
+
+        // Assert
+        assertThat(result.text).isEqualTo("one\ntwo\nthree")
+        assertThat(result.ranges).isEqualTo(
+            listOf(
+                FormattedRange(start = 4, end = 7, format = TextFormat.Bold),
+                FormattedRange(start = 8, end = 13, format = TextFormat.Italic),
+            ),
+        )
     }
 }
