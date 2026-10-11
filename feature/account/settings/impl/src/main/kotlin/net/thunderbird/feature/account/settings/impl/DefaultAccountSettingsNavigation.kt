@@ -101,6 +101,7 @@ internal class DefaultAccountSettingsNavigation : AccountSettingsNavigation {
 
                 SignatureSettingsScreen(
                     accountId = accountId,
+                    initialSignatureId = signatureSettingsRoute.signatureId,
                     onBack = onBack,
                 )
             }

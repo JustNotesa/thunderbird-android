@@ -13,8 +13,9 @@ import org.koin.core.parameter.parametersOf
 internal fun SignatureSettingsScreen(
     accountId: AccountId,
     onBack: () -> Unit,
+    initialSignatureId: String? = null,
     viewModel: SignatureSettingsContract.ViewModel = koinViewModel<SignatureSettingsViewModel> {
-        parametersOf(accountId)
+        parametersOf(accountId, initialSignatureId)
     },
 ) {
     val (state, dispatch) = viewModel.observe { effect ->

@@ -60,11 +60,20 @@ sealed interface AccountSettingsRoute : Route {
         }
     }
 
+    /**
+     * @param signatureId When set, the screen opens the editor for this signature right away and closes when the
+     * user is done with it.
+     */
     @Serializable
-    data class SignatureSettings(val accountId: String) : AccountSettingsRoute {
+    data class SignatureSettings(
+        val accountId: String,
+        val signatureId: String? = null,
+    ) : AccountSettingsRoute {
         override val basePath: String = BASE_PATH
 
-        override fun route(): String = "$basePath/$accountId"
+        override fun route(): String {
+            return if (signatureId == null) "$basePath/$accountId" else "$basePath/$accountId?signatureId=$signatureId"
+        }
 
         companion object {
             const val BASE_PATH = "$ACCOUNT_SETTINGS_BASE_PATH/signatures"

@@ -183,6 +183,7 @@ val featureAccountSettingsModule = module {
     viewModel { params ->
         SignatureSettingsViewModel(
             accountId = params.get(),
+            initialSignatureId = params.getOrNull<String>(),
             getAccountName = get(),
             getLegacyAccount = get(),
             updateSignatures = get(),

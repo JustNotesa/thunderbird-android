@@ -32,10 +32,16 @@ internal class SignatureSettingsViewModel(
     private val getLegacyAccount: UseCase.GetLegacyAccount,
     private val updateSignatures: UseCase.UpdateSignatures,
     private val logger: Logger,
+    private val initialSignatureId: String? = null,
     private val dispatcher: CoroutineDispatcher = Dispatchers.Main,
     private val signatureIdGenerator: () -> String = { UUID.randomUUID().toString() },
     initialState: State = State(),
 ) : BaseViewModel<State, Event, Effect>(initialState), SignatureSettingsContract.ViewModel {
+
+    /**
+     * `true` while editing the signature the screen was opened for. Leaving that editor leaves the screen.
+     */
+    private var isEditingInitialSignature = false
 
     init {
         observeAccountName()
@@ -73,7 +79,7 @@ internal class SignatureSettingsViewModel(
     }
 
     private fun onBackPressed() {
-        if (state.value.editor != null) {
+        if (state.value.editor != null && !isEditingInitialSignature) {
             updateState { it.copy(editor = null) }
         } else {
             emitEffect(Effect.NavigateBack)
@@ -109,7 +115,13 @@ internal class SignatureSettingsViewModel(
 
         viewModelScope.launch(dispatcher) {
             updateSignatures(accountId, UpdateSignaturesCommand.Save(signature)).handle(
-                onSuccess = { signatures -> updateState { it.withSignatures(signatures).copy(editor = null) } },
+                onSuccess = { signatures ->
+                    if (isEditingInitialSignature) {
+                        emitEffect(Effect.NavigateBack)
+                    } else {
+                        updateState { it.withSignatures(signatures).copy(editor = null) }
+                    }
+                },
                 onFailure = { handleError(it, Error.SaveFailed) },
             )
         }
@@ -156,7 +168,13 @@ internal class SignatureSettingsViewModel(
     private fun loadSignatures() {
         viewModelScope.launch(dispatcher) {
             getLegacyAccount(accountId).handle(
-                onSuccess = { account -> updateState { it.withSignatures(account.toAccountSignatures()) } },
+                onSuccess = { account ->
+                    updateState { it.withSignatures(account.toAccountSignatures()) }
+                    if (initialSignatureId != null && account.signatures.any { it.id == initialSignatureId }) {
+                        isEditingInitialSignature = true
+                        editSignature(initialSignatureId)
+                    }
+                },
                 onFailure = { handleError(it, Error.LoadFailed) },
             )
         }

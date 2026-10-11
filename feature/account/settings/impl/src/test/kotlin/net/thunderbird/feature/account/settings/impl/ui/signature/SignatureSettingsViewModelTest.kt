@@ -233,8 +233,65 @@ class SignatureSettingsViewModelTest {
         }
     }
 
+    @Test
+    fun `should open the editor for the signature the screen was opened for and leave on back`() = runTest {
+        // Arrange
+        val testSubject = createTestSubject(
+            signatures = listOf(WORK_SIGNATURE, PRIVATE_SIGNATURE),
+            initialSignatureId = PRIVATE_SIGNATURE.id,
+        )
+        advanceUntilIdle()
+        val editor = testSubject.state.value.editor
+
+        testSubject.effect.test {
+            // Act
+            testSubject.event(Event.OnBackPressed)
+
+            // Assert
+            assertThat(editor).isNotNull().transform { it.signatureId }.isEqualTo(PRIVATE_SIGNATURE.id)
+            assertThat(awaitItem()).isEqualTo(Effect.NavigateBack)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `should leave after saving the signature the screen was opened for`() = runTest {
+        // Arrange
+        val testSubject = createTestSubject(
+            signatures = listOf(WORK_SIGNATURE),
+            initialSignatureId = WORK_SIGNATURE.id,
+        )
+        advanceUntilIdle()
+
+        testSubject.effect.test {
+            // Act
+            testSubject.event(Event.OnTextChange("Jane"))
+            testSubject.event(Event.OnSaveClick)
+            advanceUntilIdle()
+
+            // Assert
+            assertThat(commands).containsExactly(UpdateSignaturesCommand.Save(WORK_SIGNATURE.copy(text = "Jane")))
+            assertThat(awaitItem()).isEqualTo(Effect.NavigateBack)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
+    fun `should show the list when the signature the screen was opened for is gone`() = runTest {
+        // Arrange
+        val testSubject = createTestSubject(signatures = listOf(WORK_SIGNATURE), initialSignatureId = "unknown")
+
+        // Act
+        advanceUntilIdle()
+
+        // Assert
+        assertThat(testSubject.state.value.editor).isNull()
+        assertThat(testSubject.state.value.signatures).containsExactly(WORK_SIGNATURE)
+    }
+
     private fun createTestSubject(
         signatures: List<AccountSignature> = emptyList(),
+        initialSignatureId: String? = null,
         defaultSignature: AccountSignature? = null,
         getLegacyAccount: UseCase.GetLegacyAccount = UseCase.GetLegacyAccount { accountId ->
             Outcome.success(createLegacyAccount(accountId, signatures, defaultSignature))
@@ -250,6 +307,7 @@ class SignatureSettingsViewModelTest {
                 updateSignatures(accountId, command)
             },
             logger = TestLogger(),
+            initialSignatureId = initialSignatureId,
             dispatcher = mainDispatcher.testDispatcher,
             signatureIdGenerator = { GENERATED_ID },
         )

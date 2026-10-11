@@ -70,6 +70,9 @@ import com.fsck.k9.ui.helper.DisplayHtmlUiFactory;
 import com.fsck.k9.view.MessageWebView;
 import com.fsck.k9.view.WebViewConfigProvider;
 import kotlin.Unit;
+import androidx.appcompat.app.AlertDialog;
+import app.k9mail.feature.launcher.FeatureLauncherActivity;
+import app.k9mail.feature.launcher.FeatureLauncherTarget;
 import net.thunderbird.core.android.account.AccountSignature;
 import net.thunderbird.core.android.account.LegacyAccountDto;
 import net.thunderbird.feature.account.AccountId;
@@ -274,6 +277,11 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
     private Identity identity;
     private boolean identityChanged = false;
     private boolean signatureChanged = false;
+    /**
+     * The signature the user opened for editing from the signature chooser, as it was before editing.
+     */
+    private AccountSignature signatureOpenedForEditing;
+    private String appliedSignatureId;
 
     // relates to the message being replied to, forwarded, or edited TODO split up?
     private MessageReference relatedMessageReference;
@@ -676,6 +684,8 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
         if (account == null) {
             fetchAccount(getIntent());
         }
+
+        applyEditedSignature();
 
         dismissActiveInAppNotifications();
         triggerIfNeededSentFolderNotFoundInAppNotification();
@@ -1165,6 +1175,7 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
     private void switchToIdentity(Identity identity) {
         this.identity = identity;
         identityChanged = true;
+        appliedSignatureId = null;
         changesMadeSinceLastSave = true;
         updateFrom();
         updateSignature();
@@ -1345,9 +1356,10 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
     }
 
     private void showChooseSignatureDialog() {
-        final List<AccountSignature> signatures = account.getSignatures();
+        final List<AccountSignature> signatures = getSavedSignatures();
         final Identity defaultIdentity = findAccountIdentity();
         final boolean hasDefaultSignature = defaultIdentity.getSignatureUse();
+        final int firstSavedSignatureIndex = hasDefaultSignature ? 1 : 0;
 
         final List<String> labels = new ArrayList<>();
         if (hasDefaultSignature) {
@@ -1358,20 +1370,75 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
         }
         labels.add(getString(R.string.message_compose_choose_signature_none));
 
-        new MaterialAlertDialogBuilder(this)
+        final AlertDialog dialog = new MaterialAlertDialogBuilder(this)
                 .setTitle(R.string.message_compose_choose_signature_action)
-                .setItems(labels.toArray(new String[0]), (dialog, which) -> {
+                .setItems(labels.toArray(new String[0]), (dialogInterface, which) -> {
                     if (which == labels.size() - 1) {
                         removeSignature();
-                    } else if (hasDefaultSignature && which == 0) {
+                    } else if (which < firstSavedSignatureIndex) {
                         applySignature(defaultIdentity.getSignature(), defaultIdentity.getSignatureIsHtml());
+                        appliedSignatureId = null;
                     } else {
-                        AccountSignature signature = signatures.get(hasDefaultSignature ? which - 1 : which);
+                        AccountSignature signature = signatures.get(which - firstSavedSignatureIndex);
                         applySignature(signature.getText(), signature.isHtml());
+                        appliedSignatureId = signature.getId();
                     }
                 })
                 .setNegativeButton(com.fsck.k9.ui.base.R.string.cancel_action, null)
-                .show();
+                .create();
+
+        // A long press on a saved signature opens it for editing.
+        dialog.getListView().setOnItemLongClickListener((parent, view, position, id) -> {
+            int signatureIndex = position - firstSavedSignatureIndex;
+            if (signatureIndex < 0 || signatureIndex >= signatures.size()) {
+                return false;
+            }
+
+            dialog.dismiss();
+            editSignature(signatures.get(signatureIndex));
+            return true;
+        });
+
+        dialog.show();
+    }
+
+    /**
+     * The saved signatures are read from the preferences rather than from {@link #account}, so signatures changed
+     * while this screen is open are picked up.
+     */
+    private List<AccountSignature> getSavedSignatures() {
+        LegacyAccountDto currentAccount = preferences.getById(account.getId());
+        return currentAccount != null ? currentAccount.getSignatures() : account.getSignatures();
+    }
+
+    private void editSignature(AccountSignature signature) {
+        signatureOpenedForEditing = signature;
+        FeatureLauncherActivity.launch(
+                this, new FeatureLauncherTarget.AccountSignatureSettings(account.getId(), signature.getId()));
+    }
+
+    /**
+     * Called when coming back from editing a signature. A signature the user changed there, or one that is already
+     * part of this message, is put into the message as it is now.
+     */
+    private void applyEditedSignature() {
+        final AccountSignature before = signatureOpenedForEditing;
+        if (before == null) {
+            return;
+        }
+        signatureOpenedForEditing = null;
+
+        for (AccountSignature signature : getSavedSignatures()) {
+            if (signature.getId().equals(before.getId())) {
+                boolean changed = !signature.equals(before);
+                boolean inUse = signature.getId().equals(appliedSignatureId);
+                if (changed || (inUse && identity.getSignatureUse())) {
+                    applySignature(signature.getText(), signature.isHtml());
+                    appliedSignatureId = signature.getId();
+                }
+                return;
+            }
+        }
     }
 
     /**
@@ -1404,6 +1471,7 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
         updateSignature();
         signatureChanged = true;
         changesMadeSinceLastSave = true;
+        appliedSignatureId = null;
     }
 
     private void applySignature(String signature, boolean isHtml) {

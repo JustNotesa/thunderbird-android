@@ -50,8 +50,11 @@ sealed class FeatureLauncherTarget(
         deepLinkUri = AccountSettingsRoute.SearchSettings(accountId.toString()).route().toUri(),
     )
 
-    data class AccountSignatureSettings(val accountId: AccountId) : FeatureLauncherTarget(
-        deepLinkUri = AccountSettingsRoute.SignatureSettings(accountId.toString()).route().toUri(),
+    data class AccountSignatureSettings(
+        val accountId: AccountId,
+        val signatureId: String? = null,
+    ) : FeatureLauncherTarget(
+        deepLinkUri = AccountSettingsRoute.SignatureSettings(accountId.toString(), signatureId).route().toUri(),
     )
 
     data object Funding : FeatureLauncherTarget(
