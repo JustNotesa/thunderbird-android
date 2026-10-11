@@ -1,6 +1,7 @@
 package net.thunderbird.feature.account.settings.impl.ui.signature
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -16,16 +17,22 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.collections.immutable.ImmutableList
 import net.thunderbird.components.ui.bolt.atom.DividerHorizontal
 import net.thunderbird.components.ui.bolt.atom.Surface
 import net.thunderbird.components.ui.bolt.atom.button.ButtonIcon
+import net.thunderbird.components.ui.bolt.atom.button.ButtonOutlined
 import net.thunderbird.components.ui.bolt.atom.button.ButtonText
 import net.thunderbird.components.ui.bolt.atom.icon.Icons
 import net.thunderbird.components.ui.bolt.atom.text.TextBodyLarge
@@ -252,6 +259,17 @@ private fun SignatureEditor(
     onEvent: (Event) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    // The text field keeps the selection, which the formatting buttons need. The text itself lives in the state.
+    var fieldValue by remember { mutableStateOf(TextFieldValue(editor.text)) }
+    if (fieldValue.text != editor.text) {
+        fieldValue = fieldValue.copy(text = editor.text)
+    }
+    val onFieldValueChange: (TextFieldValue) -> Unit = { newValue ->
+        val textChanged = newValue.text != fieldValue.text
+        fieldValue = newValue
+        if (textChanged) onEvent(Event.OnTextChange(newValue.text))
+    }
+
     Column(
         verticalArrangement = Arrangement.spacedBy(BoltTheme.spacings.default),
         modifier = modifier
@@ -259,6 +277,50 @@ private fun SignatureEditor(
             .verticalScroll(rememberScrollState())
             .imePadding()
             .padding(vertical = BoltTheme.spacings.double),
+    ) {
+        SignatureNameAndFormat(editor = editor, onEvent = onEvent)
+        if (editor.isHtml) {
+            HtmlFormatBar(
+                onFormatClick = { format -> onFieldValueChange(fieldValue.applyHtmlFormat(format)) },
+                modifier = Modifier.padding(horizontal = BoltTheme.spacings.double),
+            )
+        }
+        TextFieldOutlined(
+            value = fieldValue,
+            onValueChange = onFieldValueChange,
+            label = stringResource(
+                if (editor.isHtml) {
+                    R.string.account_settings_signatures_html_text_label
+                } else {
+                    R.string.account_settings_signatures_text_label
+                },
+            ),
+            isRequired = true,
+            isSingleLine = false,
+            modifier = Modifier
+                .padding(horizontal = BoltTheme.spacings.double)
+                .fillMaxWidth()
+                .heightIn(min = SIGNATURE_TEXT_MIN_HEIGHT)
+                .testTag(SignatureSettingsTestTags.TEXT_INPUT),
+        )
+        editor.previewHtml?.takeIf { editor.text.isNotBlank() }?.let { previewHtml ->
+            SignaturePreview(
+                previewHtml = previewHtml,
+                modifier = Modifier.padding(horizontal = BoltTheme.spacings.double),
+            )
+        }
+    }
+}
+
+@Composable
+private fun SignatureNameAndFormat(
+    editor: Editor,
+    onEvent: (Event) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(BoltTheme.spacings.default),
+        modifier = modifier,
     ) {
         TextInput(
             text = editor.name,
@@ -276,23 +338,50 @@ private fun SignatureEditor(
             text = stringResource(R.string.account_settings_signatures_is_html_summary),
             modifier = Modifier.padding(horizontal = BoltTheme.spacings.double),
         )
-        TextFieldOutlined(
-            value = editor.text,
-            onValueChange = { onEvent(Event.OnTextChange(it)) },
-            label = stringResource(
-                if (editor.isHtml) {
-                    R.string.account_settings_signatures_html_text_label
-                } else {
-                    R.string.account_settings_signatures_text_label
-                },
-            ),
-            isRequired = true,
-            isSingleLine = false,
-            modifier = Modifier
-                .padding(horizontal = BoltTheme.spacings.double)
-                .fillMaxWidth()
-                .heightIn(min = SIGNATURE_TEXT_MIN_HEIGHT)
-                .testTag(SignatureSettingsTestTags.TEXT_INPUT),
+    }
+}
+
+@Composable
+private fun SignaturePreview(
+    previewHtml: String,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(BoltTheme.spacings.default),
+        modifier = modifier,
+    ) {
+        TextLabelSmall(
+            text = stringResource(R.string.account_settings_signatures_preview_label),
+            color = BoltTheme.colors.onSurfaceVariant,
+        )
+        SignatureHtmlPreview(html = previewHtml, modifier = Modifier.fillMaxWidth())
+    }
+}
+
+@Composable
+private fun HtmlFormatBar(
+    onFormatClick: (HtmlFormat) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(BoltTheme.spacings.default),
+        modifier = modifier.horizontalScroll(rememberScrollState()),
+    ) {
+        ButtonOutlined(
+            text = stringResource(R.string.account_settings_signatures_format_bold),
+            onClick = { onFormatClick(HtmlFormat.Bold) },
+        )
+        ButtonOutlined(
+            text = stringResource(R.string.account_settings_signatures_format_italic),
+            onClick = { onFormatClick(HtmlFormat.Italic) },
+        )
+        ButtonOutlined(
+            text = stringResource(R.string.account_settings_signatures_format_link),
+            onClick = { onFormatClick(HtmlFormat.Link) },
+        )
+        ButtonOutlined(
+            text = stringResource(R.string.account_settings_signatures_format_line_break),
+            onClick = { onFormatClick(HtmlFormat.LineBreak) },
         )
     }
 }

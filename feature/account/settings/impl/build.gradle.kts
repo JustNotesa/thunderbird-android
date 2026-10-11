@@ -23,6 +23,7 @@ dependencies {
     implementation(projects.core.featureflag)
     implementation(projects.core.android.account)
     implementation(projects.feature.mail.account.api)
+    implementation(projects.feature.mail.message.composer.api)
     implementation(projects.core.file)
     implementation(projects.core.validation)
 

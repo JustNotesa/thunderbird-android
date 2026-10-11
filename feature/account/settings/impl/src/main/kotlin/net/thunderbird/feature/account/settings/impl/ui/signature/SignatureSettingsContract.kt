@@ -21,12 +21,15 @@ internal interface SignatureSettingsContract {
 
     /**
      * The signature being added or edited. [signatureId] is `null` while adding a new one.
+     *
+     * @param previewHtml The sanitized HTML an HTML signature is sent as, `null` for a plain text signature.
      */
     data class Editor(
         val signatureId: String? = null,
         val name: String = "",
         val text: String = "",
         val isHtml: Boolean = false,
+        val previewHtml: String? = null,
     ) {
         val canSave: Boolean
             get() = name.isNotBlank() && text.isNotBlank()

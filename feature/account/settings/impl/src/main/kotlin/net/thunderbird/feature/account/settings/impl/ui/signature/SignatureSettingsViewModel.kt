@@ -23,6 +23,7 @@ import net.thunderbird.feature.account.settings.impl.ui.signature.SignatureSetti
 import net.thunderbird.feature.account.settings.impl.ui.signature.SignatureSettingsContract.Error
 import net.thunderbird.feature.account.settings.impl.ui.signature.SignatureSettingsContract.Event
 import net.thunderbird.feature.account.settings.impl.ui.signature.SignatureSettingsContract.State
+import net.thunderbird.feature.mail.message.composer.signature.HtmlSignatureSanitizer
 
 private const val TAG = "SignatureSettingsViewModel"
 
@@ -32,6 +33,7 @@ internal class SignatureSettingsViewModel(
     private val getLegacyAccount: UseCase.GetLegacyAccount,
     private val updateSignatures: UseCase.UpdateSignatures,
     private val logger: Logger,
+    private val htmlSignatureSanitizer: HtmlSignatureSanitizer,
     private val initialSignatureId: String? = null,
     private val dispatcher: CoroutineDispatcher = Dispatchers.Main,
     private val signatureIdGenerator: () -> String = { UUID.randomUUID().toString() },
@@ -95,14 +97,18 @@ internal class SignatureSettingsViewModel(
                     name = signature.name,
                     text = signature.text,
                     isHtml = signature.isHtml,
-                ),
+                ).withPreview(),
             )
         }
     }
 
     private fun updateEditor(update: (Editor) -> Editor) {
-        updateState { state -> state.copy(editor = state.editor?.let(update)) }
+        updateState { state -> state.copy(editor = state.editor?.let(update)?.withPreview()) }
     }
+
+    private fun Editor.withPreview() = copy(
+        previewHtml = if (isHtml) htmlSignatureSanitizer.sanitize(text) else null,
+    )
 
     private fun saveSignature() {
         val editor = state.value.editor?.takeIf { it.canSave } ?: return
@@ -150,11 +156,6 @@ internal class SignatureSettingsViewModel(
         }
     }
 
-    private fun State.withSignatures(accountSignatures: AccountSignatures) = copy(
-        signatures = accountSignatures.signatures.toImmutableList(),
-        defaultSignatureId = accountSignatures.defaultSignatureId,
-    )
-
     private fun observeAccountName() {
         getAccountName(accountId)
             .onEach { outcome ->
@@ -190,3 +191,8 @@ internal class SignatureSettingsViewModel(
         updateState { it.copy(error = error) }
     }
 }
+
+private fun State.withSignatures(accountSignatures: AccountSignatures) = copy(
+    signatures = accountSignatures.signatures.toImmutableList(),
+    defaultSignatureId = accountSignatures.defaultSignatureId,
+)

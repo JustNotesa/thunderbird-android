@@ -184,6 +184,7 @@ val featureAccountSettingsModule = module {
         SignatureSettingsViewModel(
             accountId = params.get(),
             initialSignatureId = params.getOrNull<String>(),
+            htmlSignatureSanitizer = get(),
             getAccountName = get(),
             getLegacyAccount = get(),
             updateSignatures = get(),

@@ -118,6 +118,24 @@ class SignatureSettingsViewModelTest {
     }
 
     @Test
+    fun `should offer a sanitized preview for an HTML signature only`() = runTest {
+        // Arrange
+        val testSubject = createTestSubject()
+        advanceUntilIdle()
+
+        // Act
+        testSubject.event(Event.OnAddClick)
+        testSubject.event(Event.OnTextChange("<b>Jane</b>"))
+        val previewOfTextSignature = testSubject.state.value.editor?.previewHtml
+        testSubject.event(Event.OnIsHtmlChange(true))
+        testSubject.event(Event.OnTextChange("<i>Jane</i>"))
+
+        // Assert
+        assertThat(previewOfTextSignature).isNull()
+        assertThat(testSubject.state.value.editor?.previewHtml).isEqualTo("sanitized:<i>Jane</i>")
+    }
+
+    @Test
     fun `should not save while name or text is blank`() = runTest {
         // Arrange
         val testSubject = createTestSubject()
@@ -307,6 +325,7 @@ class SignatureSettingsViewModelTest {
                 updateSignatures(accountId, command)
             },
             logger = TestLogger(),
+            htmlSignatureSanitizer = { html -> "sanitized:$html" },
             initialSignatureId = initialSignatureId,
             dispatcher = mainDispatcher.testDispatcher,
             signatureIdGenerator = { GENERATED_ID },

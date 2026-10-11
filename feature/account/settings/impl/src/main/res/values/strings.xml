@@ -165,6 +165,11 @@
     <string name="account_settings_signatures_is_html_label">Save signature as HTML</string>
     <string name="account_settings_signatures_is_html_summary">Interpret the signature as HTML. Scripts and event handlers will be removed for security.</string>
     <string name="account_settings_signatures_html_badge">HTML</string>
+    <string name="account_settings_signatures_format_bold">Bold</string>
+    <string name="account_settings_signatures_format_italic">Italic</string>
+    <string name="account_settings_signatures_format_link">Link</string>
+    <string name="account_settings_signatures_format_line_break">Line break</string>
+    <string name="account_settings_signatures_preview_label">Preview</string>
     <string name="account_settings_signatures_default_badge">Default</string>
     <string name="account_settings_signatures_set_default_action">Use as default signature</string>
     <string name="account_settings_signatures_unset_default_action">Stop using as default signature</string>
