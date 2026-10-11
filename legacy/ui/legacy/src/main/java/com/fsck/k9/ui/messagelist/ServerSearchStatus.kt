@@ -8,6 +8,8 @@ sealed interface ServerSearchStatus {
 
     /**
      * @param detail What the search has found so far.
+     * @param isMessageContentsSearchOffered Whether the user can skip the rest of this search and have the message
+     *   contents searched right away.
      * @param activity What the search is doing at the moment. It is displayed instead of [detail] when the search is
      *   being held up, so it doesn't look like it is stuck.
      */
@@ -16,6 +18,7 @@ sealed interface ServerSearchStatus {
         val progress: Progress? = null,
         val detail: String? = null,
         val activity: String? = null,
+        val isMessageContentsSearchOffered: Boolean = false,
     ) : ServerSearchStatus
 
     data class Progress(

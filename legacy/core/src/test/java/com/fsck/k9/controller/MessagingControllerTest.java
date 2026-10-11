@@ -471,6 +471,24 @@ public class MessagingControllerTest extends K9RobolectricTest {
     }
 
     @Test
+    public void searchRemoteMessagesCascadingSynchronous_continuingStoppedSearch_shouldSkipSearchedFolders()
+            throws Exception {
+        setupCascadingRemoteSearch(3);
+
+        controller.searchRemoteMessagesCascadingSynchronous(accountId.toString(), 1L, "query", null, null, false, 2,
+            listener);
+
+        verify(backend, never()).search(eq("folder1"), anyString(), nullable(Set.class), nullable(Set.class),
+            eq(false), any(SearchListener.class));
+        verify(backend, never()).search(eq("folder2"), anyString(), nullable(Set.class), nullable(Set.class),
+            eq(false), any(SearchListener.class));
+        verify(backend).search(eq("folder3"), eq("query"), nullable(Set.class), nullable(Set.class), eq(false),
+            any(SearchListener.class));
+        verify(listener).remoteSearchCascadeProgress(eq(accountId.toString()), nullable(String.class),
+            nullable(String.class), eq(3), eq(3));
+    }
+
+    @Test
     public void searchRemoteMessagesCascadingSynchronous_shouldKeepFoundMessagesOnTheDevice() throws Exception {
         ListenableMessageStore messageStore = setupCascadingRemoteSearch(2);
         when(messageStore.getFolderExtraString(2L, KeptMessages.FOLDER_EXTRA)).thenReturn("uid1");

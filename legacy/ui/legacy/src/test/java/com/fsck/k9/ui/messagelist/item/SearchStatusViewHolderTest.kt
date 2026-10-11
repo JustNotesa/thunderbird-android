@@ -124,6 +124,31 @@ class SearchStatusViewHolderTest : RobolectricTest() {
     }
 
     @Test
+    fun `running search should offer to search the message contents right away`() {
+        val testSubject = createViewHolder()
+        testSubject.bind(
+            ServerSearchStatus.Running(title = "Server search: folder 3 of 10", isMessageContentsSearchOffered = true),
+        )
+
+        assertThat(testSubject.itemView.skipToContentsButtonView.isVisible).isTrue()
+        testSubject.itemView.skipToContentsButtonView.performClick()
+
+        assertThat(searchMessageContentsClickCount).isEqualTo(1)
+    }
+
+    @Test
+    fun `search of the message contents should not offer to search them`() {
+        val testSubject = createViewHolder()
+        testSubject.bind(
+            ServerSearchStatus.Running(title = "Server search: folder 3 of 10", isMessageContentsSearchOffered = true),
+        )
+
+        testSubject.bind(ServerSearchStatus.Running(title = "Content search: folder 1 of 10"))
+
+        assertThat(testSubject.itemView.skipToContentsButtonView.isVisible).isFalse()
+    }
+
+    @Test
     fun `ended search should display problem`() {
         val testSubject = createViewHolder()
 
@@ -223,6 +248,7 @@ class SearchStatusViewHolderTest : RobolectricTest() {
     private val View.detailView: TextView get() = findViewById(R.id.search_status_detail)
     private val View.messageView: TextView get() = findViewById(R.id.search_status_message)
     private val View.contentsButtonView: View get() = findViewById(R.id.search_contents_button)
+    private val View.skipToContentsButtonView: View get() = findViewById(R.id.search_contents_skip_button)
 
     private companion object {
         val STATUSES = listOf(
@@ -235,6 +261,11 @@ class SearchStatusViewHolderTest : RobolectricTest() {
                 title = LONG_TEXT,
                 progress = ServerSearchStatus.Progress(folderIndex = 3, folderCount = 10, folderLabel = LONG_TEXT),
                 detail = LONG_TEXT,
+            ),
+            ServerSearchStatus.Running(
+                title = LONG_TEXT,
+                progress = ServerSearchStatus.Progress(folderIndex = 3, folderCount = 10, folderLabel = "Projects"),
+                isMessageContentsSearchOffered = true,
             ),
             ServerSearchStatus.Ended(
                 title = "Server search finished",

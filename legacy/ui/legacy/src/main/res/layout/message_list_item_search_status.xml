@@ -13,10 +13,12 @@
     android:paddingVertical="12dp"
     >
 
+    <!-- Always as high as the button, so the height doesn't depend on whether the button is displayed -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:gravity="center_vertical"
+        android:minHeight="32dp"
         android:orientation="horizontal"
         >
 
@@ -48,11 +50,29 @@
         <com.google.android.material.textview.MaterialTextView
             android:id="@+id/search_status_text"
             android:textAppearance="?attr/textAppearanceBodyMedium"
-            android:layout_width="match_parent"
+            android:layout_width="0dp"
             android:layout_height="wrap_content"
+            android:layout_weight="1"
             android:ellipsize="end"
             android:lines="1"
             tools:text="Server search: folder 12 of 290"
+            />
+
+        <!-- Skips the rest of the running search and searches the message contents right away -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/search_contents_skip_button"
+            style="@style/Widget.Material3.Button.TextButton.Icon"
+            android:layout_width="wrap_content"
+            android:layout_height="32dp"
+            android:layout_marginStart="8dp"
+            android:insetTop="0dp"
+            android:insetBottom="0dp"
+            android:minHeight="0dp"
+            android:paddingVertical="0dp"
+            android:text="@string/remote_search_contents_skip_action"
+            android:visibility="gone"
+            app:icon="@drawable/ic_find_in_page"
+            tools:visibility="visible"
             />
 
     </LinearLayout>

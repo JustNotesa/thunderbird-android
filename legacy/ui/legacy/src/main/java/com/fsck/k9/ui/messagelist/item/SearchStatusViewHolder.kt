@@ -37,6 +37,7 @@ class SearchStatusViewHolder(view: View) : MessageListViewHolder(view) {
     private val detail: TextView = view.findViewById(R.id.search_status_detail)
     private val message: TextView = view.findViewById(R.id.search_status_message)
     private val contentsButton: View = view.findViewById(R.id.search_contents_button)
+    private val skipToContentsButton: View = view.findViewById(R.id.search_contents_skip_button)
 
     init {
         // Reserve the space for the button and one line of text above it.
@@ -77,6 +78,7 @@ class SearchStatusViewHolder(view: View) : MessageListViewHolder(view) {
 
         message.isInvisible = true
         contentsButton.isVisible = false
+        skipToContentsButton.isVisible = status.isMessageContentsSearchOffered
     }
 
     private fun bindEnded(status: ServerSearchStatus.Ended) {
@@ -89,6 +91,7 @@ class SearchStatusViewHolder(view: View) : MessageListViewHolder(view) {
         }
 
         progressGroup.isInvisible = true
+        skipToContentsButton.isVisible = false
 
         message.text = status.message
         message.isInvisible = status.message.isNullOrBlank()
@@ -109,6 +112,8 @@ class SearchStatusViewHolder(view: View) : MessageListViewHolder(view) {
         ): SearchStatusViewHolder {
             val view = layoutInflater.inflate(R.layout.message_list_item_search_status, parent, false)
             view.findViewById<View>(R.id.search_contents_button)
+                .setOnClickListener(onSearchMessageContentsClickListener)
+            view.findViewById<View>(R.id.search_contents_skip_button)
                 .setOnClickListener(onSearchMessageContentsClickListener)
             return SearchStatusViewHolder(view)
         }

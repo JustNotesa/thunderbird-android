@@ -878,6 +878,7 @@
     <string name="remote_search_status_progress">Server search: folder %1$d of %2$d</string>
     <string name="remote_search_contents_status_progress">Content search: folder %1$d of %2$d</string>
     <string name="remote_search_contents_action">Also search message contents</string>
+    <string name="remote_search_contents_skip_action">Search contents now</string>
     <string name="remote_search_finished">Server search finished</string>
     <string name="remote_search_contents_finished">Content search finished</string>
     <string name="remote_search_stopped">Server search stopped</string>

@@ -601,17 +601,37 @@ public class MessagingController implements MessagingControllerRegistry, Messagi
     public Future<?> searchRemoteMessagesCascading(@Nullable String startAccountUuid, @Nullable Long startFolderId,
             String query, Set<Flag> requiredFlags, Set<Flag> forbiddenFlags, boolean searchMessageContents,
             MessagingListener listener) {
-        Log.i("searchRemoteMessagesCascading (acct = %s, startFolderId = %d, contents = %b)", startAccountUuid,
-                startFolderId, searchMessageContents);
+        return searchRemoteMessagesCascading(startAccountUuid, startFolderId, query, requiredFlags, forbiddenFlags,
+                searchMessageContents, 0, listener);
+    }
+
+    /**
+     * @param searchedFolderCount
+     *         The number of folders a search that was stopped has already searched. They are skipped, so the search
+     *         continues where it was stopped.
+     */
+    public Future<?> searchRemoteMessagesCascading(@Nullable String startAccountUuid, @Nullable Long startFolderId,
+            String query, Set<Flag> requiredFlags, Set<Flag> forbiddenFlags, boolean searchMessageContents,
+            int searchedFolderCount, MessagingListener listener) {
+        Log.i("searchRemoteMessagesCascading (acct = %s, startFolderId = %d, contents = %b, searched = %d)",
+                startAccountUuid, startFolderId, searchMessageContents, searchedFolderCount);
 
         return threadPool.submit(() -> searchRemoteMessagesCascadingSynchronous(startAccountUuid, startFolderId, query,
-                requiredFlags, forbiddenFlags, searchMessageContents, listener));
+                requiredFlags, forbiddenFlags, searchMessageContents, searchedFolderCount, listener));
     }
 
     @VisibleForTesting
     void searchRemoteMessagesCascadingSynchronous(@Nullable String startAccountUuid, @Nullable Long startFolderId,
             String query, Set<Flag> requiredFlags, Set<Flag> forbiddenFlags, boolean searchMessageContents,
             MessagingListener listener) {
+        searchRemoteMessagesCascadingSynchronous(startAccountUuid, startFolderId, query, requiredFlags,
+                forbiddenFlags, searchMessageContents, 0, listener);
+    }
+
+    @VisibleForTesting
+    void searchRemoteMessagesCascadingSynchronous(@Nullable String startAccountUuid, @Nullable Long startFolderId,
+            String query, Set<Flag> requiredFlags, Set<Flag> forbiddenFlags, boolean searchMessageContents,
+            int searchedFolderCount, MessagingListener listener) {
         long listenerFolderId = startFolderId != null ? startFolderId : NO_START_FOLDER_ID;
         if (listener != null) {
             listener.remoteSearchStarted(listenerFolderId);
@@ -633,6 +653,10 @@ public class MessagingController implements MessagingControllerRegistry, Messagi
                 }
 
                 folderIndex++;
+                if (folderIndex <= searchedFolderCount) {
+                    continue;
+                }
+
                 String accountUuid = target.account.getId().toString();
                 if (unreachableAccounts.contains(accountUuid)) {
                     // Don't keep trying the remaining folders of an account whose server can't be reached.
