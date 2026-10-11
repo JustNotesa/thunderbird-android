@@ -13,6 +13,7 @@ import com.fsck.k9.ui.base.R as BaseR
 import com.google.android.material.R as MaterialR
 import android.widget.Toast
 import androidx.core.content.ContextCompat
+import android.os.Build
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.Menu
@@ -55,6 +56,7 @@ class ManageFoldersFragment : Fragment() {
     private lateinit var account: LegacyAccountDto
     private lateinit var itemAdapter: ItemAdapter<FolderListItem>
     private var folders: Map<Long, Folder> = emptyMap()
+    private var draggedFolderView: View? = null
     private var displayFolders: List<DisplayFolder> = emptyList()
     private val expandedFolderIds = mutableSetOf<Long>()
     private var folderFilter: String = ""
@@ -141,7 +143,12 @@ class ManageFoldersFragment : Fragment() {
     private fun startFolderDrag(view: View, item: FolderListItem): Boolean {
         val folder = folders[item.folderId]
         if (folder != null && !folder.isLocalOnly && folder.type == FolderType.REGULAR) {
-            ViewCompat.startDragAndDrop(view, null, View.DragShadowBuilder(view), item.folderId, 0)
+            val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) View.DRAG_FLAG_OPAQUE else 0
+            if (ViewCompat.startDragAndDrop(view, null, FolderDragShadow(view), item.folderId, flags)) {
+                // The folder is on its way, only a trace of it stays behind
+                view.alpha = DRAGGED_FOLDER_ALPHA
+                draggedFolderView = view
+            }
         } else if (folder != null) {
             Toast.makeText(requireContext(), R.string.folder_move_not_possible, Toast.LENGTH_SHORT).show()
         }
@@ -189,6 +196,8 @@ class ManageFoldersFragment : Fragment() {
 
             DragEvent.ACTION_DRAG_ENDED -> {
                 highlightDropTarget(null)
+                draggedFolderView?.alpha = 1f
+                draggedFolderView = null
                 target.setText(R.string.folder_move_hint)
             }
         }
@@ -386,6 +395,7 @@ class ManageFoldersFragment : Fragment() {
     companion object {
         const val EXTRA_ACCOUNT = "account"
 
+        private const val DRAGGED_FOLDER_ALPHA = 0.3f
         private const val DROP_TARGET_HIGHLIGHT_ALPHA = 40
         private const val DRAG_SCROLL_EDGE_FRACTION = 6
         private const val DRAG_SCROLL_DISTANCE_DP = 12
