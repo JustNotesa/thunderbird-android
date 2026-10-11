@@ -794,6 +794,18 @@
     <string name="dialog_confirm_clear_local_folder_title">Clear local messages?</string>
     <string name="dialog_confirm_clear_local_folder_message">This will remove all local messages from the folder. No messages will be deleted from the server.</string>
     <string name="dialog_confirm_clear_local_folder_action">Clear messages</string>
+    <string name="folder_create_action">New folder</string>
+    <string name="folder_create_subfolder_action">New subfolder</string>
+    <string name="folder_create_confirm_action">Create</string>
+    <string name="folder_name_dialog_hint">Folder name</string>
+    <string name="folder_name_invalid">The name must not be empty or contain \"%1$s\".</string>
+    <string name="folder_created">Folder created</string>
+    <string name="folder_create_failed">The folder could not be created: %1$s</string>
+    <string name="folder_delete_action">Delete folder</string>
+    <string name="folder_deleted">Folder deleted</string>
+    <string name="folder_delete_failed">The folder could not be deleted: %1$s</string>
+    <string name="dialog_confirm_delete_folder_title">Delete folder?</string>
+    <string name="dialog_confirm_delete_folder_message">This permanently deletes the folder \"%1$s\" and all messages in it from the server. Its subfolders are kept. This cannot be undone.</string>
 
     <string name="dialog_confirm_delete_title">Confirm deletion</string>
     <string name="dialog_confirm_delete_message">Do you want to delete this message?</string>

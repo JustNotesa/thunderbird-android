@@ -84,6 +84,25 @@ class FolderSettingsViewModel(
         messagingController.clearFolder(account, folderId)
     }
 
+    val folderPathDelimiter: String
+        get() = account.folderPathDelimiter
+
+    fun createSubfolder(name: String) {
+        messagingController.createFolder(account, folderId, name) { error ->
+            actionLiveData.postValue(if (error == null) Action.FolderCreated else Action.CreateFolderFailed(error))
+        }
+    }
+
+    fun showDeleteFolderConfirmationDialog() {
+        sendActionEvent(Action.ShowDeleteFolderConfirmationDialog)
+    }
+
+    fun onDeleteFolderConfirmation() {
+        messagingController.deleteFolder(account, folderId) { error ->
+            actionLiveData.postValue(if (error == null) Action.FolderDeleted else Action.DeleteFolderFailed(error))
+        }
+    }
+
     fun getActionEvents(): LiveData<Action> = actionLiveData
 
     private fun sendActionEvent(action: Action) {
@@ -97,4 +116,9 @@ data class FolderSettingsData(val folder: Folder, val dataStore: FolderSettingsD
 
 sealed class Action {
     object ShowClearFolderConfirmationDialog : Action()
+    object ShowDeleteFolderConfirmationDialog : Action()
+    object FolderCreated : Action()
+    data class CreateFolderFailed(val reason: String) : Action()
+    object FolderDeleted : Action()
+    data class DeleteFolderFailed(val reason: String) : Action()
 }

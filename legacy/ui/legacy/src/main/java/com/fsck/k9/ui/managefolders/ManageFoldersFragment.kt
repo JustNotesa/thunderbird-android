@@ -1,5 +1,7 @@
 package com.fsck.k9.ui.managefolders
 
+import android.widget.Toast
+import androidx.core.content.ContextCompat
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.Menu
@@ -71,6 +73,10 @@ class ManageFoldersFragment : Fragment() {
                     return when (menuItem.itemId) {
                         R.id.list_folders -> {
                             refreshFolderList()
+                            true
+                        }
+                        R.id.create_folder -> {
+                            createFolder()
                             true
                         }
                         else -> false
@@ -156,6 +162,24 @@ class ManageFoldersFragment : Fragment() {
 
     private fun refreshFolderList() {
         messagingController.refreshFolderList(account)
+    }
+
+    private fun createFolder() {
+        val context = requireContext()
+        FolderNameDialog.show(context, R.string.folder_create_action, account.folderPathDelimiter) { name ->
+            val applicationContext = context.applicationContext
+            messagingController.createFolder(account, null, name) { error ->
+                // The folder shows up in the list by itself. A failure has to be said.
+                val message = if (error == null) {
+                    applicationContext.getString(R.string.folder_created)
+                } else {
+                    applicationContext.getString(R.string.folder_create_failed, error)
+                }
+                ContextCompat.getMainExecutor(applicationContext).execute {
+                    Toast.makeText(applicationContext, message, Toast.LENGTH_LONG).show()
+                }
+            }
+        }
     }
 
     private fun folderListFilter(item: FolderListItem, constraint: CharSequence?): Boolean {

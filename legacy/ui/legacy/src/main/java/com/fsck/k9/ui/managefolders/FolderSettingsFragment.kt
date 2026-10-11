@@ -1,5 +1,8 @@
 package com.fsck.k9.ui.managefolders
 
+import android.widget.Toast
+import net.thunderbird.feature.mail.folder.FolderType
+import net.thunderbird.feature.mail.folder.api.Folder
 import android.os.Bundle
 import android.view.Menu
 import android.view.MenuInflater
@@ -23,6 +26,7 @@ import com.fsck.k9.ui.base.R as BaseR
 class FolderSettingsFragment : PreferenceFragmentCompat(), ConfirmationDialogFragmentListener {
     private val viewModel: FolderSettingsViewModel by viewModel()
     private val folderNameFormatter: FolderNameFormatter by inject()
+    private var folder: Folder? = null
 
     override fun onCreatePreferencesFix(savedInstanceState: Bundle?, rootKey: String?) {
         // Set empty preferences resource while data is being loaded
@@ -40,12 +44,27 @@ class FolderSettingsFragment : PreferenceFragmentCompat(), ConfirmationDialogFra
 
                     val clearFolderItem = menu.findItem(R.id.clear_local_folder)
                     clearFolderItem.isVisible = viewModel.showClearFolderInMenu
+
+                    // Folders that only exist on the device can't have subfolders. Only regular folders can be
+                    // deleted; the app relies on the others.
+                    val folder = folder
+                    val isRemoteFolder = viewModel.showClearFolderInMenu && folder != null && !folder.isLocalOnly
+                    menu.findItem(R.id.create_subfolder).isVisible = isRemoteFolder
+                    menu.findItem(R.id.delete_folder).isVisible = isRemoteFolder && folder?.type == FolderType.REGULAR
                 }
 
                 override fun onMenuItemSelected(menuItem: MenuItem): Boolean {
                     return when (menuItem.itemId) {
                         R.id.clear_local_folder -> {
                             viewModel.showClearFolderConfirmationDialog()
+                            true
+                        }
+                        R.id.create_subfolder -> {
+                            showCreateSubfolderDialog()
+                            true
+                        }
+                        R.id.delete_folder -> {
+                            viewModel.showDeleteFolderConfirmationDialog()
                             true
                         }
                         else -> false
@@ -76,6 +95,7 @@ class FolderSettingsFragment : PreferenceFragmentCompat(), ConfirmationDialogFra
     }
 
     private fun initPreferences(folderSettings: FolderSettingsData) {
+        folder = folderSettings.folder
         preferenceManager.preferenceDataStore = folderSettings.dataStore
         setPreferencesFromResource(R.xml.folder_settings_preferences, null)
 
@@ -96,7 +116,41 @@ class FolderSettingsFragment : PreferenceFragmentCompat(), ConfirmationDialogFra
     private fun handleActionEvents(action: Action) {
         when (action) {
             is Action.ShowClearFolderConfirmationDialog -> showClearFolderConfirmationDialog()
+            is Action.ShowDeleteFolderConfirmationDialog -> showDeleteFolderConfirmationDialog()
+            is Action.FolderCreated -> showMessage(getString(R.string.folder_created))
+            is Action.CreateFolderFailed -> showMessage(getString(R.string.folder_create_failed, action.reason))
+            is Action.FolderDeleted -> {
+                showMessage(getString(R.string.folder_deleted))
+                navigateBack()
+            }
+            is Action.DeleteFolderFailed -> showMessage(getString(R.string.folder_delete_failed, action.reason))
         }
+    }
+
+    private fun showMessage(message: String) {
+        Toast.makeText(requireContext().applicationContext, message, Toast.LENGTH_LONG).show()
+    }
+
+    private fun showCreateSubfolderDialog() {
+        FolderNameDialog.show(
+            context = requireContext(),
+            title = R.string.folder_create_subfolder_action,
+            pathDelimiter = viewModel.folderPathDelimiter,
+            onNameEntered = viewModel::createSubfolder,
+        )
+    }
+
+    private fun showDeleteFolderConfirmationDialog() {
+        val folderName = folder?.let { folderNameFormatter.displayName(it) }.orEmpty()
+        val dialogFragment = ConfirmationDialogFragment.newInstance(
+            DIALOG_DELETE_FOLDER,
+            getString(R.string.dialog_confirm_delete_folder_title),
+            getString(R.string.dialog_confirm_delete_folder_message, folderName),
+            getString(R.string.folder_delete_action),
+            getString(BaseR.string.cancel_action),
+        )
+        dialogFragment.setTargetFragment(this, REQUEST_DELETE_FOLDER)
+        dialogFragment.show(requireFragmentManager(), TAG_DELETE_FOLDER_CONFIRMATION)
     }
 
     private fun showClearFolderConfirmationDialog() {
@@ -124,6 +178,9 @@ class FolderSettingsFragment : PreferenceFragmentCompat(), ConfirmationDialogFra
             DIALOG_CLEAR_FOLDER -> {
                 viewModel.onClearFolderConfirmation()
             }
+            DIALOG_DELETE_FOLDER -> {
+                viewModel.onDeleteFolderConfirmation()
+            }
         }
     }
 
@@ -142,6 +199,10 @@ class FolderSettingsFragment : PreferenceFragmentCompat(), ConfirmationDialogFra
         private const val DIALOG_CLEAR_FOLDER = 1
         private const val REQUEST_CLEAR_FOLDER = 1
         private const val TAG_CLEAR_FOLDER_CONFIRMATION = "clear_folder_confirmation"
+
+        private const val DIALOG_DELETE_FOLDER = 2
+        private const val REQUEST_DELETE_FOLDER = 2
+        private const val TAG_DELETE_FOLDER_CONFIRMATION = "delete_folder_confirmation"
 
         private const val PREFERENCE_TOP_CATEGORY = "folder_settings"
         private const val PREFERENCE_SYNC = "folder_settings_sync"

@@ -10,4 +10,16 @@
         app:showAsAction="never"
         />
 
+    <item
+        android:id="@+id/create_subfolder"
+        android:title="@string/folder_create_subfolder_action"
+        app:showAsAction="never"
+        />
+
+    <item
+        android:id="@+id/delete_folder"
+        android:title="@string/folder_delete_action"
+        app:showAsAction="never"
+        />
+
 </menu>
