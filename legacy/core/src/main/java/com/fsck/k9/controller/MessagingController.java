@@ -42,6 +42,7 @@ import com.fsck.k9.K9;
 import com.fsck.k9.Preferences;
 import com.fsck.k9.backend.BackendManager;
 import com.fsck.k9.backend.api.Backend;
+import com.fsck.k9.backend.api.KeptMessages;
 import com.fsck.k9.backend.api.SyncConfig;
 import com.fsck.k9.backend.api.SyncListener;
 import com.fsck.k9.controller.ControllerExtension.ControllerInternals;
@@ -733,13 +734,33 @@ public class MessagingController implements MessagingControllerRegistry, Messagi
 
         loadSearchResultsSynchronous(account, newMessageServerIds, localFolder, listener);
 
-        if (listener != null && !foundMessageServerIds.isEmpty()) {
+        if (!foundMessageServerIds.isEmpty()) {
             List<String> availableMessageServerIds = new ArrayList<>(foundMessageServerIds);
             availableMessageServerIds.removeAll(notLoadedMessageServerIds);
-            listener.remoteSearchFolderResults(account.getId().toString(), folderId, availableMessageServerIds);
+
+            keepMessages(account, folderId, availableMessageServerIds);
+            if (listener != null) {
+                listener.remoteSearchFolderResults(account.getId().toString(), folderId, availableMessageServerIds);
+            }
         }
 
         return notLoadedMessageServerIds.size();
+    }
+
+    /**
+     * Search results stay on the device, so the next search doesn't have to download them again. Otherwise the next
+     * synchronization of the folder would remove the ones that are older than the messages it is synchronized with.
+     */
+    private void keepMessages(LegacyAccountDto account, long folderId, List<String> messageServerIds) {
+        MessageStore messageStore = messageStoreManager.getMessageStore(account);
+        Set<String> keptMessages = KeptMessages.parse(
+                messageStore.getFolderExtraString(folderId, KeptMessages.FOLDER_EXTRA));
+
+        Set<String> newKeptMessages = new HashSet<>(keptMessages);
+        if (newKeptMessages.addAll(messageServerIds)) {
+            messageStore.setFolderExtraString(folderId, KeptMessages.FOLDER_EXTRA,
+                    KeptMessages.format(newKeptMessages));
+        }
     }
 
     private List<CascadeSearchTarget> buildCascadeSearchTargets(@Nullable String startAccountUuid,

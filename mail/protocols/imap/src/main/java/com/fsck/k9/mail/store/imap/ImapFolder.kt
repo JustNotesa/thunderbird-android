@@ -32,6 +32,12 @@ interface ImapFolder {
     @Throws(MessagingException::class)
     fun getUidFromMessageId(messageId: String): String?
 
+    /**
+     * @return Those of the given UIDs that belong to messages that exist on the server and aren't marked as deleted.
+     */
+    @Throws(MessagingException::class)
+    fun getExistingUids(uids: Collection<String>): Set<String>
+
     @Throws(MessagingException::class)
     fun getMessages(
         start: Int,

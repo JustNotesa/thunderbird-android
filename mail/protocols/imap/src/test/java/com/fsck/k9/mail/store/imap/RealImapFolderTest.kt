@@ -760,6 +760,18 @@ class RealImapFolderTest {
     }
 
     @Test
+    fun getExistingUids_shouldReturnUidsFoundOnServer() {
+        val folder = createFolder("Folder")
+        prepareImapFolderForOpen(OpenMode.READ_ONLY)
+        setupUidSearchResponses("* SEARCH 11", "* SEARCH 25")
+        folder.open(OpenMode.READ_ONLY)
+
+        val uids = folder.getExistingUids(listOf("11", "22", "25"))
+
+        assertThat(uids).containsOnly("11", "25")
+    }
+
+    @Test
     fun areMoreMessagesAvailable_withClosedFolder_shouldThrow() {
         val folder = createFolder("FolderName")
 

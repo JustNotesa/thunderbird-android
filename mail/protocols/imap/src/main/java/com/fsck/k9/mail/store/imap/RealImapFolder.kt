@@ -527,6 +527,24 @@ internal class RealImapFolder(
     }
 
     @Throws(MessagingException::class)
+    override fun getExistingUids(uids: Collection<String>): Set<String> {
+        if (uids.isEmpty()) return emptySet()
+        checkOpen()
+
+        try {
+            val imapResponses = connection!!.executeCommandWithIdSet(
+                commandPrefix = "UID SEARCH UID",
+                commandSuffix = " NOT DELETED",
+                ids = uids.map { it.toLong() }.toSet(),
+            )
+
+            return SearchResponse.parse(imapResponses).numbers.map { it.toString() }.toSet()
+        } catch (ioe: IOException) {
+            throw ioExceptionHandler(connection, ioe)
+        }
+    }
+
+    @Throws(MessagingException::class)
     internal fun getMessagesFromUids(mesgUids: List<String>): List<ImapMessage> {
         checkOpen()
 

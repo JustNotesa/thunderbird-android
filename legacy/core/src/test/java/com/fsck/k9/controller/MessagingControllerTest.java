@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -18,6 +19,7 @@ import com.fsck.k9.K9RobolectricTest;
 import com.fsck.k9.Preferences;
 import com.fsck.k9.backend.BackendManager;
 import com.fsck.k9.backend.api.Backend;
+import com.fsck.k9.backend.api.KeptMessages;
 import com.fsck.k9.backend.api.SearchListener;
 import com.fsck.k9.backend.api.SearchStep;
 import com.fsck.k9.mail.AuthType;
@@ -60,6 +62,7 @@ import net.thunderbird.legacy.core.mailstore.folder.FakeOutboxFolderManager;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.ArgumentMatchers;
 import org.mockito.InOrder;
 import org.mockito.Mock;
@@ -70,6 +73,7 @@ import org.robolectric.RuntimeEnvironment;
 import org.robolectric.shadows.ShadowLog;
 
 import static java.util.Collections.emptyList;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -467,6 +471,21 @@ public class MessagingControllerTest extends K9RobolectricTest {
     }
 
     @Test
+    public void searchRemoteMessagesCascadingSynchronous_shouldKeepFoundMessagesOnTheDevice() throws Exception {
+        ListenableMessageStore messageStore = setupCascadingRemoteSearch(2);
+        when(messageStore.getFolderExtraString(2L, KeptMessages.FOLDER_EXTRA)).thenReturn("uid1");
+        when(backend.search(eq("folder2"), anyString(), nullable(Set.class), nullable(Set.class), eq(false),
+            any(SearchListener.class)))
+            .thenReturn(Arrays.asList("uid1", "uid2"));
+
+        controller.searchRemoteMessagesCascadingSynchronous(accountId.toString(), 1L, "query", null, null, false, listener);
+
+        ArgumentCaptor<String> keptMessages = ArgumentCaptor.forClass(String.class);
+        verify(messageStore).setFolderExtraString(eq(2L), eq(KeptMessages.FOLDER_EXTRA), keptMessages.capture());
+        assertEquals(new HashSet<>(Arrays.asList("uid1", "uid2")), KeptMessages.parse(keptMessages.getValue()));
+    }
+
+    @Test
     public void searchRemoteMessagesCascadingSynchronous_shouldReportWhatTheSearchIsDoing() throws Exception {
         setupCascadingRemoteSearch(1);
         when(backend.search(eq("folder1"), anyString(), nullable(Set.class), nullable(Set.class), eq(false),
@@ -499,7 +518,7 @@ public class MessagingControllerTest extends K9RobolectricTest {
         assertFalse(controller.supportsRemoteSearch());
     }
 
-    private void setupCascadingRemoteSearch(int folderCount) throws Exception {
+    private ListenableMessageStore setupCascadingRemoteSearch(int folderCount) throws Exception {
         List<FolderDetailsAccessor> folders = new ArrayList<>();
         for (long folderId = 1; folderId <= folderCount; folderId++) {
             LocalFolder cascadeLocalFolder = mock(LocalFolder.class);
@@ -527,6 +546,8 @@ public class MessagingControllerTest extends K9RobolectricTest {
         });
         when(messageStoreManager.getMessageStore(account)).thenReturn(messageStore);
         when(backend.isPushCapable()).thenReturn(true);
+
+        return messageStore;
     }
 
     @Test

@@ -3,6 +3,7 @@ package com.fsck.k9.backend.imap
 import com.fsck.k9.backend.api.BackendFolder
 import com.fsck.k9.backend.api.BackendFolder.MoreMessages
 import com.fsck.k9.backend.api.BackendStorage
+import com.fsck.k9.backend.api.KeptMessages
 import com.fsck.k9.backend.api.SyncConfig
 import com.fsck.k9.backend.api.SyncConfig.ExpungePolicy
 import com.fsck.k9.backend.api.SyncListener
@@ -94,6 +95,7 @@ internal class ImapSync(
             } else if (oldUidValidity != null && oldUidValidity != uidValidity) {
                 Log.d("SYNC: UIDVALIDITY for %s changed; clearing local message cache", folder)
                 backendFolder.clearAllMessages()
+                backendFolder.setFolderExtraString(KeptMessages.FOLDER_EXTRA, null)
                 backendFolder.setFolderExtraNumber(EXTRA_UID_VALIDITY, uidValidity!!)
                 backendFolder.setFolderExtraNumber(EXTRA_HIGHEST_KNOWN_UID, 0)
             }
@@ -188,12 +190,8 @@ internal class ImapSync(
              */
             var moreMessages = backendFolder.getMoreMessages()
             if (syncConfig.syncRemoteDeletions) {
-                val destroyMessageUids = mutableListOf<String>()
-                for (localMessageUid in localUidMap!!.keys) {
-                    if (remoteUidMap[localMessageUid] == null) {
-                        destroyMessageUids.add(localMessageUid)
-                    }
-                }
+                val localOnlyMessageUids = localUidMap!!.keys.filter { remoteUidMap[it] == null }
+                val destroyMessageUids = removeKeptMessages(localOnlyMessageUids, backendFolder, remoteFolder)
 
                 if (destroyMessageUids.isNotEmpty()) {
                     moreMessages = MoreMessages.UNKNOWN
@@ -754,6 +752,32 @@ internal class ImapSync(
         }
 
         return messageChanged
+    }
+
+    /**
+     * Messages that are kept on the device, e.g. the results of a search on the server, are only removed once they
+     * are gone from the server. See [KeptMessages].
+     *
+     * @return The messages of [messageUids] that are to be removed from the device.
+     */
+    private fun removeKeptMessages(
+        messageUids: List<String>,
+        backendFolder: BackendFolder,
+        remoteFolder: ImapFolder,
+    ): List<String> {
+        val keptMessageUids = KeptMessages.parse(backendFolder.getFolderExtraString(KeptMessages.FOLDER_EXTRA))
+        val keptCandidates = messageUids.filter { it in keptMessageUids }
+        if (keptCandidates.isEmpty()) return messageUids
+
+        val goneMessageUids = keptCandidates - remoteFolder.getExistingUids(keptCandidates)
+        if (goneMessageUids.isNotEmpty()) {
+            backendFolder.setFolderExtraString(
+                KeptMessages.FOLDER_EXTRA,
+                KeptMessages.format(keptMessageUids - goneMessageUids.toSet()),
+            )
+        }
+
+        return messageUids.filter { it !in keptMessageUids || it in goneMessageUids }
     }
 
     private fun updateMoreMessages(

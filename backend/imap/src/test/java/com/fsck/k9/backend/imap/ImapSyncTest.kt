@@ -5,9 +5,12 @@ import assertk.assertThat
 import assertk.assertions.containsAtLeast
 import assertk.assertions.containsExactlyInAnyOrder
 import assertk.assertions.isEmpty
+import assertk.assertions.isNull
+import assertk.assertions.isEqualTo
 import assertk.assertions.isFalse
 import assertk.assertions.isTrue
 import com.fsck.k9.backend.api.FolderInfo
+import com.fsck.k9.backend.api.KeptMessages
 import com.fsck.k9.backend.api.SyncConfig
 import com.fsck.k9.backend.api.SyncConfig.ExpungePolicy
 import com.fsck.k9.backend.api.SyncListener
@@ -156,6 +159,35 @@ class ImapSyncTest {
         imapSync.sync(FOLDER_SERVER_ID, syncConfig, syncListener)
 
         assertThat(backendFolder.getMessageServerIds()).containsExactlyInAnyOrder("42")
+    }
+
+    @Test
+    fun `sync should not remove kept messages older than earliestPollDate`() = runTest {
+        addMessageToImapAndBackendFolder(uid = 23, date = "Mon, 03 Jan 2022 10:00:00 +0100")
+        addMessageToImapAndBackendFolder(uid = 42, date = "Wed, 05 Jan 2022 20:00:00 +0100")
+        backendFolder.setFolderExtraString(KeptMessages.FOLDER_EXTRA, "23")
+        val syncConfig = defaultSyncConfig.copy(
+            syncRemoteDeletions = true,
+            earliestPollDate = "Tue, 04 Jan 2022 12:00:00 +0100".toDate(),
+        )
+
+        imapSync.sync(FOLDER_SERVER_ID, syncConfig, syncListener)
+
+        assertThat(backendFolder.getMessageServerIds()).containsExactlyInAnyOrder("23", "42")
+        assertThat(backendFolder.getFolderExtraString(KeptMessages.FOLDER_EXTRA)).isEqualTo("23")
+    }
+
+    @Test
+    fun `sync should remove kept messages that are gone from the server`() = runTest {
+        addMessageToBackendFolder(uid = 23)
+        addMessageToImapAndBackendFolder(uid = 42, date = DEFAULT_MESSAGE_DATE)
+        backendFolder.setFolderExtraString(KeptMessages.FOLDER_EXTRA, "23")
+        val syncConfig = defaultSyncConfig.copy(syncRemoteDeletions = true)
+
+        imapSync.sync(FOLDER_SERVER_ID, syncConfig, syncListener)
+
+        assertThat(backendFolder.getMessageServerIds()).containsExactlyInAnyOrder("42")
+        assertThat(backendFolder.getFolderExtraString(KeptMessages.FOLDER_EXTRA)).isNull()
     }
 
     @Test
