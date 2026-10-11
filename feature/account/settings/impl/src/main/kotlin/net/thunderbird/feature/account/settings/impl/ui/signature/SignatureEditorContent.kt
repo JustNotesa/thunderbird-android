@@ -24,14 +24,16 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
-import kotlinx.collections.immutable.ImmutableSet
+import androidx.compose.ui.unit.em
+import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
-import kotlinx.collections.immutable.toImmutableSet
+import net.thunderbird.components.ui.bolt.atom.DropdownMenuBox
 import net.thunderbird.components.ui.bolt.atom.button.ButtonFilled
 import net.thunderbird.components.ui.bolt.atom.button.ButtonOutlined
 import net.thunderbird.components.ui.bolt.atom.button.ButtonSegmentedSingleChoice
@@ -49,6 +51,14 @@ import net.thunderbird.feature.mail.message.composer.richtext.TextFormat
 
 private val SIGNATURE_TEXT_MIN_HEIGHT = 160.dp
 private val EDITOR_MODES = persistentListOf(EditorMode.Formatted, EditorMode.Code)
+
+// The sizes relative to the normal text, close to what mail clients show for small, large and x-large.
+private val SIZE_SMALL = 0.8.em
+private val SIZE_LARGE = 1.25.em
+private val SIZE_HUGE = 1.6.em
+
+private val SIZE_OPTIONS = persistentListOf(TextFormat.SizeSmall, null, TextFormat.SizeLarge, TextFormat.SizeHuge)
+private val FONT_OPTIONS = persistentListOf(null, TextFormat.FontSerif, TextFormat.FontMonospace)
 
 @Composable
 internal fun SignatureEditor(
@@ -133,10 +143,7 @@ private fun FormattedSignatureField(
         verticalArrangement = Arrangement.spacedBy(BoltTheme.spacings.default),
         modifier = modifier.padding(horizontal = BoltTheme.spacings.double),
     ) {
-        TextFormatBar(
-            activeFormats = richText.activeFormats.toImmutableSet(),
-            onFormatClick = { format -> update(richText.toggle(format)) },
-        )
+        TextFormatBar(richText = richText, onRichTextChange = { update(it) })
         TextFieldOutlined(
             value = TextFieldValue(
                 annotatedString = richText.toAnnotatedString(),
@@ -160,29 +167,86 @@ private fun FormattedSignatureField(
 
 @Composable
 private fun TextFormatBar(
-    activeFormats: ImmutableSet<TextFormat>,
-    onFormatClick: (TextFormat) -> Unit,
+    richText: RichTextEditorState,
+    onRichTextChange: (RichTextEditorState) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val activeFormats = richText.activeFormats
+
     Row(
         horizontalArrangement = Arrangement.spacedBy(BoltTheme.spacings.default),
         modifier = modifier.horizontalScroll(rememberScrollState()),
     ) {
-        for (format in TextFormat.entries) {
-            val title = stringResource(
-                when (format) {
-                    TextFormat.Bold -> R.string.account_settings_signatures_format_bold
-                    TextFormat.Italic -> R.string.account_settings_signatures_format_italic
-                    TextFormat.Underline -> R.string.account_settings_signatures_format_underline
-                },
-            )
+        for (format in TextFormat.toggles) {
+            val title = stringResource(format.titleRes())
             // A format that is switched on looks like a pressed button.
             if (format in activeFormats) {
-                ButtonFilled(text = title, onClick = { onFormatClick(format) })
+                ButtonFilled(text = title, onClick = { onRichTextChange(richText.toggle(format)) })
             } else {
-                ButtonOutlined(text = title, onClick = { onFormatClick(format) })
+                ButtonOutlined(text = title, onClick = { onRichTextChange(richText.toggle(format)) })
             }
         }
+        FormatGroupSelector(
+            labelRes = R.string.account_settings_signatures_format_size,
+            defaultTitleRes = R.string.account_settings_signatures_format_size_normal,
+            options = SIZE_OPTIONS,
+            selected = richText.activeFormat(TextFormat.Group.Size),
+            onSelect = { format -> onRichTextChange(richText.select(TextFormat.Group.Size, format)) },
+        )
+        FormatGroupSelector(
+            labelRes = R.string.account_settings_signatures_format_font,
+            defaultTitleRes = R.string.account_settings_signatures_format_font_default,
+            options = FONT_OPTIONS,
+            selected = richText.activeFormat(TextFormat.Group.Font),
+            onSelect = { format -> onRichTextChange(richText.select(TextFormat.Group.Font, format)) },
+        )
+    }
+}
+
+/**
+ * A button that shows the size or font at the cursor and opens the list to choose another one from. The `null`
+ * option is the normal size or the default font.
+ */
+@Composable
+private fun FormatGroupSelector(
+    labelRes: Int,
+    defaultTitleRes: Int,
+    options: ImmutableList<TextFormat?>,
+    selected: TextFormat?,
+    onSelect: (TextFormat?) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val titles = options.associateWith { option -> stringResource(option?.titleRes() ?: defaultTitleRes) }
+
+    DropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { expanded = it },
+        options = options,
+        onItemSelected = { option ->
+            expanded = false
+            onSelect(option)
+        },
+        optionToString = { option -> titles.getValue(option) },
+        modifier = modifier,
+    ) {
+        ButtonOutlined(
+            text = stringResource(labelRes, titles.getValue(selected)),
+            onClick = { expanded = true },
+        )
+    }
+}
+
+private fun TextFormat.titleRes(): Int {
+    return when (this) {
+        TextFormat.Bold -> R.string.account_settings_signatures_format_bold
+        TextFormat.Italic -> R.string.account_settings_signatures_format_italic
+        TextFormat.Underline -> R.string.account_settings_signatures_format_underline
+        TextFormat.SizeSmall -> R.string.account_settings_signatures_format_size_small
+        TextFormat.SizeLarge -> R.string.account_settings_signatures_format_size_large
+        TextFormat.SizeHuge -> R.string.account_settings_signatures_format_size_huge
+        TextFormat.FontSerif -> R.string.account_settings_signatures_format_font_serif
+        TextFormat.FontMonospace -> R.string.account_settings_signatures_format_font_monospace
     }
 }
 
@@ -200,6 +264,11 @@ private fun TextFormat.toSpanStyle(): SpanStyle {
         TextFormat.Bold -> SpanStyle(fontWeight = FontWeight.Bold)
         TextFormat.Italic -> SpanStyle(fontStyle = FontStyle.Italic)
         TextFormat.Underline -> SpanStyle(textDecoration = TextDecoration.Underline)
+        TextFormat.SizeSmall -> SpanStyle(fontSize = SIZE_SMALL)
+        TextFormat.SizeLarge -> SpanStyle(fontSize = SIZE_LARGE)
+        TextFormat.SizeHuge -> SpanStyle(fontSize = SIZE_HUGE)
+        TextFormat.FontSerif -> SpanStyle(fontFamily = FontFamily.Serif)
+        TextFormat.FontMonospace -> SpanStyle(fontFamily = FontFamily.Monospace)
     }
 }
 

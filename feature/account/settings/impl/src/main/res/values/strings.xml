@@ -167,6 +167,15 @@
     <string name="account_settings_signatures_format_bold">Bold</string>
     <string name="account_settings_signatures_format_italic">Italic</string>
     <string name="account_settings_signatures_format_underline">Underline</string>
+    <string name="account_settings_signatures_format_size">Size: %s</string>
+    <string name="account_settings_signatures_format_size_small">Small</string>
+    <string name="account_settings_signatures_format_size_normal">Normal</string>
+    <string name="account_settings_signatures_format_size_large">Large</string>
+    <string name="account_settings_signatures_format_size_huge">Huge</string>
+    <string name="account_settings_signatures_format_font">Font: %s</string>
+    <string name="account_settings_signatures_format_font_default">Sans serif</string>
+    <string name="account_settings_signatures_format_font_serif">Serif</string>
+    <string name="account_settings_signatures_format_font_monospace">Fixed width</string>
     <string name="account_settings_signatures_format_link">Link</string>
     <string name="account_settings_signatures_mode_formatted">Formatted text</string>
     <string name="account_settings_signatures_mode_code">HTML code</string>

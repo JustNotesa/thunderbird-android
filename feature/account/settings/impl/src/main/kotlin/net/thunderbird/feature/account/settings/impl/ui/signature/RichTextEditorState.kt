@@ -51,6 +51,33 @@ internal data class RichTextEditorState(
         return copy(ranges = newRanges.normalized())
     }
 
+    /**
+     * The format of [group] the whole selection has or, without a selection, the text typed next gets. `null` means
+     * the normal size or the default font.
+     */
+    fun activeFormat(group: TextFormat.Group): TextFormat? = activeFormats.firstOrNull { it.group == group }
+
+    /**
+     * Gives the selection or, without a selection, the text typed next the [format] of [group]. `null` removes the
+     * formats of the group, which leaves the normal size or the default font.
+     */
+    fun select(group: TextFormat.Group, format: TextFormat?): RichTextEditorState {
+        val groupFormats = TextFormat.of(group)
+        if (selectionMin == selectionMax) {
+            return copy(typingFormats = activeFormats - groupFormats.toSet() + listOfNotNull(format))
+        }
+
+        var newRanges = ranges
+        for (groupFormat in groupFormats) {
+            newRanges = newRanges.withoutFormat(groupFormat, selectionMin, selectionMax)
+        }
+        if (format != null) {
+            newRanges = newRanges + FormattedRange(selectionMin, selectionMax, format)
+        }
+
+        return copy(ranges = newRanges.normalized())
+    }
+
     fun onTextFieldChange(newText: String, newSelectionStart: Int, newSelectionEnd: Int): RichTextEditorState {
         if (newText == text) {
             val selectionMoved = newSelectionStart != selectionStart || newSelectionEnd != selectionEnd

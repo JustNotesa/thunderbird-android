@@ -205,4 +205,71 @@ class RichTextEditorStateTest {
         // Assert
         assertThat(result.ranges).containsExactly(FormattedRange(6, 11, TextFormat.Bold))
     }
+
+    @Test
+    fun `select should give the selection one size and replace the size it had`() {
+        // Arrange
+        val testSubject = RichTextEditorState(
+            text = "Hello Jane",
+            ranges = listOf(FormattedRange(0, 10, TextFormat.SizeSmall)),
+            selectionStart = 6,
+            selectionEnd = 10,
+        )
+
+        // Act
+        val result = testSubject.select(TextFormat.Group.Size, TextFormat.SizeHuge)
+
+        // Assert
+        assertThat(result.ranges).containsExactly(
+            FormattedRange(0, 6, TextFormat.SizeSmall),
+            FormattedRange(6, 10, TextFormat.SizeHuge),
+        )
+        assertThat(result.activeFormat(TextFormat.Group.Size)).isEqualTo(TextFormat.SizeHuge)
+    }
+
+    @Test
+    fun `select without a format should go back to the default and keep other formatting`() {
+        // Arrange
+        val testSubject = RichTextEditorState(
+            text = "Hello Jane",
+            ranges = listOf(
+                FormattedRange(0, 10, TextFormat.Bold),
+                FormattedRange(0, 10, TextFormat.FontSerif),
+            ),
+            selectionStart = 0,
+            selectionEnd = 5,
+        )
+
+        // Act
+        val result = testSubject.select(TextFormat.Group.Font, null)
+
+        // Assert
+        assertThat(result.ranges).containsExactly(
+            FormattedRange(0, 10, TextFormat.Bold),
+            FormattedRange(5, 10, TextFormat.FontSerif),
+        )
+        assertThat(result.activeFormat(TextFormat.Group.Font)).isEqualTo(null)
+    }
+
+    @Test
+    fun `select without selection should set the size of what is typed next`() {
+        // Arrange
+        val testSubject = RichTextEditorState(
+            text = "Hello ",
+            ranges = listOf(FormattedRange(0, 6, TextFormat.SizeSmall)),
+            selectionStart = 6,
+            selectionEnd = 6,
+        )
+
+        // Act
+        val result = testSubject
+            .select(TextFormat.Group.Size, TextFormat.SizeLarge)
+            .onTextFieldChange("Hello J", 7, 7)
+
+        // Assert
+        assertThat(result.ranges).containsExactly(
+            FormattedRange(0, 6, TextFormat.SizeSmall),
+            FormattedRange(6, 7, TextFormat.SizeLarge),
+        )
+    }
 }
