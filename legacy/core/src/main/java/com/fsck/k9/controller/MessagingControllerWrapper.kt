@@ -35,6 +35,16 @@ class MessagingControllerWrapper(
         messagingController.loadMoreMessages(account, folderId)
     }
 
+    fun loadNextMessages(id: AccountId, folderId: Long, onFinished: () -> Unit) {
+        val account = getAccountDtoOrThrow(id)
+        messagingController.loadNextMessages(account, folderId, onFinished)
+    }
+
+    fun loadFirstMessages(id: AccountId, folderId: Long, messageCount: Int, onFinished: () -> Unit) {
+        val account = getAccountDtoOrThrow(id)
+        messagingController.loadFirstMessages(account, folderId, messageCount, onFinished)
+    }
+
     fun loadSearchResults(
         id: AccountId,
         folderId: Long,

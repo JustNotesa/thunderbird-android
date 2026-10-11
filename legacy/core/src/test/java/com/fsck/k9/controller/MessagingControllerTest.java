@@ -33,6 +33,7 @@ import com.fsck.k9.mailstore.LocalMessage;
 import com.fsck.k9.mailstore.LocalStore;
 import com.fsck.k9.mailstore.LocalStoreProvider;
 import app.k9mail.legacy.mailstore.FolderDetailsAccessor;
+import app.k9mail.legacy.mailstore.MoreMessages;
 import app.k9mail.legacy.mailstore.FolderMapper;
 import app.k9mail.legacy.mailstore.ListenableMessageStore;
 import app.k9mail.legacy.mailstore.MessageStoreManager;
@@ -73,6 +74,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.ArgumentMatchers.eq;
@@ -525,6 +527,60 @@ public class MessagingControllerTest extends K9RobolectricTest {
         });
         when(messageStoreManager.getMessageStore(account)).thenReturn(messageStore);
         when(backend.isPushCapable()).thenReturn(true);
+    }
+
+    @Test
+    public void loadNextMessagesSynchronous_shouldMoveOnToTheNextStep() {
+        ListenableMessageStore messageStore = setupFolderForLoadingMessages(25, false);
+
+        controller.loadNextMessagesSynchronous(account, FOLDER_ID);
+
+        verify(messageStore).setVisibleLimit(FOLDER_ID, 45);
+        verify(messageStore).setMoreMessages(FOLDER_ID, MoreMessages.UNKNOWN);
+    }
+
+    @Test
+    public void loadNextMessagesSynchronous_withAllMessagesLoaded_shouldNotChangeVisibleLimit() {
+        ListenableMessageStore messageStore = setupFolderForLoadingMessages(0, false);
+
+        controller.loadNextMessagesSynchronous(account, FOLDER_ID);
+
+        verify(messageStore, never()).setVisibleLimit(anyLong(), anyInt());
+    }
+
+    @Test
+    public void loadFirstMessagesSynchronous_shouldOnlyLoadRequestedNumberOfMessages() {
+        ListenableMessageStore messageStore = setupFolderForLoadingMessages(100, false);
+
+        controller.loadFirstMessagesSynchronous(account, FOLDER_ID, 12);
+
+        verify(messageStore).setVisibleLimit(FOLDER_ID, 12);
+        verify(messageStore).setMoreMessages(FOLDER_ID, MoreMessages.UNKNOWN);
+    }
+
+    @Test
+    public void loadFirstMessagesSynchronous_withFolderThatIsSynchronizedAutomatically_shouldKeepItsSize() {
+        ListenableMessageStore messageStore = setupFolderForLoadingMessages(100, true);
+
+        controller.loadFirstMessagesSynchronous(account, FOLDER_ID, 12);
+
+        verify(messageStore, never()).setVisibleLimit(anyLong(), anyInt());
+    }
+
+    private ListenableMessageStore setupFolderForLoadingMessages(int visibleLimit, boolean isSyncEnabled) {
+        FolderDetailsAccessor folder = mock(FolderDetailsAccessor.class);
+        when(folder.getVisibleLimit()).thenReturn(visibleLimit);
+        when(folder.isSyncEnabled()).thenReturn(isSyncEnabled);
+
+        ListenableMessageStore messageStore = mock(ListenableMessageStore.class);
+        when(messageStore.getFolder(eq(FOLDER_ID), ArgumentMatchers.<FolderMapper<Object>>any())).thenAnswer(
+            invocation -> {
+                FolderMapper<Object> mapper = invocation.getArgument(1);
+                return mapper.map(folder);
+            });
+        when(messageStoreManager.getMessageStore(account)).thenReturn(messageStore);
+
+        return messageStore;
     }
 
     @Test

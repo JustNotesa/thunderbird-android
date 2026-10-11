@@ -31,6 +31,7 @@ import app.k9mail.legacy.di.DI;
 import app.k9mail.legacy.mailstore.FolderDetailsAccessor;
 import app.k9mail.legacy.mailstore.MessageStore;
 import app.k9mail.legacy.mailstore.MessageStoreManager;
+import app.k9mail.legacy.mailstore.MoreMessages;
 import app.k9mail.legacy.mailstore.SaveMessageData;
 import app.k9mail.legacy.message.controller.MessageReference;
 import app.k9mail.legacy.message.controller.MessagingControllerMailChecker;
@@ -812,6 +813,79 @@ public class MessagingController implements MessagingControllerRegistry, Messagi
         }
 
         synchronizeMailboxSynchronous(account, folderId, false, null, new NotificationState());
+    }
+
+    /**
+     * Load the next, bigger portion of the older messages of a folder. See {@link MessageLoadingSteps}.
+     *
+     * @param onFinished
+     *         Called when loading has ended, whether it worked or not. Problems are reported to the listeners.
+     */
+    public void loadNextMessages(LegacyAccountDto account, long folderId, Runnable onFinished) {
+        putBackground("loadNextMessages", null, () -> {
+            try {
+                loadNextMessagesSynchronous(account, folderId);
+            } finally {
+                onFinished.run();
+            }
+        });
+    }
+
+    @VisibleForTesting
+    void loadNextMessagesSynchronous(LegacyAccountDto account, long folderId) {
+        MessageStore messageStore = messageStoreManager.getMessageStore(account);
+        Integer visibleLimit = messageStore.getFolder(folderId, FolderDetailsAccessor::getVisibleLimit);
+        if (visibleLimit == null) {
+            Log.v("loadNextMessages(%s, %d): Folder not found", account, folderId);
+            return;
+        }
+
+        if (visibleLimit > 0) {
+            setVisibleLimit(messageStore, folderId, MessageLoadingSteps.INSTANCE.nextVisibleLimit(visibleLimit));
+        }
+
+        synchronizeMailboxSynchronous(account, folderId, false, null, new NotificationState());
+    }
+
+    /**
+     * Load the newest messages of a folder that has no messages on the device yet.
+     *
+     * @param messageCount
+     *         How many messages to load. Only as many as the user is about to look at, so opening a folder doesn't
+     *         download more than necessary. Folders that are synchronized automatically keep their size.
+     * @param onFinished
+     *         Called when loading has ended, whether it worked or not. Problems are reported to the listeners.
+     */
+    public void loadFirstMessages(LegacyAccountDto account, long folderId, int messageCount, Runnable onFinished) {
+        putBackground("loadFirstMessages", null, () -> {
+            try {
+                loadFirstMessagesSynchronous(account, folderId, messageCount);
+            } finally {
+                onFinished.run();
+            }
+        });
+    }
+
+    @VisibleForTesting
+    void loadFirstMessagesSynchronous(LegacyAccountDto account, long folderId, int messageCount) {
+        MessageStore messageStore = messageStoreManager.getMessageStore(account);
+        Boolean isSyncEnabled = messageStore.getFolder(folderId, FolderDetailsAccessor::isSyncEnabled);
+        if (isSyncEnabled == null) {
+            Log.v("loadFirstMessages(%s, %d): Folder not found", account, folderId);
+            return;
+        }
+
+        if (!isSyncEnabled && messageCount > 0) {
+            setVisibleLimit(messageStore, folderId, messageCount);
+        }
+
+        synchronizeMailboxSynchronous(account, folderId, false, null, new NotificationState());
+    }
+
+    private void setVisibleLimit(MessageStore messageStore, long folderId, int visibleLimit) {
+        messageStore.setVisibleLimit(folderId, visibleLimit);
+        // Whether there are more messages on the server has to be found out again with the new limit
+        messageStore.setMoreMessages(folderId, MoreMessages.UNKNOWN);
     }
 
     /**
