@@ -59,6 +59,7 @@ public abstract class MessageBuilder {
     private SimpleMessageFormat messageFormat;
     private String text;
     private String textHtml;
+    private boolean textHtmlIsSource;
     private List<Attachment> attachments;
     private Map<String, Attachment> inlineAttachments;
     private String signature;
@@ -234,6 +235,7 @@ public abstract class MessageBuilder {
                 .setQuotedHtmlContent(quotedHtmlContent)
                 .setQuoteStyle(quoteStyle)
                 .setQuoteTextMode(quotedTextMode)
+                .setHtmlSource(textHtmlIsSource)
                 .setSignature(signature)
                 .setSignatureChanged(signatureChanged)
                 .setBody(body)
@@ -447,6 +449,15 @@ public abstract class MessageBuilder {
      */
     public MessageBuilder setTextHtml(String textHtml) {
         this.textHtml = textHtml;
+        return this;
+    }
+
+    /**
+     * Sets whether the user wrote {@link #setTextHtml(String)} as HTML code. A draft remembers it, so it is opened as
+     * HTML code again.
+     */
+    public MessageBuilder setTextHtmlIsSource(boolean textHtmlIsSource) {
+        this.textHtmlIsSource = textHtmlIsSource;
         return this;
     }
 

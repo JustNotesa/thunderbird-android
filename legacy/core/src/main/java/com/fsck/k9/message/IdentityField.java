@@ -19,7 +19,9 @@ public enum IdentityField {
     ORIGINAL_MESSAGE("m"),
     CURSOR_POSITION("p"),   // Where in the message your cursor was when you saved.
     QUOTED_TEXT_MODE("q"),
-    QUOTE_STYLE("qs");
+    QUOTE_STYLE("qs"),
+    // Set when the user wrote the message text as HTML code, so a draft is opened in that mode again.
+    HTML_SOURCE("hs");
 
     private final String value;
 

@@ -26,6 +26,7 @@ public class IdentityHeaderBuilder {
     private String signature;
     private boolean identityChanged;
     private QuotedTextMode quotedTextMode;
+    private boolean htmlSource;
     private MessageReference messageReference;
     private TextBody body;
     private TextBody bodyPlain;
@@ -99,6 +100,10 @@ public class IdentityHeaderBuilder {
 
         appendValue(IdentityField.CURSOR_POSITION, cursorPosition);
         appendValue(IdentityField.QUOTED_TEXT_MODE, quotedTextMode);
+
+        if (htmlSource) {
+            appendValue(IdentityField.HTML_SOURCE, Boolean.toString(true));
+        }
 
         String k9identity = IdentityField.IDENTITY_VERSION_1 + uri.build().getEncodedQuery();
         String headerValue = foldHeaderValue(k9identity);
@@ -178,6 +183,11 @@ public class IdentityHeaderBuilder {
 
     public IdentityHeaderBuilder setSignature(String signature) {
         this.signature = signature;
+        return this;
+    }
+
+    public IdentityHeaderBuilder setHtmlSource(boolean htmlSource) {
+        this.htmlSource = htmlSource;
         return this;
     }
 

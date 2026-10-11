@@ -63,6 +63,41 @@ class IdentityHeaderBuilderTest : RobolectricTest() {
     }
 
     @Test
+    fun `HTML source mode should survive identity header round trip`() {
+        // Arrange
+        val testSubject = IdentityHeaderBuilder()
+            .setIdentity(createIdentity())
+            .setHtmlSource(true)
+            .setBody(TextBody("irrelevant"))
+            .setQuoteStyle(QuoteStyle.PREFIX)
+            .setMessageFormat(SimpleMessageFormat.HTML)
+            .setQuoteTextMode(QuotedTextMode.NONE)
+
+        // Act
+        val result = IdentityHeaderParser.parse(testSubject.build())
+
+        // Assert
+        assertThat(result[IdentityField.HTML_SOURCE]).isEqualTo("true")
+    }
+
+    @Test
+    fun `identity header should not mention HTML source mode when it is off`() {
+        // Arrange
+        val testSubject = IdentityHeaderBuilder()
+            .setIdentity(createIdentity())
+            .setBody(TextBody("irrelevant"))
+            .setQuoteStyle(QuoteStyle.PREFIX)
+            .setMessageFormat(SimpleMessageFormat.HTML)
+            .setQuoteTextMode(QuotedTextMode.NONE)
+
+        // Act
+        val result = IdentityHeaderParser.parse(testSubject.build())
+
+        // Assert
+        assertThat(result.containsKey(IdentityField.HTML_SOURCE)).isEqualTo(false)
+    }
+
+    @Test
     fun `HTML signature format should survive identity header round trip`() {
         // Arrange
         val testSubject = IdentityHeaderBuilder()
