@@ -2,11 +2,34 @@ package net.thunderbird.feature.mail.message.composer.richtext
 
 /**
  * The character formatting the message composer supports.
+ *
+ * Formats without a [group] are switched on and off independently. Of the formats of one [group] a piece of text
+ * has at most one; having none of them means the normal size or the default font.
  */
-enum class TextFormat {
+enum class TextFormat(val group: Group? = null) {
     Bold,
     Italic,
     Underline,
+    SizeSmall(Group.Size),
+    SizeLarge(Group.Size),
+    SizeHuge(Group.Size),
+    FontSerif(Group.Font),
+    FontMonospace(Group.Font),
+    ;
+
+    enum class Group {
+        Size,
+        Font,
+    }
+
+    companion object {
+        /**
+         * The formats that are switched on and off independently of each other.
+         */
+        val toggles: List<TextFormat> = entries.filter { it.group == null }
+
+        fun of(group: Group): List<TextFormat> = entries.filter { it.group == group }
+    }
 }
 
 /**
@@ -44,7 +67,7 @@ interface RichTextHtmlConverter {
 
     /**
      * Whether [fromHtmlFragment] reads [html] without losing anything, i.e. whether it only contains text, line
-     * breaks and the formatting the composer supports. HTML with links, images, tables or styles is not.
+     * breaks and the formatting the composer supports. HTML with links, images, tables or other styles is not.
      */
     fun canRepresent(html: String): Boolean
 }

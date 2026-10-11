@@ -28,9 +28,9 @@ internal class DefaultRichTextHtmlConverter : RichTextHtmlConverter {
                     .distinct()
                     .sorted()
 
-                formats.forEach { append("<${it.tag}>") }
+                formats.forEach { append(it.openingTag) }
                 appendHtmlEncoded(text, start, end)
-                formats.asReversed().forEach { append("</${it.tag}>") }
+                formats.asReversed().forEach { append(it.closingTag) }
             }
             append(DIV_END)
         }
@@ -49,8 +49,23 @@ internal class DefaultRichTextHtmlConverter : RichTextHtmlConverter {
             val tag = element.normalName()
             val attributes = element.attributes().map { it.key.lowercase() }
 
-            tag in REPRESENTABLE_TAGS && attributes.all { it == "dir" && tag in BLOCK_TAGS }
+            when (tag) {
+                // A span is only known for the one style it sets.
+                SPAN_TAG -> attributes == listOf(STYLE_ATTRIBUTE) && element.styleFormat() != null
+
+                in REPRESENTABLE_TAGS -> attributes.all { it == "dir" && tag in BLOCK_TAGS }
+
+                else -> false
+            }
         }
+    }
+
+    /**
+     * The format a `<span>` written by this converter stands for, `null` for any other span.
+     */
+    private fun Element.styleFormat(): TextFormat? {
+        val style = attr(STYLE_ATTRIBUTE).lowercase().filterNot { it.isWhitespace() }.removeSuffix(";")
+        return FORMAT_BY_STYLE[style]
     }
 
     private fun appendNodes(nodes: List<Node>, text: StringBuilder, ranges: MutableList<FormattedRange>) {
@@ -78,7 +93,7 @@ internal class DefaultRichTextHtmlConverter : RichTextHtmlConverter {
         val start = text.length
         appendNodes(element.childNodes(), text, ranges)
 
-        val format = FORMAT_BY_TAG[tag]
+        val format = if (tag == SPAN_TAG) element.styleFormat() else FORMAT_BY_TAG[tag]
         if (format != null && start < text.length) {
             ranges.add(FormattedRange(start = start, end = text.length, format = format))
         }
@@ -111,11 +126,18 @@ internal class DefaultRichTextHtmlConverter : RichTextHtmlConverter {
         return index == 0 || this[index - 1] == ' ' || this[index - 1] == '\n'
     }
 
-    private val TextFormat.tag: String
+    private val TextFormat.openingTag: String
+        get() = STYLE_BY_FORMAT[this]?.let { style -> """<$SPAN_TAG $STYLE_ATTRIBUTE="$style">""" } ?: "<$simpleTag>"
+
+    private val TextFormat.closingTag: String
+        get() = if (this in STYLE_BY_FORMAT) "</$SPAN_TAG>" else "</$simpleTag>"
+
+    private val TextFormat.simpleTag: String
         get() = when (this) {
             TextFormat.Bold -> "b"
             TextFormat.Italic -> "i"
             TextFormat.Underline -> "u"
+            else -> error("$this is written as a style")
         }
 
     private companion object {
@@ -133,5 +155,20 @@ internal class DefaultRichTextHtmlConverter : RichTextHtmlConverter {
             "u" to TextFormat.Underline,
         )
         val REPRESENTABLE_TAGS = BLOCK_TAGS + FORMAT_BY_TAG.keys + "br"
+
+        const val SPAN_TAG = "span"
+        const val STYLE_ATTRIBUTE = "style"
+
+        // Sizes and fonts every mail client knows, so the message looks the same without any font being sent along.
+        val STYLE_BY_FORMAT = mapOf(
+            TextFormat.SizeSmall to "font-size: small",
+            TextFormat.SizeLarge to "font-size: large",
+            TextFormat.SizeHuge to "font-size: x-large",
+            TextFormat.FontSerif to "font-family: serif",
+            TextFormat.FontMonospace to "font-family: monospace",
+        )
+        val FORMAT_BY_STYLE = STYLE_BY_FORMAT.entries.associate { (format, style) ->
+            style.filterNot { it.isWhitespace() } to format
+        }
     }
 }

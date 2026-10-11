@@ -218,4 +218,75 @@ class DefaultRichTextHtmlConverterTest {
         // Assert
         assertThat(results).isEqualTo(htmlThatWouldLoseSomething.map { false })
     }
+
+    @Test
+    fun `should write sizes and fonts as styles`() {
+        // Arrange
+        val ranges = listOf(
+            FormattedRange(start = 0, end = 1, format = TextFormat.SizeSmall),
+            FormattedRange(start = 2, end = 3, format = TextFormat.SizeLarge),
+            FormattedRange(start = 4, end = 5, format = TextFormat.SizeHuge),
+            FormattedRange(start = 6, end = 7, format = TextFormat.FontSerif),
+            FormattedRange(start = 8, end = 9, format = TextFormat.FontMonospace),
+        )
+
+        // Act
+        val result = testSubject.toHtmlFragment("a b c d e", ranges)
+
+        // Assert
+        assertThat(result).isEqualTo(
+            """<div dir="auto"><span style="font-size: small">a</span> """ +
+                """<span style="font-size: large">b</span> """ +
+                """<span style="font-size: x-large">c</span> """ +
+                """<span style="font-family: serif">d</span> """ +
+                """<span style="font-family: monospace">e</span></div>""",
+        )
+    }
+
+    @Test
+    fun `should read back sizes and fonts combined with other formatting`() {
+        // Arrange
+        val text = "Big bold serif and small"
+        val ranges = listOf(
+            FormattedRange(start = 0, end = 14, format = TextFormat.SizeHuge),
+            FormattedRange(start = 4, end = 14, format = TextFormat.Bold),
+            FormattedRange(start = 9, end = 14, format = TextFormat.FontSerif),
+            FormattedRange(start = 19, end = 24, format = TextFormat.SizeSmall),
+        )
+        val html = testSubject.toHtmlFragment(text, ranges)
+
+        // Act
+        val result = testSubject.fromHtmlFragment(html)
+
+        // Assert
+        assertThat(testSubject.canRepresent(html)).isTrue()
+        assertThat(result.text).isEqualTo(text)
+        assertThat(testSubject.toHtmlFragment(result.text, result.ranges)).isEqualTo(html)
+    }
+
+    @Test
+    fun `canRepresent should accept a known style however it is spaced`() {
+        // Act
+        val result = testSubject.canRepresent("""<span style="FONT-SIZE:large;">big</span>""")
+
+        // Assert
+        assertThat(result).isTrue()
+    }
+
+    @Test
+    fun `canRepresent should reject spans with other styles or attributes`() {
+        // Arrange
+        val htmlThatWouldLoseSomething = listOf(
+            """<span style="color: red">red</span>""",
+            """<span style="font-size: 30px">big</span>""",
+            """<span style="font-size: large; color: red">big red</span>""",
+            """<span style="font-size: large" class="x">big</span>""",
+        )
+
+        // Act
+        val results = htmlThatWouldLoseSomething.map { testSubject.canRepresent(it) }
+
+        // Assert
+        assertThat(results).isEqualTo(htmlThatWouldLoseSomething.map { false })
+    }
 }
