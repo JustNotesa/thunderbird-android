@@ -261,6 +261,18 @@ class RealImapFolderTest {
     }
 
     @Test
+    fun renameTo_withFolderMissingAfterwards_shouldThrow() {
+        val imapFolder = createFolder("Parent/Folder")
+        val newImapFolder = createFolder("Folder")
+        doThrow(NegativeImapResponseException::class).whenever(imapConnection)
+            .executeSimpleCommand("STATUS \"Folder\" (UIDVALIDITY)")
+
+        assertFailure {
+            imapFolder.renameTo(newImapFolder)
+        }.isInstanceOf<MessagingException>()
+    }
+
+    @Test
     fun delete_shouldIssueDeleteCommand() {
         val imapFolder = createFolder("Folder")
 

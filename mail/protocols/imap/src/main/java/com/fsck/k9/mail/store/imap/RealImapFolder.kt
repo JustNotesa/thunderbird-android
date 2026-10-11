@@ -316,6 +316,13 @@ internal class RealImapFolder(
             val escapedFolderName = ImapUtility.encodeString(encodedName)
             val escapedNewFolderName = ImapUtility.encodeString(folderNameCodec.encode(folder.prefixedName))
             connection.executeSimpleCommand("RENAME $escapedFolderName $escapedNewFolderName")
+
+            // Some servers confirm the command without doing anything, e.g. when moving a subfolder to the top level.
+            try {
+                connection.executeSimpleCommand("STATUS $escapedNewFolderName (UIDVALIDITY)")
+            } catch (e: NegativeImapResponseException) {
+                throw MessagingException("The server confirmed the change but didn't carry it out", true, e)
+            }
         } catch (ioe: IOException) {
             throw ioExceptionHandler(this.connection, ioe)
         } finally {
