@@ -68,6 +68,7 @@ class MessageTopView(
     var renderPlainFormat = false
 
     private var showAccountIndicator = false
+    private var folderName: String? = null
 
     private var messageCryptoPresenter: MessageCryptoPresenter? = null
 
@@ -101,6 +102,13 @@ class MessageTopView(
 
     fun setShowAccountIndicator(showAccountIndicator: Boolean) {
         this.showAccountIndicator = showAccountIndicator
+    }
+
+    /**
+     * Display the folder the message is stored in. `null` to not display it.
+     */
+    fun setFolderName(folderName: String?) {
+        this.folderName = folderName
     }
 
     private fun setShowPicturesButtonListener() {
@@ -260,7 +268,7 @@ class MessageTopView(
     }
 
     fun setHeaders(message: Message?, account: LegacyAccountDto?, showStar: Boolean) {
-        messageHeaderView.populate(message, account, showStar, showAccountIndicator)
+        messageHeaderView.populate(message, account, showStar, showAccountIndicator, folderName)
         messageHeaderView.visibility = VISIBLE
     }
 

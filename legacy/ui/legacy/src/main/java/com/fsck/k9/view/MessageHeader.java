@@ -15,6 +15,7 @@ import android.widget.Toast;
 
 import androidx.annotation.DrawableRes;
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 import androidx.appcompat.widget.PopupMenu;
 import androidx.appcompat.widget.TooltipCompat;
 import app.k9mail.core.ui.legacy.designsystem.atom.icon.Icons;
@@ -56,7 +57,9 @@ public class MessageHeader extends LinearLayout implements OnClickListener, OnLo
     private final MessageHelper messageHelper = DI.get(MessageHelper.class);
     private final FontSizes fontSizes = K9.getFontSizes();
 
+    private View headerChipsView;
     private Chip accountNameView;
+    private Chip folderNameView;
     private BottomBaselineTextView subjectView;
     private ImageView starView;
     private ImageView contactPictureView;
@@ -87,7 +90,10 @@ public class MessageHeader extends LinearLayout implements OnClickListener, OnLo
     protected void onFinishInflate() {
         super.onFinishInflate();
 
+        headerChipsView = findViewById(R.id.header_chips);
         accountNameView = findViewById(R.id.account_name);
+        folderNameView = findViewById(R.id.folder_name);
+        folderNameView.setOnClickListener(this);
         subjectView = findViewById(R.id.subject);
         starView = findViewById(R.id.flagged);
         contactPictureView = findViewById(R.id.contact_picture);
@@ -97,6 +103,7 @@ public class MessageHeader extends LinearLayout implements OnClickListener, OnLo
         dateView = findViewById(R.id.date);
 
         fontSizes.setViewTextSize(accountNameView, fontSizes.getMessageViewAccountName());
+        fontSizes.setViewTextSize(folderNameView, fontSizes.getMessageViewAccountName());
         fontSizes.setViewTextSize(subjectView, fontSizes.getMessageViewSubject());
         fontSizes.setViewTextSize(dateView, fontSizes.getMessageViewDate());
         fontSizes.setViewTextSize(fromView, fontSizes.getMessageViewSender());
@@ -140,6 +147,8 @@ public class MessageHeader extends LinearLayout implements OnClickListener, OnLo
             messageHeaderClickListener.onParticipantsContainerClick();
         } else if (id == R.id.view_all_attachments || id == R.id.attachment_summary_container) {
             messageHeaderClickListener.onViewAllAttachmentsClick();
+        } else if (id == R.id.folder_name) {
+            messageHeaderClickListener.onFolderClick();
         }
     }
 
@@ -209,15 +218,35 @@ public class MessageHeader extends LinearLayout implements OnClickListener, OnLo
         starView.setOnClickListener(listener);
     }
 
+    /**
+     * @param folderName
+     *         The name of the folder the message is stored in, or {@code null} to not display it. Clicking it opens
+     *         the folder.
+     */
     public void populate(final Message message, final LegacyAccountDto account, boolean showStar,
-        boolean showAccountIndicator) {
+        boolean showAccountIndicator, @Nullable String folderName) {
+        ColorStateList accountColor = ColorStateList.valueOf(account.getChipColor());
         if (showAccountIndicator) {
             accountNameView.setVisibility(View.VISIBLE);
             accountNameView.setText(account.getDisplayName());
-            accountNameView.setChipBackgroundColor(ColorStateList.valueOf(account.getChipColor()));
+            accountNameView.setChipBackgroundColor(accountColor);
         } else {
             accountNameView.setVisibility(View.GONE);
         }
+
+        if (folderName != null) {
+            folderNameView.setVisibility(View.VISIBLE);
+            folderNameView.setText(folderName);
+            folderNameView.setContentDescription(
+                    getContext().getString(R.string.message_list_content_description_open_folder, folderName));
+            folderNameView.setTextColor(accountColor);
+            folderNameView.setChipIconTint(accountColor);
+            folderNameView.setChipStrokeColor(accountColor);
+        } else {
+            folderNameView.setVisibility(View.GONE);
+        }
+
+        headerChipsView.setVisibility(showAccountIndicator || folderName != null ? View.VISIBLE : View.GONE);
 
         Address fromAddress = null;
         Address[] fromAddresses = message.getFrom();

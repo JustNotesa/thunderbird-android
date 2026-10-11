@@ -4,4 +4,5 @@ interface MessageHeaderClickListener {
     fun onParticipantsContainerClick()
     fun onMenuItemClick(itemId: Int)
     fun onViewAllAttachmentsClick()
+    fun onFolderClick()
 }

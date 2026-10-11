@@ -39,6 +39,7 @@ import androidx.lifecycle.lifecycleScope
 import app.k9mail.core.android.common.activity.CreateDocumentResultContract
 import app.k9mail.core.ui.legacy.designsystem.atom.icon.Icons
 import app.k9mail.legacy.message.controller.MessageReference
+import app.k9mail.legacy.ui.folder.FolderNameFormatter
 import com.eygraber.uri.toKmpUri
 import com.fsck.k9.activity.MessageCompose
 import com.fsck.k9.activity.MessageLoaderHelper
@@ -91,6 +92,8 @@ import net.thunderbird.core.ui.contract.mvi.observe
 import net.thunderbird.core.ui.theme.api.FeatureThemeProvider
 import net.thunderbird.core.ui.theme.api.Theme
 import net.thunderbird.core.ui.theme.manager.ThemeManager
+import net.thunderbird.feature.mail.folder.FolderType
+import net.thunderbird.feature.mail.folder.api.Folder
 import net.thunderbird.feature.mail.folder.api.OutboxFolderManager
 import net.thunderbird.feature.mail.message.export.MessageExporter
 import net.thunderbird.feature.mail.message.export.MessageFileNameSuggester
@@ -169,6 +172,8 @@ class MessageViewFragment :
     private lateinit var account: LegacyAccountDto
     lateinit var messageReference: MessageReference
     private var showAccountIndicator: Boolean = true
+    private var showFolder: Boolean = false
+    private val folderNameFormatter by lazy { FolderNameFormatter(requireContext().resources) }
 
     private var currentAttachmentViewInfo: AttachmentViewInfo? = null
     private var isDeleteMenuItemDisabled: Boolean = false
@@ -208,6 +213,7 @@ class MessageViewFragment :
 
         showAccountIndicator = arguments?.getBoolean(ARG_SHOW_ACCOUNT_INDICATOR)
             ?: error("Missing argument: '$ARG_SHOW_ACCOUNT_INDICATOR'")
+        showFolder = arguments?.getBoolean(ARG_SHOW_FOLDER) ?: false
 
         if (savedInstanceState != null) {
             wasMessageMarkedAsOpened = savedInstanceState.getBoolean(STATE_WAS_MESSAGE_MARKED_AS_OPENED)
@@ -569,6 +575,7 @@ class MessageViewFragment :
 
     private fun displayHeaderForLoadingMessage(message: LocalMessage) {
         val showStar = !isOutbox
+        messageTopView.setFolderName(getFolderDisplayName(message))
         messageTopView.setHeaders(message, account, showStar)
 
         if (account.isOpenPgpProviderConfigured) {
@@ -582,6 +589,34 @@ class MessageViewFragment :
     private fun displaySubject(subject: String) {
         val displaySubject = subject.ifEmpty { getString(R.string.general_no_subject) }
         messageTopView.setSubject(displaySubject)
+    }
+
+    /**
+     * The name of the folder the message is stored in, if the user can't tell from where the message was opened.
+     */
+    private fun getFolderDisplayName(message: LocalMessage): String? {
+        if (!showFolder) return null
+
+        val localFolder = message.folder
+        val folderId = localFolder.databaseId
+        val folderType = when (folderId) {
+            account.inboxFolderId -> FolderType.INBOX
+            outboxFolderManager.getOutboxFolderIdSync(account.id) -> FolderType.OUTBOX
+            account.archiveFolderId -> FolderType.ARCHIVE
+            account.draftsFolderId -> FolderType.DRAFTS
+            account.sentFolderId -> FolderType.SENT
+            account.spamFolderId -> FolderType.SPAM
+            account.trashFolderId -> FolderType.TRASH
+            else -> FolderType.REGULAR
+        }
+        val folder = Folder(
+            id = folderId,
+            name = localFolder.name,
+            type = folderType,
+            isLocalOnly = localFolder.isLocalOnly,
+        )
+
+        return folderNameFormatter.displayName(folder)
     }
 
     private val messageHeaderClickListener = object : MessageHeaderClickListener {
@@ -605,6 +640,10 @@ class MessageViewFragment :
 
         override fun onViewAllAttachmentsClick() {
             showAttachmentListBottomSheet()
+        }
+
+        override fun onFolderClick() {
+            fragmentListener.showMessageFolder(messageReference)
         }
     }
 
@@ -1158,6 +1197,7 @@ class MessageViewFragment :
         fun setProgress(enable: Boolean)
         fun performNavigationAfterMessageRemoval()
         fun performNavigationAfterMarkAsUnread()
+        fun showMessageFolder(messageReference: MessageReference)
     }
 
     private val messageLoaderCallbacks: MessageLoaderCallbacks = object : MessageLoaderCallbacks {
@@ -1284,14 +1324,20 @@ class MessageViewFragment :
 
         private const val ARG_REFERENCE = "reference"
         private const val ARG_SHOW_ACCOUNT_INDICATOR = "showAccountIndicator"
+        private const val ARG_SHOW_FOLDER = "showFolder"
 
         private const val STATE_WAS_MESSAGE_MARKED_AS_OPENED = "wasMessageMarkedAsOpened"
         private const val STATE_IS_ACTIVE = "isActive"
 
-        fun newInstance(reference: MessageReference, showAccountIndicator: Boolean): MessageViewFragment {
+        fun newInstance(
+            reference: MessageReference,
+            showAccountIndicator: Boolean,
+            showFolder: Boolean,
+        ): MessageViewFragment {
             return MessageViewFragment().withArguments(
                 ARG_REFERENCE to reference.toIdentityString(),
                 ARG_SHOW_ACCOUNT_INDICATOR to showAccountIndicator,
+                ARG_SHOW_FOLDER to showFolder,
             )
         }
     }
