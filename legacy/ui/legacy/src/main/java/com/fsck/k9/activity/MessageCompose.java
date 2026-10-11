@@ -58,6 +58,8 @@ import android.widget.FrameLayout;
 import com.fsck.k9.ui.compose.richtext.MessageFormattingToolbar;
 import net.thunderbird.feature.mail.message.composer.richtext.FormattedRange;
 import net.thunderbird.feature.mail.message.composer.richtext.RichTextHtmlConverter;
+import net.thunderbird.feature.mail.message.composer.richtext.FormattedText;
+import com.fsck.k9.message.html.HtmlConverter;
 import androidx.appcompat.app.ActionBar;
 import androidx.core.content.IntentCompat;
 import androidx.core.os.BundleCompat;
@@ -433,7 +435,8 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
                 messageContentView,
                 findViewById(R.id.message_format_bold),
                 findViewById(R.id.message_format_italic),
-                findViewById(R.id.message_format_underline));
+                findViewById(R.id.message_format_underline),
+                () -> changesMadeSinceLastSave = true);
 
         attachmentsView = findViewById(R.id.attachments);
 
@@ -899,6 +902,18 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
         quotedMessagePresenter.builderSetProperties(builder);
 
         return builder;
+    }
+
+    /**
+     * Shows the message text of a draft that was saved as HTML, with the formatting it was saved with.
+     */
+    public void setMessageContentFromDraftHtml(String html) {
+        FormattedText formattedText = richTextHtmlConverter.fromHtmlFragment(html);
+        if (formattedText.getRanges().isEmpty()) {
+            messageContentView.setText(CrLfConverter.toLf(HtmlConverter.htmlToText(html)));
+        } else {
+            messageFormattingToolbar.setFormattedText(formattedText);
+        }
     }
 
     /**

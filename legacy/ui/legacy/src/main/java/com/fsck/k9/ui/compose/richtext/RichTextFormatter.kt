@@ -2,11 +2,13 @@ package com.fsck.k9.ui.compose.richtext
 
 import android.graphics.Typeface
 import android.text.Editable
+import android.text.SpannableStringBuilder
 import android.text.Spanned
 import android.text.style.CharacterStyle
 import android.text.style.StyleSpan
 import android.text.style.UnderlineSpan
 import net.thunderbird.feature.mail.message.composer.richtext.FormattedRange
+import net.thunderbird.feature.mail.message.composer.richtext.FormattedText
 import net.thunderbird.feature.mail.message.composer.richtext.TextFormat
 
 /**
@@ -48,6 +50,22 @@ internal object RichTextFormatter {
         } else {
             text.formattedRanges(format).any { it.start <= start && end <= it.end }
         }
+    }
+
+    /**
+     * Builds the text to show in the text field from text and its formatted parts.
+     */
+    fun toSpanned(formattedText: FormattedText): Spanned {
+        val text = SpannableStringBuilder(formattedText.text)
+        for (range in formattedText.ranges) {
+            val start = range.start.coerceIn(0, text.length)
+            val end = range.end.coerceIn(0, text.length)
+            if (start < end) {
+                text.setSpan(range.format.createSpan(), start, end, Spanned.SPAN_EXCLUSIVE_INCLUSIVE)
+            }
+        }
+
+        return text
     }
 
     /**

@@ -8,10 +8,12 @@ import android.text.style.UnderlineSpan
 import assertk.assertThat
 import assertk.assertions.containsExactly
 import assertk.assertions.isEmpty
+import assertk.assertions.isEqualTo
 import assertk.assertions.isFalse
 import assertk.assertions.isTrue
 import net.thunderbird.core.android.testing.RobolectricTest
 import net.thunderbird.feature.mail.message.composer.richtext.FormattedRange
+import net.thunderbird.feature.mail.message.composer.richtext.FormattedText
 import net.thunderbird.feature.mail.message.composer.richtext.TextFormat
 import org.junit.Test
 
@@ -161,6 +163,30 @@ class RichTextFormatterTest : RobolectricTest() {
         assertThat(result).containsExactly(
             FormattedRange(0, 5, TextFormat.Bold),
             FormattedRange(0, 5, TextFormat.Italic),
+        )
+    }
+
+    @Test
+    fun `toSpanned should show formatted text that reads back as the same ranges`() {
+        // Arrange
+        val formattedText = FormattedText(
+            text = "Hello Jane",
+            ranges = listOf(
+                FormattedRange(0, 5, TextFormat.Bold),
+                FormattedRange(3, 10, TextFormat.Underline),
+                FormattedRange(8, 99, TextFormat.Italic),
+            ),
+        )
+
+        // Act
+        val result = RichTextFormatter.toSpanned(formattedText)
+
+        // Assert
+        assertThat(result.toString()).isEqualTo("Hello Jane")
+        assertThat(RichTextFormatter.formattedRanges(result)).containsExactly(
+            FormattedRange(0, 5, TextFormat.Bold),
+            FormattedRange(8, 10, TextFormat.Italic),
+            FormattedRange(3, 10, TextFormat.Underline),
         )
     }
 }

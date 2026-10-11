@@ -11,6 +11,7 @@ import androidx.core.view.isVisible
 import androidx.core.widget.doAfterTextChanged
 import com.google.android.material.button.MaterialButton
 import net.thunderbird.feature.mail.message.composer.richtext.FormattedRange
+import net.thunderbird.feature.mail.message.composer.richtext.FormattedText
 import net.thunderbird.feature.mail.message.composer.richtext.TextFormat
 
 /**
@@ -18,6 +19,8 @@ import net.thunderbird.feature.mail.message.composer.richtext.TextFormat
  *
  * A button formats the selected text or, without a selection, what is typed next. The buttons are shown as checked
  * while the selection or the cursor is in text with that format.
+ *
+ * @param onFormatChange called when the user changed the formatting, which a text change listener doesn't notice
  */
 class MessageFormattingToolbar(
     private val toolbar: View,
@@ -25,6 +28,7 @@ class MessageFormattingToolbar(
     boldButton: MaterialButton,
     italicButton: MaterialButton,
     underlineButton: MaterialButton,
+    private val onFormatChange: Runnable,
 ) {
     private val buttons = mapOf(
         TextFormat.Bold to boldButton,
@@ -82,6 +86,14 @@ class MessageFormattingToolbar(
             selectionEnd = messageContent.selectionEnd,
         )
         updateButtons()
+        onFormatChange.run()
+    }
+
+    /**
+     * Replaces the message text with formatted text, e.g. the one of a draft.
+     */
+    fun setFormattedText(formattedText: FormattedText) {
+        messageContent.setText(RichTextFormatter.toSpanned(formattedText))
     }
 
     private fun updateButtons() {
