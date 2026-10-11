@@ -138,6 +138,7 @@ private const val NO_FOLDER_ID = -1L
 private const val SEARCH_STEP_UPDATE_INTERVAL = 1000L
 private const val LOAD_MORE_MESSAGES_DISTANCE = 3
 private const val LOADED_MESSAGES_SETTLING_TIME = 1000L
+private const val REMOTE_SEARCH_READING_TIME = 8_000L
 private const val ADDITIONAL_FIRST_MESSAGES = 2
 private const val MILLISECONDS_PER_SECOND = 1000L
 const val RECENT_CHANGES_SNACKBAR_DURATION = 10 * 1000
@@ -324,7 +325,10 @@ class LegacyMessageListFragment :
             resetActionMode()
             invalidateMenu()
             maybeHideFloatingActionButton()
+            onActiveChanged()
         }
+
+    private val stopRemoteSearchRunnable = Runnable { stopRemoteSearch(canContinue = true) }
 
     override fun isSearchViewCollapsed(): Boolean {
         val searchView = searchView ?: return true
@@ -1075,6 +1079,7 @@ class LegacyMessageListFragment :
     }
 
     override fun onDestroyView() {
+        handler.removeCallbacks(stopRemoteSearchRunnable)
         handler.removeCallbacks(loadedMessagesDisplayedRunnable)
         isWaitingForLoadedMessages = false
         coordinatorLayout = null
@@ -1153,9 +1158,25 @@ class LegacyMessageListFragment :
         continueStoppedRemoteSearch()
     }
 
+    /**
+     * A search keeps running while the user has a quick look at one of its results. When the user stays with the
+     * message, the search is stopped to not use the connection for something nobody is waiting for. It continues
+     * when the user returns to the search results.
+     */
+    private fun onActiveChanged() {
+        handler.removeCallbacks(stopRemoteSearchRunnable)
+        if (isActive) {
+            if (isResumed) {
+                continueStoppedRemoteSearch()
+            }
+        } else if (remoteSearchFuture != null) {
+            handler.postDelayed(stopRemoteSearchRunnable, REMOTE_SEARCH_READING_TIME)
+        }
+    }
+
     private fun continueStoppedRemoteSearch() {
         val stoppedRemoteSearch = stoppedRemoteSearch ?: return
-        if (remoteSearchFuture != null || !connectivityManager.isNetworkAvailable()) return
+        if (!isActive || remoteSearchFuture != null || !connectivityManager.isNetworkAvailable()) return
 
         onRemoteSearchRequested(stoppedRemoteSearch.searchMessageContents, stoppedRemoteSearch.searchedFolderCount)
     }
@@ -2261,45 +2282,53 @@ class LegacyMessageListFragment :
 
     override fun onStop() {
         // If we represent a remote search, then kill that before going back.
-        if (isRemoteSearch && remoteSearchFuture != null) {
-            // The search continues where it was stopped when the user returns, e.g. from looking at a folder. The
-            // folder it was working on is searched again.
-            if (!requireActivity().isFinishing) {
-                stoppedRemoteSearch = StoppedRemoteSearch(
-                    searchMessageContents = isSearchingMessageContents,
-                    searchedFolderCount = (remoteSearchFolderIndex - 1).coerceAtLeast(0),
-                )
-            }
-
-            // The stopped search may still report something. Only what is said here counts from now on.
-            remoteSearchListener = null
-
-            // An aborted search of the message contents can be started again.
-            isSearchingMessageContents = false
-            isRemoteSearchStopped = true
-            try {
-                logger.info(logTag) { "Remote search in progress, attempting to abort..." }
-
-                // Canceling the future stops any message fetches in progress.
-                val cancelSuccess = remoteSearchFuture!!.cancel(true) // mayInterruptIfRunning = true
-                if (!cancelSuccess) {
-                    logger.error(logTag) { "Could not cancel remote search future." }
-                }
-
-                // Send a remoteSearchFinished() message for good measure.
-                activityListener.remoteSearchFinished(
-                    currentFolder?.databaseId ?: NO_FOLDER_ID,
-                    0,
-                    account?.remoteSearchNumResults ?: 0,
-                    null,
-                )
-            } catch (e: Exception) {
-                // Since the user is going back, log and squash any exceptions.
-                logger.error(logTag, e) { "Could not abort remote search before going back" }
-            }
-        }
+        stopRemoteSearch(canContinue = !requireActivity().isFinishing)
 
         super.onStop()
+    }
+
+    /**
+     * Stop a remote search that is running.
+     *
+     * @param canContinue Whether the search continues where it was stopped when the user returns to the search
+     *   results, e.g. from looking at a folder or a message. The folder it was working on is searched again.
+     */
+    private fun stopRemoteSearch(canContinue: Boolean) {
+        if (!isRemoteSearch || remoteSearchFuture == null) return
+
+        if (canContinue) {
+            stoppedRemoteSearch = StoppedRemoteSearch(
+                searchMessageContents = isSearchingMessageContents,
+                searchedFolderCount = (remoteSearchFolderIndex - 1).coerceAtLeast(0),
+            )
+        }
+
+        // The stopped search may still report something. Only what is said here counts from now on.
+        remoteSearchListener = null
+
+        // An aborted search of the message contents can be started again.
+        isSearchingMessageContents = false
+        isRemoteSearchStopped = true
+        try {
+            logger.info(logTag) { "Remote search in progress, attempting to abort..." }
+
+            // Canceling the future stops any message fetches in progress.
+            val cancelSuccess = remoteSearchFuture!!.cancel(true) // mayInterruptIfRunning = true
+            if (!cancelSuccess) {
+                logger.error(logTag) { "Could not cancel remote search future." }
+            }
+
+            // Send a remoteSearchFinished() message for good measure.
+            activityListener.remoteSearchFinished(
+                currentFolder?.databaseId ?: NO_FOLDER_ID,
+                0,
+                account?.remoteSearchNumResults ?: 0,
+                null,
+            )
+        } catch (e: Exception) {
+            // Since the user is going back, log and squash any exceptions.
+            logger.error(logTag, e) { "Could not abort remote search before going back" }
+        }
     }
 
     fun openMessage(messageReference: MessageReference) {
