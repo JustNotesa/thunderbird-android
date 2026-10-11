@@ -263,6 +263,7 @@ class LegacyMessageListFragment :
     @Volatile
     private var loadingMessagesFailureReason: String? = null
     private var searchStatus: ServerSearchStatus? = null
+    private var searchScope: SearchScope? = null
     private var searchStep: SearchStep? = null
     private var searchStepStartTime = 0L
     private val searchStepRunnable = Runnable { showSearchStep() }
@@ -565,6 +566,11 @@ class LegacyMessageListFragment :
     private fun initializeSearchStatus() {
         if (!isRemoteSearchSupported) return
 
+        // A search that was started from a folder can be limited to that folder.
+        if (searchScope == null && account != null && currentFolder != null) {
+            searchScope = SearchScope.EVERYWHERE
+        }
+
         if (isRemoteSearch && remoteSearchFuture == null) {
             // The server search has ended while the message list wasn't displayed, e.g. while reading a message.
             showSearchOutcome()
@@ -584,7 +590,8 @@ class LegacyMessageListFragment :
 
         val viewItems = adapter.viewItems.filterNot { it is MessageListViewItem.SearchStatus }.toMutableList()
         val index = viewItems.indexOfFirst { it !is MessageListViewItem.InAppNotificationBannerList }
-        viewItems.add(if (index == -1) viewItems.size else index, MessageListViewItem.SearchStatus(status))
+        val viewItem = MessageListViewItem.SearchStatus(status, searchScope)
+        viewItems.add(if (index == -1) viewItems.size else index, viewItem)
         adapter.viewItems = viewItems
     }
 
@@ -691,6 +698,16 @@ class LegacyMessageListFragment :
             )
         }
         showSearchStatus(status)
+    }
+
+    override fun onSearchScopeSelected(scope: SearchScope) {
+        if (scope == searchScope) return
+
+        searchScope = scope
+        // Results from other folders are no longer wanted, or the search has to find them first.
+        legacyViewModel.remoteSearchResults.clear()
+        hasSearchedMessageContents = false
+        onRemoteSearchRequested()
     }
 
     override fun onSearchMessageContentsClicked() {
@@ -1234,8 +1251,17 @@ class LegacyMessageListFragment :
         swipeRefreshLayout?.isEnabled = false
 
         // Widen the visible search to all folders and accounts so that results found by the
-        // cascading remote search show up in this list.
-        localSearch = createManualQuerySearch(queryString)
+        // cascading remote search show up in this list. Unless the user only wants to search the folder the search
+        // was started from.
+        val startAccount = account
+        val startFolder = currentFolder
+        val isLimitedToFolder = searchScope == SearchScope.FOLDER && startAccount != null && startFolder != null
+        localSearch = createManualQuerySearch(queryString).apply {
+            if (isLimitedToFolder) {
+                addAccountUuid(startAccount!!.id.toString())
+                addAllowedFolder(startFolder!!.databaseId)
+            }
+        }
         loadMessageList(forceUpdate = true)
 
         // The account and folder the search was started from are searched first. A search that was started from
@@ -1247,6 +1273,7 @@ class LegacyMessageListFragment :
             null,
             null,
             searchMessageContents,
+            isLimitedToFolder,
             searchedFolderCount,
             RemoteSearchListener().also { remoteSearchListener = it },
         )
@@ -2502,7 +2529,7 @@ class LegacyMessageListFragment :
             if (featureFlagProvider.provide(GeneratedFeatureFlagKey.DISPLAY_IN_APP_NOTIFICATIONS).isEnabled()) {
                 add(MessageListViewItem.InAppNotificationBannerList)
             }
-            searchStatus?.let { add(MessageListViewItem.SearchStatus(it)) }
+            searchStatus?.let { add(MessageListViewItem.SearchStatus(it, searchScope)) }
             addAll(messageListItems.map { MessageListViewItem.Message(it) })
             // Keep the current footer (e.g. remote search progress) across list rebuilds.
             // updateFooterText() below recomputes it when no remote search is running.

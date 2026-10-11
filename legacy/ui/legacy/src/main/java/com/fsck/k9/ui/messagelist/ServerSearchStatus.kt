@@ -40,3 +40,11 @@ sealed interface ServerSearchStatus {
         PROBLEM,
     }
 }
+
+/**
+ * Where a search that was started from a folder looks for messages.
+ */
+enum class SearchScope {
+    FOLDER,
+    EVERYWHERE,
+}

@@ -13,6 +13,36 @@
     android:paddingVertical="12dp"
     >
 
+    <!-- Only for a search that was started from a folder: where to look for messages -->
+    <com.google.android.material.chip.ChipGroup
+        android:id="@+id/search_scope"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="4dp"
+        android:visibility="gone"
+        app:chipSpacingHorizontal="8dp"
+        app:singleLine="true"
+        tools:visibility="visible"
+        >
+
+        <com.google.android.material.chip.Chip
+            android:id="@+id/search_scope_folder"
+            style="@style/Widget.Material3.Chip.Filter"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/search_scope_folder"
+            />
+
+        <com.google.android.material.chip.Chip
+            android:id="@+id/search_scope_everywhere"
+            style="@style/Widget.Material3.Chip.Filter"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/search_scope_everywhere"
+            />
+
+    </com.google.android.material.chip.ChipGroup>
+
     <!-- Always as high as the button, so the height doesn't depend on whether the button is displayed -->
     <LinearLayout
         android:layout_width="match_parent"

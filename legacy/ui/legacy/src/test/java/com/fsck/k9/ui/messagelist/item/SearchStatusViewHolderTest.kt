@@ -13,6 +13,7 @@ import androidx.core.view.isInvisible
 import androidx.core.view.isVisible
 import assertk.all
 import assertk.assertThat
+import assertk.assertions.containsExactly
 import assertk.assertions.each
 import assertk.assertions.isEqualTo
 import assertk.assertions.isFalse
@@ -20,8 +21,10 @@ import assertk.assertions.isGreaterThan
 import assertk.assertions.isGreaterThanOrEqualTo
 import assertk.assertions.isTrue
 import com.fsck.k9.ui.R
+import com.fsck.k9.ui.messagelist.SearchScope
 import com.fsck.k9.ui.messagelist.ServerSearchStatus
 import com.fsck.k9.ui.messagelist.ServerSearchStatus.Result
+import com.google.android.material.chip.Chip
 import net.thunderbird.core.android.testing.RobolectricTest
 import org.junit.Test
 import org.robolectric.Robolectric
@@ -38,6 +41,7 @@ class SearchStatusViewHolderTest : RobolectricTest() {
     private val context: Context =
         ContextThemeWrapper(activity, com.google.android.material.R.style.Theme_Material3_Light)
     private var searchMessageContentsClickCount = 0
+    private val selectedScopes = mutableListOf<SearchScope>()
 
     @Test
     fun `row should have the same height no matter what is displayed`() {
@@ -149,6 +153,50 @@ class SearchStatusViewHolderTest : RobolectricTest() {
     }
 
     @Test
+    fun `row should not offer a choice of where to search by default`() {
+        val testSubject = createViewHolder()
+
+        testSubject.bind(ServerSearchStatus.Running(title = "Sending query to server"))
+
+        assertThat(testSubject.itemView.scopeView.isVisible).isFalse()
+    }
+
+    @Test
+    fun `row should display where the search looks for messages`() {
+        val testSubject = createViewHolder()
+
+        testSubject.bind(ServerSearchStatus.Running(title = "Sending query to server"), SearchScope.FOLDER)
+
+        val view = testSubject.itemView
+        assertThat(view.scopeView.isVisible).isTrue()
+        assertThat(view.scopeFolderView.isChecked).isTrue()
+        assertThat(view.scopeEverywhereView.isChecked).isFalse()
+    }
+
+    @Test
+    fun `click on a place to search should select it`() {
+        val testSubject = createViewHolder()
+        testSubject.bind(ServerSearchStatus.Running(title = "Sending query to server"), SearchScope.EVERYWHERE)
+
+        testSubject.itemView.scopeFolderView.performClick()
+
+        assertThat(selectedScopes).containsExactly(SearchScope.FOLDER)
+    }
+
+    @Test
+    fun `row with a choice of where to search should have the same height no matter what is displayed`() {
+        val testSubject = createViewHolder()
+
+        val heights = STATUSES.map { status ->
+            testSubject.bind(status, SearchScope.EVERYWHERE)
+            testSubject.itemView.layoutInWindow()
+            testSubject.itemView.measuredHeight
+        }
+
+        assertThat(heights).each { it.isEqualTo(heights.first()) }
+    }
+
+    @Test
     fun `ended search should display problem`() {
         val testSubject = createViewHolder()
 
@@ -221,6 +269,7 @@ class SearchStatusViewHolderTest : RobolectricTest() {
             layoutInflater = LayoutInflater.from(context),
             parent = LinearLayout(context),
             onSearchMessageContentsClickListener = { searchMessageContentsClickCount++ },
+            onScopeSelected = { selectedScopes.add(it) },
         )
     }
 
@@ -248,6 +297,9 @@ class SearchStatusViewHolderTest : RobolectricTest() {
     private val View.detailView: TextView get() = findViewById(R.id.search_status_detail)
     private val View.messageView: TextView get() = findViewById(R.id.search_status_message)
     private val View.contentsButtonView: View get() = findViewById(R.id.search_contents_button)
+    private val View.scopeView: View get() = findViewById(R.id.search_scope)
+    private val View.scopeFolderView: Chip get() = findViewById(R.id.search_scope_folder)
+    private val View.scopeEverywhereView: Chip get() = findViewById(R.id.search_scope_everywhere)
     private val View.skipToContentsButtonView: View get() = findViewById(R.id.search_contents_skip_button)
 
     private companion object {

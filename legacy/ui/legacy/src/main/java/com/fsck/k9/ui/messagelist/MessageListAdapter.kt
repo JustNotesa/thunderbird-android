@@ -236,7 +236,12 @@ class MessageListAdapter internal constructor(
             TYPE_FOOTER -> FooterViewHolder.create(layoutInflater, parent, footerClickListener)
 
             TYPE_SEARCH_STATUS ->
-                SearchStatusViewHolder.create(layoutInflater, parent, searchMessageContentsClickListener)
+                SearchStatusViewHolder.create(
+                    layoutInflater = layoutInflater,
+                    parent = parent,
+                    onSearchMessageContentsClickListener = searchMessageContentsClickListener,
+                    onScopeSelected = listItemListener::onSearchScopeSelected,
+                )
 
             TYPE_IN_APP_NOTIFICATION_BANNER_INLINE_LIST if isInAppNotificationEnabled ->
                 BannerInlineListInAppNotificationViewHolder(
@@ -313,7 +318,7 @@ class MessageListAdapter internal constructor(
             TYPE_SEARCH_STATUS -> {
                 val searchStatusViewHolder = holder as SearchStatusViewHolder
                 val searchStatus = viewItems[position] as MessageListViewItem.SearchStatus
-                searchStatusViewHolder.bind(searchStatus.status)
+                searchStatusViewHolder.bind(searchStatus.status, searchStatus.scope)
             }
 
             else -> {
@@ -441,6 +446,7 @@ interface MessageListItemActionListener {
     fun onToggleMessageFlag(item: MessageListItem)
     fun onMessageFolderClicked(messageListItem: MessageListItem) = Unit
     fun onSearchMessageContentsClicked() = Unit
+    fun onSearchScopeSelected(scope: SearchScope) = Unit
     fun onFooterClicked()
     fun filterInAppNotificationEvents(notification: InAppNotification): Boolean
     fun onNotificationActionClicked(action: NotificationAction)
@@ -465,7 +471,10 @@ sealed interface MessageListViewItem {
         override val viewType: Int = TYPE_FOOTER
     }
 
-    data class SearchStatus(val status: ServerSearchStatus) : MessageListViewItem {
+    /**
+     * @param scope Where the search looks for messages, if the user can choose.
+     */
+    data class SearchStatus(val status: ServerSearchStatus, val scope: SearchScope? = null) : MessageListViewItem {
         override val viewId: Long = SEARCH_STATUS_ID
         override val viewType: Int = TYPE_SEARCH_STATUS
     }

@@ -14,9 +14,11 @@ import androidx.core.view.isVisible
 import androidx.core.widget.ImageViewCompat
 import app.k9mail.core.ui.legacy.designsystem.atom.icon.Icons
 import com.fsck.k9.ui.R
+import com.fsck.k9.ui.messagelist.SearchScope
 import com.fsck.k9.ui.messagelist.ServerSearchStatus
 import com.fsck.k9.ui.messagelist.ServerSearchStatus.Result
 import com.fsck.k9.ui.resolveColorAttribute
+import com.google.android.material.chip.Chip
 import androidx.appcompat.R as AppCompatR
 import com.google.android.material.R as MaterialR
 
@@ -26,7 +28,13 @@ import com.google.android.material.R as MaterialR
  * The row always has the same height, no matter what it displays. And because it is part of the list, it only moves
  * when the user scrolls the list. So the messages below never move on their own.
  */
-class SearchStatusViewHolder(view: View) : MessageListViewHolder(view) {
+class SearchStatusViewHolder(
+    view: View,
+    private val onScopeSelected: (SearchScope) -> Unit,
+) : MessageListViewHolder(view) {
+    private val scopeGroup: View = view.findViewById(R.id.search_scope)
+    private val scopeFolder: Chip = view.findViewById(R.id.search_scope_folder)
+    private val scopeEverywhere: Chip = view.findViewById(R.id.search_scope_everywhere)
     private val spinner: View = view.findViewById(R.id.search_status_spinner)
     private val icon: ImageView = view.findViewById(R.id.search_status_icon)
     private val title: TextView = view.findViewById(R.id.search_status_text)
@@ -46,6 +54,9 @@ class SearchStatusViewHolder(view: View) : MessageListViewHolder(view) {
         details.minHeight = contentsButton.measuredHeight + message.lineHeight + message.paddingBottom
 
         // Display as many lines of the message as fit into the space that is available.
+        scopeFolder.setOnClickListener { onScopeSelected(SearchScope.FOLDER) }
+        scopeEverywhere.setOnClickListener { onScopeSelected(SearchScope.EVERYWHERE) }
+
         message.addOnLayoutChangeListener { _, _, top, _, bottom, _, _, _, _ ->
             val maxLines = ((bottom - top - message.paddingBottom) / message.lineHeight).coerceAtLeast(1)
             if (message.maxLines != maxLines) {
@@ -54,13 +65,24 @@ class SearchStatusViewHolder(view: View) : MessageListViewHolder(view) {
         }
     }
 
-    fun bind(status: ServerSearchStatus) {
+    fun bind(status: ServerSearchStatus, scope: SearchScope? = null) {
+        bindScope(scope)
         title.text = status.title
 
         when (status) {
             is ServerSearchStatus.Running -> bindRunning(status)
             is ServerSearchStatus.Ended -> bindEnded(status)
         }
+    }
+
+    /**
+     * The choice is only displayed for a search that was started from a folder. It is there for as long as the search
+     * results are displayed, so the height of the row doesn't change.
+     */
+    private fun bindScope(scope: SearchScope?) {
+        scopeGroup.isVisible = scope != null
+        scopeFolder.isChecked = scope == SearchScope.FOLDER
+        scopeEverywhere.isChecked = scope == SearchScope.EVERYWHERE
     }
 
     private fun bindRunning(status: ServerSearchStatus.Running) {
@@ -109,13 +131,14 @@ class SearchStatusViewHolder(view: View) : MessageListViewHolder(view) {
             layoutInflater: LayoutInflater,
             parent: ViewGroup,
             onSearchMessageContentsClickListener: View.OnClickListener,
+            onScopeSelected: (SearchScope) -> Unit = {},
         ): SearchStatusViewHolder {
             val view = layoutInflater.inflate(R.layout.message_list_item_search_status, parent, false)
             view.findViewById<View>(R.id.search_contents_button)
                 .setOnClickListener(onSearchMessageContentsClickListener)
             view.findViewById<View>(R.id.search_contents_skip_button)
                 .setOnClickListener(onSearchMessageContentsClickListener)
-            return SearchStatusViewHolder(view)
+            return SearchStatusViewHolder(view, onScopeSelected)
         }
     }
 }

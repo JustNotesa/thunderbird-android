@@ -875,6 +875,8 @@
     <string name="account_settings_remote_search_num_results_entries_1000">1000</string>
     <string name="account_settings_remote_search_num_label">Server search limit</string>
     <string name="local_search_status">Searching on this device</string>
+    <string name="search_scope_folder">Only this folder</string>
+    <string name="search_scope_everywhere">All folders</string>
     <string name="remote_search_sending_query">Sending query to server</string>
     <string name="remote_search_status_progress">Server search: folder %1$d of %2$d</string>
     <string name="remote_search_contents_status_progress">Content search: folder %1$d of %2$d</string>

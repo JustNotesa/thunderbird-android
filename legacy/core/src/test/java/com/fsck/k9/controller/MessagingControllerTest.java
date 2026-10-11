@@ -475,8 +475,8 @@ public class MessagingControllerTest extends K9RobolectricTest {
             throws Exception {
         setupCascadingRemoteSearch(3);
 
-        controller.searchRemoteMessagesCascadingSynchronous(accountId.toString(), 1L, "query", null, null, false, 2,
-            listener);
+        controller.searchRemoteMessagesCascadingSynchronous(accountId.toString(), 1L, "query", null, null, false,
+            false, 2, listener);
 
         verify(backend, never()).search(eq("folder1"), anyString(), nullable(Set.class), nullable(Set.class),
             eq(false), any(SearchListener.class));
@@ -486,6 +486,24 @@ public class MessagingControllerTest extends K9RobolectricTest {
             any(SearchListener.class));
         verify(listener).remoteSearchCascadeProgress(eq(accountId.toString()), nullable(String.class),
             nullable(String.class), eq(3), eq(3));
+    }
+
+    @Test
+    public void searchRemoteMessagesCascadingSynchronous_withStartFolderOnly_shouldNotSearchOtherFolders()
+            throws Exception {
+        setupCascadingRemoteSearch(3);
+
+        controller.searchRemoteMessagesCascadingSynchronous(accountId.toString(), 2L, "query", null, null, false,
+            true, 0, listener);
+
+        verify(backend).search(eq("folder2"), eq("query"), nullable(Set.class), nullable(Set.class), eq(false),
+            any(SearchListener.class));
+        verify(backend, never()).search(eq("folder1"), anyString(), nullable(Set.class), nullable(Set.class),
+            eq(false), any(SearchListener.class));
+        verify(backend, never()).search(eq("folder3"), anyString(), nullable(Set.class), nullable(Set.class),
+            eq(false), any(SearchListener.class));
+        verify(listener).remoteSearchCascadeProgress(eq(accountId.toString()), nullable(String.class),
+            nullable(String.class), eq(1), eq(1));
     }
 
     @Test

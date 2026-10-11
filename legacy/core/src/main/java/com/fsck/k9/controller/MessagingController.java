@@ -602,22 +602,26 @@ public class MessagingController implements MessagingControllerRegistry, Messagi
             String query, Set<Flag> requiredFlags, Set<Flag> forbiddenFlags, boolean searchMessageContents,
             MessagingListener listener) {
         return searchRemoteMessagesCascading(startAccountUuid, startFolderId, query, requiredFlags, forbiddenFlags,
-                searchMessageContents, 0, listener);
+                searchMessageContents, false, 0, listener);
     }
 
     /**
+     * @param startFolderOnly
+     *         {@code true} to search nothing but the folder the search was started from.
      * @param searchedFolderCount
      *         The number of folders a search that was stopped has already searched. They are skipped, so the search
      *         continues where it was stopped.
      */
     public Future<?> searchRemoteMessagesCascading(@Nullable String startAccountUuid, @Nullable Long startFolderId,
             String query, Set<Flag> requiredFlags, Set<Flag> forbiddenFlags, boolean searchMessageContents,
-            int searchedFolderCount, MessagingListener listener) {
-        Log.i("searchRemoteMessagesCascading (acct = %s, startFolderId = %d, contents = %b, searched = %d)",
-                startAccountUuid, startFolderId, searchMessageContents, searchedFolderCount);
+            boolean startFolderOnly, int searchedFolderCount, MessagingListener listener) {
+        Log.i("searchRemoteMessagesCascading (acct = %s, startFolderId = %d, contents = %b, startFolderOnly = %b, "
+                + "searched = %d)", startAccountUuid, startFolderId, searchMessageContents, startFolderOnly,
+                searchedFolderCount);
 
         return threadPool.submit(() -> searchRemoteMessagesCascadingSynchronous(startAccountUuid, startFolderId, query,
-                requiredFlags, forbiddenFlags, searchMessageContents, searchedFolderCount, listener));
+                requiredFlags, forbiddenFlags, searchMessageContents, startFolderOnly, searchedFolderCount,
+                listener));
     }
 
     @VisibleForTesting
@@ -625,13 +629,13 @@ public class MessagingController implements MessagingControllerRegistry, Messagi
             String query, Set<Flag> requiredFlags, Set<Flag> forbiddenFlags, boolean searchMessageContents,
             MessagingListener listener) {
         searchRemoteMessagesCascadingSynchronous(startAccountUuid, startFolderId, query, requiredFlags,
-                forbiddenFlags, searchMessageContents, 0, listener);
+                forbiddenFlags, searchMessageContents, false, 0, listener);
     }
 
     @VisibleForTesting
     void searchRemoteMessagesCascadingSynchronous(@Nullable String startAccountUuid, @Nullable Long startFolderId,
             String query, Set<Flag> requiredFlags, Set<Flag> forbiddenFlags, boolean searchMessageContents,
-            int searchedFolderCount, MessagingListener listener) {
+            boolean startFolderOnly, int searchedFolderCount, MessagingListener listener) {
         long listenerFolderId = startFolderId != null ? startFolderId : NO_START_FOLDER_ID;
         if (listener != null) {
             listener.remoteSearchStarted(listenerFolderId);
@@ -639,6 +643,9 @@ public class MessagingController implements MessagingControllerRegistry, Messagi
 
         try {
             List<CascadeSearchTarget> targets = buildCascadeSearchTargets(startAccountUuid, startFolderId);
+            if (startFolderOnly) {
+                targets = keepStartFolder(targets, startAccountUuid, startFolderId);
+            }
             int folderCount = targets.size();
             int folderIndex = 0;
             int failedFolderCount = 0;
@@ -824,6 +831,18 @@ public class MessagingController implements MessagingControllerRegistry, Messagi
         }
 
         return targets;
+    }
+
+    private List<CascadeSearchTarget> keepStartFolder(List<CascadeSearchTarget> targets,
+            @Nullable String startAccountUuid, @Nullable Long startFolderId) {
+        List<CascadeSearchTarget> startFolder = new ArrayList<>();
+        for (CascadeSearchTarget target : targets) {
+            if (startFolderId != null && target.folderId == startFolderId &&
+                    target.account.getId().toString().equals(startAccountUuid)) {
+                startFolder.add(target);
+            }
+        }
+        return startFolder;
     }
 
     private static class CascadeSearchTarget {
