@@ -795,6 +795,8 @@
     <string name="dialog_confirm_clear_local_folder_message">This will remove all local messages from the folder. No messages will be deleted from the server.</string>
     <string name="dialog_confirm_clear_local_folder_action">Clear messages</string>
     <string name="folder_create_action">New folder</string>
+    <string name="folder_list_expand_action">Show subfolders</string>
+    <string name="folder_list_collapse_action">Hide subfolders</string>
     <string name="folder_create_subfolder_action">New subfolder</string>
     <string name="folder_create_confirm_action">Create</string>
     <string name="folder_name_dialog_hint">Folder name</string>

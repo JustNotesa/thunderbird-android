@@ -9,6 +9,7 @@
     <dimen name="messageListSearchResultsToolbarReservedWidth">120dp</dimen>
     <!-- Used to work out how many messages fill the screen. Rows are at least this high. -->
     <dimen name="messageListSmallestRowHeight">56dp</dimen>
+    <dimen name="folderListSubfolderIndentation">24dp</dimen>
     <dimen name="messageListSwipeIconPadding">24dp</dimen>
     <dimen name="messageListSwipeTextPadding">12dp</dimen>
 

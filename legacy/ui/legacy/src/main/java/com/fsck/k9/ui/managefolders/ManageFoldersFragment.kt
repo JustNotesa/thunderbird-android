@@ -55,6 +55,9 @@ class ManageFoldersFragment : Fragment() {
     private lateinit var account: LegacyAccountDto
     private lateinit var itemAdapter: ItemAdapter<FolderListItem>
     private var folders: Map<Long, Folder> = emptyMap()
+    private var displayFolders: List<DisplayFolder> = emptyList()
+    private val expandedFolderIds = mutableSetOf<Long>()
+    private var folderFilter: String = ""
     private var dropTargetView: View? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -255,16 +258,58 @@ class ManageFoldersFragment : Fragment() {
     }
 
     private fun updateFolderList(displayFolders: List<DisplayFolder>) {
+        this.displayFolders = displayFolders
         folders = displayFolders.associate { it.folder.id to it.folder }
-        val folderListItems = displayFolders.map { displayFolder ->
-            val databaseId = displayFolder.folder.id
-            val folderIconResource = folderIconProvider.getFolderIcon(displayFolder.folder.type)
-            val displayName = folderNameFormatter.displayName(displayFolder.folder)
+        showFolders()
+    }
 
-            FolderListItem(databaseId, folderIconResource, displayName)
+    /**
+     * Subfolders are displayed below the folder they are in once it is expanded, like in the folder drawer. While
+     * the user is looking for a folder, all folders are listed with their full names instead.
+     */
+    private fun showFolders() {
+        val folderListItems = if (folderFilter.isEmpty()) {
+            FolderTree.build(displayFolders.map { it.folder }, account.folderPathDelimiter, expandedFolderIds)
+                .map { row ->
+                    val parentName = row.parent?.name
+                    val displayName = folderNameFormatter.displayName(row.folder)
+                    FolderListItem(
+                        folderId = row.folder.id,
+                        folderIconResource = folderIconProvider.getFolderIcon(row.folder.type),
+                        displayName = if (parentName == null) {
+                            displayName
+                        } else {
+                            displayName.removePrefix(parentName + account.folderPathDelimiter)
+                        },
+                        depth = row.depth,
+                        isExpanded = row.isExpanded.takeIf { row.hasSubfolders },
+                        onExpandClick = ::toggleSubfolders,
+                    )
+                }
+        } else {
+            displayFolders.map { displayFolder ->
+                FolderListItem(
+                    folderId = displayFolder.folder.id,
+                    folderIconResource = folderIconProvider.getFolderIcon(displayFolder.folder.type),
+                    displayName = folderNameFormatter.displayName(displayFolder.folder),
+                )
+            }
         }
 
         itemAdapter.set(folderListItems)
+        itemAdapter.filter(folderFilter)
+    }
+
+    private fun toggleSubfolders(folderId: Long) {
+        if (!expandedFolderIds.remove(folderId)) {
+            expandedFolderIds.add(folderId)
+        }
+        showFolders()
+    }
+
+    private fun filterFolders(filter: String) {
+        folderFilter = filter
+        showFolders()
     }
 
     private fun openFolderSettings(folderId: Long) {
@@ -283,12 +328,12 @@ class ManageFoldersFragment : Fragment() {
         folderSearchView.setOnQueryTextListener(
             object : SearchView.OnQueryTextListener {
                 override fun onQueryTextSubmit(query: String): Boolean {
-                    itemAdapter.filter(query)
+                    filterFolders(query)
                     return true
                 }
 
                 override fun onQueryTextChange(newText: String): Boolean {
-                    itemAdapter.filter(newText)
+                    filterFolders(newText)
                     return true
                 }
             },
