@@ -251,6 +251,25 @@ class RealImapFolderTest {
     }
 
     @Test
+    fun delete_shouldIssueDeleteCommand() {
+        val imapFolder = createFolder("Folder")
+
+        imapFolder.delete()
+
+        verify(imapConnection).executeSimpleCommand("DELETE \"Folder\"")
+    }
+
+    @Test
+    fun delete_withNegativeImapResponse_shouldThrow() {
+        val imapFolder = createFolder("Folder")
+        doThrow(NegativeImapResponseException::class).whenever(imapConnection).executeSimpleCommand("DELETE \"Folder\"")
+
+        assertFailure {
+            imapFolder.delete()
+        }.isInstanceOf<NegativeImapResponseException>()
+    }
+
+    @Test
     fun create_withoutNegativeImapResponse_shouldReturnTrue() {
         val folderName = "Folder"
         val imapFolder = createFolder(folderName)

@@ -880,6 +880,56 @@ public class MessagingController implements MessagingControllerRegistry, Messagi
     }
 
     /**
+     * Create a folder on the server and add it to the folders of the account.
+     *
+     * @param parentFolderId
+     *         The folder the new folder is created in, or {@code null} to create it at the top level.
+     */
+    public void createFolder(LegacyAccountDto account, @Nullable Long parentFolderId, String folderName,
+            FolderOperationListener listener) {
+        putBackground("createFolder", null, () -> createFolderSynchronous(account, parentFolderId, folderName,
+                listener));
+    }
+
+    @VisibleForTesting
+    void createFolderSynchronous(LegacyAccountDto account, @Nullable Long parentFolderId, String folderName,
+            FolderOperationListener listener) {
+        try {
+            String folderServerId = folderName;
+            if (parentFolderId != null) {
+                String parentServerId = getFolderServerId(account, parentFolderId);
+                folderServerId = parentServerId + account.folderPathDelimiter() + folderName;
+            }
+
+            getBackend(account).createFolder(folderServerId);
+            refreshFolderListSynchronous(account);
+            listener.onFinished(null);
+        } catch (Exception e) {
+            Log.e(e, "Couldn't create folder");
+            listener.onFinished(getRootCauseMessage(e));
+        }
+    }
+
+    /**
+     * Delete a folder and all messages in it from the server, and remove it from the folders of the account.
+     */
+    public void deleteFolder(LegacyAccountDto account, long folderId, FolderOperationListener listener) {
+        putBackground("deleteFolder", null, () -> deleteFolderSynchronous(account, folderId, listener));
+    }
+
+    @VisibleForTesting
+    void deleteFolderSynchronous(LegacyAccountDto account, long folderId, FolderOperationListener listener) {
+        try {
+            getBackend(account).deleteFolder(getFolderServerId(account, folderId));
+            refreshFolderListSynchronous(account);
+            listener.onFinished(null);
+        } catch (Exception e) {
+            Log.e(e, "Couldn't delete folder %d", folderId);
+            listener.onFinished(getRootCauseMessage(e));
+        }
+    }
+
+    /**
      * Load the next, bigger portion of the older messages of a folder. See {@link MessageLoadingSteps}.
      *
      * @param onFinished

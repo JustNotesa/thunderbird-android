@@ -19,6 +19,7 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
+import net.thunderbird.core.common.exception.MessagingException
 import net.thunderbird.core.common.mail.Flag
 import net.thunderbird.feature.mail.folder.api.FolderPathDelimiter
 
@@ -197,6 +198,16 @@ class ImapBackend(
 
     override fun createPusher(callback: BackendPusherCallback): BackendPusher {
         return ImapBackendPusher(imapStore, powerManager, idleRefreshManager, pushConfigProvider, callback, accountName)
+    }
+
+    override fun createFolder(folderServerId: String) {
+        if (!imapStore.getFolder(folderServerId).create()) {
+            throw MessagingException("The server has refused to create the folder")
+        }
+    }
+
+    override fun deleteFolder(folderServerId: String) {
+        imapStore.getFolder(folderServerId).delete()
     }
 
     override fun getStorageQuota(): StorageQuota? {

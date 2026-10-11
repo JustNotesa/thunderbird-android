@@ -587,6 +587,68 @@ public class MessagingControllerTest extends K9RobolectricTest {
     }
 
     @Test
+    public void createFolderSynchronous_withParentFolder_shouldCreateFolderBelowIt() throws Exception {
+        setupFolderWithServerId("Parent");
+        FolderOperationListener folderOperationListener = mock(FolderOperationListener.class);
+
+        controller.createFolderSynchronous(account, FOLDER_ID, "Child", folderOperationListener);
+
+        verify(backend).createFolder("Parent/Child");
+        verify(backend).refreshFolderList();
+        verify(folderOperationListener).onFinished(null);
+    }
+
+    @Test
+    public void createFolderSynchronous_withoutParentFolder_shouldCreateFolderAtTopLevel() throws Exception {
+        FolderOperationListener folderOperationListener = mock(FolderOperationListener.class);
+
+        controller.createFolderSynchronous(account, null, "New", folderOperationListener);
+
+        verify(backend).createFolder("New");
+        verify(folderOperationListener).onFinished(null);
+    }
+
+    @Test
+    public void createFolderSynchronous_withFailure_shouldReportReason() throws Exception {
+        FolderOperationListener folderOperationListener = mock(FolderOperationListener.class);
+        doThrow(new MessagingException("Refused")).when(backend).createFolder("New");
+
+        controller.createFolderSynchronous(account, null, "New", folderOperationListener);
+
+        verify(folderOperationListener).onFinished("Refused");
+        verify(backend, never()).refreshFolderList();
+    }
+
+    @Test
+    public void deleteFolderSynchronous_shouldDeleteFolderOnServer() throws Exception {
+        setupFolderWithServerId("Old");
+        FolderOperationListener folderOperationListener = mock(FolderOperationListener.class);
+
+        controller.deleteFolderSynchronous(account, FOLDER_ID, folderOperationListener);
+
+        verify(backend).deleteFolder("Old");
+        verify(backend).refreshFolderList();
+        verify(folderOperationListener).onFinished(null);
+    }
+
+    @Test
+    public void deleteFolderSynchronous_withFailure_shouldReportReason() throws Exception {
+        setupFolderWithServerId("Old");
+        FolderOperationListener folderOperationListener = mock(FolderOperationListener.class);
+        doThrow(new MessagingException("Not allowed")).when(backend).deleteFolder("Old");
+
+        controller.deleteFolderSynchronous(account, FOLDER_ID, folderOperationListener);
+
+        verify(folderOperationListener).onFinished("Not allowed");
+    }
+
+    private void setupFolderWithServerId(String serverId) {
+        ListenableMessageStore messageStore = mock(ListenableMessageStore.class);
+        when(messageStore.getFolderServerId(FOLDER_ID)).thenReturn(serverId);
+        when(messageStoreManager.getMessageStore(account)).thenReturn(messageStore);
+    }
+
+    @Test
     public void loadNextMessagesSynchronous_shouldMoveOnToTheNextStep() {
         ListenableMessageStore messageStore = setupFolderForLoadingMessages(25, false);
 

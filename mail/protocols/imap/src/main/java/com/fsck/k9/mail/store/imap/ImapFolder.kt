@@ -107,6 +107,12 @@ interface ImapFolder {
      */
     @Throws(MessagingException::class)
     fun create(folderType: FolderType = FolderType.REGULAR): Boolean
+
+    /**
+     * Delete the folder and all messages in it from the server.
+     */
+    @Throws(MessagingException::class)
+    fun delete()
 }
 
 interface FetchListener {

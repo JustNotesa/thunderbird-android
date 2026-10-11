@@ -284,6 +284,25 @@ internal class RealImapFolder(
         }
     }
 
+    @Throws(MessagingException::class)
+    override fun delete() {
+        // Like create() this has to work without the folder being selected.
+        val connection = synchronized(this) {
+            this.connection ?: connectionManager.getConnection()
+        }
+
+        try {
+            // https://datatracker.ietf.org/doc/html/rfc3501#section-6.3.4
+            connection.executeSimpleCommand("DELETE ${ImapUtility.encodeString(encodedName)}")
+        } catch (ioe: IOException) {
+            throw ioExceptionHandler(this.connection, ioe)
+        } finally {
+            if (this.connection == null) {
+                connectionManager.releaseConnection(connection)
+            }
+        }
+    }
+
     /**
      * Copies the given messages to the specified folder.
      *

@@ -53,6 +53,10 @@ internal open class TestImapFolder(
         throw UnsupportedOperationException("not implemented")
     }
 
+    override fun delete() {
+        throw UnsupportedOperationException("not implemented")
+    }
+
     override fun getExistingUids(uids: Collection<String>): Set<String> {
         throw UnsupportedOperationException("not implemented")
     }

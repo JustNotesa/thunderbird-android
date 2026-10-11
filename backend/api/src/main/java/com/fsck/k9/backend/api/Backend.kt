@@ -114,4 +114,20 @@ interface Backend {
      */
     @Throws(MessagingException::class)
     fun getStorageQuota(): StorageQuota? = null
+
+    /**
+     * Create a folder on the server.
+     */
+    @Throws(MessagingException::class)
+    fun createFolder(folderServerId: String) {
+        throw MessagingException("Creating folders is not supported for this account")
+    }
+
+    /**
+     * Delete a folder and all messages in it from the server.
+     */
+    @Throws(MessagingException::class)
+    fun deleteFolder(folderServerId: String) {
+        throw MessagingException("Deleting folders is not supported for this account")
+    }
 }
