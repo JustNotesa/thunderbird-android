@@ -15,15 +15,24 @@ import com.fsck.k9.ui.base.R as BaseR
 private const val DIALOG_CONTENT_MARGIN_DP = 24
 
 /**
- * Asks for the name of a folder that is to be created.
+ * Asks for the name of a folder that is to be created or renamed.
  */
 internal object FolderNameDialog {
     /**
      * @param pathDelimiter Separates the names of nested folders on the server, so it can't be part of a name.
      */
-    fun show(context: Context, @StringRes title: Int, pathDelimiter: String, onNameEntered: (String) -> Unit) {
+    fun show(
+        context: Context,
+        @StringRes title: Int,
+        pathDelimiter: String,
+        @StringRes confirmAction: Int = R.string.folder_create_confirm_action,
+        initialName: String = "",
+        onNameEntered: (String) -> Unit,
+    ) {
         val nameView = EditText(context).apply {
             setHint(R.string.folder_name_dialog_hint)
+            setText(initialName)
+            setSelection(initialName.length)
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
             setSingleLine()
         }
@@ -39,7 +48,7 @@ internal object FolderNameDialog {
         MaterialAlertDialogBuilder(context)
             .setTitle(title)
             .setView(container)
-            .setPositiveButton(R.string.folder_create_confirm_action) { _, _ ->
+            .setPositiveButton(confirmAction) { _, _ ->
                 val name = nameView.text.toString().trim()
                 if (name.isEmpty() || (pathDelimiter.isNotEmpty() && pathDelimiter in name)) {
                     val message = context.getString(R.string.folder_name_invalid, pathDelimiter)

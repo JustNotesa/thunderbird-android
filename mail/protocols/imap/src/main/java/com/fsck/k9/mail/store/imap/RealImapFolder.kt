@@ -303,6 +303,28 @@ internal class RealImapFolder(
         }
     }
 
+    @Throws(MessagingException::class)
+    override fun renameTo(folder: ImapFolder) {
+        require(folder is RealImapFolder) { "'folder' needs to be a RealImapFolder instance" }
+
+        val connection = synchronized(this) {
+            this.connection ?: connectionManager.getConnection()
+        }
+
+        try {
+            // https://datatracker.ietf.org/doc/html/rfc3501#section-6.3.5
+            val escapedFolderName = ImapUtility.encodeString(encodedName)
+            val escapedNewFolderName = ImapUtility.encodeString(folderNameCodec.encode(folder.prefixedName))
+            connection.executeSimpleCommand("RENAME $escapedFolderName $escapedNewFolderName")
+        } catch (ioe: IOException) {
+            throw ioExceptionHandler(this.connection, ioe)
+        } finally {
+            if (this.connection == null) {
+                connectionManager.releaseConnection(connection)
+            }
+        }
+    }
+
     /**
      * Copies the given messages to the specified folder.
      *

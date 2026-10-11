@@ -912,20 +912,190 @@ public class MessagingController implements MessagingControllerRegistry, Messagi
 
     /**
      * Delete a folder and all messages in it from the server, and remove it from the folders of the account.
+     *
+     * @param includeSubfolders
+     *         {@code true} to also delete the folders below it. Otherwise they stay where they are.
      */
-    public void deleteFolder(LegacyAccountDto account, long folderId, FolderOperationListener listener) {
-        putBackground("deleteFolder", null, () -> deleteFolderSynchronous(account, folderId, listener));
+    public void deleteFolder(LegacyAccountDto account, long folderId, boolean includeSubfolders,
+            FolderOperationListener listener) {
+        putBackground("deleteFolder", null, () -> deleteFolderSynchronous(account, folderId, includeSubfolders,
+                listener));
     }
 
     @VisibleForTesting
-    void deleteFolderSynchronous(LegacyAccountDto account, long folderId, FolderOperationListener listener) {
+    void deleteFolderSynchronous(LegacyAccountDto account, long folderId, boolean includeSubfolders,
+            FolderOperationListener listener) {
         try {
-            getBackend(account).deleteFolder(getFolderServerId(account, folderId));
+            String folderServerId = getFolderServerId(account, folderId);
+            Backend backend = getBackend(account);
+
+            if (includeSubfolders) {
+                List<Subfolder> subfolders = getSubfolders(account, folderServerId);
+                for (Subfolder subfolder : subfolders) {
+                    if (isSpecialFolder(account, subfolder.folderId)) {
+                        throw new MessagingException("One of the subfolders is used by the account, e.g. for sent "
+                                + "messages or the trash");
+                    }
+                }
+
+                // A folder can only be removed completely once the folders below it are gone.
+                Collections.sort(subfolders, (first, second) ->
+                        Integer.compare(second.serverId.length(), first.serverId.length()));
+                for (Subfolder subfolder : subfolders) {
+                    backend.deleteFolder(subfolder.serverId);
+                }
+            }
+
+            backend.deleteFolder(folderServerId);
             refreshFolderListSynchronous(account);
             listener.onFinished(null);
         } catch (Exception e) {
             Log.e(e, "Couldn't delete folder %d", folderId);
+            // Some of it may have worked
+            refreshFolderListSynchronous(account);
             listener.onFinished(getRootCauseMessage(e));
+        }
+    }
+
+    /**
+     * @return The number of folders below the given folder.
+     */
+    public int getSubfolderCount(LegacyAccountDto account, long folderId) {
+        try {
+            return getSubfolders(account, getFolderServerId(account, folderId)).size();
+        } catch (Exception e) {
+            Log.e(e, "Couldn't count the subfolders of folder %d", folderId);
+            return 0;
+        }
+    }
+
+    /**
+     * Give a folder another name. It stays where it is, and its subfolders, messages and settings stay with it.
+     */
+    public void renameFolder(LegacyAccountDto account, long folderId, String newFolderName,
+            FolderOperationListener listener) {
+        putBackground("renameFolder", null, () -> renameFolderSynchronous(account, folderId, newFolderName,
+                listener));
+    }
+
+    @VisibleForTesting
+    void renameFolderSynchronous(LegacyAccountDto account, long folderId, String newFolderName,
+            FolderOperationListener listener) {
+        try {
+            String folderServerId = getFolderServerId(account, folderId);
+            String pathDelimiter = account.folderPathDelimiter();
+            int parentEnd = pathDelimiter.isEmpty() ? -1 : folderServerId.lastIndexOf(pathDelimiter);
+            String parentPath = parentEnd == -1 ? "" : folderServerId.substring(0, parentEnd + pathDelimiter.length());
+
+            changeFolderPath(account, folderId, folderServerId, parentPath + newFolderName);
+            listener.onFinished(null);
+        } catch (Exception e) {
+            Log.e(e, "Couldn't rename folder %d", folderId);
+            listener.onFinished(getRootCauseMessage(e));
+        }
+    }
+
+    /**
+     * Move a folder into another folder. Its subfolders, messages and settings move along with it.
+     *
+     * @param newParentFolderId
+     *         The folder to move it into, or {@code null} to move it to the top level.
+     */
+    public void moveFolder(LegacyAccountDto account, long folderId, @Nullable Long newParentFolderId,
+            FolderOperationListener listener) {
+        putBackground("moveFolder", null, () -> moveFolderSynchronous(account, folderId, newParentFolderId,
+                listener));
+    }
+
+    @VisibleForTesting
+    void moveFolderSynchronous(LegacyAccountDto account, long folderId, @Nullable Long newParentFolderId,
+            FolderOperationListener listener) {
+        try {
+            String folderServerId = getFolderServerId(account, folderId);
+            String pathDelimiter = account.folderPathDelimiter();
+            int parentEnd = pathDelimiter.isEmpty() ? -1 : folderServerId.lastIndexOf(pathDelimiter);
+            String folderName = parentEnd == -1 ? folderServerId :
+                    folderServerId.substring(parentEnd + pathDelimiter.length());
+
+            String newFolderServerId = folderName;
+            if (newParentFolderId != null) {
+                String parentServerId = getFolderServerId(account, newParentFolderId);
+                if (parentServerId.equals(folderServerId) ||
+                        parentServerId.startsWith(folderServerId + pathDelimiter)) {
+                    throw new MessagingException("A folder can't be moved into itself");
+                }
+                newFolderServerId = parentServerId + pathDelimiter + folderName;
+            }
+
+            changeFolderPath(account, folderId, folderServerId, newFolderServerId);
+            listener.onFinished(null);
+        } catch (Exception e) {
+            Log.e(e, "Couldn't move folder %d", folderId);
+            listener.onFinished(getRootCauseMessage(e));
+        }
+    }
+
+    private void changeFolderPath(LegacyAccountDto account, long folderId, String folderServerId,
+            String newFolderServerId) throws MessagingException {
+        if (newFolderServerId.equals(folderServerId)) {
+            throw new MessagingException("The folder is already there");
+        }
+        if (isSpecialFolder(account, folderId)) {
+            throw new MessagingException("The folder is used by the account, e.g. for sent messages or the trash");
+        }
+
+        MessageStore messageStore = messageStoreManager.getMessageStore(account);
+        if (messageStore.getFolderId(newFolderServerId) != null) {
+            throw new MessagingException("A folder with this name already exists there");
+        }
+
+        List<Subfolder> subfolders = getSubfolders(account, folderServerId);
+        getBackend(account).renameFolder(folderServerId, newFolderServerId);
+
+        // Let the folders on the device follow, so they keep their messages and settings. Otherwise refreshing the
+        // folder list would remove them and create new ones.
+        messageStore.setFolderServerId(folderId, newFolderServerId, newFolderServerId);
+        for (Subfolder subfolder : subfolders) {
+            String newServerId = newFolderServerId + subfolder.serverId.substring(folderServerId.length());
+            messageStore.setFolderServerId(subfolder.folderId, newServerId, newServerId);
+        }
+
+        refreshFolderListSynchronous(account);
+    }
+
+    private List<Subfolder> getSubfolders(LegacyAccountDto account, String folderServerId)
+            throws MessagingException {
+        String pathDelimiter = account.folderPathDelimiter();
+        List<Subfolder> subfolders = new ArrayList<>();
+        if (pathDelimiter.isEmpty()) {
+            return subfolders;
+        }
+
+        MessageStore messageStore = messageStoreManager.getMessageStore(account);
+        List<Subfolder> folders = messageStore.getFolders(true, folder ->
+                new Subfolder(folder.getId(), folder.getServerId()));
+        for (Subfolder folder : folders) {
+            if (folder.serverId != null && folder.serverId.startsWith(folderServerId + pathDelimiter)) {
+                subfolders.add(folder);
+            }
+        }
+        return subfolders;
+    }
+
+    private boolean isSpecialFolder(LegacyAccountDto account, long folderId) {
+        Long id = folderId;
+        return id.equals(account.getInboxFolderId()) || id.equals(account.getDraftsFolderId()) ||
+                id.equals(account.getSentFolderId()) || id.equals(account.getTrashFolderId()) ||
+                id.equals(account.getSpamFolderId()) || id.equals(account.getArchiveFolderId());
+    }
+
+    private static class Subfolder {
+        final long folderId;
+        final String serverId;
+
+        Subfolder(long folderId, String serverId) {
+            this.folderId = folderId;
+            this.serverId = serverId;
         }
     }
 

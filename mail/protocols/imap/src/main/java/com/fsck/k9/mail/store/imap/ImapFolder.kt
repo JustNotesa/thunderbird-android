@@ -113,6 +113,12 @@ interface ImapFolder {
      */
     @Throws(MessagingException::class)
     fun delete()
+
+    /**
+     * Give the folder the name and location of [folder], which must not exist yet. Subfolders move along with it.
+     */
+    @Throws(MessagingException::class)
+    fun renameTo(folder: ImapFolder)
 }
 
 interface FetchListener {

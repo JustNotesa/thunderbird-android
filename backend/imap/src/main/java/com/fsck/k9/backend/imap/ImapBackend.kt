@@ -206,6 +206,10 @@ class ImapBackend(
         }
     }
 
+    override fun renameFolder(folderServerId: String, newFolderServerId: String) {
+        imapStore.getFolder(folderServerId).renameTo(imapStore.getFolder(newFolderServerId))
+    }
+
     override fun deleteFolder(folderServerId: String) {
         imapStore.getFolder(folderServerId).delete()
     }

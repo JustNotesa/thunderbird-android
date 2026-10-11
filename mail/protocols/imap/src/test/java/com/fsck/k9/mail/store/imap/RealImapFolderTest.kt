@@ -251,6 +251,16 @@ class RealImapFolderTest {
     }
 
     @Test
+    fun renameTo_shouldIssueRenameCommand() {
+        val imapFolder = createFolder("Folder")
+        val newImapFolder = createFolder("Parent/New")
+
+        imapFolder.renameTo(newImapFolder)
+
+        verify(imapConnection).executeSimpleCommand("RENAME \"Folder\" \"Parent/New\"")
+    }
+
+    @Test
     fun delete_shouldIssueDeleteCommand() {
         val imapFolder = createFolder("Folder")
 

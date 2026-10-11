@@ -624,7 +624,7 @@ public class MessagingControllerTest extends K9RobolectricTest {
         setupFolderWithServerId("Old");
         FolderOperationListener folderOperationListener = mock(FolderOperationListener.class);
 
-        controller.deleteFolderSynchronous(account, FOLDER_ID, folderOperationListener);
+        controller.deleteFolderSynchronous(account, FOLDER_ID, false, folderOperationListener);
 
         verify(backend).deleteFolder("Old");
         verify(backend).refreshFolderList();
@@ -637,9 +637,121 @@ public class MessagingControllerTest extends K9RobolectricTest {
         FolderOperationListener folderOperationListener = mock(FolderOperationListener.class);
         doThrow(new MessagingException("Not allowed")).when(backend).deleteFolder("Old");
 
-        controller.deleteFolderSynchronous(account, FOLDER_ID, folderOperationListener);
+        controller.deleteFolderSynchronous(account, FOLDER_ID, false, folderOperationListener);
 
         verify(folderOperationListener).onFinished("Not allowed");
+    }
+
+    @Test
+    public void deleteFolderSynchronous_includingSubfolders_shouldDeleteDeepestFoldersFirst() throws Exception {
+        setupFolders("Old", "Old/Sub", "Old/Sub/Deep", "Older");
+        FolderOperationListener folderOperationListener = mock(FolderOperationListener.class);
+
+        controller.deleteFolderSynchronous(account, 1L, true, folderOperationListener);
+
+        InOrder inOrder = inOrder(backend);
+        inOrder.verify(backend).deleteFolder("Old/Sub/Deep");
+        inOrder.verify(backend).deleteFolder("Old/Sub");
+        inOrder.verify(backend).deleteFolder("Old");
+        verify(backend, never()).deleteFolder("Older");
+        verify(folderOperationListener).onFinished(null);
+    }
+
+    @Test
+    public void deleteFolderSynchronous_withoutSubfolders_shouldKeepThem() throws Exception {
+        setupFolders("Old", "Old/Sub");
+        FolderOperationListener folderOperationListener = mock(FolderOperationListener.class);
+
+        controller.deleteFolderSynchronous(account, 1L, false, folderOperationListener);
+
+        verify(backend).deleteFolder("Old");
+        verify(backend, never()).deleteFolder("Old/Sub");
+    }
+
+    @Test
+    public void renameFolderSynchronous_shouldKeepFolderAndSubfoldersOnTheDevice() throws Exception {
+        ListenableMessageStore messageStore = setupFolders("Parent", "Parent/Old", "Parent/Old/Sub");
+        FolderOperationListener folderOperationListener = mock(FolderOperationListener.class);
+
+        controller.renameFolderSynchronous(account, 2L, "New", folderOperationListener);
+
+        verify(backend).renameFolder("Parent/Old", "Parent/New");
+        verify(messageStore).setFolderServerId(2L, "Parent/New", "Parent/New");
+        verify(messageStore).setFolderServerId(3L, "Parent/New/Sub", "Parent/New/Sub");
+        verify(folderOperationListener).onFinished(null);
+    }
+
+    @Test
+    public void renameFolderSynchronous_withExistingName_shouldFail() throws Exception {
+        ListenableMessageStore messageStore = setupFolders("Old", "New");
+        when(messageStore.getFolderId("New")).thenReturn(2L);
+        FolderOperationListener folderOperationListener = mock(FolderOperationListener.class);
+
+        controller.renameFolderSynchronous(account, 1L, "New", folderOperationListener);
+
+        verify(backend, never()).renameFolder(anyString(), anyString());
+        verify(folderOperationListener).onFinished("A folder with this name already exists there");
+    }
+
+    @Test
+    public void moveFolderSynchronous_shouldMoveFolderIntoNewParent() throws Exception {
+        ListenableMessageStore messageStore = setupFolders("Parent/Folder", "Target");
+        FolderOperationListener folderOperationListener = mock(FolderOperationListener.class);
+
+        controller.moveFolderSynchronous(account, 1L, 2L, folderOperationListener);
+
+        verify(backend).renameFolder("Parent/Folder", "Target/Folder");
+        verify(messageStore).setFolderServerId(1L, "Target/Folder", "Target/Folder");
+        verify(folderOperationListener).onFinished(null);
+    }
+
+    @Test
+    public void moveFolderSynchronous_withoutNewParent_shouldMoveFolderToTopLevel() throws Exception {
+        setupFolders("Parent/Folder");
+        FolderOperationListener folderOperationListener = mock(FolderOperationListener.class);
+
+        controller.moveFolderSynchronous(account, 1L, null, folderOperationListener);
+
+        verify(backend).renameFolder("Parent/Folder", "Folder");
+    }
+
+    @Test
+    public void moveFolderSynchronous_intoOwnSubfolder_shouldFail() throws Exception {
+        setupFolders("Folder", "Folder/Sub");
+        FolderOperationListener folderOperationListener = mock(FolderOperationListener.class);
+
+        controller.moveFolderSynchronous(account, 1L, 2L, folderOperationListener);
+
+        verify(backend, never()).renameFolder(anyString(), anyString());
+        verify(folderOperationListener).onFinished("A folder can't be moved into itself");
+    }
+
+    /**
+     * Folders with the IDs 1, 2, 3, … in the order of the given server IDs.
+     */
+    private ListenableMessageStore setupFolders(String... serverIds) throws Exception {
+        List<FolderDetailsAccessor> folders = new ArrayList<>();
+        ListenableMessageStore messageStore = mock(ListenableMessageStore.class);
+        when(messageStore.getFolderId(anyString())).thenReturn(null);
+        for (int index = 0; index < serverIds.length; index++) {
+            long folderId = index + 1;
+            FolderDetailsAccessor folder = mock(FolderDetailsAccessor.class);
+            when(folder.getId()).thenReturn(folderId);
+            when(folder.getServerId()).thenReturn(serverIds[index]);
+            folders.add(folder);
+            when(messageStore.getFolderServerId(folderId)).thenReturn(serverIds[index]);
+        }
+        when(messageStore.getFolders(eq(true), ArgumentMatchers.<FolderMapper<Object>>any())).thenAnswer(invocation -> {
+            FolderMapper<Object> mapper = invocation.getArgument(1);
+            List<Object> result = new ArrayList<>();
+            for (FolderDetailsAccessor folder : folders) {
+                result.add(mapper.map(folder));
+            }
+            return result;
+        });
+        when(messageStoreManager.getMessageStore(account)).thenReturn(messageStore);
+
+        return messageStore;
     }
 
     private void setupFolderWithServerId(String serverId) {

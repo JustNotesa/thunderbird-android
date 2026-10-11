@@ -805,7 +805,25 @@
     <string name="folder_deleted">Folder deleted</string>
     <string name="folder_delete_failed">The folder could not be deleted: %1$s</string>
     <string name="dialog_confirm_delete_folder_title">Delete folder?</string>
-    <string name="dialog_confirm_delete_folder_message">This permanently deletes the folder \"%1$s\" and all messages in it from the server. Its subfolders are kept. This cannot be undone.</string>
+    <plurals name="dialog_confirm_delete_folder_subfolders">
+        <item quantity="one">Also delete its %d subfolder</item>
+        <item quantity="other">Also delete its %d subfolders</item>
+    </plurals>
+    <string name="folder_rename_action">Rename folder</string>
+    <string name="folder_rename_confirm_action">Rename</string>
+    <string name="folder_renamed">Folder renamed</string>
+    <string name="folder_rename_failed">The folder could not be renamed: %1$s</string>
+    <string name="folder_move_hint">Press and hold a folder to move it into another one.</string>
+    <string name="folder_move_top_level_target">Drop here to move the folder to the top level</string>
+    <string name="folder_move_not_possible">This folder can\'t be moved.</string>
+    <string name="folder_move_confirm_title">Move folder?</string>
+    <string name="folder_move_confirm_message">Move \"%1$s\" into \"%2$s\"?</string>
+    <string name="folder_move_confirm_top_level_message">Move \"%1$s\" to the top level?</string>
+    <string name="folder_move_confirm_action">Move</string>
+    <string name="folder_moved">Folder moved</string>
+    <string name="folder_move_failed">The folder could not be moved: %1$s</string>
+    <string name="dialog_confirm_delete_folder_message">This permanently deletes the folder \"%1$s\" and all messages in it from the server. This cannot be undone.</string>
+    <string name="dialog_confirm_delete_folder_subfolders_kept">Subfolders that aren\'t deleted stay where they are.</string>
 
     <string name="dialog_confirm_delete_title">Confirm deletion</string>
     <string name="dialog_confirm_delete_message">Do you want to delete this message?</string>

@@ -124,6 +124,14 @@ interface Backend {
     }
 
     /**
+     * Rename or move a folder on the server. Its subfolders move along with it.
+     */
+    @Throws(MessagingException::class)
+    fun renameFolder(folderServerId: String, newFolderServerId: String) {
+        throw MessagingException("Renaming folders is not supported for this account")
+    }
+
+    /**
      * Delete a folder and all messages in it from the server.
      */
     @Throws(MessagingException::class)

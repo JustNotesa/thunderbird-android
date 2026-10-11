@@ -1,5 +1,16 @@
 package com.fsck.k9.ui.managefolders
 
+import androidx.core.view.ViewCompat
+import android.graphics.drawable.ColorDrawable
+import android.view.DragEvent
+import android.widget.TextView
+import androidx.core.graphics.ColorUtils
+import com.fsck.k9.ui.resolveColorAttribute
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import net.thunderbird.feature.mail.folder.FolderType
+import net.thunderbird.feature.mail.folder.api.Folder
+import com.fsck.k9.ui.base.R as BaseR
+import com.google.android.material.R as MaterialR
 import android.widget.Toast
 import androidx.core.content.ContextCompat
 import android.os.Bundle
@@ -33,6 +44,7 @@ import org.koin.android.ext.android.inject
 import org.koin.androidx.viewmodel.ext.android.viewModel
 import org.koin.core.parameter.parametersOf
 
+@Suppress("TooManyFunctions")
 class ManageFoldersFragment : Fragment() {
     private val viewModel: ManageFoldersViewModel by viewModel()
     private val folderNameFormatter: FolderNameFormatter by inject()
@@ -42,6 +54,8 @@ class ManageFoldersFragment : Fragment() {
 
     private lateinit var account: LegacyAccountDto
     private lateinit var itemAdapter: ItemAdapter<FolderListItem>
+    private var folders: Map<Long, Folder> = emptyMap()
+    private var dropTargetView: View? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -104,13 +118,144 @@ class ManageFoldersFragment : Fragment() {
                 openFolderSettings(item.folderId)
                 true
             }
+            onLongClickListener = { view, _, item: FolderListItem, _ ->
+                startFolderDrag(view, item)
+            }
         }
 
         val recyclerView = requireView().findViewById<RecyclerView>(R.id.folderList)
         recyclerView.adapter = folderListAdapter
+        recyclerView.setOnDragListener { _, event -> onDragOverFolderList(recyclerView, folderListAdapter, event) }
+
+        val topLevelTarget = requireView().findViewById<TextView>(R.id.folder_move_target)
+        topLevelTarget.setOnDragListener { _, event -> onDragOverTopLevelTarget(topLevelTarget, event) }
+    }
+
+    /**
+     * A folder is moved by dragging it onto the folder it is to be moved into, or onto the text above the list to
+     * move it to the top level.
+     */
+    private fun startFolderDrag(view: View, item: FolderListItem): Boolean {
+        val folder = folders[item.folderId]
+        if (folder != null && !folder.isLocalOnly && folder.type == FolderType.REGULAR) {
+            ViewCompat.startDragAndDrop(view, null, View.DragShadowBuilder(view), item.folderId, 0)
+        } else if (folder != null) {
+            Toast.makeText(requireContext(), R.string.folder_move_not_possible, Toast.LENGTH_SHORT).show()
+        }
+
+        return folder != null
+    }
+
+    private fun onDragOverFolderList(
+        recyclerView: RecyclerView,
+        adapter: FastAdapter<FolderListItem>,
+        event: DragEvent,
+    ): Boolean {
+        when (event.action) {
+            DragEvent.ACTION_DRAG_LOCATION -> {
+                highlightDropTarget(recyclerView.findChildViewUnder(event.x, event.y))
+                scrollWhileDragging(recyclerView, event.y)
+            }
+
+            DragEvent.ACTION_DROP -> {
+                val targetView = recyclerView.findChildViewUnder(event.x, event.y)
+                val targetFolderId = targetView
+                    ?.let { recyclerView.getChildAdapterPosition(it) }
+                    ?.takeIf { it != RecyclerView.NO_POSITION }
+                    ?.let { adapter.getItem(it)?.folderId }
+                highlightDropTarget(null)
+                if (targetFolderId != null) {
+                    confirmMoveFolder(event.localState as Long, targetFolderId)
+                }
+            }
+
+            DragEvent.ACTION_DRAG_EXITED, DragEvent.ACTION_DRAG_ENDED -> highlightDropTarget(null)
+        }
+        return true
+    }
+
+    private fun onDragOverTopLevelTarget(target: TextView, event: DragEvent): Boolean {
+        when (event.action) {
+            DragEvent.ACTION_DRAG_STARTED -> target.setText(R.string.folder_move_top_level_target)
+            DragEvent.ACTION_DRAG_ENTERED -> highlightDropTarget(target)
+            DragEvent.ACTION_DRAG_EXITED -> highlightDropTarget(null)
+            DragEvent.ACTION_DROP -> {
+                highlightDropTarget(null)
+                confirmMoveFolder(event.localState as Long, null)
+            }
+
+            DragEvent.ACTION_DRAG_ENDED -> {
+                highlightDropTarget(null)
+                target.setText(R.string.folder_move_hint)
+            }
+        }
+        return true
+    }
+
+    private fun highlightDropTarget(view: View?) {
+        if (view === dropTargetView) return
+
+        dropTargetView?.foreground = null
+        dropTargetView = view
+        view?.foreground = ColorDrawable(
+            ColorUtils.setAlphaComponent(
+                requireContext().theme.resolveColorAttribute(MaterialR.attr.colorOnSurface),
+                DROP_TARGET_HIGHLIGHT_ALPHA,
+            ),
+        )
+    }
+
+    private fun scrollWhileDragging(recyclerView: RecyclerView, y: Float) {
+        val edge = recyclerView.height / DRAG_SCROLL_EDGE_FRACTION
+        val distance = (DRAG_SCROLL_DISTANCE_DP * resources.displayMetrics.density).toInt()
+        if (y < edge) {
+            recyclerView.scrollBy(0, -distance)
+        } else if (y > recyclerView.height - edge) {
+            recyclerView.scrollBy(0, distance)
+        }
+    }
+
+    private fun confirmMoveFolder(folderId: Long, targetFolderId: Long?) {
+        val folder = folders[folderId]
+        val targetFolder = targetFolderId?.let { folders[it] }
+        val isTargetKnown = targetFolderId == null || targetFolder != null
+        if (folder == null || !isTargetKnown || folderId == targetFolderId) return
+
+        if (targetFolder?.isLocalOnly == true) {
+            Toast.makeText(requireContext(), R.string.folder_move_not_possible, Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val folderName = folderNameFormatter.displayName(folder)
+        val message = if (targetFolder == null) {
+            getString(R.string.folder_move_confirm_top_level_message, folderName)
+        } else {
+            getString(R.string.folder_move_confirm_message, folderName, folderNameFormatter.displayName(targetFolder))
+        }
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle(R.string.folder_move_confirm_title)
+            .setMessage(message)
+            .setPositiveButton(R.string.folder_move_confirm_action) { _, _ -> moveFolder(folderId, targetFolderId) }
+            .setNegativeButton(BaseR.string.cancel_action, null)
+            .show()
+    }
+
+    private fun moveFolder(folderId: Long, targetFolderId: Long?) {
+        val applicationContext = requireContext().applicationContext
+        messagingController.moveFolder(account, folderId, targetFolderId) { error ->
+            val message = if (error == null) {
+                applicationContext.getString(R.string.folder_moved)
+            } else {
+                applicationContext.getString(R.string.folder_move_failed, error)
+            }
+            ContextCompat.getMainExecutor(applicationContext).execute {
+                Toast.makeText(applicationContext, message, Toast.LENGTH_LONG).show()
+            }
+        }
     }
 
     private fun updateFolderList(displayFolders: List<DisplayFolder>) {
+        folders = displayFolders.associate { it.folder.id to it.folder }
         val folderListItems = displayFolders.map { displayFolder ->
             val databaseId = displayFolder.folder.id
             val folderIconResource = folderIconProvider.getFolderIcon(displayFolder.folder.type)
@@ -195,5 +340,9 @@ class ManageFoldersFragment : Fragment() {
 
     companion object {
         const val EXTRA_ACCOUNT = "account"
+
+        private const val DROP_TARGET_HIGHLIGHT_ALPHA = 40
+        private const val DRAG_SCROLL_EDGE_FRACTION = 6
+        private const val DRAG_SCROLL_DISTANCE_DP = 12
     }
 }
