@@ -4,7 +4,9 @@ import net.thunderbird.feature.mail.message.composer.dialog.SentFolderNotFoundCo
 import net.thunderbird.feature.mail.message.composer.html.MessageComposerHtmlSettingsProvider
 import net.thunderbird.feature.mail.message.composer.internal.dialog.SentFolderNotFoundConfirmationDialogFragment
 import net.thunderbird.feature.mail.message.composer.internal.html.DefaultMessageComposerHtmlSettingsProvider
+import net.thunderbird.feature.mail.message.composer.internal.richtext.DefaultRichTextHtmlConverter
 import net.thunderbird.feature.mail.message.composer.internal.signature.DefaultHtmlSignatureSanitizer
+import net.thunderbird.feature.mail.message.composer.richtext.RichTextHtmlConverter
 import net.thunderbird.feature.mail.message.composer.signature.HtmlSignatureSanitizer
 import org.koin.dsl.module
 
@@ -16,4 +18,5 @@ val featureMessageComposerModule = module {
         DefaultMessageComposerHtmlSettingsProvider(themeManager = get())
     }
     single<HtmlSignatureSanitizer> { DefaultHtmlSignatureSanitizer() }
+    factory<RichTextHtmlConverter> { DefaultRichTextHtmlConverter() }
 }
