@@ -7,6 +7,8 @@
     <dimen name="messageListSwipeThreshold">72dp</dimen>
     <!-- Navigation icon and overflow menu next to the search field of the search results -->
     <dimen name="messageListSearchResultsToolbarReservedWidth">120dp</dimen>
+    <!-- Used to work out how many messages fill the screen. Rows are at least this high. -->
+    <dimen name="messageListSmallestRowHeight">56dp</dimen>
     <dimen name="messageListSwipeIconPadding">24dp</dimen>
     <dimen name="messageListSwipeTextPadding">12dp</dimen>
 

@@ -213,6 +213,7 @@
     <string name="debug_open_secret_debug_screen">Open Secret debug screen</string>
 
     <string name="message_list_load_more_messages_action">Load more messages</string>
+    <string name="message_list_load_more_messages_failed">Loading messages failed. Tap to try again.</string>
     <string name="message_to_fmt">To:<xliff:g id="counterParty">%s</xliff:g></string>
 
     <string name="message_compose_subject_hint">Subject</string>

@@ -32,6 +32,7 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsCompat.Type.systemBars
 import androidx.core.view.isGone
+import androidx.core.view.doOnPreDraw
 import androidx.core.view.isVisible
 import androidx.core.view.setPadding
 import androidx.core.view.updateLayoutParams
@@ -135,6 +136,9 @@ const val MAXIMUM_MESSAGE_SORT_OVERRIDES = 3
 const val MINIMUM_CLICK_INTERVAL = 200L
 private const val NO_FOLDER_ID = -1L
 private const val SEARCH_STEP_UPDATE_INTERVAL = 1000L
+private const val LOAD_MORE_MESSAGES_DISTANCE = 3
+private const val LOADED_MESSAGES_SETTLING_TIME = 1000L
+private const val ADDITIONAL_FIRST_MESSAGES = 2
 private const val MILLISECONDS_PER_SECOND = 1000L
 const val RECENT_CHANGES_SNACKBAR_DURATION = 10 * 1000
 
@@ -244,6 +248,13 @@ class LegacyMessageListFragment :
     private var isSearchingMessageContents = false
     private var hasSearchedMessageContents = false
     private var isRemoteSearchStopped = false
+    private var isLoadingMoreMessagesRequested = false
+    private var isWaitingForLoadedMessages = false
+    private var messageCountBeforeLoading = 0
+    private val loadedMessagesDisplayedRunnable = Runnable { onLoadedMessagesDisplayed() }
+
+    @Volatile
+    private var hasLoadingMessagesFailed = false
     private var searchStatus: ServerSearchStatus? = null
     private var searchStep: SearchStep? = null
     private var searchStepStartTime = 0L
@@ -762,6 +773,15 @@ class LegacyMessageListFragment :
 
         recyclerView.layoutManager = LinearLayoutManager()
         recyclerView.itemAnimator = MessageListItemAnimator()
+        recyclerView.addOnScrollListener(
+            object : RecyclerView.OnScrollListener() {
+                override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
+                    if (dy > 0) {
+                        loadMoreMessagesIfEndIsNear()
+                    }
+                }
+            },
+        )
 
         val itemTouchHelper = ItemTouchHelper(
             MessageListSwipeCallback(
@@ -982,8 +1002,7 @@ class LegacyMessageListFragment :
         }
 
         if (currentFolder.moreMessages && !localSearch.isManualSearch) {
-            val folderId = currentFolder.databaseId
-            messagingController.loadMoreMessages(account.id, folderId)
+            loadMoreMessages()
         } else if (isRemoteSearch) {
             val additionalSearchResults = extraSearchResults ?: return
             if (additionalSearchResults.isEmpty()) return
@@ -1048,6 +1067,8 @@ class LegacyMessageListFragment :
     }
 
     override fun onDestroyView() {
+        handler.removeCallbacks(loadedMessagesDisplayedRunnable)
+        isWaitingForLoadedMessages = false
         coordinatorLayout = null
         recyclerView = null
         messageListSwipeCallback = null
@@ -1722,14 +1743,15 @@ class LegacyMessageListFragment :
             getSearchResultsFooterText()
         } else if (currentFolder == null || account == null) {
             null
-        } else if (currentFolder.loading) {
+        } else if (currentFolder.loading || isLoadingMoreMessagesRequested || isWaitingForLoadedMessages) {
             getString(R.string.status_loading_more)
         } else if (!currentFolder.moreMessages) {
             null
-        } else if (account.displayCount == 0) {
-            getString(R.string.message_list_load_more_messages_action)
+        } else if (hasLoadingMessagesFailed) {
+            getString(R.string.message_list_load_more_messages_failed)
         } else {
-            getString(R.string.load_more_messages_fmt, account.displayCount)
+            // More messages are loaded when the user gets here. Tapping is only needed if that wasn't possible.
+            getString(R.string.message_list_load_more_messages_action)
         }
 
         updateFooterText(footerText)
@@ -2429,7 +2451,125 @@ class LegacyMessageListFragment :
         updateFooterText()
 
         startAutomaticRemoteSearch()
+        if (isWaitingForLoadedMessages) {
+            handler.removeCallbacks(loadedMessagesDisplayedRunnable)
+            handler.postDelayed(loadedMessagesDisplayedRunnable, LOADED_MESSAGES_SETTLING_TIME)
+        } else {
+            loadMoreMessagesIfScreenIsNotFilled()
+        }
     }
+
+    /**
+     * Whether older messages of the displayed folder can be loaded from the server now.
+     */
+    private val isLoadingMoreMessagesPossible: Boolean
+        get() {
+            val currentFolder = currentFolder ?: return false
+            return isSingleAccountMode &&
+                isSingleFolderMode &&
+                !isThreadDisplay &&
+                isRemoteFolder &&
+                currentFolder.moreMessages &&
+                !currentFolder.loading &&
+                !isLoadingMoreMessagesRequested &&
+                !isWaitingForLoadedMessages
+        }
+
+    /**
+     * The messages of a folder are only loaded as far as the user looks at them: enough to fill the screen when the
+     * folder is opened, and more when the user scrolls towards the end of the messages that are on the device.
+     *
+     * After a failure the user has to ask for it, so a server that can't be reached isn't tried over and over.
+     */
+    private val isLoadingMoreMessagesWanted: Boolean
+        get() = isResumed && !initialMessageListLoad && !hasLoadingMessagesFailed && isLoadingMoreMessagesPossible
+
+    private fun loadMoreMessagesIfEndIsNear() {
+        if (!isLoadingMoreMessagesWanted || !isOldestMessageDisplayedLast) return
+        val layoutManager = recyclerView?.layoutManager as? LinearLayoutManager ?: return
+
+        val lastVisiblePosition = layoutManager.findLastVisibleItemPosition()
+        if (lastVisiblePosition >= adapter.itemCount - 1 - LOAD_MORE_MESSAGES_DISTANCE) {
+            loadMoreMessages()
+        }
+    }
+
+    /**
+     * Older messages are added to the end of the list only when it is sorted by date, newest first. With any other
+     * sort order reaching the end of the list doesn't mean the user is looking for older messages.
+     */
+    private val isOldestMessageDisplayedLast: Boolean
+        get() = (sortType == SortType.SORT_DATE || sortType == SortType.SORT_ARRIVAL) && !sortAscending
+
+    private fun loadMoreMessagesIfScreenIsNotFilled() {
+        val recyclerView = recyclerView ?: return
+
+        // Whether the list can be scrolled is only known once it has been laid out with its current messages.
+        recyclerView.doOnPreDraw {
+            if (isLoadingMoreMessagesWanted && !recyclerView.canScrollVertically(1)) {
+                loadMoreMessages()
+            }
+        }
+        recyclerView.invalidate()
+    }
+
+    private fun loadMoreMessages() {
+        val account = account ?: return
+        val currentFolder = currentFolder ?: return
+        if (isLoadingMoreMessagesRequested || isWaitingForLoadedMessages) return
+
+        isLoadingMoreMessagesRequested = true
+        hasLoadingMessagesFailed = false
+        updateFooterText()
+
+        messageCountBeforeLoading = displayedMessageCount
+        val onFinished: () -> Unit = {
+            handler.post {
+                isLoadingMoreMessagesRequested = false
+
+                // The message list is updated once for every message that was loaded, and it may still be catching
+                // up. Its end is not the end of the loaded messages until it has come to rest.
+                isWaitingForLoadedMessages = true
+                handler.postDelayed(loadedMessagesDisplayedRunnable, LOADED_MESSAGES_SETTLING_TIME)
+            }
+        }
+        if (messageCountBeforeLoading > 0) {
+            messagingController.loadNextMessages(account.id, currentFolder.databaseId, onFinished)
+        } else {
+            messagingController.loadFirstMessages(
+                account.id,
+                currentFolder.databaseId,
+                messageCountFillingScreen,
+                onFinished,
+            )
+        }
+    }
+
+    private val displayedMessageCount: Int
+        get() = adapter.viewItems.count { it is MessageListViewItem.Message }
+
+    private fun onLoadedMessagesDisplayed() {
+        isWaitingForLoadedMessages = false
+        if (!isAdded) return
+
+        updateFooterText()
+
+        // Continue if this wasn't enough to fill the screen. Only when it has brought new messages though. Otherwise
+        // this would go on forever.
+        if (displayedMessageCount > messageCountBeforeLoading) {
+            loadMoreMessagesIfScreenIsNotFilled()
+        }
+    }
+
+    /**
+     * How many messages it takes to fill the message list, plus a few so the list can be scrolled.
+     */
+    private val messageCountFillingScreen: Int
+        get() {
+            val listHeight = recyclerView?.height?.takeIf { it > 0 } ?: resources.displayMetrics.heightPixels
+            val smallestRowHeight = resources.getDimensionPixelSize(R.dimen.messageListSmallestRowHeight)
+            return listHeight / smallestRowHeight + ADDITIONAL_FIRST_MESSAGES
+        }
 
     /**
      * Continue with a server search as soon as the local search results are displayed.
@@ -2869,6 +3009,7 @@ class LegacyMessageListFragment :
 
         override fun synchronizeMailboxStarted(account: LegacyAccountDto, folderId: Long) {
             if (updateForMe(account, folderId)) {
+                hasLoadingMessagesFailed = false
                 handler.progress(true)
                 handler.folderLoading(folderId, true)
 
@@ -2927,6 +3068,8 @@ class LegacyMessageListFragment :
 
         override fun synchronizeMailboxFailed(account: LegacyAccountDto, folderId: Long, message: String) {
             if (updateForMe(account, folderId)) {
+                // Displayed in the footer of the message list, and keeps messages from being loaded again and again
+                hasLoadingMessagesFailed = true
                 handler.progress(false)
                 handler.folderLoading(folderId, false)
             }
