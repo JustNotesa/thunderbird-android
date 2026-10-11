@@ -218,6 +218,7 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
     private static final String STATE_IN_REPLY_TO = "com.fsck.k9.activity.MessageCompose.inReplyTo";
     private static final String STATE_REFERENCES = "com.fsck.k9.activity.MessageCompose.references";
     private static final String STATE_KEY_READ_RECEIPT = "com.fsck.k9.activity.MessageCompose.messageReadReceipt";
+    private static final String STATE_KEY_HTML_SOURCE_MODE = "com.fsck.k9.activity.MessageCompose.htmlSourceMode";
     private static final String STATE_KEY_CHANGES_MADE_SINCE_LAST_SAVE = "com.fsck.k9.activity.MessageCompose.changesMadeSinceLastSave";
     private static final String STATE_ALREADY_NOTIFIED_USER_OF_EMPTY_SUBJECT = "alreadyNotifiedUserOfEmptySubject";
     private static final String STATE_ACTIVE_IN_APP_NOTIFICATIONS =
@@ -793,6 +794,7 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
         outState.putString(STATE_IN_REPLY_TO, repliedToMessageId);
         outState.putString(STATE_REFERENCES, referencedMessageIds);
         outState.putBoolean(STATE_KEY_READ_RECEIPT, requestReadReceipt);
+        outState.putBoolean(STATE_KEY_HTML_SOURCE_MODE, messageFormattingToolbar.isHtmlSourceMode());
         outState.putBoolean(STATE_KEY_CHANGES_MADE_SINCE_LAST_SAVE, changesMadeSinceLastSave);
         outState.putBoolean(STATE_ALREADY_NOTIFIED_USER_OF_EMPTY_SUBJECT, alreadyNotifiedUserOfEmptySubject);
         outState.putIntegerArrayList(STATE_ACTIVE_IN_APP_NOTIFICATIONS, new ArrayList<>(activeInAppNotifications));
@@ -819,6 +821,7 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
         attachmentsView.removeAllViews();
 
         requestReadReceipt = savedInstanceState.getBoolean(STATE_KEY_READ_RECEIPT);
+        messageFormattingToolbar.setHtmlSourceMode(savedInstanceState.getBoolean(STATE_KEY_HTML_SOURCE_MODE));
 
         replyToPresenter.onRestoreInstanceState(savedInstanceState);
         recipientPresenter.onRestoreInstanceState(savedInstanceState);
@@ -886,8 +889,9 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
                 .setIdentity(identity)
                 .setReplyTo(replyToPresenter.getAddresses())
                 .setMessageFormat(currentMessageFormat)
-                .setText(CrLfConverter.toCrLf(messageContentView.getText()))
-                .setTextHtml(getFormattedMessageContentHtml())
+                .setText(CrLfConverter.toCrLf(getMessageContentPlainText()))
+                .setTextHtml(getMessageContentHtml())
+                .setTextHtmlIsSource(isWritingHtmlSource())
                 .setAttachments(attachmentPresenter.getAttachments())
                 .setInlineAttachments(attachmentPresenter.getInlineAttachments())
                 .setSignature(CrLfConverter.toCrLf(signatureView.getText()))
@@ -905,24 +909,53 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
     }
 
     /**
-     * Shows the message text of a draft that was saved as HTML, with the formatting it was saved with.
+     * Shows the message text of a draft that was saved as HTML, the way it was written: as HTML code, as formatted
+     * text, or as plain text.
      */
-    public void setMessageContentFromDraftHtml(String html) {
+    public void setMessageContentFromDraftHtml(String html, boolean isHtmlSource) {
+        if (isHtmlSource) {
+            messageFormattingToolbar.showHtmlSource(CrLfConverter.toLf(html));
+            return;
+        }
+
         FormattedText formattedText = richTextHtmlConverter.fromHtmlFragment(html);
         if (formattedText.getRanges().isEmpty()) {
             messageContentView.setText(CrLfConverter.toLf(HtmlConverter.htmlToText(html)));
         } else {
-            messageFormattingToolbar.setFormattedText(formattedText);
+            messageFormattingToolbar.showFormattedText(formattedText);
         }
     }
 
+    private boolean isWritingHtmlSource() {
+        return currentMessageFormat == SimpleMessageFormat.HTML && messageFormattingToolbar.isHtmlSourceMode();
+    }
+
     /**
-     * The message text as HTML if the user formatted it and the message is sent as HTML, {@code null} otherwise.
+     * The message text for the plain text part. HTML code the user wrote is not readable text, so it is converted.
+     */
+    private CharSequence getMessageContentPlainText() {
+        if (messageFormattingToolbar.isHtmlSourceMode()) {
+            return HtmlConverter.htmlToText(messageContentView.getText().toString());
+        }
+
+        return messageContentView.getText();
+    }
+
+    /**
+     * The message text as HTML if the user wrote HTML code or formatted the text, and the message is sent as HTML.
+     * {@code null} otherwise.
      */
     @Nullable
-    private String getFormattedMessageContentHtml() {
+    private String getMessageContentHtml() {
         if (currentMessageFormat != SimpleMessageFormat.HTML) {
             return null;
+        }
+
+        String text = messageContentView.getText().toString();
+        if (messageFormattingToolbar.isHtmlSourceMode()) {
+            // The same rules as for an HTML signature: the user's own HTML, but without scripts. The line breaks have
+            // to be the ones the message is stored with, or the position of the text in a draft is off.
+            return CrLfConverter.toCrLf(htmlSignatureSanitizer.sanitize(text));
         }
 
         List<FormattedRange> formattedRanges = messageFormattingToolbar.getFormattedRanges();
@@ -930,7 +963,38 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
             return null;
         }
 
-        return richTextHtmlConverter.toHtmlFragment(messageContentView.getText().toString(), formattedRanges);
+        return richTextHtmlConverter.toHtmlFragment(text, formattedRanges);
+    }
+
+    private void editAsHtmlSource() {
+        String text = messageContentView.getText().toString();
+        String html = text.isEmpty() ? "" :
+                richTextHtmlConverter.toHtmlFragment(text, messageFormattingToolbar.getFormattedRanges());
+        messageFormattingToolbar.showHtmlSource(html);
+        changesMadeSinceLastSave = true;
+        invalidateOptionsMenu();
+    }
+
+    private void editAsFormattedText() {
+        final String html = messageContentView.getText().toString();
+        if (richTextHtmlConverter.canRepresent(html)) {
+            showHtmlSourceAsFormattedText(html);
+            return;
+        }
+
+        new MaterialAlertDialogBuilder(this)
+                .setTitle(R.string.message_compose_formatted_text_dialog_title)
+                .setMessage(R.string.message_compose_formatted_text_dialog_message)
+                .setPositiveButton(R.string.message_compose_formatted_text_dialog_confirm,
+                        (dialog, which) -> showHtmlSourceAsFormattedText(html))
+                .setNegativeButton(com.fsck.k9.ui.base.R.string.cancel_action, null)
+                .show();
+    }
+
+    private void showHtmlSourceAsFormattedText(String html) {
+        messageFormattingToolbar.showFormattedText(richTextHtmlConverter.fromHtmlFragment(html));
+        changesMadeSinceLastSave = true;
+        invalidateOptionsMenu();
     }
 
     private void checkToSendMessage() {
@@ -1369,6 +1433,10 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
             onReadReceipt();
         } else if (id == R.id.choose_signature) {
             showChooseSignatureDialog();
+        } else if (id == R.id.edit_as_html_source) {
+            editAsHtmlSource();
+        } else if (id == R.id.edit_as_formatted_text) {
+            editAsFormattedText();
         } else {
             return super.onOptionsItemSelected(item);
         }
@@ -1400,6 +1468,11 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
         recipientPresenter.onPrepareOptionsMenu(menu);
 
         menu.findItem(R.id.choose_signature).setVisible(!account.getSignatures().isEmpty());
+
+        boolean isHtmlMessage = currentMessageFormat == SimpleMessageFormat.HTML;
+        boolean isHtmlSourceMode = messageFormattingToolbar.isHtmlSourceMode();
+        menu.findItem(R.id.edit_as_html_source).setVisible(isHtmlMessage && !isHtmlSourceMode);
+        menu.findItem(R.id.edit_as_formatted_text).setVisible(isHtmlMessage && isHtmlSourceMode);
 
         return true;
     }
@@ -2064,7 +2137,7 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
 
         currentMessageFormat = format;
         if (messageFormattingToolbar != null) {
-            messageFormattingToolbar.setVisible(format == SimpleMessageFormat.HTML);
+            messageFormattingToolbar.setFormattingAvailable(format == SimpleMessageFormat.HTML);
         }
     }
 

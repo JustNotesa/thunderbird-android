@@ -281,7 +281,8 @@ public class QuotedMessagePresenter {
                     // Grab our reply text.
                     bodyText = text.substring(bodyOffset, bodyOffset + bodyLength);
                 }
-                messageCompose.setMessageContentFromDraftHtml(bodyText);
+                boolean isHtmlSource = Boolean.parseBoolean(k9identity.get(IdentityField.HTML_SOURCE));
+                messageCompose.setMessageContentFromDraftHtml(bodyText, isHtmlSource);
 
                 // Regenerate the quoted html without our user content in it.
                 StringBuilder quotedHTML = new StringBuilder();

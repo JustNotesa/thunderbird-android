@@ -1,6 +1,8 @@
 package com.fsck.k9.ui.compose.richtext
 
+import android.graphics.Typeface
 import android.text.Editable
+import android.text.InputType
 import android.text.Selection
 import android.text.SpanWatcher
 import android.text.Spannable
@@ -19,6 +21,9 @@ import net.thunderbird.feature.mail.message.composer.richtext.TextFormat
  *
  * A button formats the selected text or, without a selection, what is typed next. The buttons are shown as checked
  * while the selection or the cursor is in text with that format.
+ *
+ * The text field can also show the message as HTML code. The buttons are hidden then, and the code is shown in a
+ * fixed-width font without spelling suggestions.
  *
  * @param onFormatChange called when the user changed the formatting, which a text change listener doesn't notice
  */
@@ -52,11 +57,23 @@ class MessageFormattingToolbar(
         }
     }
 
-    var isVisible: Boolean
-        get() = toolbar.isVisible
+    /**
+     * Whether the message is written as HTML at all. A plain text message has no formatting.
+     */
+    var isFormattingAvailable: Boolean = false
         set(value) {
-            toolbar.isVisible = value
+            field = value
+            toolbar.isVisible = value && !isHtmlSourceMode
         }
+
+    /**
+     * Whether the text field shows the message as HTML code instead of as formatted text.
+     */
+    var isHtmlSourceMode: Boolean = false
+        private set
+
+    private var formattedTextTypeface: Typeface? = null
+    private var formattedTextInputType: Int = messageContent.inputType
 
     /**
      * The formatted parts of the message text, empty when the user didn't format anything.
@@ -90,10 +107,39 @@ class MessageFormattingToolbar(
     }
 
     /**
-     * Replaces the message text with formatted text, e.g. the one of a draft.
+     * Shows formatted text in the text field, e.g. the one of a draft, and leaves the HTML code mode.
      */
-    fun setFormattedText(formattedText: FormattedText) {
+    fun showFormattedText(formattedText: FormattedText) {
+        setHtmlSourceMode(false)
         messageContent.setText(RichTextFormatter.toSpanned(formattedText))
+    }
+
+    /**
+     * Shows HTML code in the text field and enters the HTML code mode.
+     */
+    fun showHtmlSource(html: String) {
+        setHtmlSourceMode(true)
+        messageContent.setText(html)
+    }
+
+    /**
+     * Sets the mode without touching the text, for when the text field restored its text itself.
+     */
+    fun setHtmlSourceMode(htmlSourceMode: Boolean) {
+        if (htmlSourceMode == isHtmlSourceMode) return
+
+        if (htmlSourceMode) {
+            formattedTextTypeface = messageContent.typeface
+            formattedTextInputType = messageContent.inputType
+            messageContent.inputType = formattedTextInputType or InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
+            messageContent.typeface = Typeface.MONOSPACE
+        } else {
+            messageContent.inputType = formattedTextInputType
+            messageContent.typeface = formattedTextTypeface
+        }
+
+        isHtmlSourceMode = htmlSourceMode
+        toolbar.isVisible = isFormattingAvailable && !htmlSourceMode
     }
 
     private fun updateButtons() {

@@ -24,6 +24,14 @@
         android:title="@string/message_compose_choose_signature_action"
         />
     <item
+        android:id="@+id/edit_as_html_source"
+        android:title="@string/message_compose_edit_as_html_source_action"
+        />
+    <item
+        android:id="@+id/edit_as_formatted_text"
+        android:title="@string/message_compose_edit_as_formatted_text_action"
+        />
+    <item
         android:id="@+id/save"
         android:title="@string/save_draft_action"
         android:icon="@drawable/ic_save"

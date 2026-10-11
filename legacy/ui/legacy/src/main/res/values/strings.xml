@@ -220,6 +220,11 @@
     <string name="message_compose_choose_signature_default">Default signature</string>
     <string name="message_compose_choose_signature_none">No signature</string>
     <string name="message_compose_edit_signature_title">Edit signature for this message</string>
+    <string name="message_compose_edit_as_html_source_action">Edit as HTML code</string>
+    <string name="message_compose_edit_as_formatted_text_action">Edit as formatted text</string>
+    <string name="message_compose_formatted_text_dialog_title">Switch to formatted text?</string>
+    <string name="message_compose_formatted_text_dialog_message">This message contains HTML the formatted editor can\'t show, like links, images or tables. Switching removes it and keeps the text with bold, italic and underlined formatting.</string>
+    <string name="message_compose_formatted_text_dialog_confirm">Switch</string>
     <string name="message_compose_format_bold">Bold</string>
     <string name="message_compose_format_italic">Italic</string>
     <string name="message_compose_format_underline">Underline</string>
