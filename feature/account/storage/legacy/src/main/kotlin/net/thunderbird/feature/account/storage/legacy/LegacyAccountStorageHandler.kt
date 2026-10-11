@@ -26,6 +26,7 @@ import net.thunderbird.feature.notification.VibratePattern
 class LegacyAccountStorageHandler(
     private val serverSettingsDtoSerializer: ServerSettingsDtoSerializer,
     private val profileDtoStorageHandler: ProfileDtoStorageHandler,
+    private val signatureDtoStorageHandler: SignatureDtoStorageHandler,
     private val logger: Logger,
 ) : AccountDtoStorageHandler {
 
@@ -224,6 +225,7 @@ class LegacyAccountStorageHandler(
 
             isSignatureBeforeQuotedText = storage.getBoolean(keyGen.create("signatureBeforeQuotedText"), false)
             replaceIdentities(loadIdentities(data.id, storage))
+            signatureDtoStorageHandler.load(data, storage)
 
             openPgpProvider = storage.getStringOrDefault(keyGen.create("openPgpProvider"), "")
             openPgpKey = storage.getLong(keyGen.create("cryptoKey"), AccountDefaultsProvider.Companion.NO_OPENPGP_KEY)
@@ -423,6 +425,7 @@ class LegacyAccountStorageHandler(
         }
 
         saveIdentities(data, storage, editor)
+        signatureDtoStorageHandler.save(data, storage, editor)
     }
 
     @Suppress("LongMethod")
@@ -545,6 +548,7 @@ class LegacyAccountStorageHandler(
         editor.remove(keyGen.create(FOLDER_PATH_DELIMITER_KEY))
 
         deleteIdentities(data, storage, editor)
+        signatureDtoStorageHandler.delete(data, storage, editor)
         // TODO: Remove preference settings that may exist for individual folders in the account.
     }
 

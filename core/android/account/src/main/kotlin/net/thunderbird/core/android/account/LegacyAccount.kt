@@ -109,6 +109,7 @@ data class LegacyAccount(
     val signatureUse: Boolean = identities[0].signatureUse,
     val signature: String? = identities[0].signature,
     val signatureIsHtml: Boolean = identities[0].signatureIsHtml,
+    val signatures: List<AccountSignature> = emptyList(),
     val shouldMigrateToOAuth: Boolean = false,
     val folderPathDelimiter: FolderPathDelimiter = "/",
 ) : Account, BaseAccount {

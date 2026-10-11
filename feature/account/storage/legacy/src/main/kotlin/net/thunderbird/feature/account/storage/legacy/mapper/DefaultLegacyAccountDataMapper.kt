@@ -103,6 +103,7 @@ internal class DefaultLegacyAccountDataMapper : LegacyAccountDataMapper {
             signatureUse = dto.signatureUse,
             signature = dto.signature,
             signatureIsHtml = dto.signatureIsHtml,
+            signatures = dto.signatures,
             shouldMigrateToOAuth = dto.shouldMigrateToOAuth,
             folderPathDelimiter = dto.folderPathDelimiter,
         )
@@ -210,6 +211,7 @@ internal class DefaultLegacyAccountDataMapper : LegacyAccountDataMapper {
             signatureUse = domain.signatureUse
             signature = domain.signature
             signatureIsHtml = domain.signatureIsHtml
+            signatures = domain.signatures
             shouldMigrateToOAuth = domain.shouldMigrateToOAuth
             folderPathDelimiter = domain.folderPathDelimiter
         }

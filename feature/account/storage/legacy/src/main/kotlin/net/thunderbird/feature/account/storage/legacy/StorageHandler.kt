@@ -47,3 +47,5 @@ interface AccountDtoStorageHandler : StorageHandler<LegacyAccountDto>
 interface ProfileDtoStorageHandler : StorageHandler<LegacyAccountDto>
 
 interface AvatarDtoStorageHandler : StorageHandler<LegacyAccountDto>
+
+interface SignatureDtoStorageHandler : StorageHandler<LegacyAccountDto>

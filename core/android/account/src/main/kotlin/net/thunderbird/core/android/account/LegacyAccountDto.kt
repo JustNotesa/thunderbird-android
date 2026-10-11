@@ -404,6 +404,10 @@ open class LegacyAccountDto(
         }
 
     @get:Synchronized
+    @set:Synchronized
+    var signatures: List<AccountSignature> = emptyList()
+
+    @get:Synchronized
     var notificationSettings = NotificationSettings()
 
     @get:Synchronized

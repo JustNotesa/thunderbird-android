@@ -19,6 +19,7 @@ import net.thunderbird.feature.account.AccountId
 import net.thunderbird.feature.account.storage.legacy.LegacyAccountStorageHandler
 import net.thunderbird.feature.account.storage.legacy.LegacyAvatarDtoStorageHandler
 import net.thunderbird.feature.account.storage.legacy.LegacyProfileDtoStorageHandler
+import net.thunderbird.feature.account.storage.legacy.LegacySignatureDtoStorageHandler
 import org.junit.Before
 import org.mockito.kotlin.any
 import org.mockito.kotlin.doReturn
@@ -41,7 +42,8 @@ class PreferencesTest {
             profileDtoStorageHandler = LegacyProfileDtoStorageHandler(
                 avatarDtoStorageHandler = LegacyAvatarDtoStorageHandler(),
             ),
-            logger,
+            signatureDtoStorageHandler = LegacySignatureDtoStorageHandler(),
+            logger = logger,
         ),
         accountDefaultsProvider = mock(),
     )
