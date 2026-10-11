@@ -1,5 +1,6 @@
 package com.fsck.k9.ui.managefolders
 
+import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import android.graphics.drawable.ColorDrawable
 import android.view.DragEvent
@@ -75,6 +76,9 @@ class ManageFoldersFragment : Fragment() {
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        // Tells which account the folders belong to, also on the screens of the single folders
+        (requireActivity() as AppCompatActivity).supportActionBar?.subtitle = account.displayName
+
         val menuHost: MenuHost = requireActivity()
         menuHost.addMenuProvider(
             object : MenuProvider {
