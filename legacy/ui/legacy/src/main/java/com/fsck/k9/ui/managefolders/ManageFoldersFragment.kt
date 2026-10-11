@@ -1,5 +1,6 @@
 package com.fsck.k9.ui.managefolders
 
+import androidx.appcompat.widget.Toolbar
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import android.graphics.drawable.ColorDrawable
@@ -76,8 +77,7 @@ class ManageFoldersFragment : Fragment() {
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-        // Tells which account the folders belong to, also on the screens of the single folders
-        (requireActivity() as AppCompatActivity).supportActionBar?.subtitle = account.displayName
+        showAccountInToolbar(requireActivity() as AppCompatActivity)
 
         val menuHost: MenuHost = requireActivity()
         menuHost.addMenuProvider(
@@ -267,6 +267,39 @@ class ManageFoldersFragment : Fragment() {
             ContextCompat.getMainExecutor(applicationContext).execute {
                 Toast.makeText(applicationContext, message, Toast.LENGTH_LONG).show()
             }
+        }
+    }
+
+    /**
+     * The toolbar tells which account the folders belong to, also on the screens of the single folders. With more
+     * than one account, it leads to the folders of another one.
+     */
+    private fun showAccountInToolbar(activity: AppCompatActivity) {
+        val accounts = preferences.getAccounts()
+        val currentAccount = account
+        val toolbar = activity.findViewById<Toolbar>(BaseR.id.toolbar)
+        if (accounts.size <= 1) {
+            activity.supportActionBar?.subtitle = currentAccount.displayName
+            toolbar.setOnClickListener(null)
+            return
+        }
+
+        activity.supportActionBar?.subtitle = getString(R.string.folder_management_account, currentAccount.displayName)
+        toolbar.setOnClickListener {
+            MaterialAlertDialogBuilder(activity)
+                .setTitle(R.string.folder_management_choose_account)
+                .setSingleChoiceItems(
+                    accounts.map { it.displayName }.toTypedArray(),
+                    accounts.indexOfFirst { it.id == currentAccount.id },
+                ) { dialog, index ->
+                    dialog.dismiss()
+                    if (accounts[index].id != currentAccount.id) {
+                        ManageFoldersActivity.launch(activity, accounts[index])
+                        activity.finish()
+                    }
+                }
+                .setNegativeButton(BaseR.string.cancel_action, null)
+                .show()
         }
     }
 

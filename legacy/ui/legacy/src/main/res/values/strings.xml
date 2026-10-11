@@ -796,6 +796,9 @@
     <string name="dialog_confirm_clear_local_folder_action">Clear messages</string>
     <string name="folder_create_action">New folder</string>
     <string name="folder_list_expand_action">Show subfolders</string>
+    <!-- Below the title of the folder management. The arrow tells that another account can be chosen. -->
+    <string name="folder_management_account">%s ▾</string>
+    <string name="folder_management_choose_account">Manage folders of</string>
     <string name="folder_list_collapse_action">Hide subfolders</string>
     <string name="folder_create_subfolder_action">New subfolder</string>
     <string name="folder_create_confirm_action">Create</string>
