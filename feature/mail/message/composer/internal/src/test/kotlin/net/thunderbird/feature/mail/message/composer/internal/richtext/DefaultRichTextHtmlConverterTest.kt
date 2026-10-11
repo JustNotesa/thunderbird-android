@@ -2,6 +2,7 @@ package net.thunderbird.feature.mail.message.composer.internal.richtext
 
 import assertk.assertThat
 import assertk.assertions.isEqualTo
+import assertk.assertions.isTrue
 import kotlin.test.Test
 import net.thunderbird.feature.mail.message.composer.richtext.FormattedRange
 import net.thunderbird.feature.mail.message.composer.richtext.FormattedText
@@ -161,5 +162,60 @@ class DefaultRichTextHtmlConverterTest {
                 FormattedRange(start = 8, end = 13, format = TextFormat.Italic),
             ),
         )
+    }
+
+    @Test
+    fun `canRepresent should accept what toHtmlFragment writes`() {
+        // Arrange
+        val ranges = listOf(
+            FormattedRange(start = 0, end = 5, format = TextFormat.Bold),
+            FormattedRange(start = 3, end = 9, format = TextFormat.Italic),
+            FormattedRange(start = 6, end = 12, format = TextFormat.Underline),
+        )
+        val html = testSubject.toHtmlFragment("Hello Jane,\n <hi> & bye", ranges)
+
+        // Act
+        val result = testSubject.canRepresent(html)
+
+        // Assert
+        assertThat(result).isTrue()
+    }
+
+    @Test
+    fun `canRepresent should accept hand written HTML that only uses supported formatting`() {
+        // Act
+        val result = testSubject.canRepresent("<B>Max</B><br><I>On the road</I><p><strong>x</strong> <em>y</em></p>")
+
+        // Assert
+        assertThat(result).isTrue()
+    }
+
+    @Test
+    fun `canRepresent should accept plain text`() {
+        // Act
+        val result = testSubject.canRepresent("Just text")
+
+        // Assert
+        assertThat(result).isTrue()
+    }
+
+    @Test
+    fun `canRepresent should reject HTML with content the composer can not show`() {
+        // Arrange
+        val htmlThatWouldLoseSomething = listOf(
+            """<a href="https://example.com">link</a>""",
+            """<img src="https://example.com/logo.png">""",
+            "<table><tr><td>cell</td></tr></table>",
+            """<b style="color: red">red</b>""",
+            """<div class="signature">text</div>""",
+            "<ul><li>item</li></ul>",
+            "<span>text</span>",
+        )
+
+        // Act
+        val results = htmlThatWouldLoseSomething.map { testSubject.canRepresent(it) }
+
+        // Assert
+        assertThat(results).isEqualTo(htmlThatWouldLoseSomething.map { false })
     }
 }

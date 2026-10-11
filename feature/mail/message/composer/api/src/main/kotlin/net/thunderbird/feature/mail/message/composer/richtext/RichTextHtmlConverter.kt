@@ -41,4 +41,10 @@ interface RichTextHtmlConverter {
      * Reads back an HTML fragment written by [toHtmlFragment], e.g. from a draft that is opened again.
      */
     fun fromHtmlFragment(html: String): FormattedText
+
+    /**
+     * Whether [fromHtmlFragment] reads [html] without losing anything, i.e. whether it only contains text, line
+     * breaks and the formatting the composer supports. HTML with links, images, tables or styles is not.
+     */
+    fun canRepresent(html: String): Boolean
 }

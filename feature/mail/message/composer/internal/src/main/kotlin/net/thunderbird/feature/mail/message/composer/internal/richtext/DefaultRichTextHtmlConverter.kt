@@ -44,6 +44,15 @@ internal class DefaultRichTextHtmlConverter : RichTextHtmlConverter {
         return FormattedText(text = text.toString(), ranges = ranges.sortedWith(compareBy({ it.start }, { it.format })))
     }
 
+    override fun canRepresent(html: String): Boolean {
+        return Ksoup.parseBodyFragment(html).body().getAllElements().drop(1).all { element ->
+            val tag = element.normalName()
+            val attributes = element.attributes().map { it.key.lowercase() }
+
+            tag in REPRESENTABLE_TAGS && attributes.all { it == "dir" && tag in BLOCK_TAGS }
+        }
+    }
+
     private fun appendNodes(nodes: List<Node>, text: StringBuilder, ranges: MutableList<FormattedRange>) {
         for (node in nodes) {
             when (node) {
@@ -123,5 +132,6 @@ internal class DefaultRichTextHtmlConverter : RichTextHtmlConverter {
             "em" to TextFormat.Italic,
             "u" to TextFormat.Underline,
         )
+        val REPRESENTABLE_TAGS = BLOCK_TAGS + FORMAT_BY_TAG.keys + "br"
     }
 }
