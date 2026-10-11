@@ -11,6 +11,7 @@ import net.thunderbird.feature.account.settings.impl.ui.fetchingMail.advanced.Ad
 import net.thunderbird.feature.account.settings.impl.ui.general.GeneralSettingsScreen
 import net.thunderbird.feature.account.settings.impl.ui.readingMail.ReadingMailSettingsScreen
 import net.thunderbird.feature.account.settings.impl.ui.search.SearchSettingsScreen
+import net.thunderbird.feature.account.settings.impl.ui.signature.SignatureSettingsScreen
 
 internal class DefaultAccountSettingsNavigation : AccountSettingsNavigation {
 
@@ -85,6 +86,20 @@ internal class DefaultAccountSettingsNavigation : AccountSettingsNavigation {
                 val accountId = AccountIdFactory.of(searchSettingsRoute.accountId)
 
                 SearchSettingsScreen(
+                    accountId = accountId,
+                    onBack = onBack,
+                )
+            }
+        }
+
+        with(navGraphBuilder) {
+            deepLinkComposable<AccountSettingsRoute.SignatureSettings>(
+                basePath = AccountSettingsRoute.SignatureSettings.BASE_PATH,
+            ) { backStackEntry ->
+                val signatureSettingsRoute = backStackEntry.toRoute<AccountSettingsRoute.SignatureSettings>()
+                val accountId = AccountIdFactory.of(signatureSettingsRoute.accountId)
+
+                SignatureSettingsScreen(
                     accountId = accountId,
                     onBack = onBack,
                 )

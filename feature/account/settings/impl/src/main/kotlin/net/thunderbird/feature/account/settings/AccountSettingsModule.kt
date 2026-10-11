@@ -13,6 +13,7 @@ import net.thunderbird.feature.account.settings.impl.domain.usecase.UpdateFetchi
 import net.thunderbird.feature.account.settings.impl.domain.usecase.UpdateGeneralSettings
 import net.thunderbird.feature.account.settings.impl.domain.usecase.UpdateReadEmailSettings
 import net.thunderbird.feature.account.settings.impl.domain.usecase.UpdateSearchSettings
+import net.thunderbird.feature.account.settings.impl.domain.usecase.UpdateSignatures
 import net.thunderbird.feature.account.settings.impl.domain.usecase.ValidateAccountName
 import net.thunderbird.feature.account.settings.impl.domain.usecase.ValidateAvatarMonogram
 import net.thunderbird.feature.account.settings.impl.ui.fetchingMail.FetchingMailSettingsBuilder
@@ -29,6 +30,7 @@ import net.thunderbird.feature.account.settings.impl.ui.readingMail.ReadingMailS
 import net.thunderbird.feature.account.settings.impl.ui.search.SearchSettingBuilder
 import net.thunderbird.feature.account.settings.impl.ui.search.SearchSettingsContract
 import net.thunderbird.feature.account.settings.impl.ui.search.SearchSettingsViewModel
+import net.thunderbird.feature.account.settings.impl.ui.signature.SignatureSettingsViewModel
 import org.koin.core.module.dsl.viewModel
 import org.koin.core.qualifier.named
 import org.koin.dsl.module
@@ -56,6 +58,12 @@ val featureAccountSettingsModule = module {
 
     factory<UseCase.UpdateSearchSettings> {
         UpdateSearchSettings(
+            repository = get(),
+        )
+    }
+
+    factory<UseCase.UpdateSignatures> {
+        UpdateSignatures(
             repository = get(),
         )
     }
@@ -169,6 +177,16 @@ val featureAccountSettingsModule = module {
             updateSearchSettings = get(),
             logger = get(),
             resources = get(),
+        )
+    }
+
+    viewModel { params ->
+        SignatureSettingsViewModel(
+            accountId = params.get(),
+            getAccountName = get(),
+            getLegacyAccount = get(),
+            updateSignatures = get(),
+            logger = get(),
         )
     }
 }

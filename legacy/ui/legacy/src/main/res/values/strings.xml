@@ -216,6 +216,9 @@
     <string name="message_compose_subject_hint">Subject</string>
     <string name="message_compose_content_hint">Message text</string>
     <string name="message_compose_signature_hint">Signature</string>
+    <string name="message_compose_choose_signature_action">Choose signature</string>
+    <string name="message_compose_choose_signature_default">Default signature</string>
+    <string name="message_compose_choose_signature_none">No signature</string>
     <string name="message_compose_quote_header_separator">-------- Original Message --------</string>
     <string name="message_compose_quote_header_subject">Subject:</string>
     <string name="message_compose_quote_header_send_date">Sent:</string>
@@ -595,6 +598,8 @@
     <string name="account_settings_composition_summary">Set your default From, Bcc and signature</string>
 
     <string name="account_settings_identities_label">Manage identities</string>
+    <string name="account_settings_signatures_label">Signatures</string>
+    <string name="account_settings_signatures_summary">Save several signatures and pick one while writing a message</string>
     <string name="account_settings_identities_summary">Set up alternate \'From\' addresses and signatures</string>
 
     <string name="manage_identities_title">Manage identities</string>

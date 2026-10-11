@@ -3,6 +3,7 @@ package net.thunderbird.feature.account.settings.impl.domain
 import com.eygraber.uri.Uri
 import kotlinx.coroutines.flow.Flow
 import net.thunderbird.components.core.outcome.Outcome
+import net.thunderbird.core.android.account.AccountSignature
 import net.thunderbird.core.android.account.LegacyAccount
 import net.thunderbird.core.validation.ValidationError
 import net.thunderbird.feature.account.AccountId
@@ -45,6 +46,16 @@ internal interface AccountSettingsDomainContract {
             ): Outcome<Unit, AccountSettingError>
         }
 
+        fun interface UpdateSignatures {
+            /**
+             * @return the signatures of the account after applying the [command].
+             */
+            suspend operator fun invoke(
+                accountId: AccountId,
+                command: UpdateSignaturesCommand,
+            ): Outcome<AccountSignatures, AccountSettingError>
+        }
+
         fun interface UpdateFetchingMailSettings {
             suspend operator fun invoke(
                 accountId: AccountId,
@@ -81,6 +92,20 @@ internal interface AccountSettingsDomainContract {
 
     sealed interface UpdateSearchSettingsCommand {
         data class UpdateServerSearchLimit(val value: Int) : UpdateSearchSettingsCommand
+    }
+
+    sealed interface UpdateSignaturesCommand {
+        /**
+         * Adds the signature, or replaces the saved signature with the same id.
+         */
+        data class Save(val signature: AccountSignature) : UpdateSignaturesCommand
+        data class Delete(val signatureId: String) : UpdateSignaturesCommand
+
+        /**
+         * Makes the signature the one new messages start with, or switches the default signature off when
+         * [signatureId] is `null`.
+         */
+        data class SetDefault(val signatureId: String?) : UpdateSignaturesCommand
     }
 
     sealed interface UpdateFetchingMailSettingsCommand {

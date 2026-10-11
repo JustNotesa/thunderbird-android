@@ -154,4 +154,28 @@
     <string name="account_settings_idle_refresh_period_48min">Every 48 minutes</string>
     <string name="account_settings_idle_refresh_period_60min">Every 60 minutes</string>
 
+    <string name="account_settings_signatures_title">Signatures</string>
+    <string name="account_settings_signatures_empty">No saved signatures yet. Add one to pick it while writing a message, or mark it with the star to start new messages with it.</string>
+    <string name="account_settings_signatures_add_action">Add signature</string>
+    <string name="account_settings_signatures_new_title">New signature</string>
+    <string name="account_settings_signatures_edit_title">Edit signature</string>
+    <string name="account_settings_signatures_name_label">Name</string>
+    <string name="account_settings_signatures_text_label">Signature</string>
+    <string name="account_settings_signatures_html_text_label">HTML signature</string>
+    <string name="account_settings_signatures_is_html_label">Save signature as HTML</string>
+    <string name="account_settings_signatures_is_html_summary">Interpret the signature as HTML. Scripts and event handlers will be removed for security.</string>
+    <string name="account_settings_signatures_html_badge">HTML</string>
+    <string name="account_settings_signatures_default_badge">Default</string>
+    <string name="account_settings_signatures_set_default_action">Use as default signature</string>
+    <string name="account_settings_signatures_unset_default_action">Stop using as default signature</string>
+    <string name="account_settings_signatures_save_action">Save</string>
+    <string name="account_settings_signatures_delete_action">Delete</string>
+    <string name="account_settings_signatures_delete_dialog_title">Delete signature?</string>
+    <string name="account_settings_signatures_delete_dialog_text">The signature \"%s\" will be removed from this account.</string>
+    <string name="account_settings_signatures_error_title">Something went wrong</string>
+    <string name="account_settings_signatures_error_load">The signatures of this account could not be loaded.</string>
+    <string name="account_settings_signatures_error_save">The signature could not be saved.</string>
+    <string name="account_settings_signatures_error_delete">The signature could not be deleted.</string>
+    <string name="account_settings_signatures_error_set_default">The default signature could not be changed.</string>
+
 </resources>
