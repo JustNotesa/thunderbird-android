@@ -44,8 +44,9 @@ class MessageFormattingToolbar(
     featureThemeProvider: FeatureThemeProvider,
     private val onFormatChange: Runnable,
 ) {
-    private var barState by mutableStateOf(FormatBarState())
+    private var barState by mutableStateOf(FormatBarState(isUndoVisible = true))
     private val linkEditor = LinkEditor(messageContent)
+    private val history = EditHistory(messageContent, onChange = { updateState() })
 
     private val selectionWatcher = object : SpanWatcher {
         override fun onSpanAdded(text: Spannable, what: Any, start: Int, end: Int) = onSpanMoved(what)
@@ -96,6 +97,7 @@ class MessageFormattingToolbar(
         }
 
         messageContent.addTextChangedListener(ParagraphEditWatcher { isFormattingAvailable && !isHtmlSourceMode })
+        messageContent.addTextChangedListener(PasteNormalizer())
         // The text field gets a new Editable when its text is set as a whole, which drops the watcher.
         messageContent.doAfterTextChanged { text ->
             if (text != null) watchSelection(text)
@@ -154,13 +156,18 @@ class MessageFormattingToolbar(
         val end = maxOf(messageContent.selectionStart, messageContent.selectionEnd)
         if (start < 0) return
 
-        val changed = if (event == FormatBarEvent.EditLink) {
-            linkEditor.edit { onFormatChanged() }
-            false
-        } else {
-            applyFormatBarEvent(messageContent.text, event, start, end)
+        when (event) {
+            FormatBarEvent.Undo -> history.undo()
+            FormatBarEvent.Redo -> history.redo()
+            FormatBarEvent.EditLink -> {
+                history.beforeFormatChange()
+                linkEditor.edit { onFormatChanged() }
+            }
+            else -> {
+                history.beforeFormatChange()
+                if (applyFormatBarEvent(messageContent.text, event, start, end)) onFormatChanged()
+            }
         }
-        if (changed) onFormatChanged()
     }
 
     private fun onFormatChanged() {
@@ -169,23 +176,21 @@ class MessageFormattingToolbar(
     }
 
     private fun onKey(keyCode: Int, event: KeyEvent): Boolean {
-        if (event.action != KeyEvent.ACTION_DOWN || !isFormattingAvailable || isHtmlSourceMode) return false
-
         val start = messageContent.selectionStart
-        val format = if (event.isCtrlPressed) SHORTCUT_FORMATS[keyCode] else null
+        val shortcut = if (event.isCtrlPressed) shortcutEvent(keyCode, event.isShiftPressed) else null
         val handled = when {
-            format != null -> applyFormatBarEvent(
-                messageContent.text,
-                FormatBarEvent.ToggleFormat(format),
-                start,
-                messageContent.selectionEnd,
-            )
+            event.action != KeyEvent.ACTION_DOWN || !isFormattingAvailable || isHtmlSourceMode -> false
+            shortcut != null -> {
+                onEvent(shortcut)
+                true
+            }
             // Backspace at the start of a list item where there is no line break to delete, e.g. the first line.
             keyCode == KeyEvent.KEYCODE_DEL && start == messageContent.selectionEnd ->
-                ParagraphFormatter.removeBlockAtLineStart(messageContent.text, start)
+                ParagraphFormatter.removeBlockAtLineStart(messageContent.text, start).also { removed ->
+                    if (removed) onFormatChanged()
+                }
             else -> false
         }
-        if (handled) onFormatChanged()
 
         return handled
     }
@@ -196,6 +201,7 @@ class MessageFormattingToolbar(
         if (start < 0 || end < 0) return
 
         barState = formatBarStateOf(messageContent.text, start, end, barState)
+            .copy(canUndo = history.canUndo, canRedo = history.canRedo)
     }
 
     private fun updateVisibility(hasFocus: Boolean = messageContent.hasFocus()) {
@@ -214,5 +220,16 @@ class MessageFormattingToolbar(
             KeyEvent.KEYCODE_I to TextFormat.Italic,
             KeyEvent.KEYCODE_U to TextFormat.Underline,
         )
+
+        /**
+         * The event of a Ctrl shortcut: B, I and U format, Z undoes, Shift+Z and Y redo.
+         */
+        fun shortcutEvent(keyCode: Int, isShiftPressed: Boolean): FormatBarEvent? {
+            return when {
+                keyCode == KeyEvent.KEYCODE_Z && !isShiftPressed -> FormatBarEvent.Undo
+                keyCode == KeyEvent.KEYCODE_Z || keyCode == KeyEvent.KEYCODE_Y -> FormatBarEvent.Redo
+                else -> SHORTCUT_FORMATS[keyCode]?.let { FormatBarEvent.ToggleFormat(it) }
+            }
+        }
     }
 }

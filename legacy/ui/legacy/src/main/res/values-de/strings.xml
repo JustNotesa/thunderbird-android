@@ -222,6 +222,9 @@
     <string name="message_compose_link_dialog_address">Adresse</string>
     <string name="message_compose_link_dialog_remove">Link entfernen</string>
     <string name="message_compose_link_dialog_invalid">Gib eine Webadresse (https://…) oder eine E-Mail-Adresse ein.</string>
+    <string name="message_compose_draft_saving">Entwurf wird gespeichert…</string>
+    <string name="message_compose_draft_saved">Entwurf gespeichert %1$s</string>
+    <string name="message_compose_draft_not_saved">Entwurf nicht gespeichert</string>
     <string name="remove_attachment_action">Anhang entfernen</string>
     <string name="message_to_label">An:</string>
     <string name="message_view_cc_label">CC:</string>

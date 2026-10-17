@@ -29,6 +29,7 @@ import android.os.AsyncTask;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.Looper;
 import android.os.Parcelable;
 import android.text.TextUtils;
 import android.text.TextWatcher;
@@ -144,6 +145,7 @@ import com.fsck.k9.message.SimpleMessageBuilder;
 import com.fsck.k9.message.SimpleMessageFormat;
 import com.fsck.k9.ui.R;
 import com.fsck.k9.ui.base.BaseActivity;
+import com.fsck.k9.ui.compose.DraftAutoSaver;
 import com.fsck.k9.ui.compose.IntentData;
 import com.fsck.k9.ui.compose.IntentDataMapper;
 import com.fsck.k9.ui.compose.QuotedMessageMvpView;
@@ -326,6 +328,9 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
     private MessageWebView signatureHtmlPreview;
     private EditText messageContentView;
     private MessageFormattingToolbar messageFormattingToolbar;
+    private final DraftAutoSaver draftAutoSaver =
+            new DraftAutoSaver(new DraftAutoSaver.MainThreadScheduler(), this::saveDraftAutomatically);
+    private boolean isSavingAutomatically;
     private LinearLayout attachmentsView;
 
     private String referencedMessageIds;
@@ -436,7 +441,10 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
                 findViewById(R.id.message_format_bar),
                 messageContentView,
                 featureThemeProvider,
-                () -> changesMadeSinceLastSave = true);
+                () -> {
+                    changesMadeSinceLastSave = true;
+                    draftAutoSaver.onChange();
+                });
 
         attachmentsView = findViewById(R.id.attachments);
 
@@ -444,6 +452,7 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
             @Override
             public void onTextChanged(CharSequence s, int start, int before, int count) {
                 changesMadeSinceLastSave = true;
+                draftAutoSaver.onChange();
             }
         };
 
@@ -757,6 +766,12 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
     }
 
     @Override
+    protected void onDestroy() {
+        draftAutoSaver.stop();
+        super.onDestroy();
+    }
+
+    @Override
     public void onPause() {
         super.onPause();
         messagingController.removeListener(messagingListener);
@@ -1032,22 +1047,51 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
         performSaveAfterChecks();
     }
 
-    private void checkToSaveDraftImplicitly() {
+    private boolean checkToSaveDraftImplicitly() {
         if (!account.hasDraftsFolder()) {
-            return;
+            return false;
         }
 
         if (!changesMadeSinceLastSave) {
-            return;
+            return false;
         }
 
         if (attachmentPresenter.hasMissingDraftParts()) {
             // Saving now would remove the parts that were not downloaded from the server.
-            return;
+            return false;
         }
 
         finishAfterDraftSaved = false;
         performSaveAfterChecks();
+        return currentMessageBuilder != null;
+    }
+
+    private boolean saveDraftAutomatically() {
+        ComposeCryptoStatus cryptoStatus = recipientPresenter.getCurrentCachedCryptoStatus();
+        boolean mayNeedUserInteraction = cryptoStatus != null && cryptoStatus.isEncryptionEnabled();
+        if (currentMessageBuilder != null || mayNeedUserInteraction) {
+            return false;
+        }
+
+        isSavingAutomatically = true;
+        boolean started = checkToSaveDraftImplicitly();
+        if (started) {
+            getSupportActionBar().setSubtitle(R.string.message_compose_draft_saving);
+        } else {
+            isSavingAutomatically = false;
+        }
+        return started;
+    }
+
+    private void onAutomaticSaveFinished(boolean saved) {
+        draftAutoSaver.onSaveFinished();
+        isSavingAutomatically = false;
+        if (saved) {
+            String time = android.text.format.DateFormat.getTimeFormat(this).format(new Date());
+            getSupportActionBar().setSubtitle(getString(R.string.message_compose_draft_saved, time));
+        } else {
+            getSupportActionBar().setSubtitle(R.string.message_compose_draft_not_saved);
+        }
     }
 
     private void performSaveAfterChecks() {
@@ -2187,7 +2231,9 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
             changesMadeSinceLastSave = false;
             currentMessageBuilder = null;
 
-            new SaveMessageTask(messagingController, account, internalMessageHandler, message, draftMessageId,
+            Handler saveHandler = isSavingAutomatically ? automaticSaveHandler : internalMessageHandler;
+            isSavingAutomatically = false;
+            new SaveMessageTask(messagingController, account, saveHandler, message, draftMessageId,
                     plaintextSubject).execute();
             if (finishAfterDraftSaved) {
                 finish();
@@ -2204,6 +2250,9 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
 
     @Override
     public void onMessageBuildCancel() {
+        if (isSavingAutomatically) {
+            onAutomaticSaveFinished(false);
+        }
         dismissEncryptedMessageProgressIndicator();
         sendMessageHasBeenTriggered = false;
         currentMessageBuilder = null;
@@ -2214,8 +2263,12 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
     public void onMessageBuildException(MessagingException me) {
         dismissEncryptedMessageProgressIndicator();
         Log.e(me, "Error sending message");
-        Toast.makeText(MessageCompose.this,
-                getString(R.string.send_failed_reason, me.getLocalizedMessage()), Toast.LENGTH_LONG).show();
+        if (isSavingAutomatically) {
+            onAutomaticSaveFinished(false);
+        } else {
+            Toast.makeText(MessageCompose.this,
+                    getString(R.string.send_failed_reason, me.getLocalizedMessage()), Toast.LENGTH_LONG).show();
+        }
         sendMessageHasBeenTriggered = false;
         currentMessageBuilder = null;
         setProgressBarIndeterminateVisibility(false);
@@ -2600,6 +2653,21 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
                 default:
                     super.handleMessage(msg);
                     break;
+            }
+        }
+    };
+
+    private final Handler automaticSaveHandler = new Handler(Looper.getMainLooper()) {
+        @Override
+        public void handleMessage(android.os.Message msg) {
+            if (msg.what == MSG_SAVED_DRAFT) {
+                Long savedDraftId = (Long) msg.obj;
+                if (savedDraftId != null) {
+                    draftMessageId = savedDraftId;
+                }
+                onAutomaticSaveFinished(savedDraftId != null);
+            } else {
+                super.handleMessage(msg);
             }
         }
     };

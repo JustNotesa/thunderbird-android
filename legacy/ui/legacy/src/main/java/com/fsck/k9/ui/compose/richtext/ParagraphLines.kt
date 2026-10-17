@@ -87,7 +87,7 @@ internal fun Spanned.paragraphSpans(start: Int, end: Int): List<ParagraphStyle> 
     return margins + alignments
 }
 
-private fun LeadingMarginSpan.isComposerParagraphSpan(): Boolean {
+internal fun LeadingMarginSpan.isComposerParagraphSpan(): Boolean {
     return this is BulletListSpan || this is NumberedListSpan || this is QuoteBlockSpan || this is IndentSpan
 }
 
