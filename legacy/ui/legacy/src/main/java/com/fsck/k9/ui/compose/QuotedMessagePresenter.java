@@ -18,6 +18,7 @@ import com.fsck.k9.mail.internet.MessageExtractor;
 import com.fsck.k9.mail.internet.MimeUtility;
 import com.fsck.k9.mailstore.AttachmentResolver;
 import com.fsck.k9.mailstore.MessageViewInfo;
+import com.fsck.k9.helper.CrLfConverter;
 import com.fsck.k9.message.IdentityField;
 import com.fsck.k9.message.MessageBuilder;
 import com.fsck.k9.message.QuotedTextMode;
@@ -38,6 +39,8 @@ public class QuotedMessagePresenter {
     private static final String STATE_KEY_QUOTED_TEXT_MODE = "state:quotedTextShown";
     private static final String STATE_KEY_QUOTED_TEXT_FORMAT = "state:quotedTextFormat";
     private static final String STATE_KEY_FORCE_PLAIN_TEXT = "state:forcePlainText";
+    private static final String STATE_KEY_QUOTE_SOURCE_HTML = "state:quoteSourceHtml";
+    private static final String STATE_KEY_QUOTE_HEADER = "state:quoteHeader";
 
     private static final int UNKNOWN_LENGTH = 0;
 
@@ -53,6 +56,10 @@ public class QuotedMessagePresenter {
 
     private SimpleMessageFormat quotedTextFormat;
     private InsertableHtmlContent quotedHtmlContent;
+    // The quoted message without the lines that introduce it, and those lines as text: what editing the quote inline
+    // needs. Not known for the quote of a draft, which has the lines in it.
+    private String quoteSourceHtml;
+    private String quoteHeaderText;
     private LegacyAccountDto account;
 
 
@@ -114,6 +121,10 @@ public class QuotedMessagePresenter {
             // Add the HTML reply header to the top of the content.
             quotedHtmlContent = HtmlQuoteCreator.quoteOriginalHtmlMessage(messageViewInfo.message, content, quoteStyle, generalSettingsManager);
 
+            quoteSourceHtml = content;
+            quoteHeaderText = CrLfConverter.toLf(textQuoteCreator.quoteOriginalTextMessage(
+                    messageViewInfo.message, "", quoteStyle, "")).trim();
+
             // Load the message with the reply header. TODO replace with MessageViewInfo data
             view.setQuotedHtml(quotedHtmlContent.getQuotedContent(),
                     AttachmentResolver.createFromPart(messageViewInfo.rootPart));
@@ -153,6 +164,8 @@ public class QuotedMessagePresenter {
         outState.putSerializable(STATE_KEY_HTML_QUOTE, quotedHtmlContent);
         outState.putSerializable(STATE_KEY_QUOTED_TEXT_FORMAT, quotedTextFormat);
         outState.putBoolean(STATE_KEY_FORCE_PLAIN_TEXT, forcePlainText);
+        outState.putString(STATE_KEY_QUOTE_SOURCE_HTML, quoteSourceHtml);
+        outState.putString(STATE_KEY_QUOTE_HEADER, quoteHeaderText);
     }
 
     public void onRestoreInstanceState(@NonNull Bundle savedInstanceState) {
@@ -168,6 +181,8 @@ public class QuotedMessagePresenter {
         );
 
         forcePlainText = savedInstanceState.getBoolean(STATE_KEY_FORCE_PLAIN_TEXT);
+        quoteSourceHtml = savedInstanceState.getString(STATE_KEY_QUOTE_SOURCE_HTML);
+        quoteHeaderText = savedInstanceState.getString(STATE_KEY_QUOTE_HEADER);
 
         showOrHideQuotedText(
             BundleCompat.getSerializable(
@@ -388,8 +403,41 @@ public class QuotedMessagePresenter {
     }
 
     void onClickEditQuotedText() {
-        forcePlainText = true;
-        messageCompose.loadQuotedTextForEdit();
+        if (quotedTextFormat == SimpleMessageFormat.HTML && quotedHtmlContent != null
+                && messageCompose.canEditQuoteInline()) {
+            editQuoteInline();
+        } else {
+            forcePlainText = true;
+            messageCompose.loadQuotedTextForEdit();
+        }
+    }
+
+    private void editQuoteInline() {
+        // The quote of a draft has no separate lines to introduce it: they are part of the quoted HTML.
+        String quoteHtml = quoteSourceHtml != null ? quoteSourceHtml : quotedHtmlContent.getQuotedContent();
+        String header = quoteSourceHtml != null && quoteHeaderText != null ? quoteHeaderText : "";
+        boolean replyAfterQuote = quoteStyle == QuoteStyle.PREFIX && account.isReplyAfterQuote();
+
+        messageCompose.editQuoteInline(quoteHtml, header, replyAfterQuote);
+    }
+
+    /**
+     * The quote has been written into the text of the message, which is where it is edited and sent from now on.
+     */
+    public void onQuoteMergedIntoBody() {
+        quotedHtmlContent = null;
+        quoteSourceHtml = null;
+        quoteHeaderText = null;
+        view.setQuotedText("");
+        showOrHideQuotedText(QuotedTextMode.NONE);
+    }
+
+    /**
+     * Whether the quote is part of the text of the message, as formatted HTML: the quote is neither shown nor hidden
+     * but gone, and it was HTML. This is also how a draft that was saved so is recognized.
+     */
+    public boolean isQuoteMergedIntoBody() {
+        return quotedTextMode == QuotedTextMode.NONE && quotedTextFormat == SimpleMessageFormat.HTML;
     }
 
     public boolean includeQuotedText() {

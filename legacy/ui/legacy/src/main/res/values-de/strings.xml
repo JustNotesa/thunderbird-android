@@ -167,6 +167,12 @@
     <string name="message_compose_formatted_text_dialog_title">Zu formatiertem Text wechseln?</string>
     <string name="message_compose_formatted_text_dialog_message">Diese Nachricht enthält HTML, das der Editor nicht darstellen kann, etwa Bilder, Tabellen oder andere Gestaltung. Beim Wechseln wird es entfernt; der Text und seine Formatierung bleiben erhalten.</string>
     <string name="message_compose_formatted_text_dialog_confirm">Wechseln</string>
+    <string name="message_compose_edit_quote_dialog_title">Zitat als Text bearbeiten?</string>
+    <string name="message_compose_edit_quote_dialog_message">Das Zitat enthält Inhalte, die der Editor nicht darstellen kann. Beim Bearbeiten gehen verloren: %1$s.</string>
+    <string name="message_compose_edit_quote_dialog_confirm">Trotzdem bearbeiten</string>
+    <string name="message_compose_edit_quote_lost_tables">Tabellen</string>
+    <string name="message_compose_edit_quote_lost_images">Bilder, die nicht zur Nachricht gehören</string>
+    <string name="message_compose_edit_quote_lost_styles">Teile der Formatierung</string>
     <string name="message_compose_format_bold">Fett</string>
     <string name="message_compose_format_italic">Kursiv</string>
     <string name="message_compose_format_underline">Unterstrichen</string>

@@ -3,9 +3,11 @@ package com.fsck.k9.activity.compose;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import android.app.Activity;
 import android.content.ClipData;
@@ -299,6 +301,34 @@ public class AttachmentPresenter {
         }
 
         return allPartsAvailable;
+    }
+
+    /**
+     * The Content-IDs of the inline images of a message that can be attached to the message being written, i.e.
+     * whose content has been downloaded.
+     */
+    public Set<String> getAvailableInlineContentIds(MessageViewInfo messageViewInfo) {
+        Set<String> contentIds = new HashSet<>();
+        for (AttachmentViewInfo attachmentViewInfo : messageViewInfo.attachments) {
+            if (attachmentViewInfo.inlineAttachment && attachmentViewInfo.isContentAvailable()
+                    && attachmentViewInfo.part != null && attachmentViewInfo.part.getContentId() != null) {
+                contentIds.add(attachmentViewInfo.part.getContentId());
+            }
+        }
+        return contentIds;
+    }
+
+    /**
+     * Adds the inline images of a message that is replied to, so that its quote can be edited together with its
+     * images. Its other attachments are not part of a reply.
+     */
+    public void addInlineAttachmentsOf(MessageViewInfo messageViewInfo) {
+        for (AttachmentViewInfo attachmentViewInfo : messageViewInfo.attachments) {
+            if (attachmentViewInfo.inlineAttachment && attachmentViewInfo.isContentAvailable()
+                    && !isAlreadyAdded(attachmentViewInfo)) {
+                addInlineAttachment(attachmentViewInfo);
+            }
+        }
     }
 
     private boolean isAlreadyAdded(AttachmentViewInfo attachmentViewInfo) {

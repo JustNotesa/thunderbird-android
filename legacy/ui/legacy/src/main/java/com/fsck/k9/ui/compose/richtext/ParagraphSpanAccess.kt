@@ -56,7 +56,9 @@ private fun Spanned.spannedRegion(start: Int, end: Int): IntRange {
 private fun Spanned.lineStartsIn(region: IntRange): List<Int> {
     val starts = mutableListOf(region.first)
     var position = lineEndAt(region.first)
-    while (position < region.last && position < length) {
+    // The line that starts where the region ends is not part of it, unless it is the empty one at the end of the text:
+    // its spans were not removed, so writing them again would stack them.
+    while (position < length && (position + 1 < region.last || position + 1 == length)) {
         starts.add(position + 1)
         position = lineEndAt(position + 1)
     }

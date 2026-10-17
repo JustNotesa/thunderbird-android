@@ -3,6 +3,7 @@ package com.fsck.k9.activity;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -149,6 +150,7 @@ import com.fsck.k9.ui.R;
 import com.fsck.k9.ui.base.BaseActivity;
 import com.fsck.k9.ui.compose.DraftAutoSaver;
 import com.fsck.k9.ui.compose.IntentData;
+import com.fsck.k9.ui.compose.InlineQuoteEditor;
 import com.fsck.k9.ui.compose.IntentDataMapper;
 import com.fsck.k9.ui.compose.QuotedMessageMvpView;
 import com.fsck.k9.ui.compose.QuotedMessagePresenter;
@@ -333,6 +335,7 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
     private EditText messageContentView;
     private MessageFormattingToolbar messageFormattingToolbar;
     private InlineImageController inlineImageController;
+    private InlineQuoteEditor inlineQuoteEditor;
     // Whether the photo the camera is taking is for the text of the message instead of an attachment.
     private boolean capturingInlineImage;
     private final DraftAutoSaver draftAutoSaver =
@@ -456,6 +459,7 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
                 inlineImageController,
                 this::pickInlineImage);
         inlineImageController.attach(messageFormattingToolbar);
+        inlineQuoteEditor = new InlineQuoteEditor(this, richTextHtmlConverter);
         messageFormattingToolbar.setCameraAvailable(cameraCaptureHandler.canLaunchCamera(this));
 
         attachmentsView = findViewById(R.id.attachments);
@@ -1912,6 +1916,38 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
         changesMadeSinceLastSave = true;
     }
 
+    /**
+     * Whether the quote of the reply can be edited as part of the formatted text, which needs a message that is
+     * written as formatted HTML.
+     */
+    public boolean canEditQuoteInline() {
+        return currentMessageFormat == SimpleMessageFormat.HTML && !messageFormattingToolbar.isHtmlSourceMode();
+    }
+
+    /**
+     * Writes the quote into the text of the message, formatted and as a quote block, and hides the separate quote.
+     * The user is asked first if the quote contains something the editor can't keep.
+     */
+    public void editQuoteInline(String quoteHtml, String header, boolean replyAfterQuote) {
+        Set<String> availableContentIds = currentMessageViewInfo == null
+                ? Collections.<String>emptySet()
+                : attachmentPresenter.getAvailableInlineContentIds(currentMessageViewInfo);
+
+        inlineQuoteEditor.edit(quoteHtml, header, messageFormattingToolbar.getFormattedText(), replyAfterQuote,
+                availableContentIds, merged -> {
+                    if (currentMessageViewInfo != null) {
+                        attachmentPresenter.addInlineAttachmentsOf(currentMessageViewInfo);
+                    }
+                    messageFormattingToolbar.showFormattedText(merged.getText());
+                    messageContentView.setSelection(Math.min(merged.getCursor(), messageContentView.length()));
+                    messageContentView.requestFocus();
+                    quotedMessagePresenter.onQuoteMergedIntoBody();
+                    updateMessageFormat();
+                    changesMadeSinceLastSave = true;
+                    draftAutoSaver.onChange();
+                });
+    }
+
     public void loadQuotedTextForEdit() {
         if (relatedMessageReference == null) { // shouldn't happen...
             throw new IllegalStateException("tried to edit quoted message with no referenced message");
@@ -2264,6 +2300,9 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
             // Right now we only support PGP inline which doesn't play well with HTML. So force
             // plain text in those cases.
             messageFormat = SimpleMessageFormat.TEXT;
+        } else if (quotedMessagePresenter.isQuoteMergedIntoBody()) {
+            // The quote is part of the formatted text, which has to be sent as HTML to keep it.
+            messageFormat = SimpleMessageFormat.HTML;
         } else if (origMessageFormat == MessageFormat.AUTO) {
             if (action == Action.COMPOSE || quotedMessagePresenter.isQuotedTextText() ||
                     !quotedMessagePresenter.includeQuotedText()) {

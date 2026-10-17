@@ -172,12 +172,14 @@ internal class HtmlReader(private val lenient: Boolean) {
     private fun breakBeforeBlock() {
         // A space before the break is a space HTML would not show.
         if (lenient && text.endsWith(' ')) text.setLength(text.length - 1)
+        // Also when the line is empty already: otherwise the block would still count as just ended when the text
+        // after it arrives, and break that text in two.
+        blockEnded = false
         if (text.isEmpty() || text.endsWith('\n')) return
 
         endLine()
         text.append('\n')
         lineStart = text.length
-        blockEnded = false
     }
 
     private fun appendNewLine() {

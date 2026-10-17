@@ -225,6 +225,12 @@
     <string name="message_compose_formatted_text_dialog_title">Switch to formatted text?</string>
     <string name="message_compose_formatted_text_dialog_message">This message contains HTML the formatted editor can\'t show, like images, tables or other styles. Switching removes it and keeps the text and its formatting.</string>
     <string name="message_compose_formatted_text_dialog_confirm">Switch</string>
+    <string name="message_compose_edit_quote_dialog_title">Edit the quote as text?</string>
+    <string name="message_compose_edit_quote_dialog_message">The quote contains content the editor can\'t show. Editing it removes: %1$s.</string>
+    <string name="message_compose_edit_quote_dialog_confirm">Edit anyway</string>
+    <string name="message_compose_edit_quote_lost_tables">tables</string>
+    <string name="message_compose_edit_quote_lost_images">images that are not part of the message</string>
+    <string name="message_compose_edit_quote_lost_styles">some formatting</string>
     <string name="message_compose_format_bold">Bold</string>
     <string name="message_compose_format_italic">Italic</string>
     <string name="message_compose_format_underline">Underline</string>
