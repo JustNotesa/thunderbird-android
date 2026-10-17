@@ -1,6 +1,7 @@
 package com.fsck.k9.activity.compose;
 
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -33,6 +34,8 @@ import com.fsck.k9.provider.RawMessageProvider;
 
 public class AttachmentPresenter {
     private static final String STATE_KEY_ATTACHMENTS = "com.fsck.k9.activity.MessageCompose.attachments";
+    private static final String STATE_KEY_INLINE_ATTACHMENTS = "com.fsck.k9.activity.MessageCompose.inlineAttachments";
+    private static final String STATE_KEY_INLINE_CONTENT_IDS = "com.fsck.k9.activity.MessageCompose.inlineContentIds";
     private static final String STATE_KEY_WAITING_FOR_ATTACHMENTS = "waitingForAttachments";
     private static final String STATE_KEY_NEXT_LOADER_ID = "nextLoaderId";
     private static final String STATE_KEY_COMPLETE_MESSAGE_DOWNLOAD = "completeMessageDownload";
@@ -72,6 +75,7 @@ public class AttachmentPresenter {
         outState.putString(STATE_KEY_WAITING_FOR_ATTACHMENTS, actionToPerformAfterWaiting.name());
         outState.putParcelableArrayList(STATE_KEY_ATTACHMENTS, createAttachmentList());
         outState.putInt(STATE_KEY_NEXT_LOADER_ID, nextLoaderId);
+        saveInlineAttachments(outState);
         outState.putString(STATE_KEY_COMPLETE_MESSAGE_DOWNLOAD, completeMessageDownload.name());
     }
 
@@ -95,9 +99,41 @@ public class AttachmentPresenter {
             }
         }
 
+        restoreInlineAttachments(savedInstanceState);
+
         if (completeMessageDownload == CompleteMessageDownload.IN_PROGRESS) {
             // The result of the download would have gone to the previous activity instance, so ask again.
             attachmentMvpView.downloadCompleteMessage();
+        }
+    }
+
+    private void saveInlineAttachments(Bundle outState) {
+        ArrayList<Attachment> inlineList = new ArrayList<>();
+        ArrayList<String> contentIds = new ArrayList<>();
+        for (InlineAttachment inlineAttachment : inlineAttachments.values()) {
+            inlineList.add(inlineAttachment.getAttachment());
+            contentIds.add(inlineAttachment.getContentId());
+        }
+        outState.putParcelableArrayList(STATE_KEY_INLINE_ATTACHMENTS, inlineList);
+        outState.putStringArrayList(STATE_KEY_INLINE_CONTENT_IDS, contentIds);
+    }
+
+    private void restoreInlineAttachments(Bundle savedInstanceState) {
+        ArrayList<Attachment> inlineList = savedInstanceState.getParcelableArrayList(STATE_KEY_INLINE_ATTACHMENTS);
+        ArrayList<String> contentIds = savedInstanceState.getStringArrayList(STATE_KEY_INLINE_CONTENT_IDS);
+        if (inlineList == null || contentIds == null || inlineList.size() != contentIds.size()) {
+            return;
+        }
+
+        for (int i = 0; i < inlineList.size(); i++) {
+            Attachment attachment = inlineList.get(i);
+            inlineAttachments.put(attachment.uri, new InlineAttachment(contentIds.get(i), attachment));
+
+            if (attachment.getState() == LoadingState.METADATA) {
+                Bundle bundle = new Bundle();
+                bundle.putParcelable(LOADER_ARG_ATTACHMENT, attachment.uri);
+                loaderManager.initLoader(attachment.loaderId, bundle, mInlineAttachmentContentLoaderCallback);
+            }
         }
     }
 
@@ -123,6 +159,13 @@ public class AttachmentPresenter {
     private boolean hasLoadingAttachments() {
         for (Attachment attachment : attachments.values()) {
             Loader loader = loaderManager.getLoader(attachment.loaderId);
+            if (loader != null && loader.isStarted()) {
+                return true;
+            }
+        }
+        // A picture of a draft that is still being loaded would be missing from the draft saved now.
+        for (InlineAttachment inlineAttachment : inlineAttachments.values()) {
+            Loader loader = loaderManager.getLoader(inlineAttachment.getAttachment().loaderId);
             if (loader != null && loader.isStarted()) {
                 return true;
             }
@@ -204,6 +247,20 @@ public class AttachmentPresenter {
         Bundle bundle = new Bundle();
         bundle.putParcelable(LOADER_ARG_ATTACHMENT, attachment.uri);
         loaderManager.initLoader(attachment.loaderId, bundle, mInlineAttachmentContentLoaderCallback);
+    }
+
+    /**
+     * Adds an image the user put into the text of the message. The image is already a file of the app, so there is
+     * nothing to load: it is attached as it is, and the HTML refers to it by {@code cid:contentId}.
+     */
+    public void addInlineImage(File file, String contentId, String mimeType, String name) {
+        // There is no loader for this attachment, so it does not need a loader ID.
+        Attachment attachment = Attachment.createAttachment(Uri.fromFile(file), -1, mimeType, false, true)
+                .deriveWithMetadataLoaded(mimeType, name, file.length())
+                .deriveWithLoadComplete(file.getAbsolutePath());
+
+        inlineAttachments.put(attachment.uri, new InlineAttachment(contentId, attachment));
+        listener.onAttachmentAdded();
     }
 
     private void addInternalAttachment(Uri uri, String contentType, boolean allowMessageType) {
@@ -459,6 +516,7 @@ public class AttachmentPresenter {
                         inlineAttachments.remove(attachment.uri);
                     }
 
+                    listener.onInlineAttachmentLoaded();
                     postPerformStalledAction();
                 }
 
@@ -583,5 +641,10 @@ public class AttachmentPresenter {
     public interface AttachmentsChangedListener {
         void onAttachmentAdded();
         void onAttachmentRemoved();
+
+        /**
+         * An inline attachment (a picture in the text) has been loaded and can be shown now.
+         */
+        void onInlineAttachmentLoaded();
     }
 }

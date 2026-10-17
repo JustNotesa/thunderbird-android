@@ -73,6 +73,7 @@ internal class PasteNormalizer : TextWatcher {
 
     private fun Any.isForeign(): Boolean {
         return when (this) {
+            is InlineImageSpan -> false
             is ImageSpan, is AbsoluteSizeSpan, is QuoteSpan -> true
             is ClickableSpan -> this !is URLSpan
             is StyleSpan -> style == Typeface.NORMAL

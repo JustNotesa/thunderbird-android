@@ -251,6 +251,16 @@
     <string name="message_compose_format_align_right">Align right</string>
     <string name="message_compose_format_link">Link</string>
     <string name="message_compose_format_image">Image</string>
+    <string name="message_compose_image_source_gallery">Gallery or files</string>
+    <string name="message_compose_image_source_camera">Camera</string>
+    <string name="message_compose_image_size_title">Image size</string>
+    <string name="message_compose_image_size_small">Small (640 px)</string>
+    <string name="message_compose_image_size_medium">Medium (1280 px)</string>
+    <string name="message_compose_image_size_original">Original size</string>
+    <string name="message_compose_image_error_not_an_image">This file is not an image the app can use.</string>
+    <string name="message_compose_image_error_unreadable">The image could not be read.</string>
+    <string name="message_compose_image_error_too_large">The image is larger than 25 MB. Choose a smaller size.</string>
+    <string name="message_compose_image_error_out_of_memory">Not enough memory to scale the image. Choose a smaller size.</string>
     <string name="message_compose_format_clear">Clear formatting</string>
     <string name="message_compose_format_undo">Undo</string>
     <string name="message_compose_format_redo">Redo</string>

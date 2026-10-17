@@ -56,6 +56,8 @@ import android.text.InputType;
 import android.view.GestureDetector;
 import android.view.MotionEvent;
 import android.widget.FrameLayout;
+import com.fsck.k9.ui.compose.image.InlineImageController;
+import com.fsck.k9.ui.compose.richtext.ImageSource;
 import com.fsck.k9.ui.compose.richtext.MessageFormattingToolbar;
 import net.thunderbird.feature.mail.message.composer.richtext.RichTextHtmlConverter;
 import net.thunderbird.core.ui.theme.api.FeatureThemeProvider;
@@ -220,6 +222,7 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
     private static final String STATE_IN_REPLY_TO = "com.fsck.k9.activity.MessageCompose.inReplyTo";
     private static final String STATE_REFERENCES = "com.fsck.k9.activity.MessageCompose.references";
     private static final String STATE_KEY_READ_RECEIPT = "com.fsck.k9.activity.MessageCompose.messageReadReceipt";
+    private static final String STATE_KEY_CAPTURING_INLINE_IMAGE = "com.fsck.k9.activity.MessageCompose.capturingInlineImage";
     private static final String STATE_KEY_HTML_SOURCE_MODE = "com.fsck.k9.activity.MessageCompose.htmlSourceMode";
     private static final String STATE_KEY_CHANGES_MADE_SINCE_LAST_SAVE = "com.fsck.k9.activity.MessageCompose.changesMadeSinceLastSave";
     private static final String STATE_ALREADY_NOTIFIED_USER_OF_EMPTY_SUBJECT = "alreadyNotifiedUserOfEmptySubject";
@@ -234,6 +237,7 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
     public static final int MSG_SAVED_DRAFT = 4;
     private static final int MSG_DISCARDED_DRAFT = 5;
 
+    private static final int REQUEST_CODE_INLINE_IMAGE = 7;
     private static final int REQUEST_CODE_MASK = 0xFFFF0000;
     private static final int REQUEST_MASK_RECIPIENT_PRESENTER = (1 << 8);
     private static final int REQUEST_MASK_LOADER_HELPER = (1 << 9);
@@ -328,6 +332,9 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
     private MessageWebView signatureHtmlPreview;
     private EditText messageContentView;
     private MessageFormattingToolbar messageFormattingToolbar;
+    private InlineImageController inlineImageController;
+    // Whether the photo the camera is taking is for the text of the message instead of an attachment.
+    private boolean capturingInlineImage;
     private final DraftAutoSaver draftAutoSaver =
             new DraftAutoSaver(new DraftAutoSaver.MainThreadScheduler(), this::saveDraftAutomatically);
     private boolean isSavingAutomatically;
@@ -434,6 +441,7 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
         attachmentPresenter = new AttachmentPresenter(getApplicationContext(), attachmentMvpView,
                 getSupportLoaderManager(), this);
 
+        inlineImageController = new InlineImageController(this, attachmentPresenter);
         messageContentView = findViewById(R.id.message_content);
         messageContentView.getInputExtras(true).putBoolean("allowEmoji", true);
         applyIncognitoKeyboardSetting(messageContentView);
@@ -444,7 +452,11 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
                 () -> {
                     changesMadeSinceLastSave = true;
                     draftAutoSaver.onChange();
-                });
+                },
+                inlineImageController,
+                this::pickInlineImage);
+        inlineImageController.attach(messageFormattingToolbar);
+        messageFormattingToolbar.setCameraAvailable(cameraCaptureHandler.canLaunchCamera(this));
 
         attachmentsView = findViewById(R.id.attachments);
 
@@ -768,6 +780,9 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
     @Override
     protected void onDestroy() {
         draftAutoSaver.stop();
+        if (inlineImageController != null) {
+            inlineImageController.cancel();
+        }
         super.onDestroy();
     }
 
@@ -809,6 +824,7 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
         outState.putString(STATE_REFERENCES, referencedMessageIds);
         outState.putBoolean(STATE_KEY_READ_RECEIPT, requestReadReceipt);
         outState.putBoolean(STATE_KEY_HTML_SOURCE_MODE, messageFormattingToolbar.isHtmlSourceMode());
+        outState.putBoolean(STATE_KEY_CAPTURING_INLINE_IMAGE, capturingInlineImage);
         outState.putBoolean(STATE_KEY_CHANGES_MADE_SINCE_LAST_SAVE, changesMadeSinceLastSave);
         outState.putBoolean(STATE_ALREADY_NOTIFIED_USER_OF_EMPTY_SUBJECT, alreadyNotifiedUserOfEmptySubject);
         outState.putIntegerArrayList(STATE_ACTIVE_IN_APP_NOTIFICATIONS, new ArrayList<>(activeInAppNotifications));
@@ -836,6 +852,7 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
 
         requestReadReceipt = savedInstanceState.getBoolean(STATE_KEY_READ_RECEIPT);
         messageFormattingToolbar.setHtmlSourceMode(savedInstanceState.getBoolean(STATE_KEY_HTML_SOURCE_MODE));
+        capturingInlineImage = savedInstanceState.getBoolean(STATE_KEY_CAPTURING_INLINE_IMAGE);
 
         replyToPresenter.onRestoreInstanceState(savedInstanceState);
         recipientPresenter.onRestoreInstanceState(savedInstanceState);
@@ -952,7 +969,8 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
             return HtmlConverter.htmlToText(messageContentView.getText().toString());
         }
 
-        return messageContentView.getText();
+        // The character that stands for an inline image has no meaning in plain text.
+        return messageContentView.getText().toString().replace("\uFFFC", "");
     }
 
     /**
@@ -1228,10 +1246,24 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
                 return;
             }
 
+            if (requestCode == REQUEST_CODE_INLINE_IMAGE) {
+                Uri pickedImageUri = (data != null) ? data.getData() : null;
+                if (resultCode == Activity.RESULT_OK && pickedImageUri != null) {
+                    inlineImageController.askSizeAndInsert(pickedImageUri);
+                }
+                return;
+            }
+
             if (requestCode == REQUEST_IMAGE_CAPTURE && resultCode == Activity.RESULT_OK) {
                 final Uri capturedImageUri = cameraCaptureHandler.getCapturedImageUri();
                 if (capturedImageUri == null) {
+                    capturingInlineImage = false;
                     Toast.makeText(this, R.string.camera_capture_lost, Toast.LENGTH_LONG).show();
+                    return;
+                }
+                if (capturingInlineImage) {
+                    capturingInlineImage = false;
+                    inlineImageController.askSizeAndInsert(capturedImageUri);
                     return;
                 }
                 Intent intent = new Intent();
@@ -1239,6 +1271,11 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
                 attachmentPresenter.onActivityResult(resultCode, REQUEST_CODE_ATTACHMENT_URI, intent);
                 return;
             }
+        }
+
+        if (requestCode == REQUEST_IMAGE_CAPTURE) {
+            // The camera was left without a photo.
+            capturingInlineImage = false;
         }
 
         super.onActivityResult(requestCode, resultCode, data);
@@ -1305,6 +1342,24 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
         switchToIdentity(identity);
     }
 
+    private void pickInlineImage(ImageSource source) {
+        if (source == ImageSource.Camera) {
+            capturingInlineImage = true;
+            if (!cameraCaptureHandler.hasCameraPermission(this)) {
+                cameraCaptureHandler.requestCameraPermission(this);
+            } else {
+                cameraCaptureHandler.openCamera(this);
+            }
+            return;
+        }
+
+        Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType("image/*");
+        isInSubActivity = true;
+        startActivityForResult(Intent.createChooser(intent, null), REQUEST_CODE_INLINE_IMAGE);
+    }
+
     private void showPopupMenu(View view) {
         PopupMenu popup = new PopupMenu(this, view);
         MenuInflater inflater = popup.getMenuInflater();
@@ -1313,6 +1368,7 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
         popup.setOnMenuItemClickListener(item -> {
             int itemId = item.getItemId();
             if (itemId == R.id.open_camera) {
+                capturingInlineImage = false;
                 if(!cameraCaptureHandler.hasCameraPermission(this)){
                     cameraCaptureHandler.requestCameraPermission(this);
                 }else {
@@ -1424,6 +1480,11 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
     @Override
     public void onAttachmentRemoved() {
         changesMadeSinceLastSave = true;
+    }
+
+    @Override
+    public void onInlineAttachmentLoaded() {
+        inlineImageController.onAttachmentsChanged();
     }
 
     @Override

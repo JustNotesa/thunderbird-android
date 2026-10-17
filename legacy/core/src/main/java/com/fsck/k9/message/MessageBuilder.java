@@ -1,6 +1,7 @@
 package com.fsck.k9.message;
 
 
+import java.util.Collections;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
@@ -182,11 +183,12 @@ public abstract class MessageBuilder {
             bodyPlain = buildText(isDraft, SimpleMessageFormat.TEXT);
             composedMimeMessage.addBodyPart(MimeBodyPart.create(bodyPlain, "text/plain"));
             MimeBodyPart htmlPart = MimeBodyPart.create(body, "text/html");
-            if (inlineAttachments != null && inlineAttachments.size() > 0) {
+            Map<String, Attachment> usedInlineAttachments = getReferencedInlineAttachments();
+            if (!usedInlineAttachments.isEmpty()) {
                 MimeMultipart htmlPartWithInlineImages = new MimeMultipart("multipart/related",
                         boundaryGenerator.generateBoundary());
                 htmlPartWithInlineImages.addBodyPart(htmlPart);
-                addInlineAttachmentsToMessage(htmlPartWithInlineImages);
+                addInlineAttachmentsToMessage(htmlPartWithInlineImages, usedInlineAttachments);
                 composedMimeMessage.addBodyPart(MimeBodyPart.create(htmlPartWithInlineImages));
             } else {
                 composedMimeMessage.addBodyPart(htmlPart);
@@ -264,7 +266,23 @@ public abstract class MessageBuilder {
         }
     }
 
-    private void addInlineAttachmentsToMessage(final MimeMultipart mp) throws MessagingException {
+    /**
+     * An image the user removed from the text must not be sent along, so only the inline attachments the HTML of the
+     * message (or of the quote that is part of it) refers to are used.
+     */
+    private Map<String, Attachment> getReferencedInlineAttachments() {
+        if (inlineAttachments == null || inlineAttachments.isEmpty()) {
+            return Collections.emptyMap();
+        }
+
+        boolean includesQuote = isDraft || quotedTextMode == QuotedTextMode.SHOW;
+        String quotedHtml = (includesQuote && quotedHtmlContent != null) ? quotedHtmlContent.getQuotedContent() : null;
+
+        return InlineAttachmentFilter.onlyReferenced(inlineAttachments, textHtml, quotedHtml);
+    }
+
+    private void addInlineAttachmentsToMessage(final MimeMultipart mp, Map<String, Attachment> inlineAttachments)
+            throws MessagingException {
         for (String cid : inlineAttachments.keySet()) {
             Attachment attachment = inlineAttachments.get(cid);
             if (attachment.getState() != Attachment.LoadingState.COMPLETE) {
@@ -276,7 +294,8 @@ public abstract class MessageBuilder {
 
             addContentType(bp, attachment.getContentType(), attachment.getName());
             addContentDisposition(bp, "inline", attachment.getName(), attachment.getSize());
-            bp.addHeader(MimeHeader.HEADER_CONTENT_ID, cid);
+            // The header carries the ID in angle brackets; the HTML refers to it without them (cid:ID).
+            bp.addHeader(MimeHeader.HEADER_CONTENT_ID, "<" + cid + ">");
 
             mp.addBodyPart(bp);
         }

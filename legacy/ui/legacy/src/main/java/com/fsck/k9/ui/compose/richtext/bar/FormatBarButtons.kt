@@ -56,7 +56,7 @@ internal fun <T> OptionMenuButton(
     icon: ImageVector,
     descriptionRes: Int,
     options: ImmutableList<MenuOption<T>>,
-    selected: T,
+    selected: T?,
     onSelect: (T) -> Unit,
     isOn: Boolean = false,
 ) {

@@ -90,9 +90,10 @@ internal object RichTextFormatter {
     }
 
     /**
-     * Builds the text to show in the text field from text and its formatted parts.
+     * Builds the text to show in the text field from text and its formatted parts. The pictures of inline images
+     * come from [images].
      */
-    fun toSpanned(formattedText: FormattedText): Spanned {
+    fun toSpanned(formattedText: FormattedText, images: InlineImages = InlineImages.NONE): Spanned {
         val text = SpannableStringBuilder(formattedText.text)
         for (range in formattedText.ranges) {
             val start = range.start.coerceIn(0, text.length)
@@ -117,6 +118,7 @@ internal object RichTextFormatter {
                 text.setSpan(URLSpan(url), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
             }
         }
+        text.setImageSpans(formattedText.images, images)
         ParagraphFormatter.applyParagraphs(text, formattedText.paragraphs)
 
         return text
@@ -133,6 +135,7 @@ internal object RichTextFormatter {
             colors = text.colorRanges(),
             links = text.linkRanges(),
             paragraphs = ParagraphFormatter.paragraphs(text),
+            images = text.inlineImages(),
         )
     }
 

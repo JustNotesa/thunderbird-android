@@ -32,7 +32,7 @@ internal fun applyFormatBarEvent(
         is FormatBarEvent.SetAlignment ->
             ParagraphFormatter.setAlignment(text, event.alignment, selectionStart, selectionEnd)
         FormatBarEvent.ClearFormatting -> RichTextFormatter.clearFormatting(text, selectionStart, selectionEnd)
-        FormatBarEvent.EditLink, FormatBarEvent.InsertImage, FormatBarEvent.Undo, FormatBarEvent.Redo -> return false
+        FormatBarEvent.EditLink, is FormatBarEvent.InsertImage, FormatBarEvent.Undo, FormatBarEvent.Redo -> return false
     }
 
     return true

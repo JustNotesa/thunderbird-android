@@ -12,6 +12,7 @@ import androidx.compose.ui.Alignment.Companion.CenterVertically
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.fsck.k9.ui.R
+import com.fsck.k9.ui.compose.richtext.ImageSource
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import net.thunderbird.components.ui.bolt.atom.DividerVertical
@@ -26,6 +27,13 @@ import net.thunderbird.feature.mail.message.composer.richtext.TextFormat
 private val BAR_HEIGHT = 48.dp
 private val DIVIDER_HEIGHT = 24.dp
 
+private val IMAGE_OPTIONS_GALLERY_ONLY = persistentListOf(
+    MenuOption(ImageSource.Gallery, R.string.message_compose_image_source_gallery),
+)
+private val IMAGE_OPTIONS = persistentListOf(
+    MenuOption(ImageSource.Gallery, R.string.message_compose_image_source_gallery),
+    MenuOption(ImageSource.Camera, R.string.message_compose_image_source_camera),
+)
 private val ALIGNMENT_OPTIONS = persistentListOf(
     MenuOption(Alignment.Start, R.string.message_compose_format_align_left),
     MenuOption(Alignment.Center, R.string.message_compose_format_align_center),
@@ -150,8 +158,13 @@ private fun InsertButtons(state: FormatBarState, onEvent: (FormatBarEvent) -> Un
     FormatButton(Icons.Outlined.Link, R.string.message_compose_format_link, { onEvent(FormatBarEvent.EditLink) },
         isOn = state.isInLink)
     if (state.isImageVisible) {
-        FormatButton(Icons.Outlined.Image, R.string.message_compose_format_image,
-            { onEvent(FormatBarEvent.InsertImage) })
+        OptionMenuButton(
+            icon = Icons.Outlined.Image,
+            descriptionRes = R.string.message_compose_format_image,
+            options = if (state.isCameraAvailable) IMAGE_OPTIONS else IMAGE_OPTIONS_GALLERY_ONLY,
+            selected = null,
+            onSelect = { source -> onEvent(FormatBarEvent.InsertImage(source)) },
+        )
     }
 }
 

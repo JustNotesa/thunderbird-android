@@ -21,6 +21,7 @@ private const val TYPING_PAUSE_MILLIS = 1000L
 internal class EditHistory(
     private val editText: EditText,
     private val onChange: () -> Unit,
+    private val images: InlineImages = InlineImages.NONE,
     private val clock: () -> Long = SystemClock::uptimeMillis,
 ) : TextWatcher {
     private val undoSteps = ArrayDeque<Snapshot>()
@@ -100,7 +101,7 @@ internal class EditHistory(
     private fun restore(snapshot: Snapshot) {
         isRestoring = true
         try {
-            editText.setText(RichTextFormatter.toSpanned(snapshot.formattedText))
+            editText.setText(RichTextFormatter.toSpanned(snapshot.formattedText, images))
             val length = editText.text.length
             val selectionStart = snapshot.selectionStart.coerceIn(0, length)
             editText.setSelection(selectionStart, snapshot.selectionEnd.coerceIn(0, length))

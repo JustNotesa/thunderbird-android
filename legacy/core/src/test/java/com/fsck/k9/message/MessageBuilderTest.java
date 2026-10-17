@@ -348,7 +348,9 @@ public class MessageBuilderTest extends RobolectricTest {
         Map<String, Attachment> inlineAttachments = new HashMap<>();
         inlineAttachments.put(contentId, createAttachmentWithContent(attachmentMimeType, "1x1.png",
                 "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVQI12P4//8/AAX+Av7czFnnAAAAAElFTkSuQmCC"));
-        MessageBuilder messageBuilder = createHtmlMessageBuilder().setInlineAttachments(inlineAttachments);
+        MessageBuilder messageBuilder = createHtmlMessageBuilder()
+                .setTextHtml("<div><img src=\"cid:contentId\" alt=\"\"></div>")
+                .setInlineAttachments(inlineAttachments);
 
         messageBuilder.buildAsync(callback);
         pendingWork.runAllTasks();
@@ -365,7 +367,46 @@ public class MessageBuilderTest extends RobolectricTest {
         assertEquals(attachmentMimeType, partWithInlineAttachment.get(1).getMimeType());
         String[] attachmentHeaders = partWithInlineAttachment.get(1).getHeader(MimeHeader.HEADER_CONTENT_ID);
         assertEquals(1, attachmentHeaders.length);
-        assertEquals(contentId, attachmentHeaders[0]);
+        assertEquals("<" + contentId + ">", attachmentHeaders[0]);
+        assertEquals(contentId, partWithInlineAttachment.get(1).getContentId());
+    }
+
+    @Test
+    public void build_withInlineAttachmentTheHtmlDoesNotReferTo_shouldNotAttachIt() throws Exception {
+        Map<String, Attachment> inlineAttachments = new HashMap<>();
+        inlineAttachments.put("removed@thunderbird.local", createAttachmentWithContent("image/png", "1x1.png", "png"));
+        MessageBuilder messageBuilder = createHtmlMessageBuilder()
+                .setTextHtml("<div>The image was deleted from the text</div>")
+                .setInlineAttachments(inlineAttachments);
+
+        messageBuilder.buildAsync(callback);
+        pendingWork.runAllTasks();
+
+        MimeMessage message = getMessageFromCallback();
+        assertEquals("multipart/alternative", ((MimeMultipart) message.getBody()).getMimeType());
+        List<BodyPart> parts = ((MimeMultipart) message.getBody()).getBodyParts();
+        assertEquals(2, parts.size());
+        assertEquals("text/plain", parts.get(0).getMimeType());
+        assertEquals("text/html", parts.get(1).getMimeType());
+    }
+
+    @Test
+    public void build_withTwoInlineAttachmentsAndOneReferenced_shouldAttachOnlyTheReferencedOne() throws Exception {
+        Map<String, Attachment> inlineAttachments = new HashMap<>();
+        inlineAttachments.put("kept@thunderbird.local", createAttachmentWithContent("image/png", "kept.png", "png"));
+        inlineAttachments.put("gone@thunderbird.local", createAttachmentWithContent("image/png", "gone.png", "png"));
+        MessageBuilder messageBuilder = createHtmlMessageBuilder()
+                .setTextHtml("<div><img src=\"cid:kept@thunderbird.local\" alt=\"\"></div>")
+                .setInlineAttachments(inlineAttachments);
+
+        messageBuilder.buildAsync(callback);
+        pendingWork.runAllTasks();
+
+        MimeMessage message = getMessageFromCallback();
+        List<BodyPart> parts = ((MimeMultipart) message.getBody()).getBodyParts();
+        List<BodyPart> related = ((MimeMultipart) parts.get(1).getBody()).getBodyParts();
+        assertEquals(2, related.size());
+        assertEquals("kept@thunderbird.local", related.get(1).getContentId());
     }
 
     @Test

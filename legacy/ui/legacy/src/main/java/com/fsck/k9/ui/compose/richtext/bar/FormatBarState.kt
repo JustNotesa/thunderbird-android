@@ -1,5 +1,6 @@
 package com.fsck.k9.ui.compose.richtext.bar
 
+import com.fsck.k9.ui.compose.richtext.ImageSource
 import net.thunderbird.feature.mail.message.composer.richtext.Alignment
 import net.thunderbird.feature.mail.message.composer.richtext.BlockType
 import net.thunderbird.feature.mail.message.composer.richtext.ColorKind
@@ -22,6 +23,7 @@ internal data class FormatBarState(
     val canRedo: Boolean = false,
     val isUndoVisible: Boolean = false,
     val isImageVisible: Boolean = false,
+    val isCameraAvailable: Boolean = false,
 )
 
 /**
@@ -36,7 +38,7 @@ internal sealed interface FormatBarEvent {
     data class ChangeLevel(val delta: Int) : FormatBarEvent
     data class SetAlignment(val alignment: Alignment) : FormatBarEvent
     data object EditLink : FormatBarEvent
-    data object InsertImage : FormatBarEvent
+    data class InsertImage(val source: ImageSource) : FormatBarEvent
     data object Undo : FormatBarEvent
     data object Redo : FormatBarEvent
     data object ClearFormatting : FormatBarEvent

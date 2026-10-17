@@ -7,6 +7,7 @@ import assertk.assertions.isEqualTo
 import assertk.assertions.isFalse
 import assertk.assertions.isTrue
 import com.fsck.k9.ui.compose.richtext.LinkFormatter
+import com.fsck.k9.ui.compose.richtext.ImageSource
 import com.fsck.k9.ui.compose.richtext.RichTextFormatter
 import net.thunderbird.core.android.testing.RobolectricTest
 import net.thunderbird.feature.mail.message.composer.richtext.Alignment
@@ -93,8 +94,11 @@ class FormatBarTest : RobolectricTest() {
         val text = SpannableStringBuilder("Hello")
 
         // Act
-        val handled = listOf(FormatBarEvent.EditLink, FormatBarEvent.InsertImage, FormatBarEvent.Undo)
-            .map { event -> applyFormatBarEvent(text, event, 0, 5) }
+        val handled = listOf(
+            FormatBarEvent.EditLink,
+            FormatBarEvent.InsertImage(ImageSource.Gallery),
+            FormatBarEvent.Undo,
+        ).map { event -> applyFormatBarEvent(text, event, 0, 5) }
 
         // Assert
         assertThat(handled).containsExactly(false, false, false)

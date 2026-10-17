@@ -37,16 +37,21 @@ import net.thunderbird.feature.mail.message.composer.richtext.TextFormat
  * fixed-width font without spelling suggestions.
  *
  * @param onFormatChange called when the user changed the formatting, which a text change listener doesn't notice
+ * @param imageStore gives the pictures of the images in the text
+ * @param onPickImage called when the user wants to put an image into the text
  */
 class MessageFormattingToolbar(
     private val formatBar: ComposeView,
     private val messageContent: EditText,
     featureThemeProvider: FeatureThemeProvider,
     private val onFormatChange: Runnable,
+    imageStore: InlineImageStore,
+    private val onPickImage: ImagePickListener,
 ) {
-    private var barState by mutableStateOf(FormatBarState(isUndoVisible = true))
+    private var barState by mutableStateOf(FormatBarState(isUndoVisible = true, isImageVisible = true))
     private val linkEditor = LinkEditor(messageContent)
-    private val history = EditHistory(messageContent, onChange = { updateState() })
+    private val images = InlineImages(imageStore, InlineImageLimits.of(messageContent))
+    private val history = EditHistory(messageContent, onChange = { updateState() }, images = images)
 
     private val selectionWatcher = object : SpanWatcher {
         override fun onSpanAdded(text: Spannable, what: Any, start: Int, end: Int) = onSpanMoved(what)
@@ -79,6 +84,15 @@ class MessageFormattingToolbar(
     var isHtmlSourceMode: Boolean = false
         private set
 
+    /**
+     * Whether the device has a camera, which makes the image button offer to take a photo.
+     */
+    var isCameraAvailable: Boolean = false
+        set(value) {
+            field = value
+            barState = barState.copy(isCameraAvailable = value)
+        }
+
     private var formattedTextTypeface: Typeface? = null
     private var formattedTextInputType: Int = messageContent.inputType
 
@@ -100,11 +114,11 @@ class MessageFormattingToolbar(
         messageContent.addTextChangedListener(PasteNormalizer())
         // The text field gets a new Editable when its text is set as a whole, which drops the watcher.
         messageContent.doAfterTextChanged { text ->
-            if (text != null) watchSelection(text)
+            if (text != null) text.watch(selectionWatcher)
             updateState()
         }
         messageContent.setOnKeyListener { _, keyCode, event -> onKey(keyCode, event) }
-        watchSelection(messageContent.text)
+        messageContent.text.watch(selectionWatcher)
         updateState()
     }
 
@@ -120,7 +134,28 @@ class MessageFormattingToolbar(
      */
     fun showFormattedText(formattedText: FormattedText) {
         setHtmlSourceMode(false)
-        messageContent.setText(RichTextFormatter.toSpanned(formattedText))
+        messageContent.setText(RichTextFormatter.toSpanned(formattedText, images))
+    }
+
+    /**
+     * Puts the image with this Content-ID into the text, in place of the selection.
+     */
+    fun insertInlineImage(contentId: String) {
+        val text = messageContent.text
+        val start = messageContent.selectionStart.takeIf { it >= 0 } ?: text.length
+        val end = messageContent.selectionEnd.takeIf { it >= 0 } ?: text.length
+
+        history.beforeFormatChange()
+        text.insertInlineImage(contentId, start, end, images)
+        messageContent.setSelection(minOf(start, end).coerceIn(0, text.length) + 1)
+        onFormatChanged()
+    }
+
+    /**
+     * Shows the pictures of images that were not available when the text was shown.
+     */
+    fun refreshInlineImages() {
+        messageContent.text.refreshInlineImages(images)
     }
 
     /**
@@ -159,6 +194,7 @@ class MessageFormattingToolbar(
         when (event) {
             FormatBarEvent.Undo -> history.undo()
             FormatBarEvent.Redo -> history.redo()
+            is FormatBarEvent.InsertImage -> onPickImage.onPickImage(event.source)
             FormatBarEvent.EditLink -> {
                 history.beforeFormatChange()
                 linkEditor.edit { onFormatChanged() }
@@ -208,12 +244,6 @@ class MessageFormattingToolbar(
         formatBar.isVisible = isFormattingAvailable && !isHtmlSourceMode && hasFocus
     }
 
-    private fun watchSelection(text: Editable) {
-        if (text.getSpanStart(selectionWatcher) == -1) {
-            text.setSpan(selectionWatcher, 0, text.length, Spanned.SPAN_INCLUSIVE_INCLUSIVE)
-        }
-    }
-
     private companion object {
         val SHORTCUT_FORMATS = mapOf(
             KeyEvent.KEYCODE_B to TextFormat.Bold,
@@ -231,5 +261,11 @@ class MessageFormattingToolbar(
                 else -> SHORTCUT_FORMATS[keyCode]?.let { FormatBarEvent.ToggleFormat(it) }
             }
         }
+    }
+}
+
+private fun Editable.watch(watcher: SpanWatcher) {
+    if (getSpanStart(watcher) == -1) {
+        setSpan(watcher, 0, length, Spanned.SPAN_INCLUSIVE_INCLUSIVE)
     }
 }
