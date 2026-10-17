@@ -544,12 +544,20 @@ class SignatureSettingsViewModelTest {
  * can't represent links.
  */
 private class FakeRichTextHtmlConverter : RichTextHtmlConverter {
+    override fun toHtmlFragment(formattedText: FormattedText): String {
+        return toHtmlFragment(formattedText.text, formattedText.ranges)
+    }
+
     override fun toHtmlFragment(text: String, ranges: List<FormattedRange>): String {
         return "html[$text|${ranges.joinToString { "${it.format}:${it.start}-${it.end}" }}]"
     }
 
     override fun fromHtmlFragment(html: String): FormattedText {
         return FormattedText(text = "text of $html", ranges = listOf(FormattedRange(0, 4, TextFormat.Bold)))
+    }
+
+    override fun fromHtmlFragmentLenient(html: String): RichTextHtmlConverter.LenientResult {
+        return RichTextHtmlConverter.LenientResult(formattedText = fromHtmlFragment(html), lost = emptySet())
     }
 
     override fun canRepresent(html: String): Boolean = "<a " !in html

@@ -242,6 +242,7 @@ private fun TextFormat.titleRes(): Int {
         TextFormat.Bold -> R.string.account_settings_signatures_format_bold
         TextFormat.Italic -> R.string.account_settings_signatures_format_italic
         TextFormat.Underline -> R.string.account_settings_signatures_format_underline
+        TextFormat.Strikethrough -> R.string.account_settings_signatures_format_strikethrough
         TextFormat.SizeSmall -> R.string.account_settings_signatures_format_size_small
         TextFormat.SizeLarge -> R.string.account_settings_signatures_format_size_large
         TextFormat.SizeHuge -> R.string.account_settings_signatures_format_size_huge
@@ -264,6 +265,7 @@ private fun TextFormat.toSpanStyle(): SpanStyle {
         TextFormat.Bold -> SpanStyle(fontWeight = FontWeight.Bold)
         TextFormat.Italic -> SpanStyle(fontStyle = FontStyle.Italic)
         TextFormat.Underline -> SpanStyle(textDecoration = TextDecoration.Underline)
+        TextFormat.Strikethrough -> SpanStyle(textDecoration = TextDecoration.LineThrough)
         TextFormat.SizeSmall -> SpanStyle(fontSize = SIZE_SMALL)
         TextFormat.SizeLarge -> SpanStyle(fontSize = SIZE_LARGE)
         TextFormat.SizeHuge -> SpanStyle(fontSize = SIZE_HUGE)

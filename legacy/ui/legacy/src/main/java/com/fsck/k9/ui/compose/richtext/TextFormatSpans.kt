@@ -3,6 +3,7 @@ package com.fsck.k9.ui.compose.richtext
 import android.graphics.Typeface
 import android.text.style.CharacterStyle
 import android.text.style.RelativeSizeSpan
+import android.text.style.StrikethroughSpan
 import android.text.style.StyleSpan
 import android.text.style.TypefaceSpan
 import android.text.style.UnderlineSpan
@@ -34,6 +35,7 @@ internal fun TextFormat.createSpan(): CharacterStyle {
         TextFormat.Bold -> StyleSpan(Typeface.BOLD)
         TextFormat.Italic -> StyleSpan(Typeface.ITALIC)
         TextFormat.Underline -> UnderlineSpan()
+        TextFormat.Strikethrough -> StrikethroughSpan()
         TextFormat.SizeSmall -> RelativeSizeSpan(SIZE_SMALL)
         TextFormat.SizeLarge -> RelativeSizeSpan(SIZE_LARGE)
         TextFormat.SizeHuge -> RelativeSizeSpan(SIZE_HUGE)
@@ -56,6 +58,8 @@ internal fun CharacterStyle.textFormats(): Set<TextFormat> {
         }
 
         is UnderlineSpan -> setOf(TextFormat.Underline)
+
+        is StrikethroughSpan -> setOf(TextFormat.Strikethrough)
 
         is RelativeSizeSpan -> setOfNotNull(FORMAT_BY_SIZE[sizeChange])
 

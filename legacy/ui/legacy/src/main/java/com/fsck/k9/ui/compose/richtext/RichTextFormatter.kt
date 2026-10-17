@@ -3,9 +3,11 @@ package com.fsck.k9.ui.compose.richtext
 import android.text.Editable
 import android.text.SpannableStringBuilder
 import android.text.Spanned
-import android.text.style.CharacterStyle
+import android.text.style.URLSpan
+import net.thunderbird.feature.mail.message.composer.richtext.ColorKind
 import net.thunderbird.feature.mail.message.composer.richtext.FormattedRange
 import net.thunderbird.feature.mail.message.composer.richtext.FormattedText
+import net.thunderbird.feature.mail.message.composer.richtext.LinkUrlPolicy
 import net.thunderbird.feature.mail.message.composer.richtext.TextFormat
 
 /**
@@ -14,9 +16,6 @@ import net.thunderbird.feature.mail.message.composer.richtext.TextFormat
  * The formatting is kept as the standard Android spans, so the text field shows it without further help.
  */
 internal object RichTextFormatter {
-    private val SPAN_FLAGS_INCLUDING_START = setOf(Spanned.SPAN_INCLUSIVE_INCLUSIVE, Spanned.SPAN_INCLUSIVE_EXCLUSIVE)
-    private val SPAN_FLAGS_INCLUDING_END = setOf(Spanned.SPAN_INCLUSIVE_INCLUSIVE, Spanned.SPAN_EXCLUSIVE_INCLUSIVE)
-
     /**
      * Switches [format] on or off for the selected text. Without a selection it changes what is typed next at the
      * cursor.
@@ -74,6 +73,23 @@ internal object RichTextFormatter {
     }
 
     /**
+     * Removes the character formats, the colours and the links from the selection. Formatting next to the selection
+     * stays. Without a selection it removes what would apply to text typed at the cursor.
+     */
+    fun clearFormatting(text: Editable, selectionStart: Int, selectionEnd: Int) {
+        val start = minOf(selectionStart, selectionEnd).coerceIn(0, text.length)
+        val end = maxOf(selectionStart, selectionEnd).coerceIn(0, text.length)
+
+        for (format in TextFormat.entries) {
+            text.removeFormat(format, start, end)
+        }
+        for (kind in ColorKind.entries) {
+            text.removeColor(kind, start, end)
+        }
+        text.removeLinksIn(start, end)
+    }
+
+    /**
      * Builds the text to show in the text field from text and its formatted parts.
      */
     fun toSpanned(formattedText: FormattedText): Spanned {
@@ -85,8 +101,37 @@ internal object RichTextFormatter {
                 text.setSpan(range.format.createSpan(), start, end, Spanned.SPAN_EXCLUSIVE_INCLUSIVE)
             }
         }
+        for (range in formattedText.colors) {
+            val start = range.start.coerceIn(0, text.length)
+            val end = range.end.coerceIn(0, text.length)
+            if (start < end) {
+                setColorSpan(text, range.kind, range.color, start, end)
+            }
+        }
+        for (range in formattedText.links) {
+            val start = range.start.coerceIn(0, text.length)
+            val end = range.end.coerceIn(0, text.length)
+            // A link the composer refuses must not reach the editor, not even for a moment.
+            val url = LinkUrlPolicy.normalize(range.url)
+            if (start < end && url != null) {
+                text.setSpan(URLSpan(url), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            }
+        }
 
         return text
+    }
+
+    /**
+     * The text of the text field and its formatting as the model of the composer reads it, to save it as a draft.
+     * A link the composer refuses is left out; its text stays.
+     */
+    fun formattedText(text: Spanned): FormattedText {
+        return FormattedText(
+            text = text.toString(),
+            ranges = formattedRanges(text),
+            colors = text.colorRanges(),
+            links = text.linkRanges(),
+        )
     }
 
     /**
@@ -115,20 +160,6 @@ internal object RichTextFormatter {
         return merged
     }
 
-    private fun Spanned.wouldFormatTextTypedAt(span: CharacterStyle, position: Int): Boolean {
-        val spanStart = getSpanStart(span)
-        val spanEnd = getSpanEnd(span)
-        val pointFlags = getSpanFlags(span) and Spanned.SPAN_POINT_MARK_MASK
-        val includesStart = pointFlags in SPAN_FLAGS_INCLUDING_START
-        val includesEnd = pointFlags in SPAN_FLAGS_INCLUDING_END
-
-        return when (position) {
-            spanEnd -> includesEnd && (spanStart < spanEnd || includesStart)
-            spanStart -> includesStart
-            else -> position in (spanStart + 1) until spanEnd
-        }
-    }
-
     /**
      * Removes [format] from `start..end`. Formatting next to that range stays, and no longer grows into it.
      */
@@ -151,16 +182,5 @@ internal object RichTextFormatter {
                 setSpan(format.createSpan(), end, spanEnd, Spanned.SPAN_EXCLUSIVE_INCLUSIVE)
             }
         }
-    }
-
-    private fun getSpanFlagsFor(start: Int, end: Int): Int {
-        return if (start == end) Spanned.SPAN_INCLUSIVE_INCLUSIVE else Spanned.SPAN_EXCLUSIVE_INCLUSIVE
-    }
-
-    private fun Spanned.formatSpans(format: TextFormat): List<CharacterStyle> {
-        return getSpans(0, length, CharacterStyle::class.java)
-            // The keyboard underlines the word being typed with a span of its own.
-            .filter { span -> getSpanFlags(span) and Spanned.SPAN_COMPOSING == 0 }
-            .filter { span -> format in span.textFormats() }
     }
 }

@@ -5,6 +5,7 @@ import android.text.SpannableStringBuilder
 import android.text.Spanned
 import android.text.style.StyleSpan
 import android.text.style.UnderlineSpan
+import android.text.style.URLSpan
 import assertk.assertThat
 import assertk.assertions.containsExactly
 import assertk.assertions.isEmpty
@@ -12,8 +13,11 @@ import assertk.assertions.isEqualTo
 import assertk.assertions.isFalse
 import assertk.assertions.isTrue
 import net.thunderbird.core.android.testing.RobolectricTest
+import net.thunderbird.feature.mail.message.composer.richtext.ColorKind
+import net.thunderbird.feature.mail.message.composer.richtext.ColorRange
 import net.thunderbird.feature.mail.message.composer.richtext.FormattedRange
 import net.thunderbird.feature.mail.message.composer.richtext.FormattedText
+import net.thunderbird.feature.mail.message.composer.richtext.LinkRange
 import net.thunderbird.feature.mail.message.composer.richtext.TextFormat
 import org.junit.Test
 
@@ -138,6 +142,33 @@ class RichTextFormatterTest : RobolectricTest() {
     }
 
     @Test
+    fun `toggle should format the selection with strikethrough`() {
+        // Arrange
+        val text = SpannableStringBuilder("Hello Jane")
+
+        // Act
+        RichTextFormatter.toggle(text, TextFormat.Strikethrough, selectionStart = 6, selectionEnd = 10)
+
+        // Assert
+        assertThat(RichTextFormatter.formattedRanges(text)).containsExactly(
+            FormattedRange(6, 10, TextFormat.Strikethrough),
+        )
+    }
+
+    @Test
+    fun `toggle should switch strikethrough off again`() {
+        // Arrange
+        val text = SpannableStringBuilder("Hello Jane")
+        RichTextFormatter.toggle(text, TextFormat.Strikethrough, selectionStart = 6, selectionEnd = 10)
+
+        // Act
+        RichTextFormatter.toggle(text, TextFormat.Strikethrough, selectionStart = 6, selectionEnd = 10)
+
+        // Assert
+        assertThat(RichTextFormatter.formattedRanges(text)).isEmpty()
+    }
+
+    @Test
     fun `formattedRanges should ignore the underline of the word the keyboard is composing`() {
         // Arrange
         val text = SpannableStringBuilder("Hello Jane")
@@ -191,6 +222,23 @@ class RichTextFormatterTest : RobolectricTest() {
     }
 
     @Test
+    fun `toSpanned should leave out a link the composer refuses`() {
+        // Arrange
+        val formattedText = FormattedText(
+            text = "Hello Jane",
+            ranges = emptyList(),
+            links = listOf(LinkRange(6, 10, "javascript:alert(1)")),
+        )
+
+        // Act
+        val result = RichTextFormatter.toSpanned(formattedText)
+
+        // Assert
+        assertThat(RichTextFormatter.formattedText(result).links).isEmpty()
+        assertThat(result.toString()).isEqualTo("Hello Jane")
+    }
+
+    @Test
     fun `select should give the selection one size and replace the size it had`() {
         // Arrange
         val text = SpannableStringBuilder("Hello Jane")
@@ -238,5 +286,61 @@ class RichTextFormatterTest : RobolectricTest() {
         assertThat(RichTextFormatter.formattedRanges(text)).containsExactly(
             FormattedRange(6, 10, TextFormat.FontMonospace),
         )
+    }
+
+    @Test
+    fun `clearFormatting should remove formats, colours and links inside the selection only`() {
+        // Arrange
+        val text = SpannableStringBuilder("Hello Jane")
+        RichTextFormatter.toggle(text, TextFormat.Bold, selectionStart = 0, selectionEnd = 10)
+        ColorFormatter.setColor(text, ColorKind.Text, 0xd93025, selectionStart = 0, selectionEnd = 10)
+        LinkFormatter.setLink(text, "https://example.com", start = 1, end = 4)
+        LinkFormatter.setLink(text, "https://example.org", start = 6, end = 10)
+
+        // Act
+        RichTextFormatter.clearFormatting(text, selectionStart = 0, selectionEnd = 5)
+
+        // Assert
+        val result = RichTextFormatter.formattedText(text)
+        assertThat(result.ranges).containsExactly(FormattedRange(5, 10, TextFormat.Bold))
+        assertThat(result.colors).containsExactly(ColorRange(5, 10, ColorKind.Text, 0xd93025))
+        assertThat(result.links).containsExactly(LinkRange(6, 10, "https://example.org"))
+    }
+
+    @Test
+    fun `formattedText should read the formats, the colours and the links back`() {
+        // Arrange
+        val formattedText = FormattedText(
+            text = "Hello Jane",
+            ranges = listOf(
+                FormattedRange(0, 5, TextFormat.Bold),
+                FormattedRange(6, 10, TextFormat.Strikethrough),
+            ),
+            colors = listOf(
+                ColorRange(0, 5, ColorKind.Text, 0xd93025),
+                ColorRange(6, 10, ColorKind.Highlight, 0xfde293),
+            ),
+            links = listOf(LinkRange(6, 10, "https://example.com")),
+        )
+
+        // Act
+        val result = RichTextFormatter.formattedText(RichTextFormatter.toSpanned(formattedText))
+
+        // Assert
+        assertThat(result).isEqualTo(formattedText)
+    }
+
+    @Test
+    fun `formattedText should leave out a link the composer refuses`() {
+        // Arrange
+        val text = SpannableStringBuilder("Hello Jane")
+        text.setSpan(URLSpan("javascript:alert(1)"), 6, 10, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+
+        // Act
+        val result = RichTextFormatter.formattedText(text)
+
+        // Assert
+        assertThat(result.links).isEmpty()
+        assertThat(result.text).isEqualTo("Hello Jane")
     }
 }
