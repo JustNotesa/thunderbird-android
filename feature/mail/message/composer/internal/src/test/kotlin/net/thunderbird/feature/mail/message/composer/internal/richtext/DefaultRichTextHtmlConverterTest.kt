@@ -236,7 +236,7 @@ class DefaultRichTextHtmlConverterTest {
             "<table><tr><td>cell</td></tr></table>",
             """<b style="color: red">red</b>""",
             """<div class="signature">text</div>""",
-            "<ul><li>item</li></ul>",
+            """<ul style="list-style-type: disc"><li>item</li></ul>""",
             "<span>text</span>",
             """<a href="javascript:x" target="_blank">link</a>""",
         )

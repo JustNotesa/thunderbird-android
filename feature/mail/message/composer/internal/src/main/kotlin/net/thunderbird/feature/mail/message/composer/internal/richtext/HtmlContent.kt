@@ -27,17 +27,32 @@ internal class HtmlContent(formattedText: FormattedText) {
     private val links = (writtenLinks + foundLinks()).distinct().sortedWith(compareBy({ it.start }, { it.end }))
     private val images = formattedText.images.associateBy { it.position }
 
-    fun boundaries(): List<Int> {
-        return (
+    /**
+     * Writes the text between [start] and [end]. Every boundary of a range, a colour, a link and of an image starts
+     * a run, so that a tag never has to reach across a boundary of its own. A link that reaches over [end] is closed
+     * there and opened again where the text continues, so that a tag never reaches across the border of a block
+     * either; the lines of a block are therefore written one at a time.
+     */
+    fun writeText(builder: StringBuilder, start: Int, end: Int) {
+        if (end <= start) return
+
+        val written = links.filter { it.start < end && start < it.end }.map {
+            it.copy(start = maxOf(it.start, start), end = minOf(it.end, end))
+        }
+        val boundaries = (
             ranges.flatMap { listOf(it.start, it.end) } +
                 colors.flatMap { listOf(it.start, it.end) } +
-                links.flatMap { listOf(it.start, it.end) } +
+                written.flatMap { listOf(it.start, it.end) } +
                 images.keys.flatMap { listOf(it, it + 1) } +
-                listOf(0, text.length)
-            ).distinct().sorted()
+                listOf(start, end)
+            ).filter { it in start..end }.distinct().sorted()
+
+        for (index in 0 until boundaries.size - 1) {
+            writeRun(builder, boundaries[index], boundaries[index + 1], written)
+        }
     }
 
-    fun writeRun(builder: StringBuilder, start: Int, end: Int) {
+    private fun writeRun(builder: StringBuilder, start: Int, end: Int, links: List<LinkRange>) {
         val formats = ranges.filter { it.start <= start && end <= it.end }.map { it.format }.distinct().sorted()
         val textColor = colors.firstOrNull { it.kind == ColorKind.Text && it.start <= start && end <= it.end }
         val highlight = colors.firstOrNull { it.kind == ColorKind.Highlight && it.start <= start && end <= it.end }

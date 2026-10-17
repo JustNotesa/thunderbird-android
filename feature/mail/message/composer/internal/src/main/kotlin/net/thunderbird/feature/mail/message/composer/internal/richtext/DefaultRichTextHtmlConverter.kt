@@ -3,6 +3,7 @@ package net.thunderbird.feature.mail.message.composer.internal.richtext
 import com.fleeksoft.ksoup.Ksoup
 import com.fleeksoft.ksoup.nodes.Element
 import net.thunderbird.feature.mail.message.composer.internal.richtext.HtmlNames.ANCHOR_TAG
+import net.thunderbird.feature.mail.message.composer.internal.richtext.HtmlNames.BLOCKQUOTE_TAG
 import net.thunderbird.feature.mail.message.composer.internal.richtext.HtmlNames.BLOCK_TAGS
 import net.thunderbird.feature.mail.message.composer.internal.richtext.HtmlNames.BR_TAG
 import net.thunderbird.feature.mail.message.composer.internal.richtext.HtmlNames.CONTENT_ID_PREFIX
@@ -14,6 +15,9 @@ import net.thunderbird.feature.mail.message.composer.internal.richtext.HtmlNames
 import net.thunderbird.feature.mail.message.composer.internal.richtext.HtmlNames.IMAGE_ATTRIBUTES
 import net.thunderbird.feature.mail.message.composer.internal.richtext.HtmlNames.IMAGE_STYLE
 import net.thunderbird.feature.mail.message.composer.internal.richtext.HtmlNames.IMAGE_TAG
+import net.thunderbird.feature.mail.message.composer.internal.richtext.HtmlNames.LIST_ITEM_TAG
+import net.thunderbird.feature.mail.message.composer.internal.richtext.HtmlNames.LIST_TAGS
+import net.thunderbird.feature.mail.message.composer.internal.richtext.HtmlNames.QUOTE_STYLE_COMPACT
 import net.thunderbird.feature.mail.message.composer.internal.richtext.HtmlNames.SOURCE_ATTRIBUTE
 import net.thunderbird.feature.mail.message.composer.internal.richtext.HtmlNames.SPAN_TAG
 import net.thunderbird.feature.mail.message.composer.internal.richtext.HtmlNames.STYLE_ATTRIBUTE
@@ -27,6 +31,9 @@ import net.thunderbird.feature.mail.message.composer.richtext.RichTextHtmlConver
  * shares the same formatting in the matching tags. Plain text that is a web address becomes a link, so that the
  * recipient sees the links the user sees while writing.
  *
+ * The lines the user has given a paragraph formatting of their own are written as the lists, quotes, indentations
+ * and alignments the user has chosen.
+ *
  * [fromHtmlFragment] reads back what this writes; [fromHtmlFragmentLenient] also reads the HTML of a message the
  * composer did not write itself, keeping the text, the lines and everything the model can hold, and reporting what
  * it had to drop instead.
@@ -35,10 +42,11 @@ internal class DefaultRichTextHtmlConverter : RichTextHtmlConverter {
 
     override fun toHtmlFragment(formattedText: FormattedText): String {
         val content = HtmlContent(formattedText)
+        val paragraphs = normalizeParagraphs(formattedText.text, formattedText.paragraphs)
 
         return buildString {
             append(DIV_START)
-            content.boundaries().zipWithNext { start, end -> content.writeRun(this, start, end) }
+            ParagraphWriter(formattedText.text, paragraphs, content::writeText).write(this)
             append(DIV_END)
         }
     }
@@ -52,25 +60,36 @@ internal class DefaultRichTextHtmlConverter : RichTextHtmlConverter {
     }
 
     override fun canRepresent(html: String): Boolean {
-        return Ksoup.parseBodyFragment(html).body().getAllElements().drop(1).all { element ->
-            when (element.normalName()) {
-                // A span is only known for the styles it sets.
-                SPAN_TAG -> element.hasOnly(STYLE_ATTRIBUTE) && parseStyle(element.attr(STYLE_ATTRIBUTE)).known
+        return Ksoup.parseBodyFragment(html).body().getAllElements().drop(1).all { isRepresentable(it) }
+    }
+}
 
-                ANCHOR_TAG ->
-                    element.hasOnly(HREF_ATTRIBUTE) && LinkUrlPolicy.normalize(element.attr(HREF_ATTRIBUTE)) != null
+/**
+ * Whether the element is one the composer writes itself, so that reading it does not lose anything.
+ */
+private fun isRepresentable(element: Element): Boolean {
+    return when (element.normalName()) {
+        // A span is only known for the styles it sets.
+        SPAN_TAG -> element.hasOnly(STYLE_ATTRIBUTE) && parseStyle(element.attr(STYLE_ATTRIBUTE)).known
 
-                IMAGE_TAG -> element.isRepresentableImage()
+        ANCHOR_TAG ->
+            element.hasOnly(HREF_ATTRIBUTE) && LinkUrlPolicy.normalize(element.attr(HREF_ATTRIBUTE)) != null
 
-                BR_TAG -> element.attributes().isEmpty()
+        IMAGE_TAG -> element.isRepresentableImage()
 
-                in BLOCK_TAGS -> element.attributes().all { it.key.lowercase() == DIRECTION_ATTRIBUTE }
+        BR_TAG -> element.attributes().isEmpty()
 
-                in FORMAT_TAGS -> element.attributes().isEmpty()
+        LIST_ITEM_TAG -> element.isRepresentableListItem()
 
-                else -> false
-            }
-        }
+        in LIST_TAGS -> element.attributes().isEmpty()
+
+        BLOCKQUOTE_TAG -> element.isRepresentableQuote()
+
+        in BLOCK_TAGS -> element.isRepresentableBlock()
+
+        in FORMAT_TAGS -> element.attributes().isEmpty()
+
+        else -> false
     }
 }
 
@@ -90,6 +109,35 @@ private fun Element.isRepresentableImage(): Boolean {
         source.startsWith(CONTENT_ID_PREFIX) &&
         source.length > CONTENT_ID_PREFIX.length &&
         (style.isEmpty() || style == IMAGE_STYLE)
+}
+
+/**
+ * A list item is known for the marker it does not show and for the alignment of its text.
+ */
+private fun Element.isRepresentableListItem(): Boolean {
+    val attributes = attributes().map { it.key.lowercase() }
+    return attributes.all { it == STYLE_ATTRIBUTE } && isRepresentableItemStyle(attr(STYLE_ATTRIBUTE))
+}
+
+/**
+ * A quote block is known for the style the composer gives it and for nothing else.
+ */
+private fun Element.isRepresentableQuote(): Boolean {
+    val attributes = attributes().map { it.key.lowercase() }
+    val style = attr(STYLE_ATTRIBUTE).filterNot { it.isWhitespace() }.lowercase()
+    return attributes == listOf(STYLE_ATTRIBUTE) && style == QUOTE_STYLE_COMPACT
+}
+
+/**
+ * A block of plain text is known for the direction of its text, for the indentation of its lines and for the
+ * alignment of its lines.
+ */
+private fun Element.isRepresentableBlock(): Boolean {
+    val attributes = attributes().map { it.key.lowercase() }
+    return attributes.all { attribute ->
+        attribute == DIRECTION_ATTRIBUTE ||
+            (attribute == STYLE_ATTRIBUTE && isRepresentableParagraphStyle(attr(STYLE_ATTRIBUTE)))
+    }
 }
 
 /**

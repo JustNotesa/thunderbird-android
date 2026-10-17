@@ -1,9 +1,15 @@
 package net.thunderbird.feature.mail.message.composer.internal.richtext
 
 import net.thunderbird.feature.mail.message.composer.internal.richtext.HtmlNames.COLOR_BY_PROPERTY
+import net.thunderbird.feature.mail.message.composer.internal.richtext.HtmlNames.END_ALIGNMENTS
 import net.thunderbird.feature.mail.message.composer.internal.richtext.HtmlNames.FORMAT_BY_STYLE
+import net.thunderbird.feature.mail.message.composer.internal.richtext.HtmlNames.INDENT_PX
+import net.thunderbird.feature.mail.message.composer.internal.richtext.HtmlNames.LIST_STYLE_PROPERTY
+import net.thunderbird.feature.mail.message.composer.internal.richtext.HtmlNames.MARGIN_LEFT_PROPERTY
 import net.thunderbird.feature.mail.message.composer.internal.richtext.HtmlNames.RGB_PREFIX
+import net.thunderbird.feature.mail.message.composer.internal.richtext.HtmlNames.START_ALIGNMENTS
 import net.thunderbird.feature.mail.message.composer.internal.richtext.HtmlNames.STYLE_ATTRIBUTE
+import net.thunderbird.feature.mail.message.composer.internal.richtext.HtmlNames.TEXT_ALIGN_PROPERTY
 import net.thunderbird.feature.mail.message.composer.richtext.ColorKind
 import net.thunderbird.feature.mail.message.composer.richtext.TextFormat
 
@@ -52,6 +58,48 @@ internal fun parseColor(value: String): Int? {
 
         else -> null
     }
+}
+
+/**
+ * The style of a list item says that it has no marker of its own and where its text is placed.
+ */
+internal fun isRepresentableItemStyle(style: String): Boolean {
+    return style.declarations().all { (property, value) ->
+        when (property) {
+            LIST_STYLE_PROPERTY -> value == "none"
+            TEXT_ALIGN_PROPERTY -> isAlignment(value)
+            else -> false
+        }
+    }
+}
+
+/**
+ * The style of a block of plain text says how far its lines are indented and where they are placed.
+ */
+internal fun isRepresentableParagraphStyle(style: String): Boolean {
+    return style.declarations().all { (property, value) ->
+        when (property) {
+            MARGIN_LEFT_PROPERTY -> value.removeSuffix("px").toIntOrNull()?.rem(INDENT_PX) == 0
+            TEXT_ALIGN_PROPERTY -> isAlignment(value)
+            else -> false
+        }
+    }
+}
+
+/**
+ * Whether a value says where the text of a block is placed.
+ */
+internal fun isAlignment(value: String): Boolean {
+    return value in START_ALIGNMENTS || value in END_ALIGNMENTS || value == "center"
+}
+
+/**
+ * The declarations of a style attribute, as the property and the value of each of them.
+ */
+internal fun String.declarations(): List<Pair<String, String>> {
+    return split(';')
+        .filter { it.isNotBlank() }
+        .map { it.substringBefore(':').trim().lowercase() to it.substringAfter(':', "").trim().lowercase() }
 }
 
 private fun Char.isHexDigit(): Boolean {

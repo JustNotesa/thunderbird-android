@@ -21,12 +21,21 @@ internal object HtmlNames {
     const val FONT_TAG = "font"
     const val BR_TAG = "br"
     const val PRE_TAG = "pre"
+    const val UNORDERED_LIST_TAG = "ul"
+    const val ORDERED_LIST_TAG = "ol"
+    const val LIST_ITEM_TAG = "li"
+    const val BLOCKQUOTE_TAG = "blockquote"
+    const val DIV_TAG = "div"
     const val STYLE_ATTRIBUTE = "style"
     const val HREF_ATTRIBUTE = "href"
     const val SOURCE_ATTRIBUTE = "src"
     const val ALT_ATTRIBUTE = "alt"
     const val DIRECTION_ATTRIBUTE = "dir"
+    const val CLASS_ATTRIBUTE = "class"
     const val COLOR_PROPERTY = "color"
+    const val TEXT_ALIGN_PROPERTY = "text-align"
+    const val MARGIN_LEFT_PROPERTY = "margin-left"
+    const val LIST_STYLE_PROPERTY = "list-style-type"
     const val FONT_COLOR_ATTRIBUTE = "color"
     const val BACKGROUND_COLOR_PROPERTY = "background-color"
     const val IMAGE_STYLE_PROPERTY = "max-width: 100%"
@@ -39,10 +48,35 @@ internal object HtmlNames {
     // What a script or a style file says is not text of the message.
     val DROPPED_TAGS = setOf("script", "style", "head", "title")
 
-    val BLOCK_TAGS = setOf("div", "p")
+    val BLOCK_TAGS = setOf(DIV_TAG, "p")
     val LENIENT_BLOCK_TAGS = setOf("h1", "h2", "h3", "h4", "h5", "h6", "li", "blockquote", "pre", "ul", "ol")
     val TABLE_TAGS = setOf("table", "tr", "thead", "tbody", "tfoot", "caption")
     val TABLE_CELL_TAGS = setOf("td", "th")
+
+    val LIST_TAGS = setOf(UNORDERED_LIST_TAG, ORDERED_LIST_TAG)
+
+    // The elements that stand for the blocks the composer writes: a list, a quote or a plain paragraph.
+    val BLOCK_ELEMENTS = BLOCK_TAGS + LIST_TAGS + setOf(LIST_ITEM_TAG, BLOCKQUOTE_TAG)
+
+    // The class Gmail puts around the quote of a message it has quoted.
+    const val GMAIL_QUOTE_CLASS = "gmail_quote"
+
+    // The style of a quote block is the one Gmail uses, so that quotes look the same in the clients of the recipient.
+    const val QUOTE_STYLE = "margin: 0 0 0 0.8ex; border-left: 2px solid #cccccc; padding-left: 1ex"
+    val QUOTE_STYLE_COMPACT = QUOTE_STYLE.filterNot { it.isWhitespace() }
+
+    // A list item without a marker of its own stands for a line that only shows the indent of its level.
+    const val NO_MARKER_STYLE = "$LIST_STYLE_PROPERTY: none"
+
+    // How much one indentation level of a plain paragraph stands for.
+    const val INDENT_PX = 40
+
+    // The two biggest headings are read as large text as well as bold text.
+    val HEADING_TAGS = setOf("h1", "h2", "h3", "h4", "h5", "h6")
+    const val LARGE_HEADING_LEVEL = 2
+
+    val START_ALIGNMENTS = setOf("left", "start")
+    val END_ALIGNMENTS = setOf("right", "end")
 
     // Tags that carry nothing the composer would show differently from their text.
     val HARMLESS_INLINE_TAGS = setOf(

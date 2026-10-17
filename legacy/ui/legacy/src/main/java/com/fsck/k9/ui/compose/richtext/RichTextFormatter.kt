@@ -117,6 +117,7 @@ internal object RichTextFormatter {
                 text.setSpan(URLSpan(url), start, end, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
             }
         }
+        ParagraphFormatter.applyParagraphs(text, formattedText.paragraphs)
 
         return text
     }
@@ -131,6 +132,7 @@ internal object RichTextFormatter {
             ranges = formattedRanges(text),
             colors = text.colorRanges(),
             links = text.linkRanges(),
+            paragraphs = ParagraphFormatter.paragraphs(text),
         )
     }
 
