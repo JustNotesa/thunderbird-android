@@ -125,7 +125,15 @@ data class FormattedText(
     val links: List<LinkRange> = emptyList(),
     val paragraphs: List<ParagraphRange> = emptyList(),
     val images: List<InlineImage> = emptyList(),
-)
+) {
+    /**
+     * Whether any part of the text is formatted; text without formatting can be sent as plain text.
+     */
+    fun hasFormatting(): Boolean {
+        return ranges.isNotEmpty() || colors.isNotEmpty() || links.isNotEmpty() || paragraphs.isNotEmpty() ||
+            images.isNotEmpty()
+    }
+}
 
 /**
  * Converts message text the user formatted in the composer into the HTML the message is sent as, and back.

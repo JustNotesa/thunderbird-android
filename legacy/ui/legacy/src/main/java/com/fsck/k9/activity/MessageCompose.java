@@ -56,8 +56,8 @@ import android.view.GestureDetector;
 import android.view.MotionEvent;
 import android.widget.FrameLayout;
 import com.fsck.k9.ui.compose.richtext.MessageFormattingToolbar;
-import net.thunderbird.feature.mail.message.composer.richtext.FormattedRange;
 import net.thunderbird.feature.mail.message.composer.richtext.RichTextHtmlConverter;
+import net.thunderbird.core.ui.theme.api.FeatureThemeProvider;
 import net.thunderbird.feature.mail.message.composer.richtext.FormattedText;
 import com.fsck.k9.message.html.HtmlConverter;
 import androidx.appcompat.app.ActionBar;
@@ -258,6 +258,7 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
     private final DisplayHtml displayHtml = DI.get(DisplayHtmlUiFactory.class).createForMessageCompose();
     private final HtmlSignatureSanitizer htmlSignatureSanitizer = DI.get(HtmlSignatureSanitizer.class);
     private final RichTextHtmlConverter richTextHtmlConverter = DI.get(RichTextHtmlConverter.class);
+    private final FeatureThemeProvider featureThemeProvider = DI.get(FeatureThemeProvider.class);
 
     private final IntentDataMapper indentDataMapper = DI.get(IntentDataMapper.class);
 
@@ -432,8 +433,9 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
         messageContentView.getInputExtras(true).putBoolean("allowEmoji", true);
         applyIncognitoKeyboardSetting(messageContentView);
         messageFormattingToolbar = new MessageFormattingToolbar(
-                findViewById(R.id.message_format_toolbar),
+                findViewById(R.id.message_format_bar),
                 messageContentView,
+                featureThemeProvider,
                 () -> changesMadeSinceLastSave = true);
 
         attachmentsView = findViewById(R.id.attachments);
@@ -916,7 +918,7 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
         }
 
         FormattedText formattedText = richTextHtmlConverter.fromHtmlFragment(html);
-        if (formattedText.getRanges().isEmpty()) {
+        if (!formattedText.hasFormatting()) {
             messageContentView.setText(CrLfConverter.toLf(HtmlConverter.htmlToText(html)));
         } else {
             messageFormattingToolbar.showFormattedText(formattedText);
@@ -955,18 +957,18 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
             return CrLfConverter.toCrLf(htmlSignatureSanitizer.sanitize(text));
         }
 
-        List<FormattedRange> formattedRanges = messageFormattingToolbar.getFormattedRanges();
-        if (formattedRanges.isEmpty()) {
+        FormattedText formattedText = messageFormattingToolbar.getFormattedText();
+        if (!formattedText.hasFormatting()) {
             return null;
         }
 
-        return richTextHtmlConverter.toHtmlFragment(text, formattedRanges);
+        return richTextHtmlConverter.toHtmlFragment(formattedText);
     }
 
     private void editAsHtmlSource() {
         String text = messageContentView.getText().toString();
         String html = text.isEmpty() ? "" :
-                richTextHtmlConverter.toHtmlFragment(text, messageFormattingToolbar.getFormattedRanges());
+                richTextHtmlConverter.toHtmlFragment(messageFormattingToolbar.getFormattedText());
         messageFormattingToolbar.showHtmlSource(html);
         changesMadeSinceLastSave = true;
         invalidateOptionsMenu();
@@ -1338,6 +1340,9 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
     @Override
     public void onFocusChange(View v, boolean hasFocus) {
         int id = v.getId();
+        if (id == R.id.message_content) {
+            messageFormattingToolbar.onFocusChange(hasFocus);
+        }
         if (id == R.id.message_content || id == R.id.subject) {
             if (hasFocus) {
                 triggerNonRecipientFieldFocused();

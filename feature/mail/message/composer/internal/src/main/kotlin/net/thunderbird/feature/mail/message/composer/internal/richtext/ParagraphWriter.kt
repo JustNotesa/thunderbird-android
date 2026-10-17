@@ -115,6 +115,8 @@ internal class ParagraphWriter(
 
         if (start.isEmpty()) {
             writeText(builder, lines[index].line.start, lines[end - 1].line.end)
+            // A block starts on a line of its own anyway, so an empty line in front of it needs a break of its own.
+            if (end < lines.size && lines[end - 1].line.isEmpty) builder.append("<$BR_TAG>")
         } else {
             builder.append(start)
             writeLines(builder, index, end)

@@ -116,6 +116,8 @@ internal class HtmlReader(private val lenient: Boolean) {
         if (tag in DROPPED_TAGS) return
 
         if (tag == BR_TAG) {
+            // A break right after a block is an empty line: the block ends its own line first.
+            if (blockEnded) breakBeforeBlock()
             appendNewLine()
             return
         }

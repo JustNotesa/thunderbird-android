@@ -40,7 +40,8 @@ internal fun indentStepInPixels(density: Float): Float = INDENT_DP * density
  * The vertical middle of the line [baseline] is drawn on.
  */
 internal fun lineCenter(baseline: Int, paragraphPaint: Paint): Float {
-    return baseline - (paragraphPaint.descent() + paragraphPaint.ascent()) / 2f
+    // The ascent is negative: the middle of the letters lies above the baseline.
+    return baseline + (paragraphPaint.descent() + paragraphPaint.ascent()) / 2f
 }
 
 /**

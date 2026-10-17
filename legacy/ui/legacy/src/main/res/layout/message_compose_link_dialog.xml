@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingLeft="24dp"
+    android:paddingTop="16dp"
+    android:paddingRight="24dp"
+    >
+
+    <com.google.android.material.textfield.TextInputLayout
+        android:id="@+id/link_text_layout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:hint="@string/message_compose_link_dialog_text"
+        >
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/link_text"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="text"
+            />
+    </com.google.android.material.textfield.TextInputLayout>
+
+    <com.google.android.material.textfield.TextInputLayout
+        android:id="@+id/link_address_layout"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:hint="@string/message_compose_link_dialog_address"
+        >
+
+        <com.google.android.material.textfield.TextInputEditText
+            android:id="@+id/link_address"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:inputType="textUri"
+            />
+    </com.google.android.material.textfield.TextInputLayout>
+</LinearLayout>

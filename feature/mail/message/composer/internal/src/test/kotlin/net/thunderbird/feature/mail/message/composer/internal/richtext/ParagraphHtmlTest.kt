@@ -511,6 +511,30 @@ class ParagraphHtmlTest {
 
 // Lists, quotes, alignment and indentation, alone and mixed with the formatting of the characters inside them.
 private val PARAGRAPH_ROUND_TRIP_CASES = listOf(
+    // Empty lines between, before and after blocks.
+    FormattedText(
+        text = "a\n\nb",
+        ranges = emptyList(),
+        paragraphs = listOf(
+            ParagraphRange(0, 1, BlockType.BulletList, 0),
+            ParagraphRange(3, 4, BlockType.NumberedList, 0),
+        ),
+    ),
+    FormattedText(
+        text = "x\n\nb",
+        ranges = emptyList(),
+        paragraphs = listOf(ParagraphRange(3, 4, BlockType.Quote, 0)),
+    ),
+    FormattedText(
+        text = "\nb",
+        ranges = emptyList(),
+        paragraphs = listOf(ParagraphRange(1, 2, BlockType.BulletList, 0)),
+    ),
+    FormattedText(
+        text = "a\n\n\ny",
+        ranges = emptyList(),
+        paragraphs = listOf(ParagraphRange(0, 1, BlockType.Quote, 0)),
+    ),
     FormattedText(text = "Hello", ranges = emptyList()),
     FormattedText(
         text = "a\nb\nc",

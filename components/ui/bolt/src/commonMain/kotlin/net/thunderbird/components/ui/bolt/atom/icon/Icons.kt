@@ -2,7 +2,14 @@ package net.thunderbird.components.ui.bolt.atom.icon
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.automirrored.outlined.FormatAlignLeft
+import androidx.compose.material.icons.automirrored.outlined.FormatAlignRight
+import androidx.compose.material.icons.automirrored.outlined.FormatIndentDecrease
+import androidx.compose.material.icons.automirrored.outlined.FormatIndentIncrease
+import androidx.compose.material.icons.automirrored.outlined.FormatListBulleted
+import androidx.compose.material.icons.automirrored.outlined.Redo
 import androidx.compose.material.icons.automirrored.outlined.Send
+import androidx.compose.material.icons.automirrored.outlined.Undo
 import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Notifications
@@ -24,9 +31,22 @@ import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.ExpandLess
 import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.Folder
+import androidx.compose.material.icons.outlined.FontDownload
+import androidx.compose.material.icons.outlined.FormatAlignCenter
+import androidx.compose.material.icons.outlined.FormatBold
+import androidx.compose.material.icons.outlined.FormatClear
+import androidx.compose.material.icons.outlined.FormatColorFill
+import androidx.compose.material.icons.outlined.FormatColorText
+import androidx.compose.material.icons.outlined.FormatItalic
+import androidx.compose.material.icons.outlined.FormatListNumbered
+import androidx.compose.material.icons.outlined.FormatQuote
+import androidx.compose.material.icons.outlined.FormatSize
+import androidx.compose.material.icons.outlined.FormatStrikethrough
+import androidx.compose.material.icons.outlined.FormatUnderlined
 import androidx.compose.material.icons.outlined.Inbox
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.KeyboardArrowDown
+import androidx.compose.material.icons.outlined.Link
 import androidx.compose.material.icons.outlined.Menu
 import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.Report
@@ -144,6 +164,23 @@ object Icons {
         val Flower: ImageVector = OutlinedFlowerIcon
         val Folder: ImageVector = Icons.Outlined.Folder
         val FolderManaged: ImageVector = OutlinedFolderManagedIcon
+        val FontDownload: ImageVector = Icons.Outlined.FontDownload
+        val FormatAlignCenter: ImageVector = Icons.Outlined.FormatAlignCenter
+        val FormatAlignLeft: ImageVector = Icons.AutoMirrored.Outlined.FormatAlignLeft
+        val FormatAlignRight: ImageVector = Icons.AutoMirrored.Outlined.FormatAlignRight
+        val FormatBold: ImageVector = Icons.Outlined.FormatBold
+        val FormatClear: ImageVector = Icons.Outlined.FormatClear
+        val FormatColorFill: ImageVector = Icons.Outlined.FormatColorFill
+        val FormatColorText: ImageVector = Icons.Outlined.FormatColorText
+        val FormatIndentDecrease: ImageVector = Icons.AutoMirrored.Outlined.FormatIndentDecrease
+        val FormatIndentIncrease: ImageVector = Icons.AutoMirrored.Outlined.FormatIndentIncrease
+        val FormatItalic: ImageVector = Icons.Outlined.FormatItalic
+        val FormatListBulleted: ImageVector = Icons.AutoMirrored.Outlined.FormatListBulleted
+        val FormatListNumbered: ImageVector = Icons.Outlined.FormatListNumbered
+        val FormatQuote: ImageVector = Icons.Outlined.FormatQuote
+        val FormatSize: ImageVector = Icons.Outlined.FormatSize
+        val FormatStrikethrough: ImageVector = Icons.Outlined.FormatStrikethrough
+        val FormatUnderlined: ImageVector = Icons.Outlined.FormatUnderlined
 
         val Game: ImageVector = OutlinedGameIcon
         val Group: ImageVector = OutlinedGroupIcon
@@ -156,6 +193,7 @@ object Icons {
 
         val KeyboardArrowDown: ImageVector = Icons.Outlined.KeyboardArrowDown
 
+        val Link: ImageVector = Icons.Outlined.Link
         val Lock: ImageVector = OutlinedLockIcon
 
         val MarkEmailRead: ImageVector = OutlinedMarkEmailRead
@@ -172,6 +210,7 @@ object Icons {
 
         val QrCode: ImageVector = OutlinedQrCode
 
+        val Redo: ImageVector = Icons.AutoMirrored.Outlined.Redo
         val Reply: ImageVector = OutlinedReply
         val ReplyAll: ImageVector = OutlinedReplyAll
         val Report: ImageVector = Icons.Outlined.Report
@@ -186,6 +225,7 @@ object Icons {
         val Star: ImageVector = OutlinedStarIcon
         val Sync: ImageVector = Icons.Outlined.Sync
 
+        val Undo: ImageVector = Icons.AutoMirrored.Outlined.Undo
         val Upload: ImageVector = OutlinedUploadIcon
 
         val Visibility: ImageVector = Icons.Outlined.Visibility

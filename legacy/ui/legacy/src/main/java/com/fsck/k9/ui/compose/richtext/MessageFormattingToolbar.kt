@@ -7,53 +7,45 @@ import android.text.Selection
 import android.text.SpanWatcher
 import android.text.Spannable
 import android.text.Spanned
-import android.view.Menu
-import android.view.View
+import android.view.KeyEvent
 import android.widget.EditText
-import androidx.appcompat.widget.PopupMenu
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.core.view.isVisible
 import androidx.core.widget.doAfterTextChanged
-import com.fsck.k9.ui.R
-import com.google.android.material.button.MaterialButton
-import net.thunderbird.feature.mail.message.composer.richtext.FormattedRange
+import com.fsck.k9.ui.compose.richtext.bar.FormatBarEvent
+import com.fsck.k9.ui.compose.richtext.bar.FormatBarState
+import com.fsck.k9.ui.compose.richtext.bar.MessageFormatBar
+import com.fsck.k9.ui.compose.richtext.bar.applyFormatBarEvent
+import com.fsck.k9.ui.compose.richtext.bar.formatBarStateOf
+import net.thunderbird.core.ui.theme.api.FeatureThemeProvider
 import net.thunderbird.feature.mail.message.composer.richtext.FormattedText
 import net.thunderbird.feature.mail.message.composer.richtext.TextFormat
 
 /**
- * Connects the formatting buttons of the message composer to the message text field.
+ * Connects the format bar above the keyboard to the message text field of the composer.
  *
- * A button formats the selected text or, without a selection, what is typed next. The buttons for bold, italic and
- * underline are shown as checked while the selection or the cursor is in text with that format; size and font are
- * chosen from a list.
+ * A button formats the selected text or, without a selection, what is typed next; the bar shows the formatting at
+ * the selection. The bar is only shown while the message text has the focus and the message is written as formatted
+ * HTML. Typing keeps lists and quotes going ([ParagraphEditWatcher]); Ctrl+B, Ctrl+I and Ctrl+U format on a hardware
+ * keyboard.
  *
- * The text field can also show the message as HTML code. The buttons are hidden then, and the code is shown in a
+ * The text field can also show the message as HTML code. The bar is hidden then, and the code is shown in a
  * fixed-width font without spelling suggestions.
  *
  * @param onFormatChange called when the user changed the formatting, which a text change listener doesn't notice
  */
 class MessageFormattingToolbar(
-    private val toolbar: View,
+    private val formatBar: ComposeView,
     private val messageContent: EditText,
+    featureThemeProvider: FeatureThemeProvider,
     private val onFormatChange: Runnable,
 ) {
-    private val buttons = mapOf<TextFormat, MaterialButton>(
-        TextFormat.Bold to toolbar.findViewById(R.id.message_format_bold),
-        TextFormat.Italic to toolbar.findViewById(R.id.message_format_italic),
-        TextFormat.Underline to toolbar.findViewById(R.id.message_format_underline),
-    )
-
-    // The `null` option is the normal size or the default font.
-    private val sizeOptions = listOf(
-        TextFormat.SizeSmall to R.string.message_compose_format_size_small,
-        null to R.string.message_compose_format_size_normal,
-        TextFormat.SizeLarge to R.string.message_compose_format_size_large,
-        TextFormat.SizeHuge to R.string.message_compose_format_size_huge,
-    )
-    private val fontOptions = listOf(
-        null to R.string.message_compose_format_font_default,
-        TextFormat.FontSerif to R.string.message_compose_format_font_serif,
-        TextFormat.FontMonospace to R.string.message_compose_format_font_monospace,
-    )
+    private var barState by mutableStateOf(FormatBarState())
+    private val linkEditor = LinkEditor(messageContent)
 
     private val selectionWatcher = object : SpanWatcher {
         override fun onSpanAdded(text: Spannable, what: Any, start: Int, end: Int) = onSpanMoved(what)
@@ -66,7 +58,7 @@ class MessageFormattingToolbar(
 
         private fun onSpanMoved(what: Any) {
             if (what === Selection.SELECTION_START || what === Selection.SELECTION_END) {
-                updateButtons()
+                updateState()
             }
         }
     }
@@ -77,7 +69,7 @@ class MessageFormattingToolbar(
     var isFormattingAvailable: Boolean = false
         set(value) {
             field = value
-            toolbar.isVisible = value && !isHtmlSourceMode
+            updateVisibility()
         }
 
     /**
@@ -90,69 +82,35 @@ class MessageFormattingToolbar(
     private var formattedTextInputType: Int = messageContent.inputType
 
     /**
-     * The formatted parts of the message text, empty when the user didn't format anything.
+     * The message text with all its formatting.
      */
-    val formattedRanges: List<FormattedRange>
-        get() = RichTextFormatter.formattedRanges(messageContent.text)
+    val formattedText: FormattedText
+        get() = RichTextFormatter.formattedText(messageContent.text)
 
     init {
-        for ((format, button) in buttons) {
-            button.setOnClickListener { toggle(format) }
-        }
-        toolbar.findViewById<View>(R.id.message_format_size).setOnClickListener { anchor ->
-            showOptions(anchor, TextFormat.Group.Size, sizeOptions)
-        }
-        toolbar.findViewById<View>(R.id.message_format_font).setOnClickListener { anchor ->
-            showOptions(anchor, TextFormat.Group.Font, fontOptions)
+        formatBar.setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
+        formatBar.setContent {
+            featureThemeProvider.WithTheme {
+                MessageFormatBar(state = barState, onEvent = ::onEvent)
+            }
         }
 
+        messageContent.addTextChangedListener(ParagraphEditWatcher { isFormattingAvailable && !isHtmlSourceMode })
         // The text field gets a new Editable when its text is set as a whole, which drops the watcher.
         messageContent.doAfterTextChanged { text ->
             if (text != null) watchSelection(text)
-            updateButtons()
+            updateState()
         }
+        messageContent.setOnKeyListener { _, keyCode, event -> onKey(keyCode, event) }
         watchSelection(messageContent.text)
-        updateButtons()
+        updateState()
     }
 
-    private fun toggle(format: TextFormat) {
-        RichTextFormatter.toggle(
-            text = messageContent.text,
-            format = format,
-            selectionStart = messageContent.selectionStart,
-            selectionEnd = messageContent.selectionEnd,
-        )
-        updateButtons()
-        onFormatChange.run()
-    }
-
-    private fun showOptions(anchor: View, group: TextFormat.Group, options: List<Pair<TextFormat?, Int>>) {
-        val current = RichTextFormatter.activeFormat(
-            text = messageContent.text,
-            group = group,
-            selectionStart = messageContent.selectionStart,
-            selectionEnd = messageContent.selectionEnd,
-        )
-
-        val popupMenu = PopupMenu(anchor.context, anchor)
-        options.forEachIndexed { index, (format, titleRes) ->
-            popupMenu.menu.add(Menu.NONE, index, index, titleRes).apply {
-                isCheckable = true
-                isChecked = format == current
-            }
-        }
-        popupMenu.setOnMenuItemClickListener { item ->
-            RichTextFormatter.select(
-                text = messageContent.text,
-                group = group,
-                format = options[item.itemId].first,
-                selectionStart = messageContent.selectionStart,
-                selectionEnd = messageContent.selectionEnd,
-            )
-            onFormatChange.run()
-            true
-        }
-        popupMenu.show()
+    /**
+     * To be called when the message text gains or loses the focus: the bar is only shown while it has it.
+     */
+    fun onFocusChange(hasFocus: Boolean) {
+        updateVisibility(hasFocus)
     }
 
     /**
@@ -188,23 +146,73 @@ class MessageFormattingToolbar(
         }
 
         isHtmlSourceMode = htmlSourceMode
-        toolbar.isVisible = isFormattingAvailable && !htmlSourceMode
+        updateVisibility()
     }
 
-    private fun updateButtons() {
-        val text = messageContent.text
-        val selectionStart = messageContent.selectionStart
-        val selectionEnd = messageContent.selectionEnd
-        if (selectionStart < 0 || selectionEnd < 0) return
+    private fun onEvent(event: FormatBarEvent) {
+        val start = minOf(messageContent.selectionStart, messageContent.selectionEnd)
+        val end = maxOf(messageContent.selectionStart, messageContent.selectionEnd)
+        if (start < 0) return
 
-        for ((format, button) in buttons) {
-            button.isChecked = RichTextFormatter.isActive(text, format, selectionStart, selectionEnd)
+        val changed = if (event == FormatBarEvent.EditLink) {
+            linkEditor.edit { onFormatChanged() }
+            false
+        } else {
+            applyFormatBarEvent(messageContent.text, event, start, end)
         }
+        if (changed) onFormatChanged()
+    }
+
+    private fun onFormatChanged() {
+        updateState()
+        onFormatChange.run()
+    }
+
+    private fun onKey(keyCode: Int, event: KeyEvent): Boolean {
+        if (event.action != KeyEvent.ACTION_DOWN || !isFormattingAvailable || isHtmlSourceMode) return false
+
+        val start = messageContent.selectionStart
+        val format = if (event.isCtrlPressed) SHORTCUT_FORMATS[keyCode] else null
+        val handled = when {
+            format != null -> applyFormatBarEvent(
+                messageContent.text,
+                FormatBarEvent.ToggleFormat(format),
+                start,
+                messageContent.selectionEnd,
+            )
+            // Backspace at the start of a list item where there is no line break to delete, e.g. the first line.
+            keyCode == KeyEvent.KEYCODE_DEL && start == messageContent.selectionEnd ->
+                ParagraphFormatter.removeBlockAtLineStart(messageContent.text, start)
+            else -> false
+        }
+        if (handled) onFormatChanged()
+
+        return handled
+    }
+
+    private fun updateState() {
+        val start = messageContent.selectionStart
+        val end = messageContent.selectionEnd
+        if (start < 0 || end < 0) return
+
+        barState = formatBarStateOf(messageContent.text, start, end, barState)
+    }
+
+    private fun updateVisibility(hasFocus: Boolean = messageContent.hasFocus()) {
+        formatBar.isVisible = isFormattingAvailable && !isHtmlSourceMode && hasFocus
     }
 
     private fun watchSelection(text: Editable) {
         if (text.getSpanStart(selectionWatcher) == -1) {
             text.setSpan(selectionWatcher, 0, text.length, Spanned.SPAN_INCLUSIVE_INCLUSIVE)
         }
+    }
+
+    private companion object {
+        val SHORTCUT_FORMATS = mapOf(
+            KeyEvent.KEYCODE_B to TextFormat.Bold,
+            KeyEvent.KEYCODE_I to TextFormat.Italic,
+            KeyEvent.KEYCODE_U to TextFormat.Underline,
+        )
     }
 }

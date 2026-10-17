@@ -43,6 +43,14 @@
             android:layout="@layout/message_compose_content"
             tools:visibility="visible"
             />
+
+        <!-- The format bar: last in the container, so that it sits right above the keyboard. -->
+        <androidx.compose.ui.platform.ComposeView
+            android:id="@+id/message_format_bar"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:visibility="gone"
+            />
     </LinearLayout>
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>
