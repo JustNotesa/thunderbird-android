@@ -11,6 +11,7 @@
         <item name="openpgp_blue">#336699</item>
         <item name="openpgp_grey">#bbb</item>
         <item name="openpgp_dark_grey">#888</item>
+        <item name="colorSurfaceContainerLowest">@android:color/white</item>
     </style>
 
 </resources>
