@@ -907,6 +907,10 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
 
     private void setTitle() {
         setTitle(action.getTitleResource());
+
+        // The app bar of the composer shows no title, like the composers of other mail apps do. The title of the
+        // activity is what accessibility services read out, so it is kept.
+        getSupportActionBar().setDisplayShowTitleEnabled(false);
     }
 
     @Nullable
