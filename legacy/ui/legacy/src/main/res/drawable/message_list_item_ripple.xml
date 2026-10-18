@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Touch feedback of a message list row. It follows the shape of the row's background: a rounded rectangle that
+    is inset from the sides of the list, so the ripple doesn't bleed into the whitespace between the rows.
+-->
+<ripple xmlns:android="http://schemas.android.com/apk/res/android"
+    android:color="?attr/colorControlHighlight"
+    >
+
+    <item android:id="@android:id/mask">
+        <inset
+            android:insetLeft="@dimen/messageListItemBackgroundInset"
+            android:insetRight="@dimen/messageListItemBackgroundInset"
+            >
+            <shape android:shape="rectangle">
+                <corners android:radius="@dimen/messageListItemCornerRadius" />
+            </shape>
+        </inset>
+    </item>
+
+</ripple>

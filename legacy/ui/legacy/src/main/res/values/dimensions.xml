@@ -12,6 +12,10 @@
     <dimen name="messageListContactPictureSize">40dp</dimen>
     <dimen name="messageListHorizontalPadding">16dp</dimen>
 
+    <!-- The rows are separated by whitespace, not by a divider line: the background is inset and rounded. -->
+    <dimen name="messageListItemBackgroundInset">8dp</dimen>
+    <dimen name="messageListItemCornerRadius">16dp</dimen>
+
     <!-- Message list density: compact -->
     <dimen name="messageListCompactVerticalPadding">4dp</dimen>
     <dimen name="messageListCompactTextViewMargin">0dp</dimen>

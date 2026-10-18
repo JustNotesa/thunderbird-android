@@ -3,6 +3,7 @@ package com.fsck.k9.ui.messagelist
 import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.drawable.Drawable
 import android.view.LayoutInflater
@@ -16,6 +17,7 @@ import androidx.recyclerview.widget.RecyclerView.ViewHolder
 import app.k9mail.ui.utils.itemtouchhelper.ItemTouchHelper
 import com.fsck.k9.ui.R
 import com.fsck.k9.ui.messagelist.item.ComposableMessageViewHolder
+import com.fsck.k9.ui.messagelist.item.MessageListItemBackground
 import com.fsck.k9.ui.messagelist.item.MessageViewHolder
 import com.google.android.material.color.ColorRoles
 import com.google.android.material.textview.MaterialTextView
@@ -44,6 +46,8 @@ class MessageListSwipeCallback(
     private val swipePadding = context.resources.getDimension(R.dimen.messageListSwipeIconPadding).toInt()
     private val swipeThreshold = context.resources.getDimension(R.dimen.messageListSwipeThreshold)
     private val backgroundColorPaint = Paint()
+    private val swipeRightBackground = MessageListItemBackground(context.resources, Color.TRANSPARENT)
+    private val swipeLeftBackground = MessageListItemBackground(context.resources, Color.TRANSPARENT)
 
     private val swipeRightLayout: View
     private val swipeRightIcon: ImageView
@@ -66,9 +70,11 @@ class MessageListSwipeCallback(
 
         swipeRightIcon = swipeRightLayout.findViewById(R.id.swipe_action_icon)
         swipeRightText = swipeRightLayout.findViewById(R.id.swipe_action_text)
+        swipeRightLayout.background = swipeRightBackground.drawable
 
         swipeLeftIcon = swipeLeftLayout.findViewById(R.id.swipe_action_icon)
         swipeLeftText = swipeLeftLayout.findViewById(R.id.swipe_action_text)
+        swipeLeftLayout.background = swipeLeftBackground.drawable
 
         swipeActions
             .onEach { swipeActions ->
@@ -256,7 +262,8 @@ class MessageListSwipeCallback(
         val foregroundColor = getForegroundColor(swipeActionConfig, swipeThresholdReached)
         val backgroundColor = getBackgroundColor(swipeActionConfig, swipeThresholdReached)
 
-        swipeLayout.setBackgroundColor(backgroundColor)
+        val itemBackground = if (swipeRight) swipeRightBackground else swipeLeftBackground
+        itemBackground.setColor(backgroundColor)
 
         val icon = getIcon(swipeAction, item, swipeActionConfig)
         icon?.setTint(foregroundColor)

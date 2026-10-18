@@ -57,6 +57,12 @@ class MessageViewHolder(
     val attachmentView: ImageView = view.findViewById(R.id.attachment)
     val statusView: ImageView = view.findViewById(R.id.status)
 
+    private val itemBackground = MessageListItemBackground(res, colors.regularBackground)
+
+    init {
+        itemView.background = itemBackground.drawable
+    }
+
     @Suppress("LongMethod", "CyclomaticComplexMethod")
     fun bind(messageListItem: MessageListItem, isActive: Boolean, isSelected: Boolean) {
         val appearance = appearance()
@@ -111,7 +117,7 @@ class MessageViewHolder(
             if (appearance.showContactPicture && contactPictureView.isVisible) {
                 setContactPicture(contactPictureView, displayAddress)
             }
-            itemView.setBackgroundColor(selectBackgroundColor(isSelected, isRead, isActive))
+            itemBackground.setColor(selectBackgroundColor(isSelected, isRead, isActive))
             updateWithThreadCount(displayThreadCount)
             val beforePreviewText = if (appearance.senderAboveSubject) subject else displayName
             val messageStringBuilder = SpannableStringBuilder(beforePreviewText)
