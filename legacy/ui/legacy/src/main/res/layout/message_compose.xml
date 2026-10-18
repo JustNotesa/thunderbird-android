@@ -18,19 +18,11 @@
         android:background="?attr/colorSurfaceContainerLowest"
         >
 
-        <include layout="@layout/toolbar" />
-
         <!--
-        The app bar carries no elevation. A hairline that only appears while the message is scrolled separates it from
-        the message area instead, so that the top of the composer reads as one surface.
+        The app bar carries no elevation. While the message is scrolled it takes on the colour of a container surface
+        instead of being separated by a line, like Gmail does it, see AppBarScrollTint.
         -->
-        <View
-            android:id="@+id/app_bar_divider"
-            android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:alpha="0"
-            android:background="?attr/colorOutlineVariant"
-            />
+        <include layout="@layout/toolbar" />
 
     </com.google.android.material.appbar.AppBarLayout>
 

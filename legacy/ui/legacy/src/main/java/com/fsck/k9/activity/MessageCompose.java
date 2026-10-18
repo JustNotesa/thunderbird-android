@@ -60,6 +60,7 @@ import android.text.InputType;
 import android.view.GestureDetector;
 import android.view.MotionEvent;
 import android.widget.FrameLayout;
+import com.fsck.k9.ui.compose.AppBarScrollTint;
 import com.fsck.k9.ui.compose.image.InlineImageController;
 import com.fsck.k9.ui.compose.richtext.ImageSource;
 import com.fsck.k9.ui.compose.richtext.MessageFormattingToolbar;
@@ -239,6 +240,8 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
     private static final String STATE_ALREADY_NOTIFIED_USER_OF_EMPTY_SUBJECT = "alreadyNotifiedUserOfEmptySubject";
     private static final String STATE_ACTIVE_IN_APP_NOTIFICATIONS =
             "com.fsck.k9.activity.MessageCompose.activeInAppNotifications";
+    // Only used when the theme doesn't have the surface colour the composer is drawn with.
+    private static final int FALLBACK_SURFACE_COLOR = 0xFFFFFFFF;
 
     private static final String FRAGMENT_WAITING_FOR_ATTACHMENT = "waitingForAttachment";
     private static final String FRAGMENT_ENCRYPTING_MESSAGE = "encryptingMessage";
@@ -2567,16 +2570,19 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
         actionBar.setDisplayHomeAsUpEnabled(true);
 
         // The app bar of the composer is as white as the message area below it, so that the toolbar doesn't tint the
-        // status bar behind it either. The toolbar keeps the app bar color of the theme, which is why it's set here.
+        // status bar behind it either. Scrolled message content lifts the app bar the way Gmail does it, by giving it
+        // the colour of a container surface instead of a line or the shadow an app bar would normally cast.
+        View appBarLayout = findViewById(R.id.app_bar_layout);
         Toolbar toolbar = findViewById(R.id.toolbar);
-        toolbar.setBackgroundColor(
-                MaterialColors.getColor(toolbar, com.google.android.material.R.attr.colorSurfaceContainerLowest));
+        int atRestColor = MaterialColors.getColor(appBarLayout,
+                com.google.android.material.R.attr.colorSurfaceContainerLowest, FALLBACK_SURFACE_COLOR);
+        int scrolledColor = MaterialColors.getColor(appBarLayout,
+                com.google.android.material.R.attr.colorSurfaceContainer, atRestColor);
 
-        // Scrolled content gets a hairline below the app bar instead of the shadow an app bar would normally cast.
-        View appBarDivider = findViewById(R.id.app_bar_divider);
+        AppBarScrollTint appBarScrollTint = new AppBarScrollTint(appBarLayout, toolbar, atRestColor, scrolledColor);
         ScrollView messageArea = findViewById(R.id.message_compose_scroll_view);
         messageArea.setOnScrollChangeListener((view, scrollX, scrollY, oldScrollX, oldScrollY) ->
-                appBarDivider.setAlpha(scrollY == 0 ? 0 : 1));
+                appBarScrollTint.onScrolled(scrollY));
     }
 
     private void initializeInAppNotificationFragment() {
