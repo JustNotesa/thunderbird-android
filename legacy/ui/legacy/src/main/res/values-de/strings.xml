@@ -203,6 +203,7 @@
     <string name="message_compose_image_source_camera">Kamera</string>
     <string name="message_compose_image_size_title">Bildgröße</string>
     <string name="message_compose_image_resize_hint">Wische seitlich über das Bild, um seine Größe zu ändern</string>
+    <string name="message_compose_zoom_indicator">Ansicht %1$d %% · Mail unverändert</string>
     <string name="message_compose_image_size_small">Klein (640 px)</string>
     <string name="message_compose_image_size_medium">Mittel (1280 px)</string>
     <string name="message_compose_image_size_original">Originalgröße</string>
