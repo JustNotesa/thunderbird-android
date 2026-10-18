@@ -26,6 +26,7 @@ import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.ExpandLess
 import androidx.compose.material.icons.outlined.ExpandMore
 import androidx.compose.material.icons.outlined.Folder
+import androidx.compose.material.icons.outlined.HelpOutline
 import androidx.compose.material.icons.outlined.Inbox
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.KeyboardArrowDown
@@ -155,6 +156,7 @@ object Icons {
         val Group: ImageVector = OutlinedGroupIcon
 
         val Hearth: ImageVector = OutlinedHearthIcon
+        val HelpOutline: ImageVector = Icons.Outlined.HelpOutline
 
         val Image: ImageVector = OutlinedImageIcon
         val Inbox: ImageVector = Icons.Outlined.Inbox

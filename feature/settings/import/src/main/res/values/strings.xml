@@ -3,7 +3,7 @@
     <string name="settings_import_title">Import settings</string>
     <string name="settings_import_pick_document_button">Select file</string>
     <string name="settings_import_scan_qr_code_button">Scan QR code</string>
-    <string name="settings_import_paste_button">Paste from password manager</string>
+    <string name="settings_import_paste_button">Paste accounts from password manager</string>
     <string name="settings_import_pick_app_button">Import from app</string>
     <string name="settings_import_pick_app_dialog_title">Import from app</string>
     <string name="settings_import_button">Import</string>
