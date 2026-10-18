@@ -24,6 +24,19 @@
         -->
         <include layout="@layout/toolbar" />
 
+        <!--
+        The banner that a notification shows is inset from the sides; the gap above and below it is added while it is
+        shown, see MessageComposeInAppNotificationFragment. It is part of the app bar, so that it takes on its colour
+        while the message is scrolled.
+        -->
+        <FrameLayout
+            android:id="@+id/message_compose_in_app_notifications_container"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"
+            />
+
     </com.google.android.material.appbar.AppBarLayout>
 
     <LinearLayout
@@ -34,18 +47,6 @@
         android:orientation="vertical"
         app:layout_behavior="@string/appbar_scrolling_view_behavior"
         >
-
-        <!--
-        The banner that a notification shows is inset from the sides; the gap above and below it is added while it is
-        shown, see MessageComposeInAppNotificationFragment.
-        -->
-        <FrameLayout
-            android:id="@+id/message_compose_in_app_notifications_container"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="16dp"
-            android:layout_marginEnd="16dp"
-            />
 
         <ViewStub
             android:id="@+id/message_compose_content"
