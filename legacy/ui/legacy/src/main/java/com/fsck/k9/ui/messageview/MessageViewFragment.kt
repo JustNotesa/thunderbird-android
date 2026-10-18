@@ -41,6 +41,7 @@ import app.k9mail.core.ui.legacy.designsystem.atom.icon.Icons
 import app.k9mail.legacy.message.controller.MessageReference
 import com.eygraber.uri.toKmpUri
 import com.fsck.k9.activity.MessageCompose
+import com.fsck.k9.activity.MessageHomeActivity
 import com.fsck.k9.activity.MessageLoaderHelper
 import com.fsck.k9.activity.MessageLoaderHelper.MessageLoaderCallbacks
 import com.fsck.k9.activity.MessageLoaderHelperFactory
@@ -605,6 +606,14 @@ class MessageViewFragment :
 
         override fun onViewAllAttachmentsClick() {
             showAttachmentListBottomSheet()
+        }
+
+        override fun onAccountLabelClick() {
+            val fragment = this@MessageViewFragment
+
+            if (fragment::account.isInitialized) {
+                MessageHomeActivity.launch(requireContext(), fragment.account)
+            }
         }
     }
 

@@ -90,6 +90,14 @@ internal class AccountLabelSpan(
         canvas.drawText(text, start, end, textLeft, textBaseline, labelPaint)
     }
 
+    /**
+     * Where the pill sits inside the span: the gap in front of the subject is not part of it, so that a tap there is a
+     * tap on the subject.
+     */
+    internal fun pillBounds(text: CharSequence, start: Int, end: Int): IntRange {
+        return gapBefore until gapBefore + pillWidth(text, start, end)
+    }
+
     /** The width of the pill: the name in the label's size, the dot in front of it and the padding around both. */
     private fun pillWidth(text: CharSequence?, start: Int, end: Int): Int {
         val textWidth = labelPaint.measureText(text ?: "", start, end).roundToInt()

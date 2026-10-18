@@ -14,21 +14,24 @@ import androidx.annotation.ColorInt
  */
 internal class SubjectTextBuilder {
     private var subject: CharSequence = ""
-    private var accountLabel: AccountLabel? = null
+    private var label: AccountLabel? = null
 
     fun setSubject(subject: CharSequence) {
         this.subject = subject
     }
 
     fun setAccountLabel(accountLabel: AccountLabel?) {
-        this.accountLabel = accountLabel
+        label = accountLabel
     }
 
     /** The subject on its own, which is what copying the subject to the clipboard puts there. */
     fun clipboardText(): String = subject.toString()
 
+    /** The account shown after the subject, or null when the subject stands on its own. */
+    fun accountLabel(): AccountLabel? = label
+
     fun build(context: Context): CharSequence {
-        val accountLabel = accountLabel
+        val accountLabel = label
         if (accountLabel == null) {
             return subject
         }

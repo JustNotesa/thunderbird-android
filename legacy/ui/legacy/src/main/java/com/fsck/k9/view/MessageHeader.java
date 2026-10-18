@@ -4,7 +4,9 @@ package com.fsck.k9.view;
 import java.util.List;
 
 import android.content.Context;
+import android.text.Layout;
 import android.util.AttributeSet;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.View.OnClickListener;
 import android.view.View.OnLongClickListener;
@@ -16,6 +18,8 @@ import androidx.annotation.DrawableRes;
 import androidx.annotation.NonNull;
 import androidx.appcompat.widget.PopupMenu;
 import androidx.appcompat.widget.TooltipCompat;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.accessibility.AccessibilityNodeInfoCompat;
 import app.k9mail.core.ui.legacy.designsystem.atom.icon.Icons;
 import app.k9mail.legacy.di.DI;
 import com.fsck.k9.FontSizes;
@@ -47,6 +51,12 @@ import net.thunderbird.feature.mail.message.reader.api.strategy.ReplyActionStrat
 public class MessageHeader extends LinearLayout implements OnClickListener, OnLongClickListener {
     private static final int DEFAULT_SUBJECT_LINES = 3;
 
+    // The pill of the account label is small, so the whole line it is on plus a little more is the target of a tap.
+    private static final int ACCOUNT_LABEL_TOUCH_SLOP_DP = 8;
+
+    // The ids of the accessibility actions of the framework are taken; 0x01xxxxxx is the range for our own.
+    private static final int ACTION_ID_OPEN_ACCOUNT_INBOX = 0x01000001;
+
     private final MessageViewRecipientFormatter recipientFormatter = DI.get(MessageViewRecipientFormatter.class);
     private final MessageListPreferencesManager messageListPreferencesManager =
         DI.get(MessageListPreferencesManager.class);
@@ -71,6 +81,8 @@ public class MessageHeader extends LinearLayout implements OnClickListener, OnLo
 
     private MessageHeaderClickListener messageHeaderClickListener;
     private ReplyActions replyActions;
+    private int subjectTouchX;
+    private int subjectTouchY;
 
 
     public MessageHeader(Context context, AttributeSet attrs) {
@@ -105,6 +117,17 @@ public class MessageHeader extends LinearLayout implements OnClickListener, OnLo
         subjectView.setOnClickListener(this);
         subjectView.setOnLongClickListener(this);
 
+        // The click listener doesn't know where the finger was, so the position of the tap is remembered here. It
+        // returns false, so the click and long click handling of the subject stays as it is.
+        subjectView.setOnTouchListener((view, event) -> {
+            if (event.getAction() == MotionEvent.ACTION_DOWN) {
+                subjectTouchX = (int) event.getX();
+                subjectTouchY = (int) event.getY();
+            }
+
+            return false;
+        });
+
         menuPrimaryActionView = findViewById(R.id.menu_primary_action);
         menuPrimaryActionView.setOnClickListener(this);
 
@@ -127,7 +150,7 @@ public class MessageHeader extends LinearLayout implements OnClickListener, OnLo
     public void onClick(View view) {
         int id = view.getId();
         if (id == R.id.subject) {
-            toggleSubjectViewMaxLines();
+            onSubjectClick();
         } else if (id == R.id.menu_primary_action) {
             performPrimaryReplyAction();
         } else if (id == R.id.menu_overflow) {
@@ -188,6 +211,51 @@ public class MessageHeader extends LinearLayout implements OnClickListener, OnLo
         } else {
             subjectView.setMaxLines(DEFAULT_SUBJECT_LINES);
         }
+    }
+
+    private void onSubjectClick() {
+        if (isTouchOnAccountLabel()) {
+            messageHeaderClickListener.onAccountLabelClick();
+        } else {
+            toggleSubjectViewMaxLines();
+        }
+    }
+
+    private boolean isTouchOnAccountLabel() {
+        Layout layout = subjectView.getLayout();
+        if (layout == null) {
+            return false;
+        }
+
+        float density = getResources().getDisplayMetrics().density;
+        int touchSlop = Math.round(ACCOUNT_LABEL_TOUCH_SLOP_DP * density);
+
+        return AccountLabelHitTest.INSTANCE.isTouchOnAccountLabel(
+            layout,
+            subjectView.getText(),
+            subjectTouchX,
+            subjectTouchY,
+            subjectView.getPaddingLeft(),
+            subjectView.getPaddingTop(),
+            touchSlop);
+    }
+
+    private void updateAccountLabelAccessibilityAction() {
+        ViewCompat.removeAccessibilityAction(subjectView, ACTION_ID_OPEN_ACCOUNT_INBOX);
+
+        AccountLabel accountLabel = subjectText.accountLabel();
+        if (accountLabel == null) {
+            return;
+        }
+
+        CharSequence label = getContext().getString(R.string.message_view_open_account_inbox_action,
+            accountLabel.getName());
+        AccessibilityNodeInfoCompat.AccessibilityActionCompat action =
+            new AccessibilityNodeInfoCompat.AccessibilityActionCompat(ACTION_ID_OPEN_ACCOUNT_INBOX, label);
+        ViewCompat.replaceAccessibilityAction(subjectView, action, label, (view, arguments) -> {
+            messageHeaderClickListener.onAccountLabelClick();
+            return true;
+        });
     }
 
     private void onAddSubjectToClipboard(String subject) {
@@ -339,6 +407,7 @@ public class MessageHeader extends LinearLayout implements OnClickListener, OnLo
 
     private void updateSubjectView() {
         subjectView.setText(subjectText.build(getContext()));
+        updateAccountLabelAccessibilityAction();
     }
 
     public void hideCryptoStatus() {
