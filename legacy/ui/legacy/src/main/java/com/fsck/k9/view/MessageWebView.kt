@@ -67,7 +67,8 @@ class MessageWebView : WebView, KoinComponent, ThunderbirdWebViewSettings {
     /** How opaque the zoom label is; the fade out animator lowers this from 1 to 0. */
     private var zoomLabelAlpha = 1f
 
-    private val messageBackgroundColor = MaterialColors.getColor(context, R.attr.colorSurfaceContainerLowest, FALLBACK_SURFACE_COLOR)
+    private val messageBackgroundColor =
+        MaterialColors.getColor(context, R.attr.colorSurfaceContainerLowest, FALLBACK_SURFACE_COLOR)
     private val zoomLabelBackgroundPaint = Paint().apply {
         color = MaterialColors.getColor(context, R.attr.colorSurfaceContainerHighest, FALLBACK_LABEL_COLOR)
         isAntiAlias = true

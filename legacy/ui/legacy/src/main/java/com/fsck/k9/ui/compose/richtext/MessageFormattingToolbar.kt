@@ -7,7 +7,6 @@ import android.text.Selection
 import android.text.SpanWatcher
 import android.text.Spannable
 import android.text.Spanned
-import android.view.KeyEvent
 import android.view.View
 import android.widget.EditText
 import android.widget.TextView
@@ -26,7 +25,6 @@ import com.fsck.k9.ui.compose.richtext.bar.formatBarStateOf
 import com.fsck.k9.view.MessageWebView
 import net.thunderbird.core.ui.theme.api.FeatureThemeProvider
 import net.thunderbird.feature.mail.message.composer.richtext.FormattedText
-import net.thunderbird.feature.mail.message.composer.richtext.TextFormat
 import kotlin.math.roundToInt
 
 /**
@@ -63,6 +61,7 @@ class MessageFormattingToolbar(
     private val history = EditHistory(messageContent, onChange = { updateState() }, images = images)
     private val imageHints = InlineImageHintAnimator(messageContent)
     private val zoom = EditorZoom(zoomIndicator, zoomLabel)
+    private val keys = FormatKeys(messageContent, ::onEvent, ::onFormatChanged)
 
     private val selectionWatcher = object : SpanWatcher {
         override fun onSpanAdded(text: Spannable, what: Any, start: Int, end: Int) = onSpanMoved(what)
@@ -137,7 +136,9 @@ class MessageFormattingToolbar(
             if (text != null) text.watch(selectionWatcher)
             updateState()
         }
-        messageContent.setOnKeyListener { _, keyCode, event -> onKey(keyCode, event) }
+        messageContent.setOnKeyListener { _, keyCode, event ->
+            keys.onKey(keyCode = keyCode, event = event, canFormat = isFormattingAvailable && !isHtmlSourceMode)
+        }
         // The text wraps, so it never needs to scroll sideways. With a centred line in a quote the field still moves
         // its content to the left, which hides the bars and bullets.
         messageContent.setOnScrollChangeListener { view, scrollX, _, _, _ ->
@@ -266,26 +267,6 @@ class MessageFormattingToolbar(
         onFormatChange.run()
     }
 
-    private fun onKey(keyCode: Int, event: KeyEvent): Boolean {
-        val start = messageContent.selectionStart
-        val shortcut = if (event.isCtrlPressed) shortcutEvent(keyCode, event.isShiftPressed) else null
-        val handled = when {
-            event.action != KeyEvent.ACTION_DOWN || !isFormattingAvailable || isHtmlSourceMode -> false
-            shortcut != null -> {
-                onEvent(shortcut)
-                true
-            }
-            // Backspace at the start of a list item where there is no line break to delete, e.g. the first line.
-            keyCode == KeyEvent.KEYCODE_DEL && start == messageContent.selectionEnd ->
-                ParagraphFormatter.removeBlockAtLineStart(messageContent.text, start).also { removed ->
-                    if (removed) onFormatChanged()
-                }
-            else -> false
-        }
-
-        return handled
-    }
-
     private fun updateState() {
         val start = messageContent.selectionStart
         val end = messageContent.selectionEnd
@@ -297,25 +278,6 @@ class MessageFormattingToolbar(
 
     private fun updateVisibility(hasFocus: Boolean = messageContent.hasFocus()) {
         formatBar.isVisible = isFormattingAvailable && !isHtmlSourceMode && hasFocus
-    }
-
-    private companion object {
-        val SHORTCUT_FORMATS = mapOf(
-            KeyEvent.KEYCODE_B to TextFormat.Bold,
-            KeyEvent.KEYCODE_I to TextFormat.Italic,
-            KeyEvent.KEYCODE_U to TextFormat.Underline,
-        )
-
-        /**
-         * The event of a Ctrl shortcut: B, I and U format, Z undoes, Shift+Z and Y redo.
-         */
-        fun shortcutEvent(keyCode: Int, isShiftPressed: Boolean): FormatBarEvent? {
-            return when {
-                keyCode == KeyEvent.KEYCODE_Z && !isShiftPressed -> FormatBarEvent.Undo
-                keyCode == KeyEvent.KEYCODE_Z || keyCode == KeyEvent.KEYCODE_Y -> FormatBarEvent.Redo
-                else -> SHORTCUT_FORMATS[keyCode]?.let { FormatBarEvent.ToggleFormat(it) }
-            }
-        }
     }
 }
 
