@@ -19,6 +19,7 @@ dependencies {
     implementation(projects.feature.mail.account.api)
     implementation(projects.core.featureflag)
     implementation(projects.feature.mail.folder.api)
+    implementation(projects.feature.account.server.settings)
     implementation(projects.legacy.common)
     implementation(projects.legacy.logging)
     implementation(projects.legacy.ui.base)

@@ -9,6 +9,9 @@ import android.os.PersistableBundle
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
+import app.k9mail.feature.migration.qrcode.ui.auth.TransferAuthorizationScreen
 import app.k9mail.feature.migration.qrcode.ui.text.TransferTextContract.Effect
 import app.k9mail.feature.migration.qrcode.ui.text.TransferTextContract.Event
 import net.thunderbird.core.ui.contract.mvi.observe
@@ -30,14 +33,22 @@ internal fun TransferTextScreen(
         }
     }
 
-    LaunchedEffect(key1 = Unit) {
-        dispatch(Event.StartScreen)
-    }
+    // The text holds the accounts with their passwords, so it is only prepared once the user confirmed it's them.
+    TransferAuthorizationScreen(finish = finish) {
+        LaunchedEffect(key1 = Unit) {
+            dispatch(Event.StartScreen)
+        }
 
-    TransferTextContent(
-        state = state.value,
-        onEvent = dispatch,
-    )
+        // The accounts are hidden again once another app is in front of this one.
+        LifecycleEventEffect(Lifecycle.Event.ON_STOP) {
+            dispatch(Event.ScreenBackgrounded)
+        }
+
+        TransferTextContent(
+            state = state.value,
+            onEvent = dispatch,
+        )
+    }
 }
 
 /**

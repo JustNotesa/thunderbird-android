@@ -52,11 +52,27 @@
     <string name="migration_qrcode_transfer_paste_import_button_text">Import</string>
     <string name="migration_qrcode_transfer_paste_not_recognized">This text doesn\'t contain accounts from Thunderbird.</string>
     <string name="migration_qrcode_transfer_paste_unsupported">These accounts can\'t be imported by this version of the app.</string>
+    <string name="migration_qrcode_transfer_paste_recognized_one">%1$d account recognized</string>
+    <string name="migration_qrcode_transfer_paste_recognized">%1$d accounts recognized</string>
     <string name="migration_qrcode_transfer_text_title">Copy accounts for password manager</string>
     <string name="migration_qrcode_transfer_text_instructions">Create a new note in the vault of your password manager and paste this content from the clipboard into it. Then, on the other device, open Thunderbird and go to Settings → Import settings → Paste accounts from password manager.</string>
+    <string name="migration_qrcode_transfer_text_hidden_one">Account data for %1$d account (%2$d characters), hidden</string>
+    <string name="migration_qrcode_transfer_text_hidden">Account data for %1$d accounts (%2$d characters), hidden</string>
+    <string name="migration_qrcode_transfer_text_show_button">Show account data</string>
+    <string name="migration_qrcode_transfer_text_hide_button">Hide account data</string>
     <string name="migration_qrcode_transfer_text_character_count">%1$d characters</string>
     <string name="migration_qrcode_transfer_text_too_long">This is a lot of text. Some password managers limit the length of a note.</string>
     <string name="migration_qrcode_transfer_text_copied">Copied. Only save it in a password manager and delete the note once the accounts are imported.</string>
     <string name="migration_qrcode_transfer_text_copy_button_text">Copy</string>
     <string name="migration_qrcode_transfer_text_done_button_text">Done</string>
+    <string name="migration_qrcode_transfer_authorization_biometric_title">Confirm it\'s you</string>
+    <string name="migration_qrcode_transfer_authorization_biometric_subtitle">To transfer your accounts with their passwords</string>
+    <string name="migration_qrcode_transfer_authorization_password_intro">This device has no screen lock. Enter the password of one of your accounts to continue.</string>
+    <string name="migration_qrcode_transfer_authorization_account_label">Account</string>
+    <string name="migration_qrcode_transfer_authorization_password_label">Password</string>
+    <string name="migration_qrcode_transfer_authorization_continue_button_text">Continue</string>
+    <string name="migration_qrcode_transfer_authorization_cancel_button_text">Cancel</string>
+    <string name="migration_qrcode_transfer_authorization_password_wrong">Wrong password. %1$d attempts left.</string>
+    <string name="migration_qrcode_transfer_authorization_password_locked_out">Too many attempts. Try again in %1$s.</string>
+    <string name="migration_qrcode_transfer_authorization_denied">The accounts can only be transferred after confirming it\'s you.</string>
 </resources>

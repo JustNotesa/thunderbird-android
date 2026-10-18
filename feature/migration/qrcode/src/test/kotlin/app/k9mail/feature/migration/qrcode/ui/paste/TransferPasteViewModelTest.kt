@@ -1,32 +1,11 @@
 package app.k9mail.feature.migration.qrcode.ui.paste
 
 import android.app.Application
-import androidx.core.net.toUri
-import app.k9mail.core.ui.compose.testing.mvi.MviContext
-import app.k9mail.core.ui.compose.testing.mvi.MviTurbines
 import app.k9mail.core.ui.compose.testing.mvi.runMviTest
-import app.k9mail.core.ui.compose.testing.mvi.turbinesWithInitialStateCheck
-import app.k9mail.feature.migration.qrcode.domain.usecase.QrCodePayloadReader
-import app.k9mail.feature.migration.qrcode.payload.FakeDeletePolicyProvider
-import app.k9mail.feature.migration.qrcode.payload.QrCodePayloadAdapter
-import app.k9mail.feature.migration.qrcode.payload.QrCodePayloadMapper
-import app.k9mail.feature.migration.qrcode.payload.QrCodePayloadParser
-import app.k9mail.feature.migration.qrcode.payload.QrCodePayloadValidator
-import app.k9mail.feature.migration.qrcode.transfer.TransferPayload
-import app.k9mail.feature.migration.qrcode.ui.FakeQrCodeSettingsWriter
-import app.k9mail.feature.migration.qrcode.ui.paste.TransferPasteContract.Effect
-import app.k9mail.feature.migration.qrcode.ui.paste.TransferPasteContract.Event
 import app.k9mail.feature.migration.qrcode.ui.paste.TransferPasteContract.PasteError
-import app.k9mail.feature.migration.qrcode.ui.paste.TransferPasteContract.State
-import assertk.assertThat
-import assertk.assertions.hasSize
-import assertk.assertions.isEqualTo
-import assertk.assertions.isNotNull
-import assertk.assertions.isNull
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import net.thunderbird.components.ui.testing.coroutines.MainDispatcherHelper
@@ -35,22 +14,6 @@ import net.thunderbird.legacy.logging.Log
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
-
-private const val CREATED_AT = 1792300000L
-private const val ACCOUNTS_JSON = """[1,[1,1],""" +
-    """[0,"imap.domain.example",993,3,2,"username","My Account"],""" +
-    """[[[0,"smtp.domain.example",587,2,1,"username"],""" +
-    """["user@domain.example","Firstname Lastname"]]]]"""
-
-private const val NEWER_ACCOUNTS_JSON = """[2,[1,1],""" +
-    """[0,"imap.domain.example",993,3,2,"username","My Account"],""" +
-    """[[[0,"smtp.domain.example",587,2,1,"username"],""" +
-    """["user@domain.example","Firstname Lastname"]]]]"""
-
-private val TRANSFER_TEXT = TransferPayload.write(accountsJson = ACCOUNTS_JSON, createdAt = CREATED_AT)
-private val TRANSFER_TEXT_OF_NEWER_ACCOUNTS =
-    TransferPayload.write(accountsJson = NEWER_ACCOUNTS_JSON, createdAt = CREATED_AT)
-private val WRITTEN_SETTINGS_URI = "content://provider".toUri()
 
 @RunWith(RobolectricTestRunner::class)
 @Config(application = Application::class)
@@ -140,68 +103,18 @@ class TransferPasteViewModelTest {
             ensureThatAllEventsAreConsumed()
         }
     }
-}
 
-private class TransferPasteScreenRobot(private val mviContext: MviContext) {
-    private val qrCodeSettingsWriter = FakeQrCodeSettingsWriter()
-    private val viewModel = TransferPasteViewModel(
-        qrCodePayloadReader = QrCodePayloadReader(
-            parser = QrCodePayloadParser(QrCodePayloadAdapter()),
-            mapper = QrCodePayloadMapper(
-                qrCodePayloadValidator = QrCodePayloadValidator(),
-                deletePolicyProvider = FakeDeletePolicyProvider(),
-            ),
-        ),
-        qrCodeSettingsWriter = qrCodeSettingsWriter,
-        backgroundDispatcher = Dispatchers.Unconfined,
-    )
-    private lateinit var turbines: MviTurbines<State, Effect>
-    private var pastedText = ""
+    @Test
+    fun `the pasted accounts stay hidden until the user asks for them`() = runMviTest {
+        with(TransferPasteScreenRobot(mviContext = this)) {
+            startScreen()
+            userPastesText(TRANSFER_TEXT)
 
-    suspend fun startScreen() {
-        turbines = mviContext.turbinesWithInitialStateCheck(viewModel, State())
-    }
+            userTogglesTextVisibility()
 
-    suspend fun userPastesText(text: String) {
-        pastedText = text
+            assertTextIsRevealed()
 
-        viewModel.event(Event.TextChanged(text))
-
-        assertThat(turbines.awaitStateItem()).isEqualTo(State(text = text))
-    }
-
-    suspend fun userClicksPasteFromClipboard(clipboardText: String?) {
-        viewModel.event(Event.PasteFromClipboardClicked(clipboardText))
-
-        if (clipboardText != null) {
-            assertThat(turbines.awaitStateItem()).isEqualTo(State(text = clipboardText))
+            ensureThatAllEventsAreConsumed()
         }
-    }
-
-    suspend fun userClicksImport() {
-        viewModel.event(Event.ImportClicked)
-    }
-
-    suspend fun assertClipboardWasCleared() {
-        assertThat(turbines.awaitEffectItem()).isEqualTo(Effect.ClearClipboard)
-    }
-
-    suspend fun assertImportResult(expectedNumberOfAccounts: Int) {
-        assertThat(turbines.awaitEffectItem()).isEqualTo(Effect.ReturnResult(contentUri = WRITTEN_SETTINGS_URI))
-        assertThat(turbines.awaitStateItem()).isEqualTo(State())
-        assertThat(qrCodeSettingsWriter.arguments).isNotNull().hasSize(expectedNumberOfAccounts)
-    }
-
-    suspend fun assertError(error: PasteError) {
-        assertThat(turbines.awaitStateItem()).isEqualTo(State(text = pastedText, error = error))
-    }
-
-    fun assertNothingWasImported() {
-        assertThat(qrCodeSettingsWriter.arguments).isNull()
-    }
-
-    fun ensureThatAllEventsAreConsumed() {
-        turbines.effectTurbine.ensureAllEventsConsumed()
-        turbines.stateTurbine.ensureAllEventsConsumed()
     }
 }

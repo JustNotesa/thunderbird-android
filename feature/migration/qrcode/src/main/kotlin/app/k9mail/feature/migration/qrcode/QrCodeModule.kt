@@ -1,5 +1,6 @@
 package app.k9mail.feature.migration.qrcode
 
+import android.app.KeyguardManager
 import android.content.Context
 import android.net.ConnectivityManager
 import android.net.wifi.WifiManager
@@ -23,6 +24,14 @@ import app.k9mail.feature.migration.qrcode.transfer.TransferContainerFetcher
 import app.k9mail.feature.migration.qrcode.transfer.TransferReceiver
 import app.k9mail.feature.migration.qrcode.transfer.TransferSender
 import app.k9mail.feature.migration.qrcode.transfer.TransferTextExporter
+import app.k9mail.feature.migration.qrcode.transfer.auth.AccountPasswordVerifier
+import app.k9mail.feature.migration.qrcode.transfer.auth.AndroidDeviceSecurity
+import app.k9mail.feature.migration.qrcode.transfer.auth.AndroidTransferAuthAttemptStore
+import app.k9mail.feature.migration.qrcode.transfer.auth.DeviceSecurity
+import app.k9mail.feature.migration.qrcode.transfer.auth.LegacyPasswordAccountSource
+import app.k9mail.feature.migration.qrcode.transfer.auth.PasswordAccountSource
+import app.k9mail.feature.migration.qrcode.transfer.auth.TransferAuthAttemptStore
+import app.k9mail.feature.migration.qrcode.transfer.auth.TransferAuthorization
 import app.k9mail.feature.migration.qrcode.transfer.hotspot.AndroidHotspotController
 import app.k9mail.feature.migration.qrcode.transfer.hotspot.AndroidHotspotNetworkConnector
 import app.k9mail.feature.migration.qrcode.transfer.hotspot.HotspotController
@@ -30,6 +39,7 @@ import app.k9mail.feature.migration.qrcode.transfer.hotspot.HotspotNetworkConnec
 import app.k9mail.feature.migration.qrcode.transfer.hotspot.UnsupportedHotspotController
 import app.k9mail.feature.migration.qrcode.transfer.hotspot.UnsupportedHotspotNetworkConnector
 import app.k9mail.feature.migration.qrcode.ui.QrCodeScannerViewModel
+import app.k9mail.feature.migration.qrcode.ui.auth.TransferAuthorizationViewModel
 import app.k9mail.feature.migration.qrcode.ui.paste.TransferPasteViewModel
 import app.k9mail.feature.migration.qrcode.ui.send.TransferSendViewModel
 import app.k9mail.feature.migration.qrcode.ui.text.TransferTextViewModel
@@ -58,6 +68,13 @@ val qrCodeModule = module {
 
     viewModel {
         TransferTextViewModel(transferTextExporter = get())
+    }
+
+    viewModel {
+        TransferAuthorizationViewModel(
+            transferAuthorization = get(),
+            passwordVerifier = get(),
+        )
     }
 
     factory { QrCodePayloadAdapter() }
@@ -103,6 +120,16 @@ val qrCodeModule = module {
     factory<TransferAccountSource> { LegacyTransferAccountSource(accountManager = get()) }
     factory { TransferSender(accountSource = get(), addressProvider = get(), hotspotController = get()) }
     factory { TransferTextExporter(accountSource = get()) }
+
+    factory<DeviceSecurity> {
+        AndroidDeviceSecurity(
+            keyguardManager = get<Context>().getSystemService(KeyguardManager::class.java),
+        )
+    }
+    single<PasswordAccountSource> { LegacyPasswordAccountSource(accountManager = get()) }
+    single<TransferAuthAttemptStore> { AndroidTransferAuthAttemptStore(context = get()) }
+    single { AccountPasswordVerifier(accountSource = get(), attemptStore = get()) }
+    factory { TransferAuthorization(deviceSecurity = get(), passwordVerifier = get()) }
 
     factory<HotspotController> {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {

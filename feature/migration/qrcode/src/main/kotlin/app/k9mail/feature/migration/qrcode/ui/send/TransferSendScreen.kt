@@ -11,6 +11,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
+import app.k9mail.feature.migration.qrcode.ui.auth.TransferAuthorizationScreen
 import app.k9mail.feature.migration.qrcode.ui.send.TransferSendContract.Effect
 import app.k9mail.feature.migration.qrcode.ui.send.TransferSendContract.Event
 import net.thunderbird.core.ui.contract.mvi.observe
@@ -38,14 +39,17 @@ internal fun TransferSendScreen(
         }
     }
 
-    LaunchedEffect(key1 = Unit) {
-        dispatch(Event.StartScreen)
-    }
+    // The QR code holds the key of the transfer, so it is only prepared once the user confirmed it's them.
+    TransferAuthorizationScreen(finish = finish) {
+        LaunchedEffect(key1 = Unit) {
+            dispatch(Event.StartScreen)
+        }
 
-    TransferSendContent(
-        step = state.value.step,
-        onEvent = dispatch,
-    )
+        TransferSendContent(
+            step = state.value.step,
+            onEvent = dispatch,
+        )
+    }
 }
 
 /**

@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.rememberScrollState
@@ -20,7 +19,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import app.k9mail.feature.migration.qrcode.R
 import app.k9mail.feature.migration.qrcode.ui.guide.TransferGuideIllustration
 import app.k9mail.feature.migration.qrcode.ui.paste.TransferPasteContract.Event
@@ -33,7 +31,6 @@ import net.thunderbird.components.ui.bolt.atom.button.ButtonOutlined
 import net.thunderbird.components.ui.bolt.atom.icon.Icons
 import net.thunderbird.components.ui.bolt.atom.text.TextBodyMedium
 import net.thunderbird.components.ui.bolt.atom.text.TextTitleLarge
-import net.thunderbird.components.ui.bolt.atom.textfield.TextFieldOutlined
 import net.thunderbird.components.ui.bolt.organism.AlertDialog
 import net.thunderbird.components.ui.bolt.template.ResponsiveContent
 import net.thunderbird.components.ui.bolt.theme.BoltTheme
@@ -67,17 +64,7 @@ internal fun TransferPasteContent(
                 InstructionText(onHelpClick = { showHelp = true })
                 Spacer(modifier = Modifier.height(BoltTheme.spacings.triple))
 
-                TextFieldOutlined(
-                    value = state.text,
-                    onValueChange = { text -> onEvent(Event.TextChanged(text)) },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(max = MAX_TEXT_FIELD_HEIGHT)
-                        .testTag("AccountsTextField"),
-                    label = stringResource(R.string.migration_qrcode_transfer_paste_text_field_label),
-                    hasError = state.error != null,
-                    isSingleLine = false,
-                )
+                AccountsTextField(state = state, onEvent = onEvent)
 
                 state.error?.let { error ->
                     Spacer(modifier = Modifier.height(BoltTheme.spacings.default))
@@ -159,5 +146,3 @@ private fun errorText(error: PasteError): Int {
         PasteError.Unsupported -> R.string.migration_qrcode_transfer_paste_unsupported
     }
 }
-
-private val MAX_TEXT_FIELD_HEIGHT = 160.dp

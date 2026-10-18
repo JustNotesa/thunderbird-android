@@ -32,6 +32,7 @@ internal class TransferPasteViewModel(
         when (event) {
             is Event.TextChanged -> updateText(event.text)
             is Event.PasteFromClipboardClicked -> pasteFromClipboard(event.clipboardText)
+            Event.TextVisibilityToggled -> toggleTextVisibility()
             Event.ImportClicked -> importAccounts()
             Event.CloseClicked -> emitEffect(Effect.Close)
         }
@@ -39,7 +40,26 @@ internal class TransferPasteViewModel(
 
     private fun updateText(text: String) {
         updateState {
-            it.copy(text = text, error = null)
+            it.copy(text = text, error = null, recognizedAccountCount = recognizeAccounts(text))
+        }
+    }
+
+    /**
+     * Reads the text to find out whether it holds accounts of a transfer, so the field can name the amount of accounts
+     * instead of showing the text itself.
+     *
+     * @return The amount of accounts, or `null` when the text isn't the plaintext of a transfer this app can import.
+     */
+    private fun recognizeAccounts(text: String): Int? {
+        val content = TransferPayload.read(text.trim())
+        val accountData = content?.let { qrCodePayloadReader.read(it.accountsJson) }
+
+        return accountData?.accounts?.size
+    }
+
+    private fun toggleTextVisibility() {
+        updateState {
+            it.copy(revealed = !it.revealed)
         }
     }
 
@@ -79,7 +99,7 @@ internal class TransferPasteViewModel(
             emitEffect(Effect.ClearClipboard)
 
             updateState {
-                it.copy(text = "", error = null)
+                it.copy(text = "", error = null, recognizedAccountCount = null, revealed = false)
             }
 
             emitEffect(Effect.ReturnResult(contentUri))

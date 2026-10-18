@@ -9,6 +9,8 @@ internal interface TransferPasteContract {
     data class State(
         val text: String = "",
         val error: PasteError? = null,
+        val recognizedAccountCount: Int? = null,
+        val revealed: Boolean = false,
     )
 
     enum class PasteError {
@@ -19,6 +21,7 @@ internal interface TransferPasteContract {
     sealed interface Event {
         data class TextChanged(val text: String) : Event
         data class PasteFromClipboardClicked(val clipboardText: String?) : Event
+        data object TextVisibilityToggled : Event
         data object ImportClicked : Event
         data object CloseClicked : Event
     }
