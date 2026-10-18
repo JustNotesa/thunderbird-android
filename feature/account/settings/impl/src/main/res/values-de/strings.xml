@@ -155,7 +155,7 @@
     <string name="account_settings_signatures_format_font_serif">Serifen</string>
     <string name="account_settings_signatures_format_font_monospace">Festbreite</string>
     <string name="account_settings_signatures_format_link">Link</string>
-    <string name="account_settings_signatures_mode_formatted">Formatierter Text</string>
+    <string name="account_settings_signatures_mode_formatted">Formatiert</string>
     <string name="account_settings_signatures_mode_code">HTML-Code</string>
     <string name="account_settings_signatures_formatted_mode_dialog_title">Zum formatierten Text wechseln?</string>
     <string name="account_settings_signatures_formatted_mode_dialog_text">Diese Signatur enthält HTML, das der formatierte Editor nicht anzeigen kann, etwa Links, Bilder oder Tabellen. Beim Wechseln wird es entfernt und nur der Text mit fetter, kursiver und unterstrichener Formatierung behalten.</string>

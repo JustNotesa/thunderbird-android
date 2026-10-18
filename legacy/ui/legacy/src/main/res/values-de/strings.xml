@@ -209,6 +209,8 @@
     <string name="message_compose_image_error_unreadable">Das Bild konnte nicht gelesen werden.</string>
     <string name="message_compose_image_error_too_large">Das Bild ist größer als 25 MB. Wähle eine kleinere Größe.</string>
     <string name="message_compose_image_error_out_of_memory">Nicht genug Speicher, um das Bild zu verkleinern. Wähle eine kleinere Größe.</string>
+    <string name="account_settings_signatures_label">Signaturen</string>
+    <string name="message_compose_image_error_rotated">Der Bildschirm wurde gedreht, bevor das Bild fertig war. Füge das Bild noch einmal ein.</string>
     <string name="message_compose_format_clear">Formatierung entfernen</string>
     <string name="message_compose_format_undo">Rückgängig</string>
     <string name="message_compose_format_redo">Wiederholen</string>

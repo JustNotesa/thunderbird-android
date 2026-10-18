@@ -149,6 +149,8 @@ import com.fsck.k9.message.SimpleMessageFormat;
 import com.fsck.k9.ui.R;
 import com.fsck.k9.ui.base.BaseActivity;
 import com.fsck.k9.ui.compose.DraftAutoSaver;
+import com.fsck.k9.ui.compose.DraftSaveGate;
+import com.fsck.k9.ui.compose.PlainTextAlternativeKt;
 import com.fsck.k9.ui.compose.IntentData;
 import com.fsck.k9.ui.compose.InlineQuoteEditor;
 import com.fsck.k9.ui.compose.IntentDataMapper;
@@ -338,6 +340,7 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
     private InlineQuoteEditor inlineQuoteEditor;
     // Whether the photo the camera is taking is for the text of the message instead of an attachment.
     private boolean capturingInlineImage;
+    private final DraftSaveGate draftSaveGate = new DraftSaveGate();
     private final DraftAutoSaver draftAutoSaver =
             new DraftAutoSaver(new DraftAutoSaver.MainThreadScheduler(), this::saveDraftAutomatically);
     private boolean isSavingAutomatically;
@@ -973,6 +976,10 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
             return HtmlConverter.htmlToText(messageContentView.getText().toString());
         }
 
+        if (currentMessageFormat == SimpleMessageFormat.HTML) {
+            return PlainTextAlternativeKt.toPlainTextAlternative(messageFormattingToolbar.getFormattedText());
+        }
+
         // The character that stands for an inline image has no meaning in plain text.
         return messageContentView.getText().toString().replace("\uFFFC", "");
     }
@@ -1066,6 +1073,10 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
         }
 
         finishAfterDraftSaved = true;
+        if (!draftSaveGate.request(true)) {
+            // The id of a new draft is not known yet; saving now would create a second draft.
+            return;
+        }
         performSaveAfterChecks();
     }
 
@@ -1083,6 +1094,10 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
             return false;
         }
 
+        if (!draftSaveGate.request(false)) {
+            return false;
+        }
+
         finishAfterDraftSaved = false;
         performSaveAfterChecks();
         return currentMessageBuilder != null;
@@ -1091,7 +1106,7 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
     private boolean saveDraftAutomatically() {
         ComposeCryptoStatus cryptoStatus = recipientPresenter.getCurrentCachedCryptoStatus();
         boolean mayNeedUserInteraction = cryptoStatus != null && cryptoStatus.isEncryptionEnabled();
-        if (currentMessageBuilder != null || mayNeedUserInteraction) {
+        if (currentMessageBuilder != null || mayNeedUserInteraction || draftSaveGate.isSaving()) {
             return false;
         }
 
@@ -1103,6 +1118,22 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
             isSavingAutomatically = false;
         }
         return started;
+    }
+
+    /**
+     * Saves once more if a save was asked for while the last one was running. The draft has its id by now, so this
+     * one replaces it, and it contains what was changed in the meantime.
+     */
+    private void saveAgainIfRequested() {
+        DraftSaveGate.Pending pending = draftSaveGate.onSaveFinished();
+        if (pending == DraftSaveGate.Pending.EXPLICIT) {
+            finishAfterDraftSaved = true;
+            performSaveAfterChecks();
+        } else if (pending == DraftSaveGate.Pending.IMPLICIT) {
+            // Also when the screen is being closed: the save in onPause had to wait, and what was typed last is only
+            // in this one.
+            checkToSaveDraftImplicitly();
+        }
     }
 
     private void onAutomaticSaveFinished(boolean saved) {
@@ -2333,6 +2364,7 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
 
             Handler saveHandler = isSavingAutomatically ? automaticSaveHandler : internalMessageHandler;
             isSavingAutomatically = false;
+            draftSaveGate.onSaveStarted();
             new SaveMessageTask(messagingController, account, saveHandler, message, draftMessageId,
                     plaintextSubject).execute();
             if (finishAfterDraftSaved) {
@@ -2743,6 +2775,7 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
                             MessageCompose.this,
                             getString(R.string.message_saved_toast),
                             Toast.LENGTH_LONG).show();
+                    saveAgainIfRequested();
                     break;
                 case MSG_DISCARDED_DRAFT:
                     Toast.makeText(
@@ -2766,6 +2799,7 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
                     draftMessageId = savedDraftId;
                 }
                 onAutomaticSaveFinished(savedDraftId != null);
+                saveAgainIfRequested();
             } else {
                 super.handleMessage(msg);
             }

@@ -172,4 +172,19 @@ class EditHistoryTest : RobolectricTest() {
         assertThat(editText.selectionStart).isEqualTo(1)
         assertThat(editText.selectionEnd).isEqualTo(3)
     }
+
+    @Test
+    fun `undo of a format at a collapsed cursor should remove the format typed next`() {
+        // Arrange
+        val testSubject = createTestSubject("Hello")
+        testSubject.beforeFormatChange()
+        RichTextFormatter.toggle(editText.text, TextFormat.Bold, 5, 5)
+
+        // Act
+        testSubject.undo()
+
+        // Assert
+        val selection = editText.selectionStart
+        assertThat(RichTextFormatter.isActive(editText.text, TextFormat.Bold, selection, selection)).isFalse()
+    }
 }

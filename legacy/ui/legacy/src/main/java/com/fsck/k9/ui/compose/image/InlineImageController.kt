@@ -4,6 +4,8 @@ import android.app.Activity
 import android.graphics.drawable.Drawable
 import android.net.Uri
 import android.view.View
+import android.widget.Toast
+import android.widget.Toast.LENGTH_LONG
 import androidx.core.graphics.drawable.toDrawable
 import com.fsck.k9.activity.compose.AttachmentPresenter
 import com.fsck.k9.message.Attachment.LoadingState
@@ -43,6 +45,7 @@ class InlineImageController(
     private val drawables = mutableMapOf<String, Drawable>()
     private val pendingContentIds = mutableSetOf<String>()
     private var toolbar: MessageFormattingToolbar? = null
+    private var imagesInProgress = 0
 
     /**
      * Connects the text field the images are inserted into and shown in.
@@ -71,11 +74,16 @@ class InlineImageController(
      * Scales the image at [uri] and inserts it at the cursor.
      */
     fun insert(uri: Uri, size: InlineImageSize) {
+        imagesInProgress++
         scope.launch {
-            val result = withContext(Dispatchers.IO) { scaler.scale({ openImage(uri) }, size) }
-            when (result) {
-                is ScaledImage.Failed -> showProblem(result.problem)
-                is ScaledImage.Ready -> addToMessage(result)
+            try {
+                val result = withContext(Dispatchers.IO) { scaler.scale({ openImage(uri) }, size) }
+                when (result) {
+                    is ScaledImage.Failed -> showProblem(result.problem)
+                    is ScaledImage.Ready -> addToMessage(result)
+                }
+            } finally {
+                imagesInProgress--
             }
         }
     }
@@ -89,6 +97,12 @@ class InlineImageController(
     }
 
     fun cancel() {
+        // The work can't move to the new activity of a rotation, so the user is told instead of losing the image
+        // silently. The application context outlives the activity.
+        if (imagesInProgress > 0 && activity.isChangingConfigurations) {
+            val context = activity.applicationContext
+            Toast.makeText(context, R.string.message_compose_image_error_rotated, LENGTH_LONG).show()
+        }
         scope.cancel()
     }
 

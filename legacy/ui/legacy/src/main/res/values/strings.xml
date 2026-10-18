@@ -267,6 +267,7 @@
     <string name="message_compose_image_error_unreadable">The image could not be read.</string>
     <string name="message_compose_image_error_too_large">The image is larger than 25 MB. Choose a smaller size.</string>
     <string name="message_compose_image_error_out_of_memory">Not enough memory to scale the image. Choose a smaller size.</string>
+    <string name="message_compose_image_error_rotated">The screen was rotated before the image was ready. Add the image again.</string>
     <string name="message_compose_format_clear">Clear formatting</string>
     <string name="message_compose_format_undo">Undo</string>
     <string name="message_compose_format_redo">Redo</string>

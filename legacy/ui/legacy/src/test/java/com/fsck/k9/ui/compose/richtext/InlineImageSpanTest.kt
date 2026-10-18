@@ -136,8 +136,36 @@ class InlineImageSpanTest : RobolectricTest() {
         text.insertInlineImage("a", start = 5, end = 10, images = images)
 
         // Assert
-        assertThat(text.toString()).isEqualTo("Hello￼")
-        assertThat(RichTextFormatter.formattedText(text).images).containsExactly(InlineImage(5, "a"))
+        assertThat(text.toString()).isEqualTo("Hello\n￼\n")
+        assertThat(RichTextFormatter.formattedText(text).images).containsExactly(InlineImage(6, "a"))
+    }
+
+    @Test
+    fun `insertInlineImage should not add line breaks where the line already ends and starts`() {
+        // Arrange
+        pictures["a"] = picture(100, 100)
+        val text = SpannableStringBuilder("One\n\nTwo")
+
+        // Act
+        val cursor = text.insertInlineImage("a", start = 4, end = 4, images = images)
+
+        // Assert
+        assertThat(text.toString()).isEqualTo("One\n￼\nTwo")
+        assertThat(cursor).isEqualTo(6)
+    }
+
+    @Test
+    fun `insertInlineImage should return the start of the line after the image`() {
+        // Arrange
+        pictures["a"] = picture(100, 100)
+        val text = SpannableStringBuilder("Hello Jane")
+
+        // Act
+        val cursor = text.insertInlineImage("a", start = 5, end = 5, images = images)
+
+        // Assert
+        assertThat(text.toString()).isEqualTo("Hello\n￼\n Jane")
+        assertThat(cursor).isEqualTo(8)
     }
 
     @Test

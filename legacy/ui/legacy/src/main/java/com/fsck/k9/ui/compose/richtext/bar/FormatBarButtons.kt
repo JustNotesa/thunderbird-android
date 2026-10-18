@@ -33,13 +33,22 @@ internal fun FormatButton(
     enabled: Boolean = true,
 ) {
     val containerColor = if (isOn) BoltTheme.colors.secondaryContainer else Color.Transparent
+    // The icon needs the colour that belongs to the container, or it is dark on dark in the light theme.
+    val colors = if (isOn) {
+        ButtonIconDefaults.buttonIconColors(
+            containerColor = containerColor,
+            contentColor = BoltTheme.colors.onSecondaryContainer,
+        )
+    } else {
+        ButtonIconDefaults.buttonIconColors(containerColor = containerColor)
+    }
     ButtonIcon(
         onClick = onClick,
         imageVector = icon,
         modifier = modifier.semantics { selected = isOn },
         enabled = enabled,
         contentDescription = stringResource(descriptionRes),
-        colors = ButtonIconDefaults.buttonIconColors(containerColor = containerColor),
+        colors = colors,
     )
 }
 

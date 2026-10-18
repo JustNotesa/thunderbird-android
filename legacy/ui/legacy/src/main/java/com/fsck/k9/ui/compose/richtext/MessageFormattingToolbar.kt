@@ -118,6 +118,11 @@ class MessageFormattingToolbar(
             updateState()
         }
         messageContent.setOnKeyListener { _, keyCode, event -> onKey(keyCode, event) }
+        // The text wraps, so it never needs to scroll sideways. With a centred line in a quote the field still moves
+        // its content to the left, which hides the bars and bullets.
+        messageContent.setOnScrollChangeListener { view, scrollX, _, _, _ ->
+            if (scrollX != 0) view.scrollTo(0, view.scrollY)
+        }
         messageContent.text.watch(selectionWatcher)
         updateState()
     }
@@ -146,8 +151,7 @@ class MessageFormattingToolbar(
         val end = messageContent.selectionEnd.takeIf { it >= 0 } ?: text.length
 
         history.beforeFormatChange()
-        text.insertInlineImage(contentId, start, end, images)
-        messageContent.setSelection(minOf(start, end).coerceIn(0, text.length) + 1)
+        messageContent.setSelection(text.insertInlineImage(contentId, start, end, images))
         onFormatChanged()
     }
 
@@ -192,8 +196,8 @@ class MessageFormattingToolbar(
         if (start < 0) return
 
         when (event) {
-            FormatBarEvent.Undo -> history.undo()
-            FormatBarEvent.Redo -> history.redo()
+            FormatBarEvent.Undo -> history.undo().also { updateState() }
+            FormatBarEvent.Redo -> history.redo().also { updateState() }
             is FormatBarEvent.InsertImage -> onPickImage.onPickImage(event.source)
             FormatBarEvent.EditLink -> {
                 history.beforeFormatChange()
