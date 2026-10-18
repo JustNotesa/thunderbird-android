@@ -22,6 +22,7 @@ val qrCodeModule = module {
         QrCodeScannerViewModel(
             qrCodePayloadReader = get(),
             qrCodeSettingsWriter = get(),
+            transferReceiver = get(),
         )
     }
 

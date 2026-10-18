@@ -40,5 +40,13 @@ internal interface QrCodeScannerContract {
         data object HelpText : DisplayText
         data object UnsupportedQrCode : DisplayText
         data class ProgressText(val scannedCount: Int, val totalCount: Int) : DisplayText
+        data object ReceivingTransfer : DisplayText
+        data class TransferFailed(val reason: TransferFailureReason) : DisplayText
+    }
+
+    enum class TransferFailureReason {
+        Unreachable,
+        Corrupted,
+        Unsupported,
     }
 }

@@ -12,10 +12,19 @@ import app.k9mail.feature.migration.qrcode.payload.QrCodePayloadAdapter
 import app.k9mail.feature.migration.qrcode.payload.QrCodePayloadMapper
 import app.k9mail.feature.migration.qrcode.payload.QrCodePayloadParser
 import app.k9mail.feature.migration.qrcode.payload.QrCodePayloadValidator
+import app.k9mail.feature.migration.qrcode.transfer.LanTransferClientResult
+import app.k9mail.feature.migration.qrcode.transfer.TransferContainer
+import app.k9mail.feature.migration.qrcode.transfer.TransferContainerFetcher
+import app.k9mail.feature.migration.qrcode.transfer.TransferPayload
+import app.k9mail.feature.migration.qrcode.transfer.TransferQrCode
+import app.k9mail.feature.migration.qrcode.transfer.TransferReceiver
+import app.k9mail.feature.migration.qrcode.transfer.TransferRoute
+import app.k9mail.feature.migration.qrcode.transfer.TransferSecrets
 import app.k9mail.feature.migration.qrcode.ui.QrCodeScannerContract.DisplayText
 import app.k9mail.feature.migration.qrcode.ui.QrCodeScannerContract.Effect
 import app.k9mail.feature.migration.qrcode.ui.QrCodeScannerContract.Event
 import app.k9mail.feature.migration.qrcode.ui.QrCodeScannerContract.State
+import app.k9mail.feature.migration.qrcode.ui.QrCodeScannerContract.TransferFailureReason
 import app.k9mail.feature.migration.qrcode.ui.QrCodeScannerContract.UiPermissionState
 import assertk.assertThat
 import assertk.assertions.hasSize
@@ -199,12 +208,72 @@ class QrCodeScannerViewModelTest {
             ensureThatAllEventsAreConsumed()
         }
     }
+
+    @Test
+    fun `user scans the QR code of an account transfer`() = runMviTest {
+        val robot = QrCodeScannerScreenRobot(
+            mviContext = this,
+            transferResultOfContainer = { LanTransferClientResult.Success(it) },
+        )
+        with(robot) {
+            startScreen()
+            systemGrantsCameraPermission()
+
+            userScansTransferQrCode()
+            assertReceivingTransferStatus()
+            assertScannedStatus(expectedScannedCount = 1, expectedScannedTotal = 1)
+
+            assertScanResult(expectedNumberOfAccounts = 1)
+            assertNumberOfReceivedTransfers(expectedCount = 1)
+
+            ensureThatAllEventsAreConsumed()
+        }
+    }
+
+    @Test
+    fun `user scans the QR code of an account transfer of an unreachable device`() = runMviTest {
+        with(QrCodeScannerScreenRobot(mviContext = this)) {
+            startScreen()
+            systemGrantsCameraPermission()
+
+            userScansTransferQrCode()
+            assertReceivingTransferStatus()
+            assertTransferFailedStatus(expectedReason = TransferFailureReason.Unreachable)
+
+            userScansTransferQrCode()
+            assertReceivingTransferStatus()
+            assertTransferFailedStatus(expectedReason = TransferFailureReason.Unreachable)
+
+            assertNumberOfReceivedTransfers(expectedCount = 2)
+
+            ensureThatAllEventsAreConsumed()
+        }
+    }
+
+    @Test
+    fun `user scans an invalid QR code of an account transfer`() = runMviTest {
+        with(QrCodeScannerScreenRobot(mviContext = this)) {
+            startScreen()
+            systemGrantsCameraPermission()
+
+            userScansInvalidTransferQrCode()
+            assertUnsupportedQrCodeStatus()
+
+            assertNumberOfReceivedTransfers(expectedCount = 0)
+
+            ensureThatAllEventsAreConsumed()
+        }
+    }
 }
 
 private class QrCodeScannerScreenRobot(
     private val mviContext: MviContext,
+    private val transferResultOfContainer: (ByteArray) -> LanTransferClientResult = {
+        LanTransferClientResult.Unreachable
+    },
 ) {
     private val qrCodeSettingsWriter = FakeQrCodeSettingsWriter()
+    private var transferReceiveCount = 0
     private val viewModel = QrCodeScannerViewModel(
         qrCodePayloadReader = QrCodePayloadReader(
             parser = QrCodePayloadParser(QrCodePayloadAdapter()),
@@ -214,6 +283,12 @@ private class QrCodeScannerScreenRobot(
             ),
         ),
         qrCodeSettingsWriter = qrCodeSettingsWriter,
+        transferReceiver = TransferReceiver(
+            fetcher = TransferContainerFetcher { _, _ ->
+                transferReceiveCount++
+                transferResultOfContainer(TRANSFER_CONTAINER)
+            },
+        ),
         createCameraUseCaseProvider = { listener ->
             qrCodeListener = listener
             UseCase.CameraUseCasesProvider { emptyList() }
@@ -288,6 +363,14 @@ private class QrCodeScannerScreenRobot(
         qrCodeListener.invoke("Unsupported QR code payload")
     }
 
+    fun userScansTransferQrCode() {
+        qrCodeListener.invoke(TRANSFER_QR_CODE_TEXT)
+    }
+
+    fun userScansInvalidTransferQrCode() {
+        qrCodeListener.invoke("TBX1:invalid-transfer")
+    }
+
     fun userClicksDoneButton() {
         viewModel.event(Event.DoneClicked)
     }
@@ -313,6 +396,24 @@ private class QrCodeScannerScreenRobot(
         )
     }
 
+    suspend fun assertReceivingTransferStatus() {
+        assertThat(turbines.awaitStateItem()).isEqualTo(
+            State(
+                cameraPermissionState = UiPermissionState.Granted,
+                displayText = DisplayText.ReceivingTransfer,
+            ),
+        )
+    }
+
+    suspend fun assertTransferFailedStatus(expectedReason: TransferFailureReason) {
+        assertThat(turbines.awaitStateItem()).isEqualTo(
+            State(
+                cameraPermissionState = UiPermissionState.Granted,
+                displayText = DisplayText.TransferFailed(reason = expectedReason),
+            ),
+        )
+    }
+
     fun assertCurrentState(expectedState: State) {
         assertThat(viewModel.state.value).isEqualTo(expectedState)
     }
@@ -327,8 +428,42 @@ private class QrCodeScannerScreenRobot(
         assertThat(qrCodeSettingsWriter.arguments).isNull()
     }
 
+    fun assertNumberOfReceivedTransfers(expectedCount: Int) {
+        assertThat(transferReceiveCount).isEqualTo(expectedCount)
+    }
+
     fun ensureThatAllEventsAreConsumed() {
         turbines.effectTurbine.ensureAllEventsConsumed()
         turbines.stateTurbine.ensureAllEventsConsumed()
+    }
+
+    private companion object {
+        private const val CREATED_AT = 1792300000L
+        private const val ACCOUNTS_JSON = """[1,[1,1],""" +
+            """[0,"imap.domain.example",993,3,2,"username","My Account"],""" +
+            """[[[0,"smtp.domain.example",587,2,1,"username"],""" +
+            """["user@domain.example","Firstname Lastname"]]]]"""
+        private const val HOST = "192.168.0.2"
+        private const val PORT = 49152
+        private const val TRANSFER_ID_LENGTH = 16
+        private const val KEY_LENGTH = 32
+
+        private val TRANSFER_SECRETS = TransferSecrets(
+            transferId = ByteArray(TRANSFER_ID_LENGTH) { it.toByte() },
+            key = ByteArray(KEY_LENGTH) { it.toByte() },
+        )
+
+        private val TRANSFER_QR_CODE_TEXT = TransferQrCode(
+            secrets = TRANSFER_SECRETS,
+            route = TransferRoute.Lan(host = HOST, port = PORT),
+        ).format()
+
+        private val TRANSFER_CONTAINER = TransferContainer.encrypt(
+            plaintext = TransferPayload.write(
+                accountsJson = ACCOUNTS_JSON,
+                createdAt = CREATED_AT,
+            ).encodeToByteArray(),
+            secrets = TRANSFER_SECRETS,
+        )
     }
 }

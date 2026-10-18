@@ -5,10 +5,14 @@ import app.k9mail.feature.migration.qrcode.domain.QrCodeDomainContract.UseCase
 import app.k9mail.feature.migration.qrcode.domain.entity.AccountData
 import app.k9mail.feature.migration.qrcode.domain.entity.AccountData.Account
 import app.k9mail.feature.migration.qrcode.domain.usecase.QrCodeImageAnalysisProvider
+import app.k9mail.feature.migration.qrcode.transfer.TransferQrCode
+import app.k9mail.feature.migration.qrcode.transfer.TransferReceiveResult
+import app.k9mail.feature.migration.qrcode.transfer.TransferReceiver
 import app.k9mail.feature.migration.qrcode.ui.QrCodeScannerContract.DisplayText
 import app.k9mail.feature.migration.qrcode.ui.QrCodeScannerContract.Effect
 import app.k9mail.feature.migration.qrcode.ui.QrCodeScannerContract.Event
 import app.k9mail.feature.migration.qrcode.ui.QrCodeScannerContract.State
+import app.k9mail.feature.migration.qrcode.ui.QrCodeScannerContract.TransferFailureReason
 import app.k9mail.feature.migration.qrcode.ui.QrCodeScannerContract.UiPermissionState
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -26,6 +30,7 @@ private typealias CameraUseCaseProviderFactory = (PayloadCallback) -> UseCase.Ca
 internal class QrCodeScannerViewModel(
     private val qrCodePayloadReader: UseCase.QrCodePayloadReader,
     private val qrCodeSettingsWriter: UseCase.QrCodeSettingsWriter,
+    private val transferReceiver: TransferReceiver,
     createCameraUseCaseProvider: CameraUseCaseProviderFactory = { callback -> QrCodeImageAnalysisProvider(callback) },
     private val backgroundDispatcher: CoroutineDispatcher = Dispatchers.IO,
     initialState: State = State(),
@@ -36,6 +41,9 @@ internal class QrCodeScannerViewModel(
 
     private var scannedCount = 0
     private var totalCount = 0
+
+    @Volatile
+    private var isReceivingTransfer = false
 
     override val cameraUseCasesProvider: UseCase.CameraUseCasesProvider =
         createCameraUseCaseProvider(::handleQrCodeScanned)
@@ -94,19 +102,91 @@ internal class QrCodeScannerViewModel(
             return
         }
 
+        if (payload.startsWith(TRANSFER_QR_CODE_PREFIX)) {
+            handleTransferQrCode(payload = payload, payloadHash = payloadHash)
+            return
+        }
+
         val accountData = qrCodePayloadReader.read(payload)
         if (accountData != null) {
             handleSupportedPayload(accountData)
             supportedPayloadHashes.add(payloadHash)
         } else {
-            if (unsupportedPayloadHashes.size > MAX_NUMBER_OF_UNSUPPORTED_PAYLOADS) {
-                unsupportedPayloadHashes.removeFirst()
-            }
-            unsupportedPayloadHashes.add(payloadHash)
+            handleUnsupportedPayload(payloadHash)
+        }
+    }
 
-            updateState {
-                it.copy(displayText = DisplayText.UnsupportedQrCode)
+    private fun handleUnsupportedPayload(payloadHash: ByteString) {
+        if (unsupportedPayloadHashes.size > MAX_NUMBER_OF_UNSUPPORTED_PAYLOADS) {
+            unsupportedPayloadHashes.removeFirst()
+        }
+        unsupportedPayloadHashes.add(payloadHash)
+
+        updateState {
+            it.copy(displayText = DisplayText.UnsupportedQrCode)
+        }
+    }
+
+    private fun handleTransferQrCode(payload: String, payloadHash: ByteString) {
+        if (isReceivingTransfer) {
+            // A transfer is already being received. Its key material can only be used for a single transfer.
+            return
+        }
+
+        val qrCode = TransferQrCode.parse(payload)
+        if (qrCode == null) {
+            handleUnsupportedPayload(payloadHash)
+            return
+        }
+
+        receiveTransfer(qrCode = qrCode, payloadHash = payloadHash)
+    }
+
+    private fun receiveTransfer(qrCode: TransferQrCode, payloadHash: ByteString) {
+        isReceivingTransfer = true
+
+        updateState {
+            it.copy(displayText = DisplayText.ReceivingTransfer)
+        }
+
+        viewModelScope.launch {
+            val result = withContext(backgroundDispatcher) {
+                transferReceiver.receive(qrCode)
             }
+
+            isReceivingTransfer = false
+
+            if (result is TransferReceiveResult.Success) {
+                handleReceivedAccounts(accountsJson = result.accountsJson, payloadHash = payloadHash)
+            } else {
+                showTransferFailure(result)
+            }
+        }
+    }
+
+    private fun handleReceivedAccounts(accountsJson: String, payloadHash: ByteString) {
+        val accountData = qrCodePayloadReader.read(accountsJson)
+        if (accountData != null) {
+            supportedPayloadHashes.add(payloadHash)
+            handleSupportedPayload(accountData)
+        } else {
+            // The transfer held data this version of the app doesn't understand.
+            updateState {
+                it.copy(displayText = DisplayText.TransferFailed(TransferFailureReason.Unsupported))
+            }
+        }
+    }
+
+    private fun showTransferFailure(result: TransferReceiveResult) {
+        val reason = when (result) {
+            TransferReceiveResult.Unreachable, TransferReceiveResult.TransferFailed -> TransferFailureReason.Unreachable
+            TransferReceiveResult.Corrupted -> TransferFailureReason.Corrupted
+            else -> TransferFailureReason.Unsupported
+        }
+
+        // Don't remember the hash of the QR code so the user can scan it again.
+        updateState {
+            it.copy(displayText = DisplayText.TransferFailed(reason))
         }
     }
 
@@ -164,3 +244,4 @@ internal class QrCodeScannerViewModel(
 
 private const val APP_SETTINGS_DELAY = 100L
 private const val MAX_NUMBER_OF_UNSUPPORTED_PAYLOADS = 5
+private const val TRANSFER_QR_CODE_PREFIX = "TBX1:"

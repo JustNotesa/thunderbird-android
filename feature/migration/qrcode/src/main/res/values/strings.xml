@@ -7,4 +7,8 @@
     <string name="migration_qrcode_scanning_instructions">Align the QR code provided from Thunderbird Desktop</string>
     <string name="migration_qrcode_unsupported_code">The QR code was detected, but it contains invalid or unsupported data.</string>
     <string name="migration_qrcode_done_button_text">Done</string>
+    <string name="migration_qrcode_transfer_receiving">Receiving accounts…</string>
+    <string name="migration_qrcode_transfer_unreachable">The other device can\'t be reached. Make sure both devices are connected to the same Wi-Fi network.</string>
+    <string name="migration_qrcode_transfer_corrupted">The accounts couldn\'t be read. Please start the transfer again on the other device.</string>
+    <string name="migration_qrcode_transfer_unsupported">This transfer isn\'t supported by this version of the app.</string>
 </resources>
