@@ -1,6 +1,7 @@
 package com.fsck.k9.view
 
 import android.content.Context
+import android.view.ContextThemeWrapper
 import android.view.InputDevice
 import android.view.MotionEvent
 import android.webkit.WebView
@@ -10,13 +11,14 @@ import assertk.assertions.isEqualTo
 import assertk.assertions.isFalse
 import assertk.assertions.isGreaterThan
 import assertk.assertions.isTrue
+import com.fsck.k9.ui.R
 import net.thunderbird.core.android.testing.RobolectricTest
 import org.junit.After
 import org.junit.Test
 import org.robolectric.RuntimeEnvironment
 
 class MessageWebViewTouchHandlerTest : RobolectricTest() {
-    private val context = RuntimeEnvironment.getApplication()
+    private val context = ContextThemeWrapper(RuntimeEnvironment.getApplication(), R.style.Theme_Legacy_Test)
 
     @After
     fun tearDown() {

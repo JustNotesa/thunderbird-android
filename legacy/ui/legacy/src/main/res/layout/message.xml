@@ -12,7 +12,7 @@ the 'message view theme' setting).
     android:layout_height="match_parent"
     android:orientation="vertical"
     android:layout_weight="1"
-    android:background="?android:attr/windowBackground"
+    android:background="?attr/colorSurfaceContainerLowest"
     tools:context=".messageview.MessageViewFragment"
     >
 
@@ -31,6 +31,14 @@ the 'message view theme' setting).
 
             <!-- Header area -->
             <include layout="@layout/message_view_header" />
+
+            <View
+                android:id="@+id/header_divider"
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:layout_marginHorizontal="16dp"
+                android:background="?attr/colorOutlineVariant"
+                />
 
             <FrameLayout
                 android:id="@+id/extra_header_container"
