@@ -6,6 +6,7 @@ import android.net.Uri
 import androidx.activity.result.contract.ActivityResultContract
 import app.k9mail.feature.migration.launcher.api.MigrationManager
 import app.k9mail.feature.migration.qrcode.ui.QrCodeScannerActivityContract
+import app.k9mail.feature.migration.qrcode.ui.paste.TransferPasteActivityContract
 import app.k9mail.feature.migration.qrcode.ui.send.TransferSendActivity
 
 internal class TbMigrationManager : MigrationManager {
@@ -13,6 +14,10 @@ internal class TbMigrationManager : MigrationManager {
 
     override fun getQrCodeActivityResultContract(): ActivityResultContract<Unit, Uri?> {
         return QrCodeScannerActivityContract()
+    }
+
+    override fun getTransferPasteActivityResultContract(): ActivityResultContract<Unit, Uri?> {
+        return TransferPasteActivityContract()
     }
 
     override fun createTransferSendIntent(context: Context): Intent {

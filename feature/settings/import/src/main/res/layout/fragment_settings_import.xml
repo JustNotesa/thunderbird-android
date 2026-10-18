@@ -45,11 +45,26 @@
         android:layout_marginTop="16dp"
         android:layout_marginEnd="16dp"
         android:text="@string/settings_import_scan_qr_code_button"
-        app:layout_constraintBottom_toTopOf="@+id/pickAppButton"
+        app:layout_constraintBottom_toTopOf="@+id/pasteAccountsButton"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintHorizontal_bias="0.5"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/pickDocumentButton"
+        />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/pasteAccountsButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="16dp"
+        android:layout_marginTop="16dp"
+        android:layout_marginEnd="16dp"
+        android:text="@string/settings_import_paste_button"
+        app:layout_constraintBottom_toTopOf="@+id/pickAppButton"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintHorizontal_bias="0.5"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/scanQrCodeButton"
         />
 
     <com.google.android.material.button.MaterialButton
@@ -65,7 +80,7 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintHorizontal_bias="0.5"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/scanQrCodeButton"
+        app:layout_constraintTop_toBottomOf="@+id/pasteAccountsButton"
         />
 
     <ProgressBar

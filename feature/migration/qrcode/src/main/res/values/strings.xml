@@ -35,4 +35,13 @@
     <string name="migration_qrcode_transfer_send_hotspot_permission_denied">The hotspot needs the permission to find nearby devices.</string>
     <string name="migration_qrcode_transfer_send_hotspot_permission_denied_location">The hotspot needs the location permission. The location itself is never used.</string>
     <string name="migration_qrcode_transfer_send_hotspot_failed">The hotspot couldn\'t be started. Switch off the Wi-Fi hotspot or tethering if it is on; on Android 12 and older location services must be switched on.</string>
+    <string name="migration_qrcode_transfer_paste_title">Import from a password manager</string>
+    <string name="migration_qrcode_transfer_paste_step_one">On the other device, copy the accounts as text and save them as a secure note in your password manager.</string>
+    <string name="migration_qrcode_transfer_paste_step_two">Open the note in the password manager on this device and copy its text.</string>
+    <string name="migration_qrcode_transfer_paste_step_three">Paste the text here and tap Import.</string>
+    <string name="migration_qrcode_transfer_paste_text_field_label">Accounts</string>
+    <string name="migration_qrcode_transfer_paste_clipboard_button_text">Paste from clipboard</string>
+    <string name="migration_qrcode_transfer_paste_import_button_text">Import</string>
+    <string name="migration_qrcode_transfer_paste_not_recognized">This text doesn\'t contain accounts from Thunderbird.</string>
+    <string name="migration_qrcode_transfer_paste_unsupported">These accounts can\'t be imported by this version of the app.</string>
 </resources>

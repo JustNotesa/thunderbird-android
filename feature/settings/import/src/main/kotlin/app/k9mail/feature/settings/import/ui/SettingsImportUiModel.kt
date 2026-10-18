@@ -15,6 +15,8 @@ internal class SettingsImportUiModel {
     var isPickDocumentButtonEnabled = true
     var isScanQrCodeButtonVisible = isShowMigrationActions
     var isScanQrCodeButtonEnabled = true
+    var isPasteAccountsButtonVisible = isShowMigrationActions
+    var isPasteAccountsButtonEnabled = true
     var isPickAppButtonVisible = isShowMigrationActions
     var isPickAppButtonEnabled = false
     var isPickAppButtonPermanentlyDisabled = true
@@ -34,6 +36,7 @@ internal class SettingsImportUiModel {
     fun enablePickButtons() {
         isPickDocumentButtonEnabled = true
         isScanQrCodeButtonEnabled = true
+        isPasteAccountsButtonEnabled = true
         maybeEnablePickAppButton()
     }
 
@@ -47,6 +50,7 @@ internal class SettingsImportUiModel {
         statusText = StatusText.HIDDEN
         isPickDocumentButtonEnabled = false
         isScanQrCodeButtonEnabled = false
+        isPasteAccountsButtonEnabled = false
         isPickAppButtonEnabled = false
     }
 
@@ -65,6 +69,7 @@ internal class SettingsImportUiModel {
         isLoadingProgressVisible = true
         isPickDocumentButtonVisible = false
         isScanQrCodeButtonVisible = false
+        isPasteAccountsButtonVisible = false
         isPickAppButtonVisible = false
         isSettingsListEnabled = false
         statusText = StatusText.HIDDEN
@@ -101,6 +106,8 @@ internal class SettingsImportUiModel {
         isPickDocumentButtonEnabled = true
         isScanQrCodeButtonVisible = isShowMigrationActions
         isScanQrCodeButtonEnabled = true
+        isPasteAccountsButtonVisible = isShowMigrationActions
+        isPasteAccountsButtonEnabled = true
         isPickAppButtonVisible = isShowMigrationActions
         maybeEnablePickAppButton()
         statusText = StatusText.IMPORT_READ_FAILURE
@@ -115,6 +122,8 @@ internal class SettingsImportUiModel {
         isPickDocumentButtonEnabled = true
         isScanQrCodeButtonVisible = isShowMigrationActions
         isScanQrCodeButtonEnabled = true
+        isPasteAccountsButtonVisible = isShowMigrationActions
+        isPasteAccountsButtonEnabled = true
         isPickAppButtonVisible = isShowMigrationActions
         maybeEnablePickAppButton()
         statusText = StatusText.IMPORT_FAILURE
@@ -136,6 +145,7 @@ internal class SettingsImportUiModel {
         isLoadingProgressVisible = false
         isPickDocumentButtonVisible = false
         isScanQrCodeButtonVisible = false
+        isPasteAccountsButtonVisible = false
         isPickAppButtonVisible = false
         updateImportButtonFromSelection()
     }
@@ -196,6 +206,7 @@ internal class SettingsImportUiModel {
     fun showMigrationActions() {
         isShowMigrationActions = true
         isScanQrCodeButtonVisible = true
+        isPasteAccountsButtonVisible = true
         isPickAppButtonVisible = true
     }
 }

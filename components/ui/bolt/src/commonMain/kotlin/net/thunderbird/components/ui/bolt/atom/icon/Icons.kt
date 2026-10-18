@@ -18,6 +18,8 @@ import androidx.compose.material.icons.outlined.Attachment
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.outlined.ContentCopy
+import androidx.compose.material.icons.outlined.ContentPaste
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Drafts
 import androidx.compose.material.icons.outlined.ErrorOutline
@@ -32,6 +34,7 @@ import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.Report
 import androidx.compose.material.icons.outlined.Security
 import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.Smartphone
 import androidx.compose.material.icons.outlined.Sync
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -128,6 +131,9 @@ object Icons {
         val CheckCircle: ImageVector = Icons.Outlined.CheckCircle
         val Close: ImageVector = Icons.Outlined.Close
 
+        val ContentCopy: ImageVector = Icons.Outlined.ContentCopy
+        val ContentPaste: ImageVector = Icons.Outlined.ContentPaste
+
         val Delete: ImageVector = Icons.Outlined.Delete
         val Description: ImageVector = OutlinedDescriptionIcon
         val Drafts: ImageVector = Icons.Outlined.Drafts
@@ -181,6 +187,7 @@ object Icons {
         val Security: ImageVector = Icons.Outlined.Security
         val Send: ImageVector = Icons.AutoMirrored.Outlined.Send
         val Settings: ImageVector = Icons.Outlined.Settings
+        val Smartphone: ImageVector = Icons.Outlined.Smartphone
         val Smile: ImageVector = OutlinedSmileIcon
         val Spa: ImageVector = OutlinedSpaIcon
         val Star: ImageVector = OutlinedStarIcon

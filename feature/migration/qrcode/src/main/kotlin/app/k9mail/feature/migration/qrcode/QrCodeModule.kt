@@ -29,6 +29,7 @@ import app.k9mail.feature.migration.qrcode.transfer.hotspot.HotspotNetworkConnec
 import app.k9mail.feature.migration.qrcode.transfer.hotspot.UnsupportedHotspotController
 import app.k9mail.feature.migration.qrcode.transfer.hotspot.UnsupportedHotspotNetworkConnector
 import app.k9mail.feature.migration.qrcode.ui.QrCodeScannerViewModel
+import app.k9mail.feature.migration.qrcode.ui.paste.TransferPasteViewModel
 import app.k9mail.feature.migration.qrcode.ui.send.TransferSendViewModel
 import org.koin.core.module.dsl.viewModel
 import org.koin.dsl.module
@@ -44,6 +45,13 @@ val qrCodeModule = module {
 
     viewModel {
         TransferSendViewModel(transferSender = get())
+    }
+
+    viewModel {
+        TransferPasteViewModel(
+            qrCodePayloadReader = get(),
+            qrCodeSettingsWriter = get(),
+        )
     }
 
     factory { QrCodePayloadAdapter() }

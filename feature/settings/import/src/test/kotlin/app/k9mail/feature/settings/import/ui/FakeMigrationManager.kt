@@ -15,6 +15,10 @@ class FakeMigrationManager(var featureIncluded: Boolean) : MigrationManager {
         error("Not implemented")
     }
 
+    override fun getTransferPasteActivityResultContract(): ActivityResultContract<Unit, Uri?> {
+        error("Not implemented")
+    }
+
     override fun createTransferSendIntent(context: Context): Intent? {
         return null
     }
