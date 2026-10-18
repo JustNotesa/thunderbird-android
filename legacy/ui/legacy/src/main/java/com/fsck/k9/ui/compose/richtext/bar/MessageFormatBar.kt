@@ -1,6 +1,7 @@
 package com.fsck.k9.ui.compose.richtext.bar
 
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -15,6 +16,7 @@ import com.fsck.k9.ui.R
 import com.fsck.k9.ui.compose.richtext.ImageSource
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
+import net.thunderbird.components.ui.bolt.atom.DividerHorizontal
 import net.thunderbird.components.ui.bolt.atom.DividerVertical
 import net.thunderbird.components.ui.bolt.atom.Surface
 import net.thunderbird.components.ui.bolt.atom.icon.Icons
@@ -60,27 +62,30 @@ internal fun MessageFormatBar(
     onEvent: (FormatBarEvent) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Surface(modifier = modifier.fillMaxWidth(), color = BoltTheme.colors.surfaceContainer) {
-        Row(
-            modifier = Modifier
-                .height(BAR_HEIGHT)
-                .horizontalScroll(rememberScrollState())
-                .padding(horizontal = BoltTheme.spacings.half),
-            verticalAlignment = CenterVertically,
-        ) {
-            if (state.isUndoVisible) {
-                HistoryButtons(state, onEvent)
+    Surface(modifier = modifier.fillMaxWidth(), color = BoltTheme.colors.surfaceContainerLowest) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            DividerHorizontal(color = BoltTheme.colors.outlineVariant)
+            Row(
+                modifier = Modifier
+                    .height(BAR_HEIGHT)
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = BoltTheme.spacings.half),
+                verticalAlignment = CenterVertically,
+            ) {
+                if (state.isUndoVisible) {
+                    HistoryButtons(state, onEvent)
+                    GroupDivider()
+                }
+                CharacterButtons(state, onEvent)
                 GroupDivider()
+                ColorButtons(state, onEvent)
+                GroupDivider()
+                ParagraphButtons(state, onEvent)
+                GroupDivider()
+                InsertButtons(state, onEvent)
+                GroupDivider()
+                TypeButtons(state, onEvent)
             }
-            CharacterButtons(state, onEvent)
-            GroupDivider()
-            ColorButtons(state, onEvent)
-            GroupDivider()
-            ParagraphButtons(state, onEvent)
-            GroupDivider()
-            InsertButtons(state, onEvent)
-            GroupDivider()
-            TypeButtons(state, onEvent)
         }
     }
 }
