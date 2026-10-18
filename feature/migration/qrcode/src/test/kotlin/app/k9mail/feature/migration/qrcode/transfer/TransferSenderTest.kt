@@ -3,6 +3,9 @@ package app.k9mail.feature.migration.qrcode.transfer
 import app.k9mail.feature.migration.qrcode.payload.QrCodeData
 import app.k9mail.feature.migration.qrcode.payload.QrCodePayloadAdapter
 import app.k9mail.feature.migration.qrcode.payload.QrCodePayloadParser
+import app.k9mail.feature.migration.qrcode.transfer.hotspot.FakeHotspotController
+import app.k9mail.feature.migration.qrcode.transfer.hotspot.HotspotController
+import app.k9mail.feature.migration.qrcode.transfer.hotspot.HotspotStartResult
 import assertk.assertThat
 import assertk.assertions.isEqualTo
 import assertk.assertions.isGreaterThan
@@ -56,6 +59,108 @@ class TransferSenderTest {
     }
 
     @Test
+    fun `a prepared hotspot transfer is fetched by the receiving device`() = runTest {
+        val hotspotController = createStartedHotspot()
+        val testSubject = createSender(
+            accounts = accounts,
+            address = bindAddress,
+            hotspotController = hotspotController,
+        )
+
+        val result = testSubject.prepareHotspot()
+
+        assertThat(result).isInstanceOf<TransferSendResult.Ready>()
+        val session = (result as TransferSendResult.Ready).session
+        val qrCode = checkNotNull(TransferQrCode.parse(session.qrText)) { "The QR code is invalid" }
+        val route = checkNotNull(qrCode.route as? TransferRoute.Hotspot) { "The QR code has no hotspot route" }
+        assertThat(route.ssid).isEqualTo(HOTSPOT_SSID)
+        assertThat(route.passphrase).isEqualTo(HOTSPOT_PASSPHRASE)
+        assertThat(route.host).isEqualTo(bindAddress.hostAddress)
+        assertThat(route.port).isGreaterThan(NO_PORT)
+
+        val serverResult = async(Dispatchers.IO) { session.awaitTransfer() }
+        val accountsJson = fetchAccounts(qrCode, route)
+
+        assertThat(serverResult.await()).isEqualTo(LanTransferServerResult.Transferred)
+        assertThat(parser.parse(accountsJson)).isEqualTo(expectedAccounts())
+        assertThat(hotspotController.stopCount).isEqualTo(1)
+    }
+
+    @Test
+    fun `stopping a hotspot transfer stops the hotspot`() = runTest {
+        val hotspotController = createStartedHotspot()
+        val testSubject = createSender(
+            accounts = accounts,
+            address = bindAddress,
+            hotspotController = hotspotController,
+        )
+
+        val result = testSubject.prepareHotspot()
+
+        assertThat(result).isInstanceOf<TransferSendResult.Ready>()
+        (result as TransferSendResult.Ready).session.stop()
+
+        assertThat(hotspotController.stopCount).isEqualTo(1)
+    }
+
+    @Test
+    fun `a hotspot transfer that can't open a port fails and stops the hotspot`() = runTest {
+        val hotspotController = createStartedHotspot()
+        val testSubject = createSender(
+            accounts = accounts,
+            address = bindAddress,
+            bindAddress = InetAddress.getByName(UNASSIGNED_ADDRESS),
+            hotspotController = hotspotController,
+        )
+
+        val result = testSubject.prepareHotspot()
+
+        assertThat(result).isEqualTo(TransferSendResult.Failed)
+        assertThat(hotspotController.stopCount).isEqualTo(1)
+    }
+
+    @Test
+    fun `a transfer over an unsupported hotspot is not prepared`() = runTest {
+        val testSubject = createSender(
+            accounts = accounts,
+            address = bindAddress,
+            hotspotController = FakeHotspotController(HotspotStartResult.Unsupported),
+        )
+
+        val result = testSubject.prepareHotspot()
+
+        assertThat(result).isEqualTo(TransferSendResult.HotspotUnsupported)
+    }
+
+    @Test
+    fun `a transfer over a hotspot that failed is not prepared`() = runTest {
+        val testSubject = createSender(
+            accounts = accounts,
+            address = bindAddress,
+            hotspotController = FakeHotspotController(HotspotStartResult.Failed),
+        )
+
+        val result = testSubject.prepareHotspot()
+
+        assertThat(result).isEqualTo(TransferSendResult.Failed)
+    }
+
+    @Test
+    fun `a hotspot transfer without accounts doesn't start the hotspot`() = runTest {
+        val hotspotController = createStartedHotspot()
+        val testSubject = createSender(
+            accounts = emptyList(),
+            address = bindAddress,
+            hotspotController = hotspotController,
+        )
+
+        val result = testSubject.prepareHotspot()
+
+        assertThat(result).isEqualTo(TransferSendResult.NoAccounts)
+        assertThat(hotspotController.startCount).isEqualTo(0)
+    }
+
+    @Test
     fun `a transfer without a wifi network is not prepared`() = runTest {
         val testSubject = createSender(accounts = accounts, address = null)
 
@@ -90,10 +195,12 @@ class TransferSenderTest {
         accounts: List<TransferAccount>,
         address: Inet4Address?,
         bindAddress: InetAddress = address ?: InetAddress.getLoopbackAddress(),
+        hotspotController: HotspotController = FakeHotspotController(HotspotStartResult.Unsupported),
     ): TransferSender {
         return TransferSender(
             accountSource = TransferAccountSource { accounts },
             addressProvider = LocalNetworkAddressProvider { address },
+            hotspotController = hotspotController,
             clock = { CREATED_AT },
             createServer = { container, transferId, _ ->
                 LanTransferServer(
@@ -104,6 +211,35 @@ class TransferSenderTest {
                 )
             },
         )
+    }
+
+    private fun createStartedHotspot(): FakeHotspotController {
+        return FakeHotspotController(
+            HotspotStartResult.Started(
+                ssid = HOTSPOT_SSID,
+                passphrase = HOTSPOT_PASSPHRASE,
+                address = bindAddress,
+            ),
+        )
+    }
+
+    /**
+     * Fetches the container of a hotspot transfer the way a receiving device that is already on the hotspot does: with
+     * the host and port of the route, after joining the network named by the QR code.
+     */
+    private suspend fun fetchAccounts(qrCode: TransferQrCode, route: TransferRoute.Hotspot): String {
+        val lanRoute = TransferRoute.Lan(host = route.host, port = route.port)
+        val fetched = LanTransferClient().fetch(lanRoute, qrCode.secrets.transferId)
+
+        assertThat(fetched).isInstanceOf<LanTransferClientResult.Success>()
+        val container = (fetched as LanTransferClientResult.Success).container
+        val decrypted = TransferContainer.decrypt(container, qrCode.secrets)
+        assertThat(decrypted).isInstanceOf<TransferContainerResult.Success>()
+        val plaintext = (decrypted as TransferContainerResult.Success).plaintext
+
+        return checkNotNull(TransferPayload.read(String(plaintext, Charsets.UTF_8))) {
+            "The payload of the transfer is invalid"
+        }.accountsJson
     }
 
     private fun imapAccount(): TransferAccount {
@@ -243,5 +379,7 @@ class TransferSenderTest {
         private const val NO_PORT = 0
         private const val SERVER_LIFETIME = 10_000L
         private const val UNASSIGNED_ADDRESS = "192.0.2.1"
+        private const val HOTSPOT_SSID = "DIRECT-test"
+        private const val HOTSPOT_PASSPHRASE = "secret123"
     }
 }

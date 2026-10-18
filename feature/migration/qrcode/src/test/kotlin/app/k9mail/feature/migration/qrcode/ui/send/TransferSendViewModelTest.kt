@@ -14,6 +14,8 @@ import app.k9mail.feature.migration.qrcode.transfer.TransferIdentity
 import app.k9mail.feature.migration.qrcode.transfer.TransferQrCode
 import app.k9mail.feature.migration.qrcode.transfer.TransferReceiver
 import app.k9mail.feature.migration.qrcode.transfer.TransferSender
+import app.k9mail.feature.migration.qrcode.transfer.hotspot.FakeHotspotController
+import app.k9mail.feature.migration.qrcode.transfer.hotspot.HotspotStartResult
 import app.k9mail.feature.migration.qrcode.ui.send.TransferSendContract.Effect
 import app.k9mail.feature.migration.qrcode.ui.send.TransferSendContract.Event
 import app.k9mail.feature.migration.qrcode.ui.send.TransferSendContract.State
@@ -174,6 +176,7 @@ private class TransferSendScreenRobot(
         transferSender = TransferSender(
             accountSource = TransferAccountSource { accounts },
             addressProvider = LocalNetworkAddressProvider { address },
+            hotspotController = FakeHotspotController(HotspotStartResult.Unsupported),
             clock = { CREATED_AT },
             createServer = { container, transferId, serverAddress ->
                 LanTransferServer(

@@ -57,8 +57,14 @@ internal class TransferSendViewModel(
         transferJob = viewModelScope.launch {
             when (val result = transferSender.prepare()) {
                 is TransferSendResult.Ready -> awaitTransfer(result.session)
+
                 TransferSendResult.NoWifi -> updateStep(Step.NoWifi)
+
                 TransferSendResult.NoAccounts -> updateStep(Step.NoAccounts)
+
+                // The hotspot isn't used on this path, it can only be prepared with prepareHotspot().
+                TransferSendResult.HotspotUnsupported -> updateStep(Step.Failed)
+
                 TransferSendResult.Failed -> updateStep(Step.Failed)
             }
         }

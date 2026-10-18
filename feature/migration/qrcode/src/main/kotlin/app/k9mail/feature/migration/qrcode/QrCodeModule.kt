@@ -84,7 +84,7 @@ val qrCodeModule = module {
         )
     }
     factory<TransferAccountSource> { LegacyTransferAccountSource(accountManager = get()) }
-    factory { TransferSender(accountSource = get(), addressProvider = get()) }
+    factory { TransferSender(accountSource = get(), addressProvider = get(), hotspotController = get()) }
 
     factory<HotspotController> {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
