@@ -31,6 +31,14 @@
     <dimen name="messageListRelaxedVerticalPadding">16dp</dimen>
     <item name="messageListRelaxedLineSpacingMultiplier" format="float" type="dimen">1.2</item>
 
+    <!-- The account of a message, drawn as a label at the end of the subject. -->
+    <dimen name="messageViewAccountLabelGapBefore">8dp</dimen>
+    <dimen name="messageViewAccountLabelHorizontalPadding">8dp</dimen>
+    <dimen name="messageViewAccountLabelVerticalPadding">2dp</dimen>
+    <dimen name="messageViewAccountLabelDotSize">6dp</dimen>
+    <dimen name="messageViewAccountLabelDotGap">4dp</dimen>
+    <dimen name="messageViewAccountLabelTextSize">12sp</dimen>
+
     <dimen name="fakeAlignImageTopToTextTopPadding">4dp</dimen>
 
     <dimen name="floatingActionButtonMargin">16dp</dimen>

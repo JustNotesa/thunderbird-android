@@ -4,7 +4,6 @@ package com.fsck.k9.view;
 import java.util.List;
 
 import android.content.Context;
-import android.content.res.ColorStateList;
 import android.util.AttributeSet;
 import android.view.View;
 import android.view.View.OnClickListener;
@@ -35,7 +34,6 @@ import com.fsck.k9.ui.messageview.DisplayRecipientsExtractor;
 import com.fsck.k9.ui.messageview.MessageHeaderClickListener;
 import com.fsck.k9.ui.messageview.MessageViewRecipientFormatter;
 import com.fsck.k9.ui.messageview.RecipientNamesView;
-import com.google.android.material.chip.Chip;
 import com.google.android.material.textview.MaterialTextView;
 import net.thunderbird.core.android.account.LegacyAccountDto;
 import net.thunderbird.core.common.mail.Flag;
@@ -56,7 +54,7 @@ public class MessageHeader extends LinearLayout implements OnClickListener, OnLo
     private final MessageHelper messageHelper = DI.get(MessageHelper.class);
     private final FontSizes fontSizes = K9.getFontSizes();
 
-    private Chip accountNameView;
+    private final SubjectTextBuilder subjectText = new SubjectTextBuilder();
     private BottomBaselineTextView subjectView;
     private ImageView starView;
     private ImageView contactPictureView;
@@ -87,7 +85,6 @@ public class MessageHeader extends LinearLayout implements OnClickListener, OnLo
     protected void onFinishInflate() {
         super.onFinishInflate();
 
-        accountNameView = findViewById(R.id.account_name);
         subjectView = findViewById(R.id.subject);
         starView = findViewById(R.id.flagged);
         contactPictureView = findViewById(R.id.contact_picture);
@@ -96,7 +93,6 @@ public class MessageHeader extends LinearLayout implements OnClickListener, OnLo
         recipientNamesView = findViewById(R.id.recipients);
         dateView = findViewById(R.id.date);
 
-        fontSizes.setViewTextSize(accountNameView, fontSizes.getMessageViewAccountName());
         fontSizes.setViewTextSize(subjectView, fontSizes.getMessageViewSubject());
         fontSizes.setViewTextSize(dateView, fontSizes.getMessageViewDate());
         fontSizes.setViewTextSize(fromView, fontSizes.getMessageViewSender());
@@ -180,7 +176,7 @@ public class MessageHeader extends LinearLayout implements OnClickListener, OnLo
         int id = view.getId();
 
         if (id == R.id.subject) {
-            onAddSubjectToClipboard(subjectView.getText().toString());
+            onAddSubjectToClipboard(subjectText.clipboardText());
         }
 
         return true;
@@ -212,12 +208,11 @@ public class MessageHeader extends LinearLayout implements OnClickListener, OnLo
     public void populate(final Message message, final LegacyAccountDto account, boolean showStar,
         boolean showAccountIndicator) {
         if (showAccountIndicator) {
-            accountNameView.setVisibility(View.VISIBLE);
-            accountNameView.setText(account.getDisplayName());
-            accountNameView.setChipBackgroundColor(ColorStateList.valueOf(account.getChipColor()));
+            subjectText.setAccountLabel(new AccountLabel(account.getDisplayName(), account.getChipColor()));
         } else {
-            accountNameView.setVisibility(View.GONE);
+            subjectText.setAccountLabel(null);
         }
+        updateSubjectView();
 
         Address fromAddress = null;
         Address[] fromAddresses = message.getFrom();
@@ -338,7 +333,12 @@ public class MessageHeader extends LinearLayout implements OnClickListener, OnLo
     }
 
     public void setSubject(@NonNull String subject) {
-        subjectView.setText(subject);
+        subjectText.setSubject(subject);
+        updateSubjectView();
+    }
+
+    private void updateSubjectView() {
+        subjectView.setText(subjectText.build(getContext()));
     }
 
     public void hideCryptoStatus() {
