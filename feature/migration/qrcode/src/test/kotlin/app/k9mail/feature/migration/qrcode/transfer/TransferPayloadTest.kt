@@ -3,8 +3,10 @@ package app.k9mail.feature.migration.qrcode.transfer
 import app.k9mail.feature.migration.qrcode.payload.QrCodeData
 import app.k9mail.feature.migration.qrcode.payload.QrCodePayloadAdapter
 import app.k9mail.feature.migration.qrcode.payload.QrCodePayloadParser
+import assertk.assertFailure
 import assertk.assertThat
 import assertk.assertions.isEqualTo
+import assertk.assertions.isInstanceOf
 import assertk.assertions.isNotNull
 import assertk.assertions.isNull
 import kotlin.test.Test
@@ -29,6 +31,15 @@ class TransferPayloadTest {
 
         assertThat(content).isNotNull()
         assertThat(checkNotNull(content).createdAt).isEqualTo(CREATED_AT)
+    }
+
+    @Test
+    fun `accounts of a written payload are read unchanged`() {
+        val written = testSubject.write(accountsJson = ACCOUNTS_PAYLOAD, createdAt = CREATED_AT)
+
+        val content = testSubject.read(written)
+
+        assertThat(checkNotNull(content).accountsJson).isEqualTo(ACCOUNTS_PAYLOAD)
     }
 
     @Test
@@ -84,6 +95,17 @@ class TransferPayloadTest {
         val result = testSubject.read("https://domain.example/path")
 
         assertThat(result).isNull()
+    }
+
+    @Test
+    fun `payload with accounts that aren't a JSON array is not written`() {
+        val accounts = """{"username":"user@domain.example"}"""
+
+        val failure = assertFailure {
+            testSubject.write(accountsJson = accounts, createdAt = CREATED_AT)
+        }
+
+        failure.isInstanceOf(IllegalArgumentException::class)
     }
 
     private fun payloadJson(

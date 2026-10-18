@@ -21,14 +21,14 @@ internal class LanTransferClient(
     private val connectTimeoutMillis: Int = DEFAULT_CONNECT_TIMEOUT_MILLIS,
     private val readTimeoutMillis: Int = DEFAULT_READ_TIMEOUT_MILLIS,
     private val maxContainerSize: Int = DEFAULT_MAX_CONTAINER_SIZE,
-) {
+) : TransferContainerFetcher {
     /**
      * Asks the device described by [route] for the container belonging to [transferId].
      *
      * @return [LanTransferClientResult.Success] with the container, [LanTransferClientResult.Unreachable] when there is
      * no device to talk to, [LanTransferClientResult.Failed] when the device didn't deliver a container.
      */
-    suspend fun fetch(route: TransferRoute.Lan, transferId: ByteArray): LanTransferClientResult {
+    override suspend fun fetch(route: TransferRoute.Lan, transferId: ByteArray): LanTransferClientResult {
         return withContext(Dispatchers.IO) {
             val socket = connect(host = route.host, port = route.port)
 

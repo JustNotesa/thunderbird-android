@@ -24,17 +24,23 @@ internal object TransferPayload {
     /**
      * Creates the JSON object that gets encrypted into the transfer container.
      *
+     * The accounts payload is inserted verbatim. Turning it into a JSON value and back would turn its integers into
+     * doubles, which the strict parsers of the other platforms reject.
+     *
      * @param accountsJson Thunderbird desktop "Export to Mobile" payload, inserted as the value of `accounts`.
      * @param createdAt Creation time in Unix seconds.
+     * @throws IllegalArgumentException if [accountsJson] isn't a JSON array.
      */
     fun write(accountsJson: String, createdAt: Long): String {
+        requireJsonArray(accountsJson)
+
         val buffer = Buffer()
         JsonWriter.of(buffer).use { jsonWriter ->
             jsonWriter.beginObject()
             jsonWriter.name(KEY_TYPE).value(PAYLOAD_TYPE)
             jsonWriter.name(KEY_VERSION).value(PAYLOAD_VERSION.toLong())
             jsonWriter.name(KEY_CREATED_AT).value(createdAt)
-            jsonWriter.name(KEY_ACCOUNTS).jsonValue(readJsonValue(accountsJson))
+            jsonWriter.name(KEY_ACCOUNTS).valueSink().writeUtf8(accountsJson).close()
             jsonWriter.name(KEY_EXTENSIONS).beginObject().endObject()
             jsonWriter.endObject()
         }
@@ -71,7 +77,7 @@ internal object TransferPayload {
                 KEY_TYPE -> type = jsonReader.nextString()
                 KEY_VERSION -> version = jsonReader.nextInt()
                 KEY_CREATED_AT -> createdAt = jsonReader.nextLong()
-                KEY_ACCOUNTS -> accountsJson = writeJsonValue(jsonReader.readJsonValue())
+                KEY_ACCOUNTS -> accountsJson = readJsonArray(jsonReader)
                 else -> jsonReader.skipValue()
             }
         }
@@ -96,18 +102,23 @@ internal object TransferPayload {
         return TransferPayloadContent(createdAt = validCreatedAt, accountsJson = validAccounts)
     }
 
-    private fun readJsonValue(json: String): Any? {
+    private fun requireJsonArray(json: String) {
         val buffer = Buffer()
         buffer.writeUtf8(json)
 
-        return JsonReader.of(buffer).use { it.readJsonValue() }
+        JsonReader.of(buffer).use { jsonReader ->
+            require(jsonReader.peek() == JsonReader.Token.BEGIN_ARRAY) {
+                "The accounts payload isn't a JSON array"
+            }
+        }
     }
 
-    private fun writeJsonValue(value: Any?): String {
-        val buffer = Buffer()
-        JsonWriter.of(buffer).use { it.jsonValue(value) }
+    private fun readJsonArray(jsonReader: JsonReader): String {
+        require(jsonReader.peek() == JsonReader.Token.BEGIN_ARRAY) {
+            "The accounts of the transfer payload aren't a JSON array"
+        }
 
-        return buffer.readUtf8()
+        return jsonReader.nextSource().readUtf8()
     }
 }
 

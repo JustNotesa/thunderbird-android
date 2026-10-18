@@ -10,6 +10,9 @@ import app.k9mail.feature.migration.qrcode.payload.QrCodePayloadValidator
 import app.k9mail.feature.migration.qrcode.settings.DefaultUuidGenerator
 import app.k9mail.feature.migration.qrcode.settings.UuidGenerator
 import app.k9mail.feature.migration.qrcode.settings.XmlSettingWriter
+import app.k9mail.feature.migration.qrcode.transfer.LanTransferClient
+import app.k9mail.feature.migration.qrcode.transfer.TransferContainerFetcher
+import app.k9mail.feature.migration.qrcode.transfer.TransferReceiver
 import app.k9mail.feature.migration.qrcode.ui.QrCodeScannerViewModel
 import org.koin.core.module.dsl.viewModel
 import org.koin.dsl.module
@@ -53,4 +56,7 @@ val qrCodeModule = module {
             featureFlagProvider = get(),
         )
     }
+
+    factory<TransferContainerFetcher> { LanTransferClient() }
+    factory { TransferReceiver(fetcher = get()) }
 }
