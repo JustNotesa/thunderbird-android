@@ -26,6 +26,8 @@ internal object ParagraphFormatter {
 
             text.setBlockOf(line, newBlock, paragraph)
         }
+
+        text.keepEndMarker()
     }
 
     /**
@@ -45,6 +47,8 @@ internal object ParagraphFormatter {
 
             text.setParagraphSpans(line, paragraph.copy(block = block, level = level))
         }
+
+        text.keepEndMarker()
     }
 
     /**
@@ -56,6 +60,8 @@ internal object ParagraphFormatter {
 
             text.setParagraphSpans(line, paragraph.copy(alignment = alignment))
         }
+
+        text.keepEndMarker()
     }
 
     /**
@@ -94,12 +100,14 @@ internal object ParagraphFormatter {
      * Puts the paragraph formatting of [paragraphs] onto the lines they cover. A range of the model reaches over as
      * many lines as it covers, and every one of them gets the formatting.
      */
-    fun applyParagraphs(text: Spannable, paragraphs: List<ParagraphRange>) {
+    fun applyParagraphs(text: Editable, paragraphs: List<ParagraphRange>) {
         for (paragraph in paragraphs) {
             for (line in text.lineRanges(paragraph.start, paragraph.end)) {
                 text.setParagraphSpans(line, paragraph)
             }
         }
+
+        text.keepEndMarker()
     }
 
     /**
@@ -112,6 +120,7 @@ internal object ParagraphFormatter {
         if (cursor != lineStart || paragraph.block == BlockType.Normal) return false
 
         text.setBlockOf(lineStart..text.lineEndAt(lineStart), BlockType.Normal, paragraph)
+        text.keepEndMarker()
         return true
     }
 

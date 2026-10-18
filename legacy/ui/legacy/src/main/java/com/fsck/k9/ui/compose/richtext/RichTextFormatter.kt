@@ -120,13 +120,15 @@ internal object RichTextFormatter {
         }
         text.setImageSpans(formattedText.images, images)
         ParagraphFormatter.applyParagraphs(text, formattedText.paragraphs)
+        text.keepEndMarker()
 
         return text
     }
 
     /**
      * The text of the text field and its formatting as the model of the composer reads it, to save it as a draft.
-     * A link the composer refuses is left out; its text stays.
+     * A link the composer refuses is left out; its text stays. The end marker of the empty last line is no text of the
+     * message and is left out with everything that belongs to it.
      */
     fun formattedText(text: Spanned): FormattedText {
         return FormattedText(
@@ -136,7 +138,7 @@ internal object RichTextFormatter {
             links = text.linkRanges(),
             paragraphs = ParagraphFormatter.paragraphs(text),
             images = text.inlineImages(),
-        )
+        ).withoutEndMarkers()
     }
 
     /**

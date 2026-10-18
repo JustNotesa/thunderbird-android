@@ -980,8 +980,8 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
             return PlainTextAlternativeKt.toPlainTextAlternative(messageFormattingToolbar.getFormattedText());
         }
 
-        // The character that stands for an inline image has no meaning in plain text.
-        return messageContentView.getText().toString().replace("\uFFFC", "");
+        // The characters that stand for an inline image and for the formatting of an empty last line are no text.
+        return messageContentView.getText().toString().replace("\uFFFC", "").replace("\u200B", "");
     }
 
     /**

@@ -37,7 +37,7 @@ internal class ParagraphEditWatcher(private val isEnabled: () -> Boolean) : Text
             removed = text.substring(start, start + count),
             added = after,
             formats = lineStarts.map { lineStart -> text.paragraphRangeAt(lineStart) },
-            startedOnEmptyLine = text.lineStartAt(start) == start && text.lineEndAt(start) == start,
+            startedOnEmptyLine = text.lineStartAt(start) == start && text.isEmptyLine(start),
         )
     }
 
@@ -52,6 +52,7 @@ internal class ParagraphEditWatcher(private val isEnabled: () -> Boolean) : Text
         isChanging = true
         try {
             handleEdit(text, edit)
+            text.keepEndMarker()
         } finally {
             isChanging = false
         }

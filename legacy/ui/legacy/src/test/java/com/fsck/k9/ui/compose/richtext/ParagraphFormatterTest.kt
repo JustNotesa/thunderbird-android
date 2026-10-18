@@ -228,10 +228,11 @@ class ParagraphFormatterTest : RobolectricTest() {
         text.text.insert(3, "\n")
 
         // Assert
-        // Both lines are items of the list; the model keeps lines that share their formatting as one range.
-        assertThat(text.text.toString()).isEqualTo("one\n")
+        // Both lines are items of the list; the model keeps lines that share their formatting as one range. The empty
+        // line at the end carries its formatting on the end marker.
+        assertThat(text.text.toString()).isEqualTo("one\n$END_MARKER")
         assertThat(ParagraphFormatter.paragraphs(text.text)).containsExactly(
-            ParagraphRange(0, 4, BlockType.BulletList, 0, Alignment.Start),
+            ParagraphRange(0, 5, BlockType.BulletList, 0, Alignment.Start),
         )
     }
 
@@ -245,7 +246,7 @@ class ParagraphFormatterTest : RobolectricTest() {
 
         // Assert
         assertThat(ParagraphFormatter.paragraphs(text.text)).containsExactly(
-            ParagraphRange(0, 4, BlockType.NumberedList, 2, Alignment.Start),
+            ParagraphRange(0, 5, BlockType.NumberedList, 2, Alignment.Start),
         )
     }
 
@@ -356,7 +357,7 @@ class ParagraphFormatterTest : RobolectricTest() {
 
         // Assert
         assertThat(ParagraphFormatter.paragraphs(text.text)).containsExactly(
-            ParagraphRange(0, 0, BlockType.BulletList, 0, Alignment.Start),
+            ParagraphRange(0, 1, BlockType.BulletList, 0, Alignment.Start),
         )
     }
 

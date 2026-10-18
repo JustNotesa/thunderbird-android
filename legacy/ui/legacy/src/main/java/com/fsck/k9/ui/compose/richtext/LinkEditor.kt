@@ -16,7 +16,7 @@ internal class LinkEditor(private val messageContent: EditText) {
         val selectionEnd = maxOf(messageContent.selectionStart, messageContent.selectionEnd).coerceAtLeast(0)
         val link = LinkFormatter.linkAt(text, selectionStart, selectionEnd)
         val start = link?.start ?: selectionStart
-        val end = link?.end ?: selectionEnd
+        val end = text.endWithoutEndMarker(link?.end ?: selectionEnd)
         val selectedText = text.substring(start, end)
 
         LinkDialog(messageContent.context).show(
