@@ -16,11 +16,11 @@ internal class TransferSession(
      * released before this returns.
      */
     suspend fun awaitTransfer(): LanTransferServerResult {
-        val result = server.awaitTransfer()
-
-        onStop()
-
-        return result
+        return try {
+            server.awaitTransfer()
+        } finally {
+            onStop()
+        }
     }
 
     /**
