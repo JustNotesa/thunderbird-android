@@ -274,7 +274,9 @@ class MessageListSwipeCallback(
         swipeText.text = getActionName(swipeAction, item, isSelected, swipeActionConfig)
         swipeText.setTextColor(foregroundColor)
 
-        if (swipeLayout.isDirty) {
+        // The layout is never attached to a window, so a change doesn't always mark it dirty; one that hasn't been
+        // laid out at the size of the row yet would draw nothing.
+        if (swipeLayout.isDirty || swipeLayout.width != width || swipeLayout.height != height) {
             val widthMeasureSpec = MeasureSpec.makeMeasureSpec(width, MeasureSpec.EXACTLY)
             val heightMeasureSpec = MeasureSpec.makeMeasureSpec(height, MeasureSpec.EXACTLY)
             swipeLayout.measure(widthMeasureSpec, heightMeasureSpec)
