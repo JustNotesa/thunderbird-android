@@ -32,7 +32,21 @@ class DefaultGlobalCssStyleProviderTest {
 
         // Assert
         assertThat(mainContentRule).contains("width: 100%")
-        assertThat(mainContentRule).contains("padding: 0 8px")
+        assertThat(mainContentRule).contains("padding: 0 16px")
+    }
+
+    @Test
+    fun `style should keep the main content within the width of the view`() {
+        // Arrange
+        val testSubject = createTestSubject()
+
+        // Act
+        val style = testSubject.create(createHtmlSettings()).style
+        val mainContentRule = style.mainContentRule()
+
+        // Assert: the body's default margin would come on top of its full width and make the message scroll sideways
+        assertThat(mainContentRule).contains("margin-left: 0")
+        assertThat(mainContentRule).contains("margin-right: 0")
     }
 
     @Test

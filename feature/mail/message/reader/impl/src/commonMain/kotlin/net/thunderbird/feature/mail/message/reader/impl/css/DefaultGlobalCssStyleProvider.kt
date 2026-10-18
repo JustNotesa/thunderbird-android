@@ -29,7 +29,9 @@ internal class DefaultGlobalCssStyleProvider private constructor(
         |    box-sizing: border-box;
         |    width: 100%;
         |    overflow-wrap: break-word;
-        |    padding: 0 8px;
+        |    margin-left: 0;
+        |    margin-right: 0;
+        |    padding: 0 16px;
         |  }
         |  .${cssClassNameProvider.rootClassName}.${cssClassNameProvider.mainContentClassName} pre {
         |    white-space: pre-wrap;
