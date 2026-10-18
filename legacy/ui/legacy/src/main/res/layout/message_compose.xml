@@ -15,9 +15,22 @@
         style="@style/Widget.App.AppBarLayout"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
+        android:background="?attr/colorSurfaceContainerLowest"
         >
 
         <include layout="@layout/toolbar" />
+
+        <!--
+        The app bar carries no elevation. A hairline that only appears while the message is scrolled separates it from
+        the message area instead, so that the top of the composer reads as one surface.
+        -->
+        <View
+            android:id="@+id/app_bar_divider"
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:alpha="0"
+            android:background="?attr/colorOutlineVariant"
+            />
 
     </com.google.android.material.appbar.AppBarLayout>
 
@@ -30,10 +43,16 @@
         app:layout_behavior="@string/appbar_scrolling_view_behavior"
         >
 
+        <!--
+        The banner that a notification shows is inset from the sides; the gap above and below it is added while it is
+        shown, see MessageComposeInAppNotificationFragment.
+        -->
         <FrameLayout
             android:id="@+id/message_compose_in_app_notifications_container"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"
             />
 
         <ViewStub

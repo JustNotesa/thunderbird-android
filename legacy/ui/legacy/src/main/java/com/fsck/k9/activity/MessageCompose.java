@@ -49,11 +49,13 @@ import android.widget.EditText;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.PopupMenu;
+import android.widget.ScrollView;
 import android.widget.Toast;
 import androidx.activity.OnBackPressedCallback;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.StringRes;
+import androidx.appcompat.widget.Toolbar;
 import android.text.InputType;
 import android.view.GestureDetector;
 import android.view.MotionEvent;
@@ -161,6 +163,7 @@ import com.fsck.k9.ui.compose.QuotedMessagePresenter;
 import com.fsck.k9.ui.compose.WrapUriTextWatcher;
 import com.fsck.k9.ui.helper.SizeFormatter;
 import com.fsck.k9.ui.messagelist.DefaultFolderProvider;
+import com.google.android.material.color.MaterialColors;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
 import com.google.android.material.textview.MaterialTextView;
 import net.thunderbird.core.android.account.MessageFormat;
@@ -2558,6 +2561,18 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
     private void initializeActionBar() {
         ActionBar actionBar = getSupportActionBar();
         actionBar.setDisplayHomeAsUpEnabled(true);
+
+        // The app bar of the composer is as white as the message area below it, so that the toolbar doesn't tint the
+        // status bar behind it either. The toolbar keeps the app bar color of the theme, which is why it's set here.
+        Toolbar toolbar = findViewById(R.id.toolbar);
+        toolbar.setBackgroundColor(
+                MaterialColors.getColor(toolbar, com.google.android.material.R.attr.colorSurfaceContainerLowest));
+
+        // Scrolled content gets a hairline below the app bar instead of the shadow an app bar would normally cast.
+        View appBarDivider = findViewById(R.id.app_bar_divider);
+        ScrollView messageArea = findViewById(R.id.message_compose_scroll_view);
+        messageArea.setOnScrollChangeListener((view, scrollX, scrollY, oldScrollX, oldScrollY) ->
+                appBarDivider.setAlpha(scrollY == 0 ? 0 : 1));
     }
 
     private void initializeInAppNotificationFragment() {

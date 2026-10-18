@@ -39,4 +39,6 @@
 
     <!-- Message Compose -->
     <dimen name="message_compose_edit_signature_padding">24dp</dimen>
+    <!-- Gap above and below the in-app notification banner; only present while a banner is shown. -->
+    <dimen name="message_compose_banner_margin">8dp</dimen>
 </resources>

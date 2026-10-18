@@ -4,9 +4,14 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
+import androidx.compose.ui.unit.dp
 import androidx.fragment.app.Fragment
+import com.fsck.k9.ui.R
 import com.fsck.k9.ui.settings.account.AccountSettingsActivity
 import com.fsck.k9.ui.settings.account.AccountSettingsFragment
 import com.google.android.material.snackbar.Snackbar
@@ -23,6 +28,7 @@ import net.thunderbird.feature.notification.api.ui.style.SnackbarDuration
 import org.koin.android.ext.android.inject
 
 private const val TAG = "MessageComposeInAppNotificationFragment"
+private val BANNER_CORNER_RADIUS = 12.dp
 
 class MessageComposeInAppNotificationFragment : Fragment() {
     private val themeProvider: FeatureThemeProvider by inject()
@@ -45,6 +51,10 @@ class MessageComposeInAppNotificationFragment : Fragment() {
         ComposeView(requireContext()).apply {
             setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
             parentView = container
+            addOnLayoutChangeListener { view, _, _, _, _, _, _, _, _ ->
+                updateBannerMargin(container, bannerShown = view.height > 0)
+            }
+
             setContent {
                 themeProvider.WithTheme {
                     InAppNotificationHost(
@@ -58,6 +68,7 @@ class MessageComposeInAppNotificationFragment : Fragment() {
                             val accountId = notification.accountId
                             accountId != null && accountId in accountIds
                         },
+                        modifier = Modifier.clip(RoundedCornerShape(BANNER_CORNER_RADIUS)),
                     )
                 }
             }
@@ -66,6 +77,20 @@ class MessageComposeInAppNotificationFragment : Fragment() {
     override fun onDestroyView() {
         super.onDestroyView()
         parentView = null
+    }
+
+    /**
+     * The banner is a card that sits above the message. The gap around it belongs to the banner and has to disappear
+     * with it, otherwise the message would start below a hole in an empty composer.
+     */
+    private fun updateBannerMargin(container: ViewGroup?, bannerShown: Boolean) {
+        val layoutParams = container?.layoutParams as? ViewGroup.MarginLayoutParams ?: return
+        val margin = if (bannerShown) resources.getDimensionPixelSize(R.dimen.message_compose_banner_margin) else 0
+        if (layoutParams.topMargin != margin) {
+            layoutParams.topMargin = margin
+            layoutParams.bottomMargin = margin
+            container.layoutParams = layoutParams
+        }
     }
 
     private suspend fun onSnackbarInAppNotificationEvent(visual: SnackbarVisual) {
