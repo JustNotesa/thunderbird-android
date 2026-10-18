@@ -75,6 +75,25 @@ class InlineImageHintTest : RobolectricTest() {
     }
 
     @Test
+    fun `a hint should have a finger that drags the arrow while it is there`() {
+        // Arrange
+        showImage()
+        tap()
+
+        // Act
+        val finger = imageSpan().hintFinger
+
+        // Assert
+        assertThat(finger).isNotNull()
+
+        // Act: when the hint has played, there is nothing left to drag
+        idle(HINT_GONE_AFTER)
+
+        // Assert
+        assertThat(imageSpan().hintFinger).isNull()
+    }
+
+    @Test
     fun `a tap on the text beside an image should not show the hint`() {
         // Arrange
         showText("Hello Jane")
