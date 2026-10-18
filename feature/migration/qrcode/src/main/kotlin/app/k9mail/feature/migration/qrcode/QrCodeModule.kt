@@ -22,6 +22,7 @@ import app.k9mail.feature.migration.qrcode.transfer.TransferAccountSource
 import app.k9mail.feature.migration.qrcode.transfer.TransferContainerFetcher
 import app.k9mail.feature.migration.qrcode.transfer.TransferReceiver
 import app.k9mail.feature.migration.qrcode.transfer.TransferSender
+import app.k9mail.feature.migration.qrcode.transfer.TransferTextExporter
 import app.k9mail.feature.migration.qrcode.transfer.hotspot.AndroidHotspotController
 import app.k9mail.feature.migration.qrcode.transfer.hotspot.AndroidHotspotNetworkConnector
 import app.k9mail.feature.migration.qrcode.transfer.hotspot.HotspotController
@@ -31,6 +32,7 @@ import app.k9mail.feature.migration.qrcode.transfer.hotspot.UnsupportedHotspotNe
 import app.k9mail.feature.migration.qrcode.ui.QrCodeScannerViewModel
 import app.k9mail.feature.migration.qrcode.ui.paste.TransferPasteViewModel
 import app.k9mail.feature.migration.qrcode.ui.send.TransferSendViewModel
+import app.k9mail.feature.migration.qrcode.ui.text.TransferTextViewModel
 import org.koin.core.module.dsl.viewModel
 import org.koin.dsl.module
 
@@ -52,6 +54,10 @@ val qrCodeModule = module {
             qrCodePayloadReader = get(),
             qrCodeSettingsWriter = get(),
         )
+    }
+
+    viewModel {
+        TransferTextViewModel(transferTextExporter = get())
     }
 
     factory { QrCodePayloadAdapter() }
@@ -96,6 +102,7 @@ val qrCodeModule = module {
     }
     factory<TransferAccountSource> { LegacyTransferAccountSource(accountManager = get()) }
     factory { TransferSender(accountSource = get(), addressProvider = get(), hotspotController = get()) }
+    factory { TransferTextExporter(accountSource = get()) }
 
     factory<HotspotController> {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {

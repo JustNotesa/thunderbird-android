@@ -30,4 +30,10 @@ interface MigrationManager {
      * `null` if the feature isn't included.
      */
     fun createTransferSendIntent(context: Context): Intent?
+
+    /**
+     * Returns an [Intent] that starts the screen to copy the accounts of this device into the clipboard, so the user
+     * can save them in a password manager, or `null` if the feature isn't included.
+     */
+    fun createTransferTextIntent(context: Context): Intent?
 }

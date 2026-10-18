@@ -8,6 +8,7 @@ import app.k9mail.feature.migration.launcher.api.MigrationManager
 import app.k9mail.feature.migration.qrcode.ui.QrCodeScannerActivityContract
 import app.k9mail.feature.migration.qrcode.ui.paste.TransferPasteActivityContract
 import app.k9mail.feature.migration.qrcode.ui.send.TransferSendActivity
+import app.k9mail.feature.migration.qrcode.ui.text.TransferTextActivity
 
 class K9MigrationManager : MigrationManager {
     override fun isFeatureIncluded(): Boolean = false
@@ -20,5 +21,9 @@ class K9MigrationManager : MigrationManager {
 
     override fun createTransferSendIntent(context: Context): Intent {
         return TransferSendActivity.createIntent(context)
+    }
+
+    override fun createTransferTextIntent(context: Context): Intent {
+        return TransferTextActivity.createIntent(context)
     }
 }

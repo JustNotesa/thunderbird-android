@@ -133,6 +133,14 @@ class SettingsListFragment : Fragment(), ItemTouchCallback {
                         intent = intent,
                     )
                 }
+
+                migrationManager.createTransferTextIntent(requireContext())?.let { intent ->
+                    addIntent(
+                        text = getString(R.string.settings_copy_accounts_for_password_manager_title),
+                        icon = Icons.Outlined.ContentCopy,
+                        intent = intent,
+                    )
+                }
             }
 
             addSection(title = getString(R.string.settings_list_miscellaneous_category)) {

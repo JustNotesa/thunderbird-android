@@ -22,4 +22,8 @@ class FakeMigrationManager(var featureIncluded: Boolean) : MigrationManager {
     override fun createTransferSendIntent(context: Context): Intent? {
         return null
     }
+
+    override fun createTransferTextIntent(context: Context): Intent? {
+        return null
+    }
 }
