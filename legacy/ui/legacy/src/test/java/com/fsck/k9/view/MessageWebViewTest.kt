@@ -63,6 +63,34 @@ class MessageWebViewTest : RobolectricTest() {
         assertThat(testSubject.settings.textZoom).isGreaterThan(100)
     }
 
+    @Test
+    fun aPinchListenerTakesTheGestureFromTheViewer() {
+        var pinching = false
+        val testSubject = MessageWebView(context).apply {
+            pinchListener = PinchListener {
+                pinching = true
+                true
+            }
+        }
+        configure(testSubject)
+        testSubject.layout(0, 0, VIEW_WIDTH, VIEW_HEIGHT)
+
+        pinch(testSubject, distances = listOf(300f, 600f, 900f))
+
+        assertThat(pinching).isTrue()
+        assertThat(MessageTextZoom.factor).isEqualTo(DEFAULT_ZOOM_FACTOR)
+    }
+
+    @Test
+    fun theTextZoomSetFromOutsideIsTheOneKeptWhenTheWebViewIsConfiguredAgain() {
+        val testSubject = MessageWebView(context).apply { pinchListener = PinchListener { false } }
+
+        testSubject.setTextZoomPercent(150)
+        configure(testSubject)
+
+        assertThat(testSubject.settings.textZoom).isEqualTo(150)
+    }
+
     /** A pinch in which the two fingers are one [distance] after another apart, starting with a touch down. */
     private fun pinch(webView: MessageWebView, distances: List<Float>) {
         val firstDistance = distances.first()

@@ -3,6 +3,7 @@ package com.fsck.k9.activity;
 
 import java.io.File;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
@@ -81,6 +82,7 @@ import net.thunderbird.feature.account.AccountIdFactory;
 import net.thunderbird.feature.mail.message.composer.signature.HtmlSignatureSanitizer;
 import com.fsck.k9.ui.helper.DisplayHtmlUiFactory;
 import com.fsck.k9.view.MessageWebView;
+import com.fsck.k9.view.PinchListener;
 import com.fsck.k9.view.WebViewConfigProvider;
 import kotlin.Unit;
 import androidx.appcompat.app.AlertDialog;
@@ -457,6 +459,7 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
                 findViewById(R.id.message_format_bar),
                 messageContentView,
                 findViewById(R.id.message_content_zoom_indicator),
+                findViewById(R.id.message_content_zoom_indicator_label),
                 featureThemeProvider,
                 () -> {
                     changesMadeSinceLastSave = true;
@@ -464,6 +467,11 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
                 },
                 inlineImageController,
                 this::pickInlineImage);
+        // The signature and the quote belong to the message area the user sees, so two fingers over them zoom it as a
+        // whole instead of only the text at the top.
+        messageFormattingToolbar.addZoomTargets(
+                Arrays.asList(upperSignature, lowerSignature, findViewById(R.id.quoted_text)),
+                Arrays.asList(upperSignaturePreview, lowerSignaturePreview, findViewById(R.id.quoted_html)));
         inlineImageController.attach(messageFormattingToolbar);
         inlineQuoteEditor = new InlineQuoteEditor(this, richTextHtmlConverter);
         messageFormattingToolbar.setCameraAvailable(cameraCaptureHandler.canLaunchCamera(this));
@@ -1744,7 +1752,12 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
                 return true;
             }
         });
-        signatureHtmlPreview.setOnTouchListener((view, event) -> gestureDetector.onTouchEvent(event));
+        signatureHtmlPreview.setOnTouchListener((view, event) -> {
+            // Two fingers zoom the message area this preview belongs to; one finger opens the source of the signature.
+            PinchListener pinchListener = signatureHtmlPreview.getPinchListener();
+            boolean pinching = pinchListener != null && pinchListener.onPinch(event);
+            return pinching || gestureDetector.onTouchEvent(event);
+        });
         signatureHtmlPreview.setContentDescription(getString(R.string.message_compose_edit_signature_title));
     }
 

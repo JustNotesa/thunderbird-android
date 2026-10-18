@@ -20,7 +20,12 @@ import assertk.assertions.isEqualTo
 import assertk.assertions.isFalse
 import assertk.assertions.isNull
 import assertk.assertions.isTrue
+import com.fsck.k9.ui.R
+import com.fsck.k9.view.MessageTextZoom
+import com.fsck.k9.view.MessageWebView
 import net.thunderbird.core.android.testing.RobolectricTest
+import net.thunderbird.core.android.webkit.WebViewConfig
+import org.junit.After
 import org.junit.Test
 
 private const val FIELD_WIDTH = 400
@@ -28,8 +33,10 @@ private const val FIELD_HEIGHT = 200
 private const val IMAGE_WIDTH = 400
 private const val IMAGE_HEIGHT = 200
 private const val TEXT_SIZE = 20f
+private const val PREVIEW_BASE_TEXT_ZOOM = 120
 private const val MIN_PERCENT = 70
 private const val MAX_PERCENT = 250
+private const val UNCHANGED_PERCENT = 100
 private const val FIRST_FINGER_X = 50f
 private const val PINCH_START_SPAN = 250f
 private const val BASE_SPAN = 500f
@@ -41,7 +48,8 @@ private const val ACTION_MOVE = MotionEvent.ACTION_MOVE
 private const val ACTION_UP = MotionEvent.ACTION_UP
 
 /**
- * Two fingers over the message text change the size it is shown with, a single finger keeps on doing what it did.
+ * Two fingers over the message area change the size the whole of it is shown with, a single finger keeps on doing what
+ * it did. The message itself stays as it is.
  */
 class EditorZoomTest : RobolectricTest() {
     private val context = ApplicationProvider.getApplicationContext<Context>()
@@ -50,14 +58,23 @@ class EditorZoomTest : RobolectricTest() {
         layoutParams = ViewGroup.LayoutParams(FIELD_WIDTH, FIELD_HEIGHT)
         setTextSize(TypedValue.COMPLEX_UNIT_SP, TEXT_SIZE)
     }
-    private val zoomIndicator = TextView(context).apply { visibility = View.GONE }
+    private val signature = textField()
+    private val quote = textField()
+    private val subject = textField()
+    private val signaturePreview = MessageWebView(context)
+    private val quotePreview = MessageWebView(context)
+    private val zoomLabel = TextView(context).apply { visibility = View.GONE }
+    private val zoomIndicator = FrameLayout(context).apply {
+        visibility = View.GONE
+        addView(zoomLabel)
+    }
     private val pictures = mutableMapOf<String, Drawable>()
     private val images = InlineImages(
         store = InlineImageStore { contentId -> pictures[contentId] },
         limits = InlineImageLimits(maxWidth = { FIELD_WIDTH }, maxHeight = FIELD_HEIGHT),
     )
     private var changesAfter = 0
-    private val zoom = EditorZoom(editText, zoomIndicator)
+    private val zoom = EditorZoom(zoomIndicator, zoomLabel)
     private val testSubject = EditorTouchListener(
         editText = editText,
         zoom = zoom,
@@ -68,9 +85,27 @@ class EditorZoomTest : RobolectricTest() {
         ),
     )
     private val normalTextSize = editText.textSize
+    private val normalSignatureTextSize = signature.textSize
+    private val normalQuoteTextSize = quote.textSize
+    private val normalSubjectTextSize = subject.textSize
 
     init {
         parent.addView(editText)
+
+        // The order the composer uses: the message area is registered first, the previews are configured afterwards.
+        zoom.addTarget(TextViewZoomTarget(editText))
+        zoom.addTarget(TextViewZoomTarget(signature))
+        zoom.addTarget(TextViewZoomTarget(quote))
+        zoom.addTarget(WebViewZoomTarget(signaturePreview, zoom))
+        zoom.addTarget(WebViewZoomTarget(quotePreview, zoom))
+        configurePreview(signaturePreview)
+        configurePreview(quotePreview)
+        listOf(signaturePreview, quotePreview).forEach { it.layout(0, 0, FIELD_WIDTH, FIELD_HEIGHT) }
+    }
+
+    @After
+    fun tearDown() {
+        MessageTextZoom.update(DEFAULT_ZOOM_FACTOR)
     }
 
     @Test
@@ -124,8 +159,91 @@ class EditorZoomTest : RobolectricTest() {
         moveFingers(span = BASE_SPAN / 2)
 
         // Assert
-        assertThat(zoom.percent).isEqualTo(100)
+        assertThat(zoom.percent).isEqualTo(UNCHANGED_PERCENT)
         assertThat(editText.textSize).isEqualTo(normalTextSize)
+    }
+
+    @Test
+    fun `every part of the message area should scale with the same factor`() {
+        // Arrange
+        startPinch()
+
+        // Act
+        moveFingers(span = BASE_SPAN * 2)
+
+        // Assert
+        assertThat(signature.textSize).isEqualTo(normalSignatureTextSize * 2)
+        assertThat(quote.textSize).isEqualTo(normalQuoteTextSize * 2)
+        assertThat(signaturePreview.settings.textZoom).isEqualTo(PREVIEW_BASE_TEXT_ZOOM * 2)
+        assertThat(quotePreview.settings.textZoom).isEqualTo(PREVIEW_BASE_TEXT_ZOOM * 2)
+    }
+
+    @Test
+    fun `the subject should stay the size it is`() {
+        // Arrange
+        startPinch()
+
+        // Act
+        moveFingers(span = BASE_SPAN * 2)
+
+        // Assert
+        assertThat(subject.textSize).isEqualTo(normalSubjectTextSize)
+    }
+
+    @Test
+    fun `two fingers over a preview should zoom the message area`() {
+        // Arrange
+        pinch(signaturePreview)
+
+        // Act
+        moveFingers(span = BASE_SPAN * 2, view = signaturePreview)
+
+        // Assert
+        assertThat(zoom.percent).isEqualTo(200)
+        assertThat(editText.textSize).isEqualTo(normalTextSize * 2)
+    }
+
+    @Test
+    fun `two fingers over a preview should leave the zoom of the message viewer alone`() {
+        // Arrange
+        pinch(signaturePreview)
+
+        // Act
+        moveFingers(span = BASE_SPAN * 2, view = signaturePreview)
+
+        // Assert
+        assertThat(MessageTextZoom.factor).isEqualTo(DEFAULT_ZOOM_FACTOR)
+    }
+
+    @Test
+    fun `a preview should keep the zoom of the message area when it is configured again`() {
+        // Arrange
+        pinch(signaturePreview)
+        moveFingers(span = BASE_SPAN * 2, view = signaturePreview)
+        liftFingers(view = signaturePreview)
+
+        // Act
+        configurePreview(quotePreview)
+
+        // Assert
+        assertThat(quotePreview.settings.textZoom).isEqualTo(PREVIEW_BASE_TEXT_ZOOM * 2)
+    }
+
+    @Test
+    fun `a pinch that ends close to the size the composer set should snap back to it`() {
+        // Arrange
+        startPinch()
+        moveFingers(span = BASE_SPAN * 2)
+        liftFingers()
+
+        // Act: 98 % of the 200 % the last pinch left, which is close enough to mean the size the composer set.
+        startPinch()
+        moveFingers(span = BASE_SPAN * 0.49f)
+
+        // Assert
+        assertThat(zoom.percent).isEqualTo(UNCHANGED_PERCENT)
+        assertThat(editText.textSize).isEqualTo(normalTextSize)
+        assertThat(signature.textSize).isEqualTo(normalSignatureTextSize)
     }
 
     @Test
@@ -208,9 +326,9 @@ class EditorZoomTest : RobolectricTest() {
         on(ACTION_UP, FIRST_FINGER_X + 200f)
 
         // Assert
-        assertThat(zoom.percent).isEqualTo(100)
+        assertThat(zoom.percent).isEqualTo(UNCHANGED_PERCENT)
         assertThat(editText.textSize).isEqualTo(normalTextSize)
-        assertThat(zoomIndicator.text.toString()).isEqualTo("")
+        assertThat(zoomLabel.text.toString()).isEqualTo("")
         assertThat(zoomIndicator.isVisible).isFalse()
     }
 
@@ -222,6 +340,7 @@ class EditorZoomTest : RobolectricTest() {
         // Assert
         assertThat(zoom.percent).isEqualTo(150)
         assertThat(editText.textSize).isEqualTo(normalTextSize * 150 / 100f)
+        assertThat(signaturePreview.settings.textZoom).isEqualTo(PREVIEW_BASE_TEXT_ZOOM * 150 / 100)
     }
 
     @Test
@@ -243,8 +362,14 @@ class EditorZoomTest : RobolectricTest() {
         moveFingers(span = BASE_SPAN * 2)
 
         // Assert
-        assertThat(zoomIndicator.text.toString()).isEqualTo("200 %")
+        assertThat(zoomLabel.text.toString()).isEqualTo(indicatorText(percent = 200))
         assertThat(zoomIndicator.isVisible).isTrue()
+    }
+
+    @Test
+    fun `the size that is shown should say that the message itself stays as it is`() {
+        // Assert
+        assertThat(indicatorText(percent = 140)).isEqualTo("View 140 % · message unchanged")
     }
 
     @Test
@@ -299,6 +424,41 @@ class EditorZoomTest : RobolectricTest() {
         assertThat(percent).isEqualTo(MAX_PERCENT)
     }
 
+    @Test
+    fun `a size within a few percent of the one the composer set should snap back to it`() {
+        assertThat(unchangedPercent(97)).isEqualTo(UNCHANGED_PERCENT)
+        assertThat(unchangedPercent(103)).isEqualTo(UNCHANGED_PERCENT)
+        assertThat(unchangedPercent(100)).isEqualTo(UNCHANGED_PERCENT)
+    }
+
+    @Test
+    fun `a size further away from the one the composer set should be kept`() {
+        assertThat(unchangedPercent(96)).isEqualTo(96)
+        assertThat(unchangedPercent(104)).isEqualTo(104)
+        assertThat(unchangedPercent(MIN_PERCENT)).isEqualTo(MIN_PERCENT)
+    }
+
+    private fun textField(): EditText {
+        return EditText(context).apply {
+            layoutParams = ViewGroup.LayoutParams(FIELD_WIDTH, FIELD_HEIGHT)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, TEXT_SIZE)
+        }
+    }
+
+    private fun configurePreview(preview: MessageWebView) {
+        try {
+            preview.configure(
+                WebViewConfig(useDarkMode = false, autoFitWidth = false, textZoom = PREVIEW_BASE_TEXT_ZOOM),
+            )
+        } catch (_: UnsupportedOperationException) {
+            // Robolectric's WebView provider can reject the AndroidX dark-mode WebSettings API.
+        }
+    }
+
+    private fun indicatorText(percent: Int): String {
+        return context.getString(R.string.message_compose_zoom_indicator, percent)
+    }
+
     private fun startPinch() {
         on(ACTION_DOWN, FIRST_FINGER_X)
         on(ACTION_POINTER_DOWN, FIRST_FINGER_X, FIRST_FINGER_X + PINCH_START_SPAN)
@@ -307,17 +467,23 @@ class EditorZoomTest : RobolectricTest() {
         moveFingers(span = BASE_SPAN)
     }
 
-    private fun moveFingers(span: Float, firstFingerX: Float = FIRST_FINGER_X) {
-        on(ACTION_MOVE, firstFingerX, firstFingerX + span)
+    private fun pinch(view: View) {
+        on(ACTION_DOWN, FIRST_FINGER_X, view = view)
+        on(ACTION_POINTER_DOWN, FIRST_FINGER_X, FIRST_FINGER_X + PINCH_START_SPAN, view = view)
+        moveFingers(span = BASE_SPAN, view = view)
     }
 
-    private fun liftOneFinger() {
-        on(ACTION_POINTER_UP, FIRST_FINGER_X, FIRST_FINGER_X + BASE_SPAN)
+    private fun moveFingers(span: Float, firstFingerX: Float = FIRST_FINGER_X, view: View = editText) {
+        on(ACTION_MOVE, firstFingerX, firstFingerX + span, view = view)
     }
 
-    private fun liftFingers() {
-        liftOneFinger()
-        on(ACTION_UP, FIRST_FINGER_X)
+    private fun liftOneFinger(view: View = editText) {
+        on(ACTION_POINTER_UP, FIRST_FINGER_X, FIRST_FINGER_X + BASE_SPAN, view = view)
+    }
+
+    private fun liftFingers(view: View = editText) {
+        liftOneFinger(view)
+        on(ACTION_UP, FIRST_FINGER_X, view = view)
     }
 
     private fun showImage(width: Int = IMAGE_WIDTH, height: Int = IMAGE_HEIGHT, widthPercent: Int? = null) {
@@ -335,11 +501,15 @@ class EditorZoomTest : RobolectricTest() {
         editText.layout(0, 0, FIELD_WIDTH, FIELD_HEIGHT)
     }
 
-    private fun on(action: Int, vararg xs: Float): Boolean {
+    private fun on(action: Int, vararg xs: Float, view: View = editText): Boolean {
         val event = motionEvent(action, *xs)
 
         return try {
-            testSubject.onTouch(editText, event)
+            if (view is MessageWebView) {
+                view.dispatchTouchEvent(event)
+            } else {
+                testSubject.onTouch(view, event)
+            }
         } finally {
             event.recycle()
         }
@@ -393,5 +563,9 @@ class EditorZoomTest : RobolectricTest() {
             isInterceptDisallowed = disallowIntercept
             super.requestDisallowInterceptTouchEvent(disallowIntercept)
         }
+    }
+
+    private companion object {
+        const val DEFAULT_ZOOM_FACTOR = 1f
     }
 }

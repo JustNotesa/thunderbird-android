@@ -8,6 +8,7 @@ import android.text.SpanWatcher
 import android.text.Spannable
 import android.text.Spanned
 import android.view.KeyEvent
+import android.view.View
 import android.widget.EditText
 import android.widget.TextView
 import androidx.compose.runtime.getValue
@@ -22,6 +23,7 @@ import com.fsck.k9.ui.compose.richtext.bar.FormatBarState
 import com.fsck.k9.ui.compose.richtext.bar.MessageFormatBar
 import com.fsck.k9.ui.compose.richtext.bar.applyFormatBarEvent
 import com.fsck.k9.ui.compose.richtext.bar.formatBarStateOf
+import com.fsck.k9.view.MessageWebView
 import net.thunderbird.core.ui.theme.api.FeatureThemeProvider
 import net.thunderbird.feature.mail.message.composer.richtext.FormattedText
 import net.thunderbird.feature.mail.message.composer.richtext.TextFormat
@@ -34,11 +36,13 @@ import kotlin.math.roundToInt
  * the selection. The bar is only shown while the message text has the focus and the message is written as formatted
  * HTML. Typing keeps lists and quotes going ([ParagraphEditWatcher]); Ctrl+B, Ctrl+I and Ctrl+U format on a hardware
  * keyboard. Swiping sideways over an image sets the width it is shown with ([InlineImageResizer]), and two fingers
- * over the text make it larger or smaller ([EditorZoom]).
+ * over the message area make all of it larger or smaller ([EditorZoom]).
  *
  * The text field can also show the message as HTML code. The bar is hidden then, and the code is shown in a
  * fixed-width font without spelling suggestions.
  *
+ * @param zoomIndicator the pill that shows the size the message area is shown in while it is being pinched
+ * @param zoomLabel the text in that pill
  * @param onFormatChange called when the user changed the formatting, which a text change listener doesn't notice
  * @param imageStore gives the pictures of the images in the text
  * @param onPickImage called when the user wants to put an image into the text
@@ -46,7 +50,8 @@ import kotlin.math.roundToInt
 class MessageFormattingToolbar(
     private val formatBar: ComposeView,
     private val messageContent: EditText,
-    zoomIndicator: TextView,
+    zoomIndicator: View,
+    zoomLabel: TextView,
     featureThemeProvider: FeatureThemeProvider,
     private val onFormatChange: Runnable,
     imageStore: InlineImageStore,
@@ -57,7 +62,7 @@ class MessageFormattingToolbar(
     private val images = InlineImages(imageStore, InlineImageLimits.of(messageContent))
     private val history = EditHistory(messageContent, onChange = { updateState() }, images = images)
     private val imageHints = InlineImageHintAnimator(messageContent)
-    private val zoom = EditorZoom(messageContent, zoomIndicator)
+    private val zoom = EditorZoom(zoomIndicator, zoomLabel)
 
     private val selectionWatcher = object : SpanWatcher {
         override fun onSpanAdded(text: Spannable, what: Any, start: Int, end: Int) = onSpanMoved(what)
@@ -109,7 +114,7 @@ class MessageFormattingToolbar(
         get() = RichTextFormatter.formattedText(messageContent.text)
 
     /**
-     * The size the message text is shown with, in percent of the size the composer set it to.
+     * The size the message area is shown with, in percent of the sizes the composer set it to.
      */
     var zoomPercent: Float
         get() = zoom.percent.toFloat()
@@ -152,8 +157,21 @@ class MessageFormattingToolbar(
                 ),
             ),
         )
+        zoom.addTarget(TextViewZoomTarget(messageContent))
         messageContent.text.watch(selectionWatcher)
         updateState()
+    }
+
+    /**
+     * Makes the text fields around the message - the signature and the quote - scale with it when two fingers are
+     * spread over them, so that the whole message area is zoomed with one gesture.
+     */
+    fun addZoomTargets(textViews: List<TextView>, previews: List<MessageWebView>) {
+        textViews.forEach { textView ->
+            zoom.addTarget(TextViewZoomTarget(textView))
+            textView.setOnTouchListener(ZoomTouchListener(zoom))
+        }
+        previews.forEach { preview -> zoom.addTarget(WebViewZoomTarget(preview, zoom)) }
     }
 
     /**

@@ -6,6 +6,7 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.util.AttributeSet
+import android.view.MotionEvent
 import android.webkit.WebView
 import com.fsck.k9.core.BuildConfig
 import com.fsck.k9.mailstore.AttachmentResolver
@@ -18,6 +19,10 @@ import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
 
 private const val DEFAULT_TEXT_ZOOM = 100
+
+// The range MessageTextZoom zooms in; a zoom from outside is kept inside it as well.
+private const val MIN_TEXT_ZOOM_PERCENT = 50
+private const val MAX_TEXT_ZOOM_PERCENT = 300
 private const val ZOOM_LABEL_TEXT_SIZE_SP = 14f
 private const val ZOOM_LABEL_VISIBLE_TIME_MS = 2000L
 private const val ZOOM_LABEL_MARGIN_DP = 8f
@@ -49,11 +54,32 @@ class MessageWebView : WebView, KoinComponent, ThunderbirdWebViewSettings {
     /** The text size shown while pinching, or `null` while there is nothing to show. */
     private var zoomLabelText: String? = null
 
+    /**
+     * Told about every touch as long as it is set, and takes the pinch instead of [touchHandler]: in the composer the
+     * previews of the signature and of the quote are zoomed together with the message text around them, so this
+     * WebView's own text zoom has to stay out of that gesture. `null` while the message viewer is in charge of it.
+     */
+    var pinchListener: PinchListener? = null
+
+    /** The size the text is shown in, in percent of [baseTextZoom]. */
+    private var zoomPercent: Int = DEFAULT_TEXT_ZOOM
+
     override var loadWithOverviewMode: Boolean
         get() = settings.loadWithOverviewMode
         set(value) {
             settings.loadWithOverviewMode = value
         }
+
+    /**
+     * Puts the text of this WebView in [percent] of the size it was configured with, which is how the composer scales
+     * a preview with the message text around it. The size it was configured with stays the one this is measured from,
+     * and it is put back when this WebView is configured again.
+     */
+    fun setTextZoomPercent(percent: Int) {
+        zoomPercent = percent.coerceIn(MIN_TEXT_ZOOM_PERCENT, MAX_TEXT_ZOOM_PERCENT)
+        settings.textZoom = (baseTextZoom * zoomPercent / DEFAULT_TEXT_ZOOM)
+            .coerceIn(MIN_TEXT_ZOOM_PERCENT, MAX_TEXT_ZOOM_PERCENT)
+    }
 
     override fun blockNetworkData(shouldBlockNetworkData: Boolean) {
         // Images with content: URIs will not be blocked, nor will network images that are already in the WebView cache.
@@ -67,8 +93,13 @@ class MessageWebView : WebView, KoinComponent, ThunderbirdWebViewSettings {
     override fun configure(config: WebViewConfig) {
         // The scroll view and the view pager both want multi-touch moves, which is exactly what the text zoom needs.
         setOnTouchListener { _, event ->
-            touchHandler.onTouchEvent(event)
-            false
+            val listener = pinchListener
+            if (listener == null) {
+                touchHandler.onTouchEvent(event)
+                false
+            } else {
+                listener.onPinch(event)
+            }
         }
 
         isVerticalScrollBarEnabled = true
@@ -97,7 +128,12 @@ class MessageWebView : WebView, KoinComponent, ThunderbirdWebViewSettings {
             // Values range from smaller than default (1.0) to double size: 0.85, 1.0, 1.15, 1.3, 1.5, 1.8, 2.0
             val fontScale = Resources.getSystem().configuration.fontScale
             baseTextZoom = (config.textZoom * fontScale).roundToInt()
-            textZoom = MessageTextZoom.textZoom(baseTextZoom)
+            if (pinchListener == null) {
+                textZoom = MessageTextZoom.textZoom(baseTextZoom)
+            } else {
+                // A WebView that is zoomed with the text around it keeps that zoom, whatever the reader chose.
+                setTextZoomPercent(zoomPercent)
+            }
         }
 
         // Disable network images by default. This is overridden by preferences.
@@ -160,19 +196,8 @@ class MessageWebView : WebView, KoinComponent, ThunderbirdWebViewSettings {
         attachmentResolver: AttachmentResolver?,
         onPageFinishedListener: OnPageFinishedListener?,
     ) {
-        setWebViewClient(attachmentResolver, onPageFinishedListener)
-        setHtmlContent(htmlText)
-    }
-
-    private fun setWebViewClient(
-        attachmentResolver: AttachmentResolver?,
-        onPageFinishedListener: OnPageFinishedListener?,
-    ) {
         val webViewClient = webViewClientFactory.create(attachmentResolver, onPageFinishedListener)
         setWebViewClient(webViewClient)
-    }
-
-    private fun setHtmlContent(htmlText: String) {
         loadDataWithBaseURL("about:blank", htmlText, "text/html", "utf-8", null)
         resumeTimers()
     }
@@ -180,4 +205,12 @@ class MessageWebView : WebView, KoinComponent, ThunderbirdWebViewSettings {
     fun interface OnPageFinishedListener {
         fun onPageFinished()
     }
+}
+
+/**
+ * Takes the pinch over a [MessageWebView] that is zoomed together with the text around it, e.g. a preview in the
+ * composer, and returns whether the gesture was one, so that the WebView is left alone while it is.
+ */
+fun interface PinchListener {
+    fun onPinch(event: MotionEvent): Boolean
 }
