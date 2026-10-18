@@ -1,5 +1,7 @@
 package app.k9mail.feature.migration.launcher.api
 
+import android.content.Context
+import android.content.Intent
 import android.net.Uri
 import androidx.activity.result.contract.ActivityResultContract
 
@@ -15,4 +17,10 @@ interface MigrationManager {
      * content: URI to the account settings in the XML format supported by `SettingsImporter` is returned.
      */
     fun getQrCodeActivityResultContract(): ActivityResultContract<Unit, Uri?>
+
+    /**
+     * Returns an [Intent] that starts the screen to transfer the accounts of this device to another device, or
+     * `null` if the feature isn't included.
+     */
+    fun createTransferSendIntent(context: Context): Intent?
 }
