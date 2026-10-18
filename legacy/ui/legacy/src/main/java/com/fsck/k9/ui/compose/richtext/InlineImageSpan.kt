@@ -27,21 +27,34 @@ private const val LABEL_TEXT_COLOR = 0xFFFFFFFF.toInt()
 private const val LABEL_BACKGROUND_COLOR = 0xB3000000.toInt()
 
 // The hint that shows the user the image can be resized by swiping sideways over it: a translucent dark pill in the
-// middle of the image with a white arrow on it whose heads move outward and back.
+// middle of the image with a white arrow on it that stretches and shrinks, and a finger that drags its right head.
 private const val HINT_PILL_COLOR = 0x99000000.toInt()
 private const val HINT_ARROW_COLOR = 0xFFFFFFFF.toInt()
+private const val HINT_FINGER_COLOR = 0xFFFFFFFF.toInt()
 private const val HINT_PILL_WIDTH_FRACTION = 0.5f
 private const val HINT_PILL_MAX_WIDTH_DP = 160f
 private const val HINT_PILL_HEIGHT_DP = 40f
-private const val HINT_ARROW_REACH = 0.28f
-private const val HINT_ARROW_STRETCH = 0.14f
+private const val HINT_PILL_PADDING_DP = 12f
+private const val HINT_ARROW_SHORTEST = 0.35f
+private const val HINT_ARROW_STRETCH = 0.65f
 private const val HINT_ARROW_HEAD = 0.15f
 private const val HINT_ARROW_STROKE_DP = 2f
-private const val HINT_FADE_IN = 0.15f
-private const val HINT_FADE_OUT = 0.3f
 private const val HINT_STRETCHES = 2f
 private const val FULL_TURN = 6.2831855f
 private const val FULL_ALPHA = 255
+
+// The finger that drags the right head of the arrow: this much of the pill's height, which is ~28 dp on a 40 dp pill.
+// Its tip, the tip of the finger the icon shows pointing up, stands these far from the icon's left and upper edge.
+private const val HINT_FINGER_SIZE = 0.7f
+private const val HINT_FINGER_TIP_X = 0.354f
+private const val HINT_FINGER_TIP_Y = 0.208f
+private const val HINT_FINGER_OVERLAP = 0.2f
+
+/**
+ * How far the hint has come when its arrow is at its longest, which is how the hint is shown when the animations of
+ * the system are switched off: at a quarter of the way the arrow has come to both of its ends once.
+ */
+internal const val HINT_FULL_WIDTH_PROGRESS = 0.25f
 
 /**
  * Gives the editor the pictures of the inline images of a message.
@@ -118,9 +131,21 @@ internal class InlineImageSpan(
 
     /**
      * How far the hint that shows the user can resize this image by swiping sideways over it has come, `null` while no
-     * hint is shown. The hint is drawn on top of the image and makes the arrow on it move outward and back.
+     * hint is shown. The hint is drawn on top of the image and stretches and shrinks the arrow on it while it is there.
      */
     var hintProgress: Float? = null
+
+    /** How much of the hint is there, from 0 to 1: it fades in at the beginning and out at the end. */
+    var hintOpacity: Float = 1f
+
+    /**
+     * The finger that drags the right head of the arrow of the hint, `null` while there is none to draw. It is tinted
+     * once, here, because the same picture is drawn again for every frame of the hint.
+     */
+    var hintFinger: Drawable? = null
+        set(value) {
+            field = value?.mutate()?.apply { setTint(HINT_FINGER_COLOR) }
+        }
 
     private val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val labelBackgroundPaint = Paint(Paint.ANTI_ALIAS_FLAG)
@@ -206,8 +231,8 @@ internal class InlineImageSpan(
 
     /**
      * The hint that shows the user the image can be resized by swiping sideways over it: a dark pill in the middle of
-     * the image with a white arrow on it that reaches further out and back while the hint is shown. [progress] is how
-     * far the hint has come, from 0 to 1.
+     * the image with a white arrow on it that stretches and shrinks while the hint is there, and a finger that drags
+     * the right head of the arrow along. [progress] is how far the hint has come, from 0 to 1.
      */
     private fun drawHint(canvas: Canvas, imageX: Float, imageY: Float, progress: Float) {
         val bounds = drawable.bounds
@@ -217,8 +242,12 @@ internal class InlineImageSpan(
         val height = HINT_PILL_HEIGHT_DP * DEFAULT_DENSITY
         val centerX = imageX + bounds.centerX()
         val centerY = imageY + bounds.centerY()
-        val opacity = minOf(progress / HINT_FADE_IN, (1f - progress) / HINT_FADE_OUT).coerceIn(0f, 1f)
-        val alpha = (FULL_ALPHA * opacity).roundToInt()
+        val alpha = (FULL_ALPHA * hintOpacity).roundToInt()
+
+        // The arrow reaches from one edge of the room in the pill to the other, and stretches and shrinks twice over.
+        val stretch = (1f - cos(progress * HINT_STRETCHES * FULL_TURN)) / 2f
+        val reach = (width - HINT_PILL_PADDING_DP * 2f * DEFAULT_DENSITY) / 2f *
+            (HINT_ARROW_SHORTEST + HINT_ARROW_STRETCH * stretch)
 
         hintBackgroundPaint.color = HINT_PILL_COLOR
         hintBackgroundPaint.alpha = alpha
@@ -232,20 +261,19 @@ internal class InlineImageSpan(
             hintBackgroundPaint,
         )
 
-        drawHintArrow(canvas, centerX, centerY, width, height, alpha, progress)
+        drawHintArrow(canvas, centerX, centerY, reach, height, alpha)
+        drawHintFinger(canvas, centerX, centerY, height, reach, alpha)
     }
 
-    /** The double-headed arrow on the pill, its heads reaching outward and back as often as the progress goes by. */
+    /** The double-headed arrow on the pill, its heads standing [reach] from its middle. */
     private fun drawHintArrow(
         canvas: Canvas,
         centerX: Float,
         centerY: Float,
-        pillWidth: Float,
+        reach: Float,
         pillHeight: Float,
         alpha: Int,
-        progress: Float,
     ) {
-        val reach = pillWidth * (HINT_ARROW_REACH + HINT_ARROW_STRETCH * hintStretch(progress))
         val head = pillHeight * HINT_ARROW_HEAD
 
         hintPath.reset()
@@ -264,11 +292,31 @@ internal class InlineImageSpan(
         canvas.drawPath(hintPath, hintArrowPaint)
     }
 
-    /** How much of the pill is there at [progress]: it fades in at the beginning and out at the end. */
-    private fun hintStretch(progress: Float): Float {
-        val turn = progress * HINT_STRETCHES * FULL_TURN
+    /**
+     * The finger that drags the right head of the arrow: its tip stands where the head stands, on the lower edge of the
+     * pill, so that the finger overlaps that edge a little and the two look like they belong together.
+     */
+    private fun drawHintFinger(
+        canvas: Canvas,
+        centerX: Float,
+        centerY: Float,
+        pillHeight: Float,
+        reach: Float,
+        alpha: Int,
+    ) {
+        val finger = hintFinger ?: return
+        val size = pillHeight * HINT_FINGER_SIZE
+        val left = centerX + reach - size * HINT_FINGER_TIP_X
+        val top = centerY + pillHeight / 2f - pillHeight * HINT_FINGER_OVERLAP - size * HINT_FINGER_TIP_Y
 
-        return (1f - cos(turn)) / 2f
+        finger.alpha = alpha
+        finger.setBounds(
+            left.roundToInt(),
+            top.roundToInt(),
+            (left + size).roundToInt(),
+            (top + size).roundToInt(),
+        )
+        finger.draw(canvas)
     }
 
     companion object {
