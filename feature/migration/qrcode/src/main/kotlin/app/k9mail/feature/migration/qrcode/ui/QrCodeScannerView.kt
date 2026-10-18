@@ -60,12 +60,17 @@ private fun buildString(text: DisplayText): String {
             stringResource(R.string.migration_qrcode_transfer_receiving)
         }
 
+        DisplayText.ConnectingToHotspot -> {
+            stringResource(R.string.migration_qrcode_transfer_connecting_hotspot)
+        }
+
         is DisplayText.TransferFailed -> {
             stringResource(
                 when (text.reason) {
                     TransferFailureReason.Unreachable -> R.string.migration_qrcode_transfer_unreachable
                     TransferFailureReason.Corrupted -> R.string.migration_qrcode_transfer_corrupted
                     TransferFailureReason.Unsupported -> R.string.migration_qrcode_transfer_unsupported
+                    TransferFailureReason.HotspotUnavailable -> R.string.migration_qrcode_transfer_hotspot_unavailable
                 },
             )
         }

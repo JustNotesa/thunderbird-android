@@ -7,6 +7,7 @@ import java.io.DataInputStream
 import java.io.DataOutputStream
 import java.net.InetAddress
 import java.net.ServerSocket
+import javax.net.SocketFactory
 import kotlin.concurrent.thread
 import kotlin.test.Test
 import kotlinx.coroutines.Dispatchers
@@ -35,7 +36,7 @@ class LanTransferTest {
         val route = TransferRoute.Lan(host = host, port = testSubject.start())
 
         val serverResult = async(Dispatchers.IO) { testSubject.awaitTransfer() }
-        val clientResult = client.fetch(route, transferId)
+        val clientResult = client.fetch(route, transferId, SocketFactory.getDefault())
 
         assertThat(clientResult).isInstanceOf<LanTransferClientResult.Success>()
         assertThat((clientResult as LanTransferClientResult.Success).container.toByteString())
@@ -50,8 +51,8 @@ class LanTransferTest {
         val wrongTransferId = ByteArray(TRANSFER_ID_LENGTH) { (it + 1).toByte() }
 
         val serverResult = async(Dispatchers.IO) { testSubject.awaitTransfer() }
-        val failedResult = client.fetch(route, wrongTransferId)
-        val clientResult = client.fetch(route, transferId)
+        val failedResult = client.fetch(route, wrongTransferId, SocketFactory.getDefault())
+        val clientResult = client.fetch(route, transferId, SocketFactory.getDefault())
 
         assertThat(failedResult).isEqualTo(LanTransferClientResult.Failed)
         assertThat(clientResult).isInstanceOf<LanTransferClientResult.Success>()
@@ -64,11 +65,11 @@ class LanTransferTest {
         val route = TransferRoute.Lan(host = host, port = testSubject.start())
 
         val serverResult = async(Dispatchers.IO) { testSubject.awaitTransfer() }
-        val firstResult = client.fetch(route, transferId)
+        val firstResult = client.fetch(route, transferId, SocketFactory.getDefault())
         assertThat(serverResult.await()).isEqualTo(LanTransferServerResult.Transferred)
         assertThat(firstResult).isInstanceOf<LanTransferClientResult.Success>()
 
-        val secondResult = client.fetch(route, transferId)
+        val secondResult = client.fetch(route, transferId, SocketFactory.getDefault())
 
         assertThat(secondResult).isEqualTo(LanTransferClientResult.Unreachable)
     }
@@ -87,7 +88,7 @@ class LanTransferTest {
     fun `client fetching from a closed port is unreachable`() = runBlocking {
         val port = closedPort()
 
-        val result = client.fetch(TransferRoute.Lan(host = host, port = port), transferId)
+        val result = client.fetch(TransferRoute.Lan(host = host, port = port), transferId, SocketFactory.getDefault())
 
         assertThat(result).isEqualTo(LanTransferClientResult.Unreachable)
     }
@@ -101,7 +102,11 @@ class LanTransferTest {
         )
         val port = startFakeServer(announcedSize = ANNOUNCED_SIZE)
 
-        val result = testSubject.fetch(TransferRoute.Lan(host = host, port = port), transferId)
+        val result = testSubject.fetch(
+            TransferRoute.Lan(host = host, port = port),
+            transferId,
+            SocketFactory.getDefault(),
+        )
 
         assertThat(result).isEqualTo(LanTransferClientResult.Failed)
     }

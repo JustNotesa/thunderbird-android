@@ -6,6 +6,7 @@ import app.k9mail.feature.migration.qrcode.payload.QrCodePayloadParser
 import app.k9mail.feature.migration.qrcode.transfer.hotspot.FakeHotspotController
 import app.k9mail.feature.migration.qrcode.transfer.hotspot.HotspotController
 import app.k9mail.feature.migration.qrcode.transfer.hotspot.HotspotStartResult
+import app.k9mail.feature.migration.qrcode.transfer.hotspot.UnsupportedHotspotNetworkConnector
 import assertk.assertThat
 import assertk.assertions.isEqualTo
 import assertk.assertions.isGreaterThan
@@ -15,6 +16,7 @@ import com.fsck.k9.mail.ConnectionSecurity
 import com.fsck.k9.mail.ServerSettings
 import java.net.Inet4Address
 import java.net.InetAddress
+import javax.net.SocketFactory
 import kotlin.test.Test
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -48,7 +50,10 @@ class TransferSenderTest {
             assertThat(route.port).isGreaterThan(NO_PORT)
 
             val serverResult = async(Dispatchers.IO) { session.awaitTransfer() }
-            val received = TransferReceiver(fetcher = LanTransferClient()).receive(qrCode)
+            val received = TransferReceiver(
+                fetcher = LanTransferClient(),
+                hotspotConnector = UnsupportedHotspotNetworkConnector,
+            ).receive(qrCode)
             val accountsJson = (received as TransferReceiveResult.Success).accountsJson
 
             assertThat(serverResult.await()).isEqualTo(LanTransferServerResult.Transferred)
@@ -229,7 +234,11 @@ class TransferSenderTest {
      */
     private suspend fun fetchAccounts(qrCode: TransferQrCode, route: TransferRoute.Hotspot): String {
         val lanRoute = TransferRoute.Lan(host = route.host, port = route.port)
-        val fetched = LanTransferClient().fetch(lanRoute, qrCode.secrets.transferId)
+        val fetched = LanTransferClient().fetch(
+            lanRoute,
+            qrCode.secrets.transferId,
+            SocketFactory.getDefault(),
+        )
 
         assertThat(fetched).isInstanceOf<LanTransferClientResult.Success>()
         val container = (fetched as LanTransferClientResult.Success).container

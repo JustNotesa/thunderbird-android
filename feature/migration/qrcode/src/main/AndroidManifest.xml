@@ -19,6 +19,8 @@
     <!-- Up to Android 12 the hotspot is tied to the location permission, the transfer never uses the location. -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" android:maxSdkVersion="32"/>
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" android:maxSdkVersion="32"/>
+    <!-- Joining the hotspot of the sending device: a normal permission, granted when the app is installed. -->
+    <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE"/>
 
     <application tools:ignore="MissingApplicationIcon">
         <activity

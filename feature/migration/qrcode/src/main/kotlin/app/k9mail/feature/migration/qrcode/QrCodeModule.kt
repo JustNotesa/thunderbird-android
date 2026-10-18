@@ -23,8 +23,11 @@ import app.k9mail.feature.migration.qrcode.transfer.TransferContainerFetcher
 import app.k9mail.feature.migration.qrcode.transfer.TransferReceiver
 import app.k9mail.feature.migration.qrcode.transfer.TransferSender
 import app.k9mail.feature.migration.qrcode.transfer.hotspot.AndroidHotspotController
+import app.k9mail.feature.migration.qrcode.transfer.hotspot.AndroidHotspotNetworkConnector
 import app.k9mail.feature.migration.qrcode.transfer.hotspot.HotspotController
+import app.k9mail.feature.migration.qrcode.transfer.hotspot.HotspotNetworkConnector
 import app.k9mail.feature.migration.qrcode.transfer.hotspot.UnsupportedHotspotController
+import app.k9mail.feature.migration.qrcode.transfer.hotspot.UnsupportedHotspotNetworkConnector
 import app.k9mail.feature.migration.qrcode.ui.QrCodeScannerViewModel
 import app.k9mail.feature.migration.qrcode.ui.send.TransferSendViewModel
 import org.koin.core.module.dsl.viewModel
@@ -76,7 +79,7 @@ val qrCodeModule = module {
     }
 
     factory<TransferContainerFetcher> { LanTransferClient() }
-    factory { TransferReceiver(fetcher = get()) }
+    factory { TransferReceiver(fetcher = get(), hotspotConnector = get()) }
 
     factory<LocalNetworkAddressProvider> {
         AndroidLocalNetworkAddressProvider(
@@ -93,6 +96,16 @@ val qrCodeModule = module {
             )
         } else {
             UnsupportedHotspotController
+        }
+    }
+
+    factory<HotspotNetworkConnector> {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            AndroidHotspotNetworkConnector(
+                connectivityManager = get<Context>().getSystemService(ConnectivityManager::class.java),
+            )
+        } else {
+            UnsupportedHotspotNetworkConnector
         }
     }
 }

@@ -8,6 +8,7 @@ import app.k9mail.feature.migration.qrcode.domain.usecase.QrCodeImageAnalysisPro
 import app.k9mail.feature.migration.qrcode.transfer.TransferQrCode
 import app.k9mail.feature.migration.qrcode.transfer.TransferReceiveResult
 import app.k9mail.feature.migration.qrcode.transfer.TransferReceiver
+import app.k9mail.feature.migration.qrcode.transfer.TransferRoute
 import app.k9mail.feature.migration.qrcode.ui.QrCodeScannerContract.DisplayText
 import app.k9mail.feature.migration.qrcode.ui.QrCodeScannerContract.Effect
 import app.k9mail.feature.migration.qrcode.ui.QrCodeScannerContract.Event
@@ -166,7 +167,7 @@ internal class QrCodeScannerViewModel(
         isReceivingTransfer = true
 
         updateState {
-            it.copy(displayText = DisplayText.ReceivingTransfer)
+            it.copy(displayText = receivingText(qrCode))
         }
 
         viewModelScope.launch {
@@ -181,6 +182,16 @@ internal class QrCodeScannerViewModel(
             } else {
                 showTransferFailure(result = result, payloadHash = payloadHash)
             }
+        }
+    }
+
+    private fun receivingText(qrCode: TransferQrCode): DisplayText {
+        // The hotspot of the sending device has to be joined before anything can be fetched, which takes noticeably
+        // longer than a transfer over the local network.
+        return if (qrCode.route is TransferRoute.Hotspot) {
+            DisplayText.ConnectingToHotspot
+        } else {
+            DisplayText.ReceivingTransfer
         }
     }
 
@@ -201,6 +212,7 @@ internal class QrCodeScannerViewModel(
         val reason = when (result) {
             TransferReceiveResult.Unreachable, TransferReceiveResult.TransferFailed -> TransferFailureReason.Unreachable
             TransferReceiveResult.Corrupted -> TransferFailureReason.Corrupted
+            TransferReceiveResult.HotspotUnavailable -> TransferFailureReason.HotspotUnavailable
             else -> TransferFailureReason.Unsupported
         }
 

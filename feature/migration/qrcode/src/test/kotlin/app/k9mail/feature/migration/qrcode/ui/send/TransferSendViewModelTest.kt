@@ -16,6 +16,7 @@ import app.k9mail.feature.migration.qrcode.transfer.TransferReceiver
 import app.k9mail.feature.migration.qrcode.transfer.TransferSender
 import app.k9mail.feature.migration.qrcode.transfer.hotspot.FakeHotspotController
 import app.k9mail.feature.migration.qrcode.transfer.hotspot.HotspotStartResult
+import app.k9mail.feature.migration.qrcode.transfer.hotspot.UnsupportedHotspotNetworkConnector
 import app.k9mail.feature.migration.qrcode.ui.send.TransferSendContract.Effect
 import app.k9mail.feature.migration.qrcode.ui.send.TransferSendContract.Event
 import app.k9mail.feature.migration.qrcode.ui.send.TransferSendContract.State
@@ -214,7 +215,10 @@ private class TransferSendScreenRobot(
         val transfer = checkNotNull(qrCode) { "The transfer was never shown as a QR code" }
 
         mviContext.testScope.async(Dispatchers.IO) {
-            TransferReceiver(fetcher = LanTransferClient()).receive(transfer)
+            TransferReceiver(
+                fetcher = LanTransferClient(),
+                hotspotConnector = UnsupportedHotspotNetworkConnector,
+            ).receive(transfer)
         }
     }
 

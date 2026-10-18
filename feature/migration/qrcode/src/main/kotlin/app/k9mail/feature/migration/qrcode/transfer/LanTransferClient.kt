@@ -4,6 +4,7 @@ import java.io.DataInputStream
 import java.io.IOException
 import java.net.InetSocketAddress
 import java.net.Socket
+import javax.net.SocketFactory
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import net.thunderbird.legacy.logging.Log
@@ -23,14 +24,19 @@ internal class LanTransferClient(
     private val maxContainerSize: Int = DEFAULT_MAX_CONTAINER_SIZE,
 ) : TransferContainerFetcher {
     /**
-     * Asks the device described by [route] for the container belonging to [transferId].
+     * Asks the device described by [route] for the container belonging to [transferId], over a socket created by
+     * [socketFactory].
      *
      * @return [LanTransferClientResult.Success] with the container, [LanTransferClientResult.Unreachable] when there is
      * no device to talk to, [LanTransferClientResult.Failed] when the device didn't deliver a container.
      */
-    override suspend fun fetch(route: TransferRoute.Lan, transferId: ByteArray): LanTransferClientResult {
+    override suspend fun fetch(
+        route: TransferRoute.Lan,
+        transferId: ByteArray,
+        socketFactory: SocketFactory,
+    ): LanTransferClientResult {
         return withContext(Dispatchers.IO) {
-            val socket = connect(host = route.host, port = route.port)
+            val socket = connect(host = route.host, port = route.port, socketFactory = socketFactory)
 
             if (socket == null) {
                 LanTransferClientResult.Unreachable
@@ -40,8 +46,9 @@ internal class LanTransferClient(
         }
     }
 
-    private fun connect(host: String, port: Int): Socket? {
-        val socket = Socket()
+    private fun connect(host: String, port: Int, socketFactory: SocketFactory): Socket? {
+        // The factory decides the network the transfer runs on, e.g. the hotspot of the sending device.
+        val socket = socketFactory.createSocket()
 
         return try {
             socket.connect(InetSocketAddress(host, port), connectTimeoutMillis)

@@ -20,6 +20,9 @@ import app.k9mail.feature.migration.qrcode.transfer.TransferQrCode
 import app.k9mail.feature.migration.qrcode.transfer.TransferReceiver
 import app.k9mail.feature.migration.qrcode.transfer.TransferRoute
 import app.k9mail.feature.migration.qrcode.transfer.TransferSecrets
+import app.k9mail.feature.migration.qrcode.transfer.hotspot.HotspotConnectResult
+import app.k9mail.feature.migration.qrcode.transfer.hotspot.HotspotNetworkConnector
+import app.k9mail.feature.migration.qrcode.transfer.hotspot.UnsupportedHotspotNetworkConnector
 import app.k9mail.feature.migration.qrcode.ui.QrCodeScannerContract.DisplayText
 import app.k9mail.feature.migration.qrcode.ui.QrCodeScannerContract.Effect
 import app.k9mail.feature.migration.qrcode.ui.QrCodeScannerContract.Event
@@ -294,6 +297,46 @@ class QrCodeScannerViewModelTest {
         }
     }
 
+    @Test
+    fun `user scans the QR code of an account transfer over a hotspot that can't be joined`() = runMviTest {
+        val robot = QrCodeScannerScreenRobot(
+            mviContext = this,
+            hotspotConnector = FakeHotspotNetworkConnector(HotspotConnectResult.Failed),
+        )
+        with(robot) {
+            startScreen()
+            systemGrantsCameraPermission()
+
+            userScansHotspotTransferQrCode()
+            assertConnectingToHotspotStatus()
+            assertTransferFailedStatus(expectedReason = TransferFailureReason.HotspotUnavailable)
+
+            assertNumberOfReceivedTransfers(expectedCount = 0)
+
+            ensureThatAllEventsAreConsumed()
+        }
+    }
+
+    @Test
+    fun `user scans the QR code of an account transfer over a hotspot this device can't join`() = runMviTest {
+        val robot = QrCodeScannerScreenRobot(
+            mviContext = this,
+            hotspotConnector = UnsupportedHotspotNetworkConnector,
+        )
+        with(robot) {
+            startScreen()
+            systemGrantsCameraPermission()
+
+            userScansHotspotTransferQrCode()
+            assertConnectingToHotspotStatus()
+            assertTransferFailedStatus(expectedReason = TransferFailureReason.HotspotUnavailable)
+
+            assertNumberOfReceivedTransfers(expectedCount = 0)
+
+            ensureThatAllEventsAreConsumed()
+        }
+    }
+
     private fun transferFailedState(reason: TransferFailureReason): State {
         return State(
             cameraPermissionState = UiPermissionState.Granted,
@@ -307,6 +350,7 @@ private class QrCodeScannerScreenRobot(
     private val transferResultOfContainer: (ByteArray) -> LanTransferClientResult = {
         LanTransferClientResult.Unreachable
     },
+    private val hotspotConnector: HotspotNetworkConnector = UnsupportedHotspotNetworkConnector,
     private val clock: FakeClock = FakeClock(),
 ) {
     private val qrCodeSettingsWriter = FakeQrCodeSettingsWriter()
@@ -321,10 +365,11 @@ private class QrCodeScannerScreenRobot(
         ),
         qrCodeSettingsWriter = qrCodeSettingsWriter,
         transferReceiver = TransferReceiver(
-            fetcher = TransferContainerFetcher { _, _ ->
+            fetcher = TransferContainerFetcher { _, _, _ ->
                 transferReceiveCount++
                 transferResultOfContainer(TRANSFER_CONTAINER)
             },
+            hotspotConnector = hotspotConnector,
         ),
         createCameraUseCaseProvider = { listener ->
             qrCodeListener = listener
@@ -405,6 +450,10 @@ private class QrCodeScannerScreenRobot(
         qrCodeListener.invoke(TRANSFER_QR_CODE_TEXT)
     }
 
+    fun userScansHotspotTransferQrCode() {
+        qrCodeListener.invoke(HOTSPOT_TRANSFER_QR_CODE_TEXT)
+    }
+
     fun userScansInvalidTransferQrCode() {
         qrCodeListener.invoke("TBX1:invalid-transfer")
     }
@@ -443,6 +492,15 @@ private class QrCodeScannerScreenRobot(
             State(
                 cameraPermissionState = UiPermissionState.Granted,
                 displayText = DisplayText.ReceivingTransfer,
+            ),
+        )
+    }
+
+    suspend fun assertConnectingToHotspotStatus() {
+        assertThat(turbines.awaitStateItem()).isEqualTo(
+            State(
+                cameraPermissionState = UiPermissionState.Granted,
+                displayText = DisplayText.ConnectingToHotspot,
             ),
         )
     }
@@ -487,6 +545,8 @@ private class QrCodeScannerScreenRobot(
             """["user@domain.example","Firstname Lastname"]]]]"""
         private const val HOST = "192.168.0.2"
         private const val PORT = 49152
+        private const val SSID = "Thunderbird Transfer"
+        private const val PASSPHRASE = "transfer-passphrase"
         private const val TRANSFER_ID_LENGTH = 16
         private const val KEY_LENGTH = 32
 
@@ -498,6 +558,16 @@ private class QrCodeScannerScreenRobot(
         private val TRANSFER_QR_CODE_TEXT = TransferQrCode(
             secrets = TRANSFER_SECRETS,
             route = TransferRoute.Lan(host = HOST, port = PORT),
+        ).format()
+
+        private val HOTSPOT_TRANSFER_QR_CODE_TEXT = TransferQrCode(
+            secrets = TRANSFER_SECRETS,
+            route = TransferRoute.Hotspot(
+                ssid = SSID,
+                passphrase = PASSPHRASE,
+                host = HOST,
+                port = PORT,
+            ),
         ).format()
 
         private val TRANSFER_CONTAINER = TransferContainer.encrypt(
@@ -515,6 +585,19 @@ private class FakeClock(private var currentTime: Long = 0L) {
 
     fun advanceBy(duration: Long) {
         currentTime += duration
+    }
+}
+
+private class FakeHotspotNetworkConnector(
+    private val result: HotspotConnectResult,
+) : HotspotNetworkConnector {
+    var connectCount = 0
+        private set
+
+    override suspend fun connect(ssid: String, passphrase: String): HotspotConnectResult {
+        connectCount++
+
+        return result
     }
 }
 

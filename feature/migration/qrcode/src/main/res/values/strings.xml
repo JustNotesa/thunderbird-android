@@ -8,9 +8,11 @@
     <string name="migration_qrcode_unsupported_code">The QR code was detected, but it contains invalid or unsupported data.</string>
     <string name="migration_qrcode_done_button_text">Done</string>
     <string name="migration_qrcode_transfer_receiving">Receiving accounts…</string>
+    <string name="migration_qrcode_transfer_connecting_hotspot">Connecting to the other device…</string>
     <string name="migration_qrcode_transfer_unreachable">The other device can\'t be reached. Make sure both devices are connected to the same Wi-Fi network.</string>
     <string name="migration_qrcode_transfer_corrupted">The accounts couldn\'t be read. Please start the transfer again on the other device.</string>
     <string name="migration_qrcode_transfer_unsupported">This transfer isn\'t supported by this version of the app.</string>
+    <string name="migration_qrcode_transfer_hotspot_unavailable">Couldn\'t connect to the Wi-Fi hotspot of the other device. Please try again, or use another way to transfer the accounts.</string>
     <string name="migration_qrcode_transfer_send_title">Transfer to a new device</string>
     <string name="migration_qrcode_transfer_send_instructions">On the new device, open Thunderbird, go to Settings and select Import settings, then scan this QR code. Both devices have to be connected to the same Wi-Fi network.</string>
     <string name="migration_qrcode_transfer_send_preparing">Preparing…</string>
