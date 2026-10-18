@@ -14,6 +14,12 @@
             android:theme="@style/Theme.Material3.Dark.NoActionBar"
             />
 
+        <activity
+            android:name=".ui.send.TransferSendActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Material3.Light.NoActionBar"
+            />
+
         <provider
             android:name=".settings.QrCodeSettingsFileProvider"
             android:authorities="${applicationId}.qrcode.settings"

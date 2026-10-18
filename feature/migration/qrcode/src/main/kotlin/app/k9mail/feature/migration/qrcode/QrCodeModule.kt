@@ -21,6 +21,7 @@ import app.k9mail.feature.migration.qrcode.transfer.TransferContainerFetcher
 import app.k9mail.feature.migration.qrcode.transfer.TransferReceiver
 import app.k9mail.feature.migration.qrcode.transfer.TransferSender
 import app.k9mail.feature.migration.qrcode.ui.QrCodeScannerViewModel
+import app.k9mail.feature.migration.qrcode.ui.send.TransferSendViewModel
 import org.koin.core.module.dsl.viewModel
 import org.koin.dsl.module
 
@@ -31,6 +32,10 @@ val qrCodeModule = module {
             qrCodeSettingsWriter = get(),
             transferReceiver = get(),
         )
+    }
+
+    viewModel {
+        TransferSendViewModel(transferSender = get())
     }
 
     factory { QrCodePayloadAdapter() }

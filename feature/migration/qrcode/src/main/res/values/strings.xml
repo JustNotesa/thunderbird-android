@@ -11,4 +11,18 @@
     <string name="migration_qrcode_transfer_unreachable">The other device can\'t be reached. Make sure both devices are connected to the same Wi-Fi network.</string>
     <string name="migration_qrcode_transfer_corrupted">The accounts couldn\'t be read. Please start the transfer again on the other device.</string>
     <string name="migration_qrcode_transfer_unsupported">This transfer isn\'t supported by this version of the app.</string>
+    <string name="migration_qrcode_transfer_send_title">Transfer to a new device</string>
+    <string name="migration_qrcode_transfer_send_instructions">On the new device, open Thunderbird, go to Settings and select Import settings, then scan this QR code. Both devices have to be connected to the same Wi-Fi network.</string>
+    <string name="migration_qrcode_transfer_send_preparing">Preparing…</string>
+    <string name="migration_qrcode_transfer_send_transferred">Accounts transferred</string>
+    <string name="migration_qrcode_transfer_send_expired">The QR code has expired.</string>
+    <string name="migration_qrcode_transfer_send_no_wifi">Connect this device to a Wi-Fi network to transfer your accounts.</string>
+    <string name="migration_qrcode_transfer_send_no_accounts">There are no accounts to transfer.</string>
+    <string name="migration_qrcode_transfer_send_failed">The transfer couldn\'t be started.</string>
+    <string name="migration_qrcode_transfer_send_cancel_button_text">Cancel</string>
+    <string name="migration_qrcode_transfer_send_done_button_text">Done</string>
+    <string name="migration_qrcode_transfer_send_retry_button_text">Retry</string>
+    <string name="migration_qrcode_transfer_send_close_button_text">Close</string>
+    <string name="migration_qrcode_transfer_send_new_qr_code_button_text">Show new QR code</string>
+    <string name="migration_qrcode_transfer_send_qr_code_description">QR code with the data of the account transfer</string>
 </resources>
