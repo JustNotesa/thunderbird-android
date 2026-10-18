@@ -109,11 +109,24 @@ enum class Alignment {
 
 /**
  * An image inside the text. The text holds one U+FFFC at [position]; [contentId] is the MIME Content-ID.
+ *
+ * [widthPercent] is the width the image is shown with, as a percentage of the width of the message between
+ * [MIN_WIDTH_PERCENT] and [MAX_WIDTH_PERCENT]. `null` is the width the image has of its own, never wider than the
+ * message.
  */
 data class InlineImage(
     val position: Int,
     val contentId: String,
-)
+    val widthPercent: Int? = null,
+) {
+    companion object {
+        /** The narrowest width an image may be shown with. */
+        const val MIN_WIDTH_PERCENT = 10
+
+        /** The width of the message, i.e. the widest an image may be shown. */
+        const val MAX_WIDTH_PERCENT = 100
+    }
+}
 
 /**
  * Message text with `\n` line breaks and the parts of it that are formatted.

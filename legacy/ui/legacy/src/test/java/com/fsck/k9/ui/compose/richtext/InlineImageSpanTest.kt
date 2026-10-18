@@ -210,6 +210,104 @@ class InlineImageSpanTest : RobolectricTest() {
     }
 
     @Test
+    fun `an image should be drawn as wide as the user chose`() {
+        // Arrange
+        pictures["a"] = picture(1000, 500)
+        val span = images.spanFor("a", widthPercent = 50)
+
+        // Act
+        val width = span.getSize(Paint(), "￼", 0, 1, null)
+
+        // Assert
+        assertThat(width).isEqualTo(200)
+        assertThat(span.drawable.bounds.height()).isEqualTo(100)
+    }
+
+    @Test
+    fun `an image should never be drawn wider than the width of the text`() {
+        // Arrange
+        pictures["a"] = picture(1000, 500)
+        val span = images.spanFor("a", widthPercent = 100)
+
+        // Act
+        val width = span.getSize(Paint(), "￼", 0, 1, null)
+
+        // Assert
+        assertThat(width).isEqualTo(400)
+        assertThat(span.drawable.bounds.height()).isEqualTo(200)
+    }
+
+    @Test
+    fun `an image with a width should keep its proportions when the height is the limit`() {
+        // Arrange
+        pictures["a"] = picture(1000, 1000)
+        val span = images.spanFor("a", widthPercent = 100)
+
+        // Act
+        val width = span.getSize(Paint(), "￼", 0, 1, null)
+
+        // Assert
+        assertThat(width).isEqualTo(300)
+        assertThat(span.drawable.bounds.height()).isEqualTo(300)
+    }
+
+    @Test
+    fun `toSpanned should draw an image with the width it was sent with`() {
+        // Arrange
+        pictures["a"] = picture(1000, 500)
+        val formattedText = FormattedText(
+            text = "￼",
+            ranges = emptyList(),
+            images = listOf(InlineImage(0, "a", widthPercent = 75)),
+        )
+
+        // Act
+        val text = RichTextFormatter.toSpanned(formattedText, images)
+
+        // Assert
+        val span = text.getSpans(0, text.length, InlineImageSpan::class.java).single()
+        assertThat(span.widthPercent).isEqualTo(75)
+        assertThat(span.getSize(Paint(), "￼", 0, 1, null)).isEqualTo(300)
+    }
+
+    @Test
+    fun `formattedText should report the width the image is shown with`() {
+        // Arrange
+        pictures["a"] = picture(1000, 500)
+        val formattedText = FormattedText(
+            text = "a￼b",
+            ranges = emptyList(),
+            images = listOf(InlineImage(1, "a", widthPercent = 25)),
+        )
+
+        // Act
+        val result = RichTextFormatter.formattedText(RichTextFormatter.toSpanned(formattedText, images))
+
+        // Assert
+        assertThat(result).isEqualTo(formattedText)
+    }
+
+    @Test
+    fun `refreshInlineImages should keep the width the image is shown with`() {
+        // Arrange
+        val text = SpannableStringBuilder(
+            RichTextFormatter.toSpanned(
+                FormattedText("￼", emptyList(), images = listOf(InlineImage(0, "missing", widthPercent = 40))),
+                images,
+            ),
+        )
+        pictures["missing"] = picture(1000, 500)
+
+        // Act
+        text.refreshInlineImages(images)
+
+        // Assert
+        val span = text.getSpans(0, text.length, InlineImageSpan::class.java).single()
+        assertThat(span.isPlaceholder).isFalse()
+        assertThat(span.widthPercent).isEqualTo(40)
+    }
+
+    @Test
     fun `the limits of an edit text should use the width of its text`() {
         // Arrange
         val editText = EditText(ApplicationProvider.getApplicationContext())

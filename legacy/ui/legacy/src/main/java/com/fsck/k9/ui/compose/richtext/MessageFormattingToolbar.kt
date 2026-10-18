@@ -31,7 +31,7 @@ import net.thunderbird.feature.mail.message.composer.richtext.TextFormat
  * A button formats the selected text or, without a selection, what is typed next; the bar shows the formatting at
  * the selection. The bar is only shown while the message text has the focus and the message is written as formatted
  * HTML. Typing keeps lists and quotes going ([ParagraphEditWatcher]); Ctrl+B, Ctrl+I and Ctrl+U format on a hardware
- * keyboard.
+ * keyboard. Swiping sideways over an image sets the width it is shown with ([InlineImageResizer]).
  *
  * The text field can also show the message as HTML code. The bar is hidden then, and the code is shown in a
  * fixed-width font without spelling suggestions.
@@ -123,6 +123,14 @@ class MessageFormattingToolbar(
         messageContent.setOnScrollChangeListener { view, scrollX, _, _, _ ->
             if (scrollX != 0) view.scrollTo(0, view.scrollY)
         }
+        // Swiping sideways over an image sets the width it is shown with in the message.
+        messageContent.setOnTouchListener(
+            InlineImageResizer(
+                editText = messageContent,
+                onBeforeChange = { history.beforeFormatChange() },
+                onChange = { onFormatChanged() },
+            ),
+        )
         messageContent.text.watch(selectionWatcher)
         updateState()
     }

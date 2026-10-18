@@ -13,7 +13,6 @@ import net.thunderbird.feature.mail.message.composer.internal.richtext.HtmlNames
 import net.thunderbird.feature.mail.message.composer.internal.richtext.HtmlNames.FORMAT_TAGS
 import net.thunderbird.feature.mail.message.composer.internal.richtext.HtmlNames.HREF_ATTRIBUTE
 import net.thunderbird.feature.mail.message.composer.internal.richtext.HtmlNames.IMAGE_ATTRIBUTES
-import net.thunderbird.feature.mail.message.composer.internal.richtext.HtmlNames.IMAGE_STYLE
 import net.thunderbird.feature.mail.message.composer.internal.richtext.HtmlNames.IMAGE_TAG
 import net.thunderbird.feature.mail.message.composer.internal.richtext.HtmlNames.LIST_ITEM_TAG
 import net.thunderbird.feature.mail.message.composer.internal.richtext.HtmlNames.LIST_TAGS
@@ -103,12 +102,11 @@ private fun Element.hasOnly(attribute: String): Boolean {
 private fun Element.isRepresentableImage(): Boolean {
     val attributes = attributes().map { it.key.lowercase() }
     val source = attr(SOURCE_ATTRIBUTE)
-    val style = attr(STYLE_ATTRIBUTE).filterNot { it.isWhitespace() }.lowercase().removeSuffix(";")
 
     return attributes.all { it in IMAGE_ATTRIBUTES } &&
         source.startsWith(CONTENT_ID_PREFIX) &&
         source.length > CONTENT_ID_PREFIX.length &&
-        (style.isEmpty() || style == IMAGE_STYLE)
+        ImageWidths.isRepresentableStyle(attr(STYLE_ATTRIBUTE))
 }
 
 /**

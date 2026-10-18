@@ -8,10 +8,13 @@ import net.thunderbird.feature.mail.message.composer.internal.richtext.HtmlNames
 import net.thunderbird.feature.mail.message.composer.internal.richtext.HtmlNames.IMAGE_TAG
 import net.thunderbird.feature.mail.message.composer.internal.richtext.HtmlNames.NON_BREAKING_SPACE
 import net.thunderbird.feature.mail.message.composer.internal.richtext.HtmlNames.OBJECT_REPLACEMENT_CHARACTER
+import net.thunderbird.feature.mail.message.composer.internal.richtext.HtmlNames.PERCENT_UNIT
 import net.thunderbird.feature.mail.message.composer.internal.richtext.HtmlNames.SOURCE_ATTRIBUTE
 import net.thunderbird.feature.mail.message.composer.internal.richtext.HtmlNames.SPAN_TAG
 import net.thunderbird.feature.mail.message.composer.internal.richtext.HtmlNames.STYLE_ATTRIBUTE
 import net.thunderbird.feature.mail.message.composer.internal.richtext.HtmlNames.STYLE_BY_FORMAT
+import net.thunderbird.feature.mail.message.composer.internal.richtext.HtmlNames.WIDTH_PROPERTY
+import net.thunderbird.feature.mail.message.composer.richtext.InlineImage
 import net.thunderbird.feature.mail.message.composer.richtext.LinkRange
 import net.thunderbird.feature.mail.message.composer.richtext.TextFormat
 
@@ -42,9 +45,24 @@ internal fun colorTag(property: String, color: Int): String {
     return """<$SPAN_TAG $STYLE_ATTRIBUTE="$property: #$digits">"""
 }
 
-internal fun imageTag(contentId: String): String {
+/**
+ * An image inside the text, as wide as the user chose it to be or, without a width, as wide as it naturally is and
+ * never wider than the message.
+ */
+internal fun imageTag(contentId: String, widthPercent: Int?): String {
     return """<$IMAGE_TAG $SOURCE_ATTRIBUTE="$CONTENT_ID_PREFIX${contentId.htmlAttributeEncoded()}" """ +
-        """$ALT_ATTRIBUTE="" $STYLE_ATTRIBUTE="$IMAGE_STYLE_PROPERTY">"""
+        """$ALT_ATTRIBUTE="" $STYLE_ATTRIBUTE="${imageStyle(widthPercent)}">"""
+}
+
+/**
+ * The style of an image: the width the user chose for it, around the limit that keeps it from being wider than the
+ * message, or that limit alone for an image that keeps the size it has of its own.
+ */
+private fun imageStyle(widthPercent: Int?): String {
+    val width = widthPercent ?: return IMAGE_STYLE_PROPERTY
+    val percent = width.coerceIn(InlineImage.MIN_WIDTH_PERCENT, InlineImage.MAX_WIDTH_PERCENT)
+
+    return "$WIDTH_PROPERTY: $percent$PERCENT_UNIT; $IMAGE_STYLE_PROPERTY"
 }
 
 internal fun String.htmlAttributeEncoded(): String {

@@ -158,7 +158,13 @@ internal class HtmlReader(private val lenient: Boolean) {
 
         paragraphs.startLine()
         text.append(OBJECT_REPLACEMENT_CHARACTER)
-        images.add(InlineImage(position = position, contentId = contentId))
+        images.add(
+            InlineImage(
+                position = position,
+                contentId = contentId,
+                widthPercent = ImageWidths.ofImage(element, lenient),
+            ),
+        )
     }
 
     private fun startsNewLine(tag: String): Boolean {

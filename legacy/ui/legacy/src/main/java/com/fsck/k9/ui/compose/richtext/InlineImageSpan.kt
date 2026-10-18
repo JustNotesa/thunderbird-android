@@ -1,10 +1,12 @@
 package com.fsck.k9.ui.compose.richtext
 
+import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
 import android.text.style.ImageSpan
 import android.widget.EditText
+import net.thunderbird.feature.mail.message.composer.richtext.InlineImage
 import kotlin.math.roundToInt
 
 /** The character in the text that stands for an inline image. */
@@ -13,6 +15,14 @@ internal const val IMAGE_CHARACTER = '￼'
 private const val PLACEHOLDER_WIDTH = 240
 private const val PLACEHOLDER_HEIGHT = 160
 private const val PLACEHOLDER_COLOR = 0x33808080
+
+// The label that shows the width of an image while it is being resized: white on a dark ground, on top of the image.
+private const val PERCENT = " %"
+private const val LABEL_TEXT_SIZE_FRACTION = 0.4f
+private const val LABEL_PADDING_FRACTION = 0.2f
+private const val PADDING_SIDES = 2f
+private const val LABEL_TEXT_COLOR = 0xFFFFFFFF.toInt()
+private const val LABEL_BACKGROUND_COLOR = 0xB3000000.toInt()
 
 /**
  * Gives the editor the pictures of the inline images of a message.
@@ -51,10 +61,11 @@ internal class InlineImageLimits(val maxWidth: () -> Int, val maxHeight: Int) {
  * Creates the spans of the inline images of a text, with the pictures [store] has and a placeholder for the others.
  */
 internal class InlineImages(private val store: InlineImageStore, private val limits: InlineImageLimits) {
-    fun spanFor(contentId: String): InlineImageSpan {
-        val drawable = store.drawableFor(contentId) ?: return InlineImageSpan.placeholder(contentId, limits)
+    fun spanFor(contentId: String, widthPercent: Int? = null): InlineImageSpan {
+        val drawable = store.drawableFor(contentId)
+            ?: return InlineImageSpan.placeholder(contentId, limits, widthPercent)
 
-        return InlineImageSpan(drawable, contentId, limits)
+        return InlineImageSpan(drawable, contentId, limits, widthPercent = widthPercent)
     }
 
     companion object {
@@ -72,11 +83,48 @@ internal class InlineImageSpan(
     val contentId: String,
     private val limits: InlineImageLimits,
     val isPlaceholder: Boolean = false,
+    widthPercent: Int? = null,
 ) : ImageSpan(drawable, contentId, ALIGN_BOTTOM) {
+    /**
+     * The width the image is shown with, as a percentage of the width of the text, `null` for the size the image has
+     * of its own. The user sets it by swiping sideways over the image.
+     */
+    var widthPercent: Int? = null
+        set(value) {
+            field = value?.coerceIn(InlineImage.MIN_WIDTH_PERCENT, InlineImage.MAX_WIDTH_PERCENT)
+        }
+
+    /** Whether the user is swiping over the image right now, which shows the width the gesture gives it. */
+    var isResizing: Boolean = false
+
+    private val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val labelBackgroundPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+
+    init {
+        this.widthPercent = widthPercent
+    }
+
     override fun getSize(paint: Paint, text: CharSequence?, start: Int, end: Int, fm: Paint.FontMetricsInt?): Int {
         fitDrawable()
 
         return super.getSize(paint, text, start, end, fm)
+    }
+
+    override fun draw(
+        canvas: Canvas,
+        text: CharSequence,
+        start: Int,
+        end: Int,
+        x: Float,
+        top: Int,
+        y: Int,
+        bottom: Int,
+        paint: Paint,
+    ) {
+        super.draw(canvas, text, start, end, x, top, y, bottom, paint)
+
+        // ImageSpan draws the image at x with its bottom on the bottom of the line; the label goes on top of it.
+        if (isResizing) drawWidthLabel(canvas, paint.textSize, x, (bottom - drawable.bounds.bottom).toFloat())
     }
 
     private fun fitDrawable() {
@@ -85,24 +133,58 @@ internal class InlineImageSpan(
         val height = image.intrinsicHeight
         if (width <= 0 || height <= 0) return
 
-        val maxWidth = limits.maxWidth().takeIf { it > 0 } ?: width
-        val scale = minOf(1f, maxWidth.toFloat() / width, limits.maxHeight.toFloat() / height)
+        val available = limits.maxWidth().takeIf { it > 0 } ?: width
+        val percent = widthPercent
+        val scale = if (percent == null) {
+            // Without a width of its own the image keeps the size it has, as long as it fits.
+            minOf(1f, available.toFloat() / width, limits.maxHeight.toFloat() / height)
+        } else {
+            val wanted = available * percent / InlineImage.MAX_WIDTH_PERCENT
+            minOf(wanted.toFloat() / width, limits.maxHeight.toFloat() / height)
+        }
+
         val scaledWidth = (width * scale).roundToInt().coerceAtLeast(1)
         val scaledHeight = (height * scale).roundToInt().coerceAtLeast(1)
         image.setBounds(0, 0, scaledWidth, scaledHeight)
+    }
+
+    /**
+     * The width the image would be sent with, shown on top of it while the user swipes, so that the gesture says what
+     * it does before it is done. It is drawn in the text size of the text around the image.
+     */
+    private fun drawWidthLabel(canvas: Canvas, textSize: Float, imageX: Float, imageY: Float) {
+        val percent = widthPercent ?: return
+        if (textSize <= 0f) return
+
+        val label = "$percent$PERCENT"
+        val size = textSize * LABEL_TEXT_SIZE_FRACTION
+        val padding = size * LABEL_PADDING_FRACTION
+        labelPaint.textSize = size
+        labelPaint.color = LABEL_TEXT_COLOR
+        labelBackgroundPaint.color = LABEL_BACKGROUND_COLOR
+
+        // The ground of the label leaves a padding of its own on every side of the text.
+        val bounds = drawable.bounds
+        val left = imageX + bounds.left
+        val top = imageY + bounds.top
+        val bottom = top + size + padding * PADDING_SIDES
+        val right = left + labelPaint.measureText(label) + padding * PADDING_SIDES
+
+        canvas.drawRect(left, top, right, bottom, labelBackgroundPaint)
+        canvas.drawText(label, left + padding, bottom - padding, labelPaint)
     }
 
     companion object {
         /**
          * The picture shown for an image that is not available: a grey area of a fixed size.
          */
-        fun placeholder(contentId: String, limits: InlineImageLimits): InlineImageSpan {
+        fun placeholder(contentId: String, limits: InlineImageLimits, widthPercent: Int? = null): InlineImageSpan {
             val drawable = GradientDrawable().apply {
                 setColor(PLACEHOLDER_COLOR)
                 setSize(PLACEHOLDER_WIDTH, PLACEHOLDER_HEIGHT)
             }
 
-            return InlineImageSpan(drawable, contentId, limits, isPlaceholder = true)
+            return InlineImageSpan(drawable, contentId, limits, isPlaceholder = true, widthPercent = widthPercent)
         }
     }
 }

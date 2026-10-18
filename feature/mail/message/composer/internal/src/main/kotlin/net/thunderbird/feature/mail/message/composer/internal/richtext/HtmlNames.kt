@@ -32,17 +32,25 @@ internal object HtmlNames {
     const val ALT_ATTRIBUTE = "alt"
     const val DIRECTION_ATTRIBUTE = "dir"
     const val CLASS_ATTRIBUTE = "class"
+    const val WIDTH_ATTRIBUTE = "width"
     const val COLOR_PROPERTY = "color"
     const val TEXT_ALIGN_PROPERTY = "text-align"
     const val MARGIN_LEFT_PROPERTY = "margin-left"
     const val LIST_STYLE_PROPERTY = "list-style-type"
+    const val WIDTH_PROPERTY = "width"
     const val FONT_COLOR_ATTRIBUTE = "color"
     const val BACKGROUND_COLOR_PROPERTY = "background-color"
     const val IMAGE_STYLE_PROPERTY = "max-width: 100%"
+
+    // The unit a width of an image is written in.
+    const val PERCENT_UNIT = "%"
     const val CONTENT_ID_PREFIX = "cid:"
     const val RGB_PREFIX = "rgb("
 
-    val IMAGE_STYLE = IMAGE_STYLE_PROPERTY.filterNot { it.isWhitespace() }
+    // The style of an image however it is spaced, and the same style around the width the user chose for it.
+    const val IMAGE_STYLE = "max-width:100%"
+    const val WIDTH_STYLE_PREFIX = "width:"
+    const val WIDTH_STYLE_SUFFIX = ";$IMAGE_STYLE"
     val IMAGE_ATTRIBUTES = setOf(SOURCE_ATTRIBUTE, ALT_ATTRIBUTE, STYLE_ATTRIBUTE)
 
     // What a script or a style file says is not text of the message.

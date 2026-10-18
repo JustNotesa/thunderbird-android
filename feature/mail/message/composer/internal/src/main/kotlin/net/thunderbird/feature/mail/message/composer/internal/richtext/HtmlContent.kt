@@ -78,7 +78,7 @@ internal class HtmlContent(formattedText: FormattedText) {
     private fun StringBuilder.appendContent(start: Int, end: Int) {
         val image = images[start]
         if (image != null && end == start + 1 && text[start] == OBJECT_REPLACEMENT_CHARACTER) {
-            append(imageTag(image.contentId))
+            append(imageTag(image.contentId, image.widthPercent))
         } else {
             appendHtmlEncoded(text, start, end)
         }
