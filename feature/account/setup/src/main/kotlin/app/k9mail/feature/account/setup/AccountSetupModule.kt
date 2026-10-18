@@ -10,6 +10,9 @@ import app.k9mail.feature.account.oauth.featureAccountOAuthModule
 import app.k9mail.feature.account.server.settings.featureAccountServerSettingsModule
 import app.k9mail.feature.account.server.validation.featureAccountServerValidationModule
 import app.k9mail.feature.account.setup.domain.DomainContract
+import app.k9mail.feature.account.setup.domain.discovery.ExistingAccountAutoDiscovery
+import app.k9mail.feature.account.setup.domain.discovery.ExistingAccountServerSettings
+import app.k9mail.feature.account.setup.domain.discovery.ExistingAccountServerSettingsProvider
 import app.k9mail.feature.account.setup.domain.usecase.CreateAccount
 import app.k9mail.feature.account.setup.domain.usecase.GetAutoDiscovery
 import app.k9mail.feature.account.setup.domain.usecase.GetSpecialFolderOptions
@@ -29,6 +32,8 @@ import app.k9mail.feature.account.setup.ui.specialfolders.SpecialFoldersFormUiMo
 import app.k9mail.feature.account.setup.ui.specialfolders.SpecialFoldersViewModel
 import com.fsck.k9.mail.folders.FolderFetcher
 import com.fsck.k9.mail.store.imap.ImapFolderFetcher
+import kotlinx.coroutines.flow.first
+import net.thunderbird.core.android.account.LegacyAccountManager
 import okhttp3.OkHttpClient
 import org.koin.core.module.Module
 import org.koin.core.module.dsl.viewModel
@@ -49,12 +54,27 @@ val featureAccountSetupModule: Module = module {
         OkHttpClient()
     }
 
+    single<ExistingAccountServerSettingsProvider> {
+        val accountManager = get<LegacyAccountManager>()
+        ExistingAccountServerSettingsProvider {
+            accountManager.getAll().first().map { account ->
+                ExistingAccountServerSettings(
+                    emailAddress = account.email,
+                    incoming = account.incomingServerSettings,
+                    outgoing = account.outgoingServerSettings,
+                )
+            }
+        }
+    }
+
     single<AutoDiscoveryRegistry> {
         val extraAutoDiscoveries = get<List<AutoDiscovery>>(named("extraAutoDiscoveries"))
+        val existingAccountAutoDiscovery: AutoDiscovery = ExistingAccountAutoDiscovery(get())
         RealAutoDiscoveryRegistry(
-            autoDiscoveries = RealAutoDiscoveryRegistry.createDefaultAutoDiscoveries(
-                okHttpClient = get(),
-            ) + extraAutoDiscoveries,
+            autoDiscoveries = listOf(existingAccountAutoDiscovery) +
+                RealAutoDiscoveryRegistry.createDefaultAutoDiscoveries(
+                    okHttpClient = get(),
+                ) + extraAutoDiscoveries,
         )
     }
 
