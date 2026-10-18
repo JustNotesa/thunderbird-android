@@ -14,7 +14,7 @@ class DisplayHtml(
     override val headHtml: String
         @Language("HTML")
         get() = """
-            |<meta name="viewport" content="width=device-width"/>
+            |<meta name="viewport" content="$viewportMetaContent"/>
             |${cssStyleProviders.joinToString("\n") { it.create(htmlSettings).style }}
         """.trimMargin()
 
@@ -28,7 +28,6 @@ class DisplayHtml(
         //               build an HTML document to almost the same purpose (Viewer, Composer, etc).
         //               Current files that build the HTML document: this, HtmlProcessor.kt, and
         //               HtmlQuoteCreator.java (maybe).
-        // Include a meta tag so the WebView will not use a fixed viewport width of 980 px
         return """
             |<html dir="auto">
             |  <head>
@@ -39,5 +38,15 @@ class DisplayHtml(
             |  </body>
             |</html>
         """.trimMargin()
+    }
+
+    private companion object {
+        /**
+         * Let the WebView use the width of the device instead of a fixed viewport width of 980 px, but don't let it
+         * scale the content down to fit - a message should be displayed at its natural size and zoomed in on demand.
+         *
+         * Note that this doesn't disable pinch zoom. Not setting `user-scalable` at all is what keeps it enabled.
+         */
+        const val viewportMetaContent = "width=device-width, minimum-scale=1"
     }
 }

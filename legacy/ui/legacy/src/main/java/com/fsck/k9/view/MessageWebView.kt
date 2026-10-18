@@ -21,6 +21,7 @@ class MessageWebView : WebView, KoinComponent, ThunderbirdWebViewSettings {
     constructor(context: Context, attrs: AttributeSet?, defStyle: Int) : super(context, attrs, defStyle)
 
     private val webViewClientFactory: WebViewClientFactory by inject()
+    private val touchHandler = MessageWebViewTouchHandler(this)
 
     override var loadWithOverviewMode: Boolean
         get() = settings.loadWithOverviewMode
@@ -38,6 +39,12 @@ class MessageWebView : WebView, KoinComponent, ThunderbirdWebViewSettings {
     }
 
     override fun configure(config: WebViewConfig) {
+        // The scroll view and the view pager both want multi-touch moves, which is exactly what zoom needs.
+        setOnTouchListener { _, event ->
+            touchHandler.onTouchEvent(event)
+            false
+        }
+
         isVerticalScrollBarEnabled = true
         scrollBarStyle = SCROLLBARS_INSIDE_OVERLAY
         isLongClickable = true

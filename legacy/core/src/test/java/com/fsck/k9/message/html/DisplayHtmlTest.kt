@@ -3,6 +3,8 @@ package com.fsck.k9.message.html
 import assertk.Assert
 import assertk.assertThat
 import assertk.assertions.atLeast
+import assertk.assertions.contains
+import assertk.assertions.doesNotContain
 import assertk.assertions.hasSize
 import assertk.assertions.isEqualTo
 import assertk.assertions.prop
@@ -34,6 +36,15 @@ class DisplayHtmlTest {
         val html = displayHtml.wrapMessageContent("Some text")
 
         assertThat(html).containsHtmlElement("html[dir=auto]")
+    }
+
+    @Test
+    fun wrapMessageContent_setsScalableViewportMetaElement() {
+        val html = displayHtml.wrapMessageContent("Some text")
+        val viewportMetaContent = html.viewportMetaContent()
+
+        assertThat(viewportMetaContent).contains("minimum-scale=1")
+        assertThat(viewportMetaContent).doesNotContain("user-scalable")
     }
 
     @Test
@@ -84,6 +95,12 @@ class DisplayHtmlTest {
 
     private fun Assert<String>.bodyText() = transform { html ->
         Jsoup.parse(html).body().text()
+    }
+
+    private fun String.viewportMetaContent(): String {
+        val metaElement = checkNotNull(Jsoup.parse(this).selectFirst("head > meta[name=viewport]"))
+
+        return metaElement.attr("content")
     }
 
     private class FakeCssClassNameProvider(
