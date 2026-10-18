@@ -240,11 +240,40 @@ class QrCodeScannerViewModelTest {
             assertReceivingTransferStatus()
             assertTransferFailedStatus(expectedReason = TransferFailureReason.Unreachable)
 
+            // Scanning the same QR code again while the previous failure is still fresh must not start another
+            // transfer, otherwise the failure message is immediately replaced again.
+            userScansTransferQrCode()
+            assertCurrentState(transferFailedState(TransferFailureReason.Unreachable))
+            assertNumberOfReceivedTransfers(expectedCount = 1)
+
+            timePassesBy(TRANSFER_RETRY_DELAY)
+
             userScansTransferQrCode()
             assertReceivingTransferStatus()
             assertTransferFailedStatus(expectedReason = TransferFailureReason.Unreachable)
 
             assertNumberOfReceivedTransfers(expectedCount = 2)
+
+            ensureThatAllEventsAreConsumed()
+        }
+    }
+
+    @Test
+    fun `user scans same transfer QR code repeatedly after a failed transfer`() = runMviTest {
+        with(QrCodeScannerScreenRobot(mviContext = this)) {
+            startScreen()
+            systemGrantsCameraPermission()
+
+            userScansTransferQrCode()
+            assertReceivingTransferStatus()
+            assertTransferFailedStatus(expectedReason = TransferFailureReason.Unreachable)
+
+            repeat(NUMBER_OF_ADDITIONAL_SCANS) {
+                userScansTransferQrCode()
+            }
+
+            assertCurrentState(transferFailedState(TransferFailureReason.Unreachable))
+            assertNumberOfReceivedTransfers(expectedCount = 1)
 
             ensureThatAllEventsAreConsumed()
         }
@@ -264,6 +293,13 @@ class QrCodeScannerViewModelTest {
             ensureThatAllEventsAreConsumed()
         }
     }
+
+    private fun transferFailedState(reason: TransferFailureReason): State {
+        return State(
+            cameraPermissionState = UiPermissionState.Granted,
+            displayText = DisplayText.TransferFailed(reason = reason),
+        )
+    }
 }
 
 private class QrCodeScannerScreenRobot(
@@ -271,6 +307,7 @@ private class QrCodeScannerScreenRobot(
     private val transferResultOfContainer: (ByteArray) -> LanTransferClientResult = {
         LanTransferClientResult.Unreachable
     },
+    private val clock: FakeClock = FakeClock(),
 ) {
     private val qrCodeSettingsWriter = FakeQrCodeSettingsWriter()
     private var transferReceiveCount = 0
@@ -294,6 +331,7 @@ private class QrCodeScannerScreenRobot(
             UseCase.CameraUseCasesProvider { emptyList() }
         },
         backgroundDispatcher = Dispatchers.Unconfined,
+        clock = clock::currentTimeMillis,
     )
     private lateinit var qrCodeListener: (String) -> Unit
     private lateinit var turbines: MviTurbines<State, Effect>
@@ -369,6 +407,10 @@ private class QrCodeScannerScreenRobot(
 
     fun userScansInvalidTransferQrCode() {
         qrCodeListener.invoke("TBX1:invalid-transfer")
+    }
+
+    fun timePassesBy(duration: Long) {
+        clock.advanceBy(duration)
     }
 
     fun userClicksDoneButton() {
@@ -467,3 +509,14 @@ private class QrCodeScannerScreenRobot(
         )
     }
 }
+
+private class FakeClock(private var currentTime: Long = 0L) {
+    fun currentTimeMillis(): Long = currentTime
+
+    fun advanceBy(duration: Long) {
+        currentTime += duration
+    }
+}
+
+private const val TRANSFER_RETRY_DELAY = 10_000L
+private const val NUMBER_OF_ADDITIONAL_SCANS = 5

@@ -14,6 +14,7 @@ import app.k9mail.feature.migration.qrcode.ui.QrCodeScannerContract.Event
 import app.k9mail.feature.migration.qrcode.ui.QrCodeScannerContract.State
 import app.k9mail.feature.migration.qrcode.ui.QrCodeScannerContract.TransferFailureReason
 import app.k9mail.feature.migration.qrcode.ui.QrCodeScannerContract.UiPermissionState
+import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -33,10 +34,12 @@ internal class QrCodeScannerViewModel(
     private val transferReceiver: TransferReceiver,
     createCameraUseCaseProvider: CameraUseCaseProviderFactory = { callback -> QrCodeImageAnalysisProvider(callback) },
     private val backgroundDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    private val clock: () -> Long = { System.currentTimeMillis() },
     initialState: State = State(),
 ) : BaseViewModel<State, Event, Effect>(initialState), QrCodeScannerContract.ViewModel {
     private val supportedPayloadHashes = mutableSetOf<ByteString>()
     private val unsupportedPayloadHashes = ArrayDeque<ByteString>()
+    private val failedTransferHashes = ConcurrentHashMap<ByteString, Long>()
     private val accountDataList = mutableListOf<AccountData>()
 
     private var scannedCount = 0
@@ -128,8 +131,7 @@ internal class QrCodeScannerViewModel(
     }
 
     private fun handleTransferQrCode(payload: String, payloadHash: ByteString) {
-        if (isReceivingTransfer) {
-            // A transfer is already being received. Its key material can only be used for a single transfer.
+        if (!canReceiveTransfer(payloadHash)) {
             return
         }
 
@@ -140,6 +142,24 @@ internal class QrCodeScannerViewModel(
         }
 
         receiveTransfer(qrCode = qrCode, payloadHash = payloadHash)
+    }
+
+    private fun canReceiveTransfer(payloadHash: ByteString): Boolean {
+        // While a transfer is being received its key material can only be used for a single transfer. After a
+        // failed transfer its QR code is ignored for a moment, so the failure stays readable and the user has a
+        // chance to fix its cause before another transfer is started.
+        return !isReceivingTransfer && !isInTransferCooldown(payloadHash)
+    }
+
+    private fun isInTransferCooldown(payloadHash: ByteString): Boolean {
+        val failureTime = failedTransferHashes[payloadHash]
+        val isInCooldown = failureTime != null && clock() - failureTime < TRANSFER_RETRY_DELAY
+
+        if (!isInCooldown) {
+            failedTransferHashes.remove(payloadHash)
+        }
+
+        return isInCooldown
     }
 
     private fun receiveTransfer(qrCode: TransferQrCode, payloadHash: ByteString) {
@@ -159,7 +179,7 @@ internal class QrCodeScannerViewModel(
             if (result is TransferReceiveResult.Success) {
                 handleReceivedAccounts(accountsJson = result.accountsJson, payloadHash = payloadHash)
             } else {
-                showTransferFailure(result)
+                showTransferFailure(result = result, payloadHash = payloadHash)
             }
         }
     }
@@ -177,14 +197,18 @@ internal class QrCodeScannerViewModel(
         }
     }
 
-    private fun showTransferFailure(result: TransferReceiveResult) {
+    private fun showTransferFailure(result: TransferReceiveResult, payloadHash: ByteString) {
         val reason = when (result) {
             TransferReceiveResult.Unreachable, TransferReceiveResult.TransferFailed -> TransferFailureReason.Unreachable
             TransferReceiveResult.Corrupted -> TransferFailureReason.Corrupted
             else -> TransferFailureReason.Unsupported
         }
 
-        // Don't remember the hash of the QR code so the user can scan it again.
+        // Don't remember the hash of the QR code so the user can scan it again, but ignore it for a while. Otherwise
+        // the camera, which keeps seeing the same QR code, would immediately start another transfer and the user
+        // wouldn't get a chance to read why the previous one failed.
+        failedTransferHashes[payloadHash] = clock()
+
         updateState {
             it.copy(displayText = DisplayText.TransferFailed(reason))
         }
@@ -244,4 +268,5 @@ internal class QrCodeScannerViewModel(
 
 private const val APP_SETTINGS_DELAY = 100L
 private const val MAX_NUMBER_OF_UNSUPPORTED_PAYLOADS = 5
+private const val TRANSFER_RETRY_DELAY = 10_000L
 private const val TRANSFER_QR_CODE_PREFIX = "TBX1:"
