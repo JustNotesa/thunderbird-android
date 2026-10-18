@@ -9,6 +9,7 @@ import android.text.Spannable
 import android.text.Spanned
 import android.view.KeyEvent
 import android.widget.EditText
+import android.widget.TextView
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -24,6 +25,7 @@ import com.fsck.k9.ui.compose.richtext.bar.formatBarStateOf
 import net.thunderbird.core.ui.theme.api.FeatureThemeProvider
 import net.thunderbird.feature.mail.message.composer.richtext.FormattedText
 import net.thunderbird.feature.mail.message.composer.richtext.TextFormat
+import kotlin.math.roundToInt
 
 /**
  * Connects the format bar above the keyboard to the message text field of the composer.
@@ -31,7 +33,8 @@ import net.thunderbird.feature.mail.message.composer.richtext.TextFormat
  * A button formats the selected text or, without a selection, what is typed next; the bar shows the formatting at
  * the selection. The bar is only shown while the message text has the focus and the message is written as formatted
  * HTML. Typing keeps lists and quotes going ([ParagraphEditWatcher]); Ctrl+B, Ctrl+I and Ctrl+U format on a hardware
- * keyboard. Swiping sideways over an image sets the width it is shown with ([InlineImageResizer]).
+ * keyboard. Swiping sideways over an image sets the width it is shown with ([InlineImageResizer]), and two fingers
+ * over the text make it larger or smaller ([EditorZoom]).
  *
  * The text field can also show the message as HTML code. The bar is hidden then, and the code is shown in a
  * fixed-width font without spelling suggestions.
@@ -43,6 +46,7 @@ import net.thunderbird.feature.mail.message.composer.richtext.TextFormat
 class MessageFormattingToolbar(
     private val formatBar: ComposeView,
     private val messageContent: EditText,
+    zoomIndicator: TextView,
     featureThemeProvider: FeatureThemeProvider,
     private val onFormatChange: Runnable,
     imageStore: InlineImageStore,
@@ -53,6 +57,7 @@ class MessageFormattingToolbar(
     private val images = InlineImages(imageStore, InlineImageLimits.of(messageContent))
     private val history = EditHistory(messageContent, onChange = { updateState() }, images = images)
     private val imageHints = InlineImageHintAnimator(messageContent)
+    private val zoom = EditorZoom(messageContent, zoomIndicator)
 
     private val selectionWatcher = object : SpanWatcher {
         override fun onSpanAdded(text: Spannable, what: Any, start: Int, end: Int) = onSpanMoved(what)
@@ -103,6 +108,15 @@ class MessageFormattingToolbar(
     val formattedText: FormattedText
         get() = RichTextFormatter.formattedText(messageContent.text)
 
+    /**
+     * The size the message text is shown with, in percent of the size the composer set it to.
+     */
+    var zoomPercent: Float
+        get() = zoom.percent.toFloat()
+        set(value) {
+            zoom.setPercent(value.roundToInt())
+        }
+
     init {
         formatBar.setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
         formatBar.setContent {
@@ -124,13 +138,18 @@ class MessageFormattingToolbar(
         messageContent.setOnScrollChangeListener { view, scrollX, _, _, _ ->
             if (scrollX != 0) view.scrollTo(0, view.scrollY)
         }
-        // Swiping sideways over an image sets the width it is shown with in the message.
+        // Two fingers over the text make it larger or smaller, a swipe sideways over an image sets the width it is
+        // shown with in the message.
         messageContent.setOnTouchListener(
-            InlineImageResizer(
+            EditorTouchListener(
                 editText = messageContent,
-                onBeforeChange = { history.beforeFormatChange() },
-                onChange = { onFormatChanged() },
-                hints = imageHints,
+                zoom = zoom,
+                delegate = InlineImageResizer(
+                    editText = messageContent,
+                    onBeforeChange = { history.beforeFormatChange() },
+                    onChange = { onFormatChanged() },
+                    hints = imageHints,
+                ),
             ),
         )
         messageContent.text.watch(selectionWatcher)

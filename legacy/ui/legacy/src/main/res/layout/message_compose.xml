@@ -53,4 +53,20 @@
             />
     </LinearLayout>
 
+    <!-- The size the user is pinching the message text to, shown over it while the fingers are on it. -->
+    <TextView
+        android:id="@+id/message_content_zoom_indicator"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="center"
+        android:background="@drawable/rounded_corners"
+        android:paddingLeft="12dp"
+        android:paddingRight="12dp"
+        android:paddingTop="6dp"
+        android:paddingBottom="6dp"
+        android:textColor="@android:color/white"
+        android:textSize="16sp"
+        android:visibility="gone"
+        />
+
 </androidx.coordinatorlayout.widget.CoordinatorLayout>
