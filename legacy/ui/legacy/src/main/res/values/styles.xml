@@ -15,6 +15,14 @@
         <item name="android:lineSpacingExtra">4dp</item>
     </style>
 
+    <!-- The one fine line that separates the header fields of the composer from each other. -->
+    <style name="Widget.Composer.HeaderDivider" parent="">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">1dp</item>
+        <item name="android:layout_marginStart">16dp</item>
+        <item name="android:background">?attr/colorOutlineVariant</item>
+    </style>
+
     <style name="MessageComposeHighlight">
         <item name="highlightBackgroundColor">#99444444</item>
     </style>
