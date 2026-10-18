@@ -260,6 +260,7 @@
     <string name="message_compose_image_source_gallery">Gallery or files</string>
     <string name="message_compose_image_source_camera">Camera</string>
     <string name="message_compose_image_size_title">Image size</string>
+    <string name="message_compose_image_resize_hint">Swipe sideways over the image to change its size</string>
     <string name="message_compose_image_size_small">Small (640 px)</string>
     <string name="message_compose_image_size_medium">Medium (1280 px)</string>
     <string name="message_compose_image_size_original">Original size</string>

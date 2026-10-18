@@ -56,6 +56,13 @@ internal fun Editable.insertInlineImage(contentId: String, start: Int, end: Int,
 }
 
 /**
+ * The inline image in this text that has this Content-ID, `null` where there is none.
+ */
+internal fun Spanned.imageSpanOf(contentId: String): InlineImageSpan? {
+    return getSpans(0, length, InlineImageSpan::class.java).firstOrNull { span -> span.contentId == contentId }
+}
+
+/**
  * Shows the pictures that became available since the text was built in place of their placeholders.
  */
 internal fun Editable.refreshInlineImages(images: InlineImages) {

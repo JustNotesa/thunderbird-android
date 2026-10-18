@@ -2,11 +2,13 @@ package com.fsck.k9.ui.compose.richtext
 
 import android.graphics.Canvas
 import android.graphics.Paint
+import android.graphics.Path
 import android.graphics.drawable.Drawable
 import android.graphics.drawable.GradientDrawable
 import android.text.style.ImageSpan
 import android.widget.EditText
 import net.thunderbird.feature.mail.message.composer.richtext.InlineImage
+import kotlin.math.cos
 import kotlin.math.roundToInt
 
 /** The character in the text that stands for an inline image. */
@@ -23,6 +25,23 @@ private const val LABEL_PADDING_FRACTION = 0.2f
 private const val PADDING_SIDES = 2f
 private const val LABEL_TEXT_COLOR = 0xFFFFFFFF.toInt()
 private const val LABEL_BACKGROUND_COLOR = 0xB3000000.toInt()
+
+// The hint that shows the user the image can be resized by swiping sideways over it: a translucent dark pill in the
+// middle of the image with a white arrow on it whose heads move outward and back.
+private const val HINT_PILL_COLOR = 0x99000000.toInt()
+private const val HINT_ARROW_COLOR = 0xFFFFFFFF.toInt()
+private const val HINT_PILL_WIDTH_FRACTION = 0.5f
+private const val HINT_PILL_MAX_WIDTH_DP = 160f
+private const val HINT_PILL_HEIGHT_DP = 40f
+private const val HINT_ARROW_REACH = 0.28f
+private const val HINT_ARROW_STRETCH = 0.14f
+private const val HINT_ARROW_HEAD = 0.15f
+private const val HINT_ARROW_STROKE_DP = 2f
+private const val HINT_FADE_IN = 0.15f
+private const val HINT_FADE_OUT = 0.3f
+private const val HINT_STRETCHES = 2f
+private const val FULL_TURN = 6.2831855f
+private const val FULL_ALPHA = 255
 
 /**
  * Gives the editor the pictures of the inline images of a message.
@@ -97,8 +116,17 @@ internal class InlineImageSpan(
     /** Whether the user is swiping over the image right now, which shows the width the gesture gives it. */
     var isResizing: Boolean = false
 
+    /**
+     * How far the hint that shows the user can resize this image by swiping sideways over it has come, `null` while no
+     * hint is shown. The hint is drawn on top of the image and makes the arrow on it move outward and back.
+     */
+    var hintProgress: Float? = null
+
     private val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG)
     private val labelBackgroundPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val hintBackgroundPaint = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val hintArrowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE }
+    private val hintPath = Path()
 
     init {
         this.widthPercent = widthPercent
@@ -124,7 +152,9 @@ internal class InlineImageSpan(
         super.draw(canvas, text, start, end, x, top, y, bottom, paint)
 
         // ImageSpan draws the image at x with its bottom on the bottom of the line; the label goes on top of it.
-        if (isResizing) drawWidthLabel(canvas, paint.textSize, x, (bottom - drawable.bounds.bottom).toFloat())
+        val imageY = (bottom - drawable.bounds.bottom).toFloat()
+        if (isResizing) drawWidthLabel(canvas, paint.textSize, x, imageY)
+        hintProgress?.let { drawHint(canvas, x, imageY, it) }
     }
 
     private fun fitDrawable() {
@@ -172,6 +202,73 @@ internal class InlineImageSpan(
 
         canvas.drawRect(left, top, right, bottom, labelBackgroundPaint)
         canvas.drawText(label, left + padding, bottom - padding, labelPaint)
+    }
+
+    /**
+     * The hint that shows the user the image can be resized by swiping sideways over it: a dark pill in the middle of
+     * the image with a white arrow on it that reaches further out and back while the hint is shown. [progress] is how
+     * far the hint has come, from 0 to 1.
+     */
+    private fun drawHint(canvas: Canvas, imageX: Float, imageY: Float, progress: Float) {
+        val bounds = drawable.bounds
+        if (bounds.width() <= 0 || bounds.height() <= 0) return
+
+        val width = minOf(bounds.width() * HINT_PILL_WIDTH_FRACTION, HINT_PILL_MAX_WIDTH_DP * DEFAULT_DENSITY)
+        val height = HINT_PILL_HEIGHT_DP * DEFAULT_DENSITY
+        val centerX = imageX + bounds.centerX()
+        val centerY = imageY + bounds.centerY()
+        val opacity = minOf(progress / HINT_FADE_IN, (1f - progress) / HINT_FADE_OUT).coerceIn(0f, 1f)
+        val alpha = (FULL_ALPHA * opacity).roundToInt()
+
+        hintBackgroundPaint.color = HINT_PILL_COLOR
+        hintBackgroundPaint.alpha = alpha
+        canvas.drawRoundRect(
+            centerX - width / 2f,
+            centerY - height / 2f,
+            centerX + width / 2f,
+            centerY + height / 2f,
+            height / 2f,
+            height / 2f,
+            hintBackgroundPaint,
+        )
+
+        drawHintArrow(canvas, centerX, centerY, width, height, alpha, progress)
+    }
+
+    /** The double-headed arrow on the pill, its heads reaching outward and back as often as the progress goes by. */
+    private fun drawHintArrow(
+        canvas: Canvas,
+        centerX: Float,
+        centerY: Float,
+        pillWidth: Float,
+        pillHeight: Float,
+        alpha: Int,
+        progress: Float,
+    ) {
+        val reach = pillWidth * (HINT_ARROW_REACH + HINT_ARROW_STRETCH * hintStretch(progress))
+        val head = pillHeight * HINT_ARROW_HEAD
+
+        hintPath.reset()
+        hintPath.moveTo(centerX - reach, centerY)
+        hintPath.lineTo(centerX + reach, centerY)
+        hintPath.moveTo(centerX - reach, centerY - head)
+        hintPath.lineTo(centerX - reach, centerY)
+        hintPath.lineTo(centerX - reach, centerY + head)
+        hintPath.moveTo(centerX + reach, centerY - head)
+        hintPath.lineTo(centerX + reach, centerY)
+        hintPath.lineTo(centerX + reach, centerY + head)
+
+        hintArrowPaint.color = HINT_ARROW_COLOR
+        hintArrowPaint.alpha = alpha
+        hintArrowPaint.strokeWidth = pillHeight * HINT_ARROW_STROKE_DP / HINT_PILL_HEIGHT_DP
+        canvas.drawPath(hintPath, hintArrowPaint)
+    }
+
+    /** How much of the pill is there at [progress]: it fades in at the beginning and out at the end. */
+    private fun hintStretch(progress: Float): Float {
+        val turn = progress * HINT_STRETCHES * FULL_TURN
+
+        return (1f - cos(turn)) / 2f
     }
 
     companion object {

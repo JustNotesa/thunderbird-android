@@ -52,6 +52,7 @@ class MessageFormattingToolbar(
     private val linkEditor = LinkEditor(messageContent)
     private val images = InlineImages(imageStore, InlineImageLimits.of(messageContent))
     private val history = EditHistory(messageContent, onChange = { updateState() }, images = images)
+    private val imageHints = InlineImageHintAnimator(messageContent)
 
     private val selectionWatcher = object : SpanWatcher {
         override fun onSpanAdded(text: Spannable, what: Any, start: Int, end: Int) = onSpanMoved(what)
@@ -129,6 +130,7 @@ class MessageFormattingToolbar(
                 editText = messageContent,
                 onBeforeChange = { history.beforeFormatChange() },
                 onChange = { onFormatChanged() },
+                hints = imageHints,
             ),
         )
         messageContent.text.watch(selectionWatcher)
@@ -151,7 +153,8 @@ class MessageFormattingToolbar(
     }
 
     /**
-     * Puts the image with this Content-ID into the text, in place of the selection.
+     * Puts the image with this Content-ID into the text, in place of the selection, and tells the user that its width
+     * can be set by swiping sideways over it.
      */
     fun insertInlineImage(contentId: String) {
         val text = messageContent.text
@@ -161,6 +164,9 @@ class MessageFormattingToolbar(
         history.beforeFormatChange()
         messageContent.setSelection(text.insertInlineImage(contentId, start, end, images))
         onFormatChanged()
+
+        // The hint says what a new image does when touched, which the user cannot know before there is one.
+        text.imageSpanOf(contentId)?.let { imageHints.show(it) }
     }
 
     /**

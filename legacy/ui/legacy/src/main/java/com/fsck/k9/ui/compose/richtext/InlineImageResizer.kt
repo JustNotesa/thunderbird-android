@@ -11,6 +11,9 @@ import kotlin.math.roundToInt
 // The width of an image is set in steps of this many percent, so that the gesture does not feel twitchy.
 private const val PERCENT_STEP = 5
 
+// A finger that is down for longer than this is not a tap, so it gets no hint about the swipe.
+private const val TAP_TIMEOUT_FACTOR = 3
+
 /**
  * Lets the user set the width of an inline image by swiping sideways over it: the image follows the finger, and the
  * width it would be sent with is shown on it.
@@ -20,18 +23,25 @@ private const val PERCENT_STEP = 5
  * sideways than up, and further than the finger's slop, is taken over - until the finger is lifted again, so that no
  * text is selected and the cursor stays where it was.
  *
+ * A tap on an image is not taken over: it places the cursor as before and shows a hint that says what a swipe over the
+ * image does, for a user who does not know it yet.
+ *
  * @param onBeforeChange called once per gesture, before it changes the width of an image for the first time
  * @param onChange called when the gesture is over, so that its result is kept like any other change of formatting
+ * @param hints shows the hint over an image that was tapped
  */
 internal class InlineImageResizer(
     private val editText: EditText,
     private val onBeforeChange: () -> Unit,
     private val onChange: () -> Unit,
+    private val hints: InlineImageHintAnimator = InlineImageHintAnimator(editText),
 ) : View.OnTouchListener {
     private val touchSlop = ViewConfiguration.get(editText.context).scaledTouchSlop
+    private val tapTimeout = ViewConfiguration.getTapTimeout() * TAP_TIMEOUT_FACTOR
     private var span: InlineImageSpan? = null
     private var downX = 0f
     private var downY = 0f
+    private var downTime = 0L
     private var startPercent = 0
     private var isResizing = false
 
@@ -39,7 +49,8 @@ internal class InlineImageResizer(
         return when (event.actionMasked) {
             MotionEvent.ACTION_DOWN -> onDown(event)
             MotionEvent.ACTION_MOVE -> onMove(view, event)
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> onUp(view)
+            MotionEvent.ACTION_UP -> onUp(view, event)
+            MotionEvent.ACTION_CANCEL -> onUp(view, event)
             else -> false
         }
     }
@@ -47,6 +58,7 @@ internal class InlineImageResizer(
     private fun onDown(event: MotionEvent): Boolean {
         downX = event.x
         downY = event.y
+        downTime = event.downTime
         span = editText.imageSpanAt(event.x, event.y)
 
         // The text field gets the gesture as well: it decides what a tap or a scroll does.
@@ -72,10 +84,15 @@ internal class InlineImageResizer(
         return takenOver
     }
 
-    private fun onUp(view: View): Boolean {
+    private fun onUp(view: View, event: MotionEvent): Boolean {
         val image = span
         span = null
-        if (!isResizing) return false
+        if (!isResizing) {
+            // The tap belongs to the text field; the hint only says what the swipe the user has not found does.
+            if (isTap(event)) image?.let { hints.show(it) }
+
+            return false
+        }
 
         isResizing = false
         image?.isResizing = false
@@ -92,10 +109,22 @@ internal class InlineImageResizer(
         return abs(dx) > touchSlop && abs(dx) > abs(dy)
     }
 
+    /**
+     * Whether the finger went down and up so close together, and so still, that it was a tap on the image rather than
+     * a swipe that is already over. A gesture that was cancelled is not a tap, however short it was.
+     */
+    private fun isTap(event: MotionEvent): Boolean {
+        val isLifted = event.actionMasked == MotionEvent.ACTION_UP
+        val isStill = abs(event.x - downX) <= touchSlop && abs(event.y - downY) <= touchSlop
+
+        return isLifted && isStill && event.eventTime - downTime <= tapTimeout
+    }
+
     private fun startResize(view: View, image: InlineImageSpan) {
         isResizing = true
         startPercent = image.widthPercent ?: image.naturalPercent(textWidth())
         image.isResizing = true
+        hints.cancel()
         // The text field scrolls the whole message, so the swipe must not scroll it away under the finger.
         view.parent?.requestDisallowInterceptTouchEvent(true)
         onBeforeChange()
