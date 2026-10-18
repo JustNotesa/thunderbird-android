@@ -228,6 +228,8 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
     private static final String STATE_KEY_READ_RECEIPT = "com.fsck.k9.activity.MessageCompose.messageReadReceipt";
     private static final String STATE_KEY_CAPTURING_INLINE_IMAGE = "com.fsck.k9.activity.MessageCompose.capturingInlineImage";
     private static final String STATE_KEY_HTML_SOURCE_MODE = "com.fsck.k9.activity.MessageCompose.htmlSourceMode";
+    private static final String STATE_KEY_EDITOR_ZOOM = "com.fsck.k9.activity.MessageCompose.editorZoom";
+    private static final float DEFAULT_EDITOR_ZOOM = 100f;
     private static final String STATE_KEY_CHANGES_MADE_SINCE_LAST_SAVE = "com.fsck.k9.activity.MessageCompose.changesMadeSinceLastSave";
     private static final String STATE_ALREADY_NOTIFIED_USER_OF_EMPTY_SUBJECT = "alreadyNotifiedUserOfEmptySubject";
     private static final String STATE_ACTIVE_IN_APP_NOTIFICATIONS =
@@ -454,6 +456,7 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
         messageFormattingToolbar = new MessageFormattingToolbar(
                 findViewById(R.id.message_format_bar),
                 messageContentView,
+                findViewById(R.id.message_content_zoom_indicator),
                 featureThemeProvider,
                 () -> {
                     changesMadeSinceLastSave = true;
@@ -831,6 +834,7 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
         outState.putString(STATE_REFERENCES, referencedMessageIds);
         outState.putBoolean(STATE_KEY_READ_RECEIPT, requestReadReceipt);
         outState.putBoolean(STATE_KEY_HTML_SOURCE_MODE, messageFormattingToolbar.isHtmlSourceMode());
+        outState.putFloat(STATE_KEY_EDITOR_ZOOM, messageFormattingToolbar.getZoomPercent());
         outState.putBoolean(STATE_KEY_CAPTURING_INLINE_IMAGE, capturingInlineImage);
         outState.putBoolean(STATE_KEY_CHANGES_MADE_SINCE_LAST_SAVE, changesMadeSinceLastSave);
         outState.putBoolean(STATE_ALREADY_NOTIFIED_USER_OF_EMPTY_SUBJECT, alreadyNotifiedUserOfEmptySubject);
@@ -859,6 +863,8 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
 
         requestReadReceipt = savedInstanceState.getBoolean(STATE_KEY_READ_RECEIPT);
         messageFormattingToolbar.setHtmlSourceMode(savedInstanceState.getBoolean(STATE_KEY_HTML_SOURCE_MODE));
+        messageFormattingToolbar.setZoomPercent(
+                savedInstanceState.getFloat(STATE_KEY_EDITOR_ZOOM, DEFAULT_EDITOR_ZOOM));
         capturingInlineImage = savedInstanceState.getBoolean(STATE_KEY_CAPTURING_INLINE_IMAGE);
 
         replyToPresenter.onRestoreInstanceState(savedInstanceState);
