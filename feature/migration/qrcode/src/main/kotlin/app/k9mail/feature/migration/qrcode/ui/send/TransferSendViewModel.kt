@@ -17,7 +17,8 @@ import net.thunderbird.core.ui.contract.mvi.BaseViewModel
  * View model of the screen that sends the accounts of this device to another device.
  *
  * The transfer is only served while the screen shows the QR code, so a running session is stopped when the user
- * retries, closes the screen, or leaves the screen for good.
+ * retries, closes the screen, or leaves the screen for good. It runs either on the network both devices are connected
+ * to, or on the local-only hotspot of this device, which needs a permission the screen asks for.
  */
 internal class TransferSendViewModel(
     private val transferSender: TransferSender,
@@ -28,8 +29,10 @@ internal class TransferSendViewModel(
 
     override fun event(event: Event) {
         when (event) {
-            Event.StartScreen -> handleOneTimeEvent(event, ::startTransfer)
-            Event.RetryClicked -> startTransfer()
+            Event.StartScreen -> handleOneTimeEvent(event) { startTransfer(isHotspot = false) }
+            Event.RetryClicked -> startTransfer(isHotspot = false)
+            Event.UseHotspotClicked -> emitEffect(Effect.RequestHotspotPermission)
+            is Event.HotspotPermissionResult -> startHotspotTransfer(granted = event.granted)
             Event.CloseClicked -> handleCloseClicked()
         }
     }
@@ -50,29 +53,44 @@ internal class TransferSendViewModel(
         transferJob?.join()
     }
 
-    private fun startTransfer() {
+    private fun startTransfer(isHotspot: Boolean) {
         stopTransfer()
-        updateStep(Step.Preparing)
+        updateStep(if (isHotspot) Step.StartingHotspot else Step.Preparing)
 
         transferJob = viewModelScope.launch {
-            when (val result = transferSender.prepare()) {
-                is TransferSendResult.Ready -> awaitTransfer(result.session)
+            val result = if (isHotspot) transferSender.prepareHotspot() else transferSender.prepare()
+
+            when (result) {
+                is TransferSendResult.Ready -> awaitTransfer(result.session, isHotspot)
 
                 TransferSendResult.NoWifi -> updateStep(Step.NoWifi)
 
                 TransferSendResult.NoAccounts -> updateStep(Step.NoAccounts)
 
-                // The hotspot isn't used on this path, it can only be prepared with prepareHotspot().
-                TransferSendResult.HotspotUnsupported -> updateStep(Step.Failed)
+                // The hotspot is never prepared on the Wi-Fi path, it can only be prepared with prepareHotspot().
+                TransferSendResult.HotspotUnsupported ->
+                    updateStep(if (isHotspot) Step.HotspotUnsupported else Step.Failed)
 
-                TransferSendResult.Failed -> updateStep(Step.Failed)
+                TransferSendResult.Failed -> updateStep(if (isHotspot) Step.HotspotFailed else Step.Failed)
             }
         }
     }
 
-    private suspend fun awaitTransfer(session: TransferSession) {
+    /**
+     * Starts the transfer over the local-only hotspot of this device, as soon as the user allowed the permission the
+     * hotspot needs.
+     */
+    private fun startHotspotTransfer(granted: Boolean) {
+        if (granted) {
+            startTransfer(isHotspot = true)
+        } else {
+            updateStep(Step.HotspotPermissionDenied)
+        }
+    }
+
+    private suspend fun awaitTransfer(session: TransferSession, isHotspot: Boolean) {
         this.session = session
-        updateStep(Step.ShowingQrCode(qrText = session.qrText))
+        updateStep(Step.ShowingQrCode(qrText = session.qrText, isHotspot = isHotspot))
 
         updateStep(toStep(session.awaitTransfer()))
     }

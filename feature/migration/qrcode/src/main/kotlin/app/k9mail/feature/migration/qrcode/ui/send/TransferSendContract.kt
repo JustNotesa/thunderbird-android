@@ -12,7 +12,9 @@ internal interface TransferSendContract {
     sealed interface Step {
         data object Preparing : Step
 
-        data class ShowingQrCode(val qrText: String) : Step
+        data object StartingHotspot : Step
+
+        data class ShowingQrCode(val qrText: String, val isHotspot: Boolean = false) : Step
 
         data object Transferred : Step
 
@@ -22,16 +24,25 @@ internal interface TransferSendContract {
 
         data object NoAccounts : Step
 
+        data object HotspotUnsupported : Step
+
+        data object HotspotPermissionDenied : Step
+
+        data object HotspotFailed : Step
+
         data object Failed : Step
     }
 
     sealed interface Event {
         data object StartScreen : Event
         data object RetryClicked : Event
+        data object UseHotspotClicked : Event
+        data class HotspotPermissionResult(val granted: Boolean) : Event
         data object CloseClicked : Event
     }
 
     sealed interface Effect {
         data object Close : Effect
+        data object RequestHotspotPermission : Effect
     }
 }

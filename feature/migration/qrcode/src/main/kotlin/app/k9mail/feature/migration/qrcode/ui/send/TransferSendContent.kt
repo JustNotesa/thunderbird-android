@@ -20,7 +20,6 @@ import app.k9mail.feature.migration.qrcode.R
 import app.k9mail.feature.migration.qrcode.ui.send.TransferSendContract.Event
 import app.k9mail.feature.migration.qrcode.ui.send.TransferSendContract.Step
 import net.thunderbird.components.ui.bolt.atom.Surface
-import net.thunderbird.components.ui.bolt.atom.button.ButtonFilled
 import net.thunderbird.components.ui.bolt.atom.button.ButtonOutlined
 import net.thunderbird.components.ui.bolt.atom.text.TextBodyLarge
 import net.thunderbird.components.ui.bolt.atom.text.TextTitleLarge
@@ -43,65 +42,51 @@ internal fun TransferSendContent(
         ResponsiveContent(
             modifier = Modifier.testTag("TransferSendContent"),
         ) { contentPadding ->
-            when (step) {
-                Step.Preparing -> MessageContent(
-                    text = stringResource(R.string.migration_qrcode_transfer_send_preparing),
-                    contentPadding = contentPadding,
-                )
-
-                is Step.ShowingQrCode -> ShowingQrCodeContent(
-                    qrText = step.qrText,
-                    contentPadding = contentPadding,
-                    onCancel = { onEvent(Event.CloseClicked) },
-                )
-
-                Step.Transferred -> MessageContent(
-                    title = stringResource(R.string.migration_qrcode_transfer_send_transferred),
-                    contentPadding = contentPadding,
-                    action = MessageAction(
-                        text = stringResource(R.string.migration_qrcode_transfer_send_done_button_text),
-                        tag = "DoneButton",
-                        onClick = { onEvent(Event.CloseClicked) },
-                    ),
-                )
-
-                Step.Expired -> MessageContent(
-                    text = stringResource(R.string.migration_qrcode_transfer_send_expired),
-                    contentPadding = contentPadding,
-                    action = MessageAction(
-                        text = stringResource(R.string.migration_qrcode_transfer_send_new_qr_code_button_text),
-                        tag = "NewQrCodeButton",
-                        onClick = { onEvent(Event.RetryClicked) },
-                    ),
-                    onClose = { onEvent(Event.CloseClicked) },
-                )
-
-                Step.NoWifi -> MessageContent(
-                    text = stringResource(R.string.migration_qrcode_transfer_send_no_wifi),
-                    contentPadding = contentPadding,
-                    action = retryAction(onEvent),
-                    onClose = { onEvent(Event.CloseClicked) },
-                )
-
-                Step.NoAccounts -> MessageContent(
-                    text = stringResource(R.string.migration_qrcode_transfer_send_no_accounts),
-                    contentPadding = contentPadding,
-                    onClose = { onEvent(Event.CloseClicked) },
-                )
-
-                Step.Failed -> MessageContent(
-                    text = stringResource(R.string.migration_qrcode_transfer_send_failed),
-                    contentPadding = contentPadding,
-                    action = retryAction(onEvent),
-                    onClose = { onEvent(Event.CloseClicked) },
-                )
-            }
+            StepContent(
+                step = step,
+                contentPadding = contentPadding,
+                onEvent = onEvent,
+            )
         }
     }
 }
 
 @Composable
+private fun StepContent(
+    step: Step,
+    contentPadding: PaddingValues,
+    onEvent: (Event) -> Unit,
+) {
+    when (step) {
+        is Step.ShowingQrCode -> ShowingQrCodeContent(
+            isHotspot = step.isHotspot,
+            qrText = step.qrText,
+            contentPadding = contentPadding,
+            onCancel = { onEvent(Event.CloseClicked) },
+        )
+
+        Step.NoWifi,
+        Step.StartingHotspot,
+        Step.HotspotUnsupported,
+        Step.HotspotPermissionDenied,
+        Step.HotspotFailed,
+        -> HotspotStepContent(
+            step = step,
+            contentPadding = contentPadding,
+            onEvent = onEvent,
+        )
+
+        else -> MessageStepContent(
+            step = step,
+            contentPadding = contentPadding,
+            onEvent = onEvent,
+        )
+    }
+}
+
+@Composable
 private fun ShowingQrCodeContent(
+    isHotspot: Boolean,
     qrText: String,
     contentPadding: PaddingValues,
     onCancel: () -> Unit,
@@ -117,7 +102,7 @@ private fun ShowingQrCodeContent(
         TextTitleLarge(text = stringResource(R.string.migration_qrcode_transfer_send_title))
         Spacer(modifier = Modifier.height(BoltTheme.spacings.double))
 
-        TextBodyLarge(text = stringResource(R.string.migration_qrcode_transfer_send_instructions))
+        TextBodyLarge(text = stringResource(instructionText(isHotspot)))
         Spacer(modifier = Modifier.height(BoltTheme.spacings.triple))
 
         QrCodeImage(
@@ -138,66 +123,13 @@ private fun ShowingQrCodeContent(
     }
 }
 
-@Composable
-private fun MessageContent(
-    contentPadding: PaddingValues,
-    text: String = "",
-    title: String? = null,
-    action: MessageAction? = null,
-    onClose: (() -> Unit)? = null,
-) {
-    Column(
-        verticalArrangement = Arrangement.Center,
-        modifier = Modifier
-            .fillMaxHeight()
-            .padding(BoltTheme.spacings.double)
-            .padding(contentPadding)
-            .verticalScroll(rememberScrollState()),
-    ) {
-        if (title != null) {
-            TextTitleLarge(text = title)
-            Spacer(modifier = Modifier.height(BoltTheme.spacings.double))
-        }
-
-        if (text.isNotEmpty()) {
-            TextBodyLarge(text = text)
-            Spacer(modifier = Modifier.height(BoltTheme.spacings.triple))
-        }
-
-        if (action != null) {
-            ButtonFilled(
-                text = action.text,
-                onClick = action.onClick,
-                modifier = Modifier
-                    .align(Alignment.CenterHorizontally)
-                    .testTag(action.tag),
-            )
-            Spacer(modifier = Modifier.height(BoltTheme.spacings.default))
-        }
-
-        if (onClose != null) {
-            ButtonOutlined(
-                text = stringResource(R.string.migration_qrcode_transfer_send_close_button_text),
-                onClick = onClose,
-                modifier = Modifier
-                    .align(Alignment.CenterHorizontally)
-                    .testTag("CloseButton"),
-            )
-        }
+/**
+ * When the accounts are sent over the hotspot of this device, the new device joins it on its own.
+ */
+private fun instructionText(isHotspot: Boolean): Int {
+    return if (isHotspot) {
+        R.string.migration_qrcode_transfer_send_hotspot_instructions
+    } else {
+        R.string.migration_qrcode_transfer_send_instructions
     }
-}
-
-private data class MessageAction(
-    val text: String,
-    val tag: String,
-    val onClick: () -> Unit,
-)
-
-@Composable
-private fun retryAction(onEvent: (Event) -> Unit): MessageAction {
-    return MessageAction(
-        text = stringResource(R.string.migration_qrcode_transfer_send_retry_button_text),
-        tag = "RetryButton",
-        onClick = { onEvent(Event.RetryClicked) },
-    )
 }

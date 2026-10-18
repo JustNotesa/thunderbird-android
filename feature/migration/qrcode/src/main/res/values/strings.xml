@@ -27,4 +27,12 @@
     <string name="migration_qrcode_transfer_send_close_button_text">Close</string>
     <string name="migration_qrcode_transfer_send_new_qr_code_button_text">Show new QR code</string>
     <string name="migration_qrcode_transfer_send_qr_code_description">QR code with the data of the account transfer</string>
+    <string name="migration_qrcode_transfer_send_hotspot_button_text">Use a hotspot</string>
+    <string name="migration_qrcode_transfer_send_hotspot_hint">No Wi-Fi network? This device can open its own hotspot for the transfer.</string>
+    <string name="migration_qrcode_transfer_send_hotspot_instructions">On the new device: Settings, Import settings, Scan QR code. The new device connects to this device\'s hotspot by itself; confirm the connection when asked.</string>
+    <string name="migration_qrcode_transfer_send_hotspot_starting">Starting hotspot…</string>
+    <string name="migration_qrcode_transfer_send_hotspot_unsupported">This device can\'t open a hotspot for the transfer.</string>
+    <string name="migration_qrcode_transfer_send_hotspot_permission_denied">The hotspot needs the permission to find nearby devices.</string>
+    <string name="migration_qrcode_transfer_send_hotspot_permission_denied_location">The hotspot needs the location permission. The location itself is never used.</string>
+    <string name="migration_qrcode_transfer_send_hotspot_failed">The hotspot couldn\'t be started. Switch off the Wi-Fi hotspot or tethering if it is on; on Android 12 and older location services must be switched on.</string>
 </resources>

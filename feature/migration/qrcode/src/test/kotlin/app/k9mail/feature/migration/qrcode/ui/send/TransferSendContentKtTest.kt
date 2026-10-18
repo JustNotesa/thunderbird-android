@@ -38,6 +38,37 @@ class TransferSendContentKtTest : ComposeTest() {
 
         assertThat(events).containsExactly(Event.RetryClicked)
     }
+
+    @Test
+    fun `when there's no Wi-Fi, the hotspot button should be displayed`() = runComposeTest {
+        setContentWithTheme {
+            TransferSendContent(step = Step.NoWifi, onEvent = {})
+        }
+
+        onNodeWithText(R.string.migration_qrcode_transfer_send_hotspot_button_text).assertExists()
+    }
+
+    @Test
+    fun `when there's no Wi-Fi, clicking the hotspot button should send UseHotspotClicked`() = runComposeTest {
+        val events = mutableListOf<Event>()
+
+        setContentWithTheme {
+            TransferSendContent(step = Step.NoWifi, onEvent = { event -> events.add(event) })
+        }
+
+        onNodeWithTag("UseHotspotButton").assertExists().performClick()
+
+        assertThat(events).containsExactly(Event.UseHotspotClicked)
+    }
+
+    @Test
+    fun `when the hotspot is starting, its text should be displayed`() = runComposeTest {
+        setContentWithTheme {
+            TransferSendContent(step = Step.StartingHotspot, onEvent = {})
+        }
+
+        onNodeWithText(R.string.migration_qrcode_transfer_send_hotspot_starting).assertExists()
+    }
 }
 
 private const val QR_TEXT = "TBX1:6v0o6v0o6v0o6v0o6v0o:A-v0o6v0o6v0o6v0o6v0o6v0o6v0o6v0o6v0o6v0o6v0o6v0o6v0o6v0o6v0o0"
