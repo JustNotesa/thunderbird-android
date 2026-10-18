@@ -205,6 +205,43 @@ class ParagraphFormatterTest : RobolectricTest() {
     }
 
     @Test
+    fun `formattedText and toSpanned should bring back an empty item at the end of a list`() {
+        // Arrange - what saving a draft with an empty last list item leaves behind, the marker taken out of the text.
+        val formattedText = FormattedText(
+            text = "one\n",
+            ranges = emptyList(),
+            paragraphs = listOf(
+                ParagraphRange(0, 4, BlockType.BulletList, 0, Alignment.Start),
+            ),
+        )
+
+        // Act
+        val text = RichTextFormatter.toSpanned(formattedText)
+
+        // Assert - both lines are items of the list, the empty one on the end marker.
+        assertThat(text.toString()).isEqualTo("one\n$END_MARKER")
+        assertThat(RichTextFormatter.formattedText(text)).isEqualTo(formattedText)
+    }
+
+    @Test
+    fun `formattedText and toSpanned should keep an empty line inside a list`() {
+        // Arrange
+        val formattedText = FormattedText(
+            text = "a\n\nb",
+            ranges = emptyList(),
+            paragraphs = listOf(
+                ParagraphRange(0, 4, BlockType.BulletList, 0, Alignment.Start),
+            ),
+        )
+
+        // Act
+        val text = RichTextFormatter.toSpanned(formattedText)
+
+        // Assert
+        assertThat(RichTextFormatter.formattedText(text)).isEqualTo(formattedText)
+    }
+
+    @Test
     fun `clearFormatting should leave the paragraphs alone`() {
         // Arrange
         val text = SpannableStringBuilder("one\ntwo")

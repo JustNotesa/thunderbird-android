@@ -36,8 +36,30 @@ internal fun Spanned.lineRanges(selectionStart: Int, selectionEnd: Int): List<In
     val end = maxOf(selectionStart, selectionEnd).coerceIn(0, length)
     val lastLineStart = if (end > start) lineStartAt(end - 1) else lineStartAt(start)
 
+    return linesFrom(lineStartAt(start), lastLineStart)
+}
+
+/**
+ * The lines a paragraph range of the model covers, as ranges without their line break: from the line that holds its
+ * start to the line that holds its end.
+ *
+ * A range that ends where a line begins covers that line too - the empty line at the end of the text, for which the
+ * model has no line break of its own. A range that ends at the end of a line doesn't reach into the line behind it:
+ * that one starts behind the line break, at end + 1.
+ */
+internal fun Spanned.paragraphLineRanges(start: Int, end: Int): List<IntRange> {
+    val from = start.coerceIn(0, length)
+    val to = end.coerceIn(from, length)
+
+    return linesFrom(lineStartAt(from), lineStartAt(to))
+}
+
+/**
+ * The lines from the one that starts at [firstLineStart] to the one that starts at [lastLineStart].
+ */
+private fun Spanned.linesFrom(firstLineStart: Int, lastLineStart: Int): List<IntRange> {
     val lines = mutableListOf<IntRange>()
-    var lineStart = lineStartAt(start)
+    var lineStart = firstLineStart
     while (true) {
         val lineEnd = lineEndAt(lineStart)
         lines.add(lineStart..lineEnd)

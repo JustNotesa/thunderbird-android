@@ -102,7 +102,7 @@ internal object ParagraphFormatter {
      */
     fun applyParagraphs(text: Editable, paragraphs: List<ParagraphRange>) {
         for (paragraph in paragraphs) {
-            for (line in text.lineRanges(paragraph.start, paragraph.end)) {
+            for (line in text.paragraphLineRanges(paragraph.start, paragraph.end)) {
                 text.setParagraphSpans(line, paragraph)
             }
         }

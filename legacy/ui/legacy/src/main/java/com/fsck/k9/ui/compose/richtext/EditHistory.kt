@@ -13,8 +13,9 @@ private const val TYPING_PAUSE_MILLIS = 1000L
  * Undo and redo for the message text field, text and formatting together.
  *
  * A step is the state of the text before a change, as formatted text with its selection. Typing is one step until the
- * user pauses or ends a word; every format change is a step of its own. When the text is replaced as a whole, e.g. by
- * a draft, the history starts anew.
+ * user pauses or ends a word; every format change is a step of its own. The end marker of the empty last line is
+ * formatting, not text the user typed, so it belongs to the step of the edit that caused it. When the text is replaced
+ * as a whole, e.g. by a draft, the history starts anew.
  *
  * @param clock the time in milliseconds, for tests
  */
@@ -30,6 +31,8 @@ internal class EditHistory(
     private var lastChangeTime = 0L
     private var isRestoring = false
     private var watchedText: Editable? = null
+    private var openedStep: Snapshot? = null
+    private var removesEndMarkerOnly = false
 
     val canUndo: Boolean get() = undoSteps.isNotEmpty()
     val canRedo: Boolean get() = redoSteps.isNotEmpty()
@@ -60,6 +63,8 @@ internal class EditHistory(
     }
 
     override fun beforeTextChanged(text: CharSequence?, start: Int, count: Int, after: Int) {
+        openedStep = null
+        removesEndMarkerOnly = false
         if (isRestoring) return
         // A text set as a whole is a new text: what could be undone belonged to the old one.
         if (editText.text !== watchedText) return
@@ -67,15 +72,26 @@ internal class EditHistory(
         val now = clock()
         if (now - lastChangeTime > TYPING_PAUSE_MILLIS) isTypingStepOpen = false
         lastChangeTime = now
-        if (!isTypingStepOpen) {
-            record(currentSnapshot())
-            isTypingStepOpen = true
-        }
+
+        removesEndMarkerOnly = text.holdsOnlyEndMarkers(start, count)
+        // What the change brings in is only known in onTextChanged(), so the step it would open is opened there.
+        if (!isTypingStepOpen) openedStep = currentSnapshot()
     }
 
     override fun onTextChanged(text: CharSequence?, start: Int, before: Int, count: Int) {
+        if (isRestoring) return
+
+        // The end marker is formatting of the empty last line: it belongs to the step of the edit that caused it.
+        val isEndMarkerChange = removesEndMarkerOnly && text.holdsOnlyEndMarkers(start, count)
+        val step = openedStep
+        openedStep = null
+        if (step != null && !isEndMarkerChange) {
+            record(step)
+            isTypingStepOpen = true
+        }
+
         // The end of a word or a line ends the step of typing it.
-        if (!isRestoring && endsWithWhitespace(text, start, count)) isTypingStepOpen = false
+        if (endsWithWhitespace(text, start, count)) isTypingStepOpen = false
     }
 
     override fun afterTextChanged(text: Editable?) {
@@ -102,6 +118,8 @@ internal class EditHistory(
         isRestoring = true
         try {
             editText.setText(RichTextFormatter.toSpanned(snapshot.formattedText, images))
+            // The marker is what gives the empty last line its formatting, so it has to stand in the restored text.
+            editText.text.keepEndMarker()
             val length = editText.text.length
             val selectionStart = snapshot.selectionStart.coerceIn(0, length)
             editText.setSelection(selectionStart, snapshot.selectionEnd.coerceIn(0, length))
@@ -122,4 +140,16 @@ internal class EditHistory(
     }
 
     private data class Snapshot(val formattedText: FormattedText, val selectionStart: Int, val selectionEnd: Int)
+}
+
+/**
+ * Whether the `count` characters of this text from [start] are end markers and nothing else. A change that removes
+ * none of them takes a marker in, so this holds for it as well.
+ */
+private fun CharSequence?.holdsOnlyEndMarkers(start: Int, count: Int): Boolean {
+    if (this == null) return false
+
+    val end = minOf(start + count, length)
+
+    return (start until end).all { position -> this[position] == END_MARKER }
 }

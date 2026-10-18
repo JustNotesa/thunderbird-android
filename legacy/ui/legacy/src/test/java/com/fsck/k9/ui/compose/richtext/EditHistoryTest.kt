@@ -3,12 +3,16 @@ package com.fsck.k9.ui.compose.richtext
 import android.widget.EditText
 import androidx.test.core.app.ApplicationProvider
 import assertk.assertThat
+import assertk.assertions.containsExactly
 import assertk.assertions.isEmpty
 import assertk.assertions.isEqualTo
 import assertk.assertions.isFalse
 import assertk.assertions.isTrue
 import net.thunderbird.core.android.testing.RobolectricTest
+import net.thunderbird.feature.mail.message.composer.richtext.Alignment
+import net.thunderbird.feature.mail.message.composer.richtext.BlockType
 import net.thunderbird.feature.mail.message.composer.richtext.FormattedRange
+import net.thunderbird.feature.mail.message.composer.richtext.ParagraphRange
 import net.thunderbird.feature.mail.message.composer.richtext.TextFormat
 import org.junit.Test
 
@@ -186,5 +190,24 @@ class EditHistoryTest : RobolectricTest() {
         // Assert
         val selection = editText.selectionStart
         assertThat(RichTextFormatter.isActive(editText.text, TextFormat.Bold, selection, selection)).isFalse()
+    }
+
+    @Test
+    fun `undo right after Enter at the end of a list should take the new item away`() {
+        // Arrange - the text of the item is typed and finished, Enter follows a pause.
+        val testSubject = createTestSubject()
+        editText.addTextChangedListener(ParagraphEditWatcher { true })
+        type("- one")
+        now += 2_000
+        editText.text.append("\n")
+
+        // Act - the marker of the new item is formatting of that item, not a step of its own.
+        testSubject.undo()
+
+        // Assert
+        assertThat(editText.text.toString()).isEqualTo("one")
+        assertThat(ParagraphFormatter.paragraphs(editText.text)).containsExactly(
+            ParagraphRange(0, 3, BlockType.BulletList, 0, Alignment.Start),
+        )
     }
 }
