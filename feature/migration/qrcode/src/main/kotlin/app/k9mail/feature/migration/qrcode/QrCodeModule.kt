@@ -1,5 +1,7 @@
 package app.k9mail.feature.migration.qrcode
 
+import android.content.Context
+import android.net.ConnectivityManager
 import app.k9mail.feature.migration.qrcode.domain.QrCodeDomainContract.UseCase
 import app.k9mail.feature.migration.qrcode.domain.usecase.QrCodePayloadReader
 import app.k9mail.feature.migration.qrcode.domain.usecase.QrCodeSettingsWriter
@@ -10,9 +12,14 @@ import app.k9mail.feature.migration.qrcode.payload.QrCodePayloadValidator
 import app.k9mail.feature.migration.qrcode.settings.DefaultUuidGenerator
 import app.k9mail.feature.migration.qrcode.settings.UuidGenerator
 import app.k9mail.feature.migration.qrcode.settings.XmlSettingWriter
+import app.k9mail.feature.migration.qrcode.transfer.AndroidLocalNetworkAddressProvider
 import app.k9mail.feature.migration.qrcode.transfer.LanTransferClient
+import app.k9mail.feature.migration.qrcode.transfer.LegacyTransferAccountSource
+import app.k9mail.feature.migration.qrcode.transfer.LocalNetworkAddressProvider
+import app.k9mail.feature.migration.qrcode.transfer.TransferAccountSource
 import app.k9mail.feature.migration.qrcode.transfer.TransferContainerFetcher
 import app.k9mail.feature.migration.qrcode.transfer.TransferReceiver
+import app.k9mail.feature.migration.qrcode.transfer.TransferSender
 import app.k9mail.feature.migration.qrcode.ui.QrCodeScannerViewModel
 import org.koin.core.module.dsl.viewModel
 import org.koin.dsl.module
@@ -60,4 +67,12 @@ val qrCodeModule = module {
 
     factory<TransferContainerFetcher> { LanTransferClient() }
     factory { TransferReceiver(fetcher = get()) }
+
+    factory<LocalNetworkAddressProvider> {
+        AndroidLocalNetworkAddressProvider(
+            connectivityManager = get<Context>().getSystemService(ConnectivityManager::class.java),
+        )
+    }
+    factory<TransferAccountSource> { LegacyTransferAccountSource(accountManager = get()) }
+    factory { TransferSender(accountSource = get(), addressProvider = get()) }
 }

@@ -16,6 +16,7 @@ android {
 dependencies {
     implementation(projects.core.common)
     implementation(projects.core.android.account)
+    implementation(projects.feature.mail.account.api)
     implementation(projects.core.featureflag)
     implementation(projects.feature.mail.folder.api)
     implementation(projects.legacy.common)
