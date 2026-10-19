@@ -43,6 +43,9 @@ class SettingsImporter internal constructor(
                 AccountDescription(
                     name = getAccountDisplayName(importedAccount),
                     uuid = importedAccount.uuid,
+                    email = importedAccount.identities?.firstOrNull()?.email,
+                    incomingServerHost = importedAccount.incoming?.host,
+                    incomingServerUsername = importedAccount.incoming?.username,
                 )
             }
 

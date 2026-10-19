@@ -11,6 +11,7 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.k9mail.feature.migration.launcher.api.MigrationManager
+import app.k9mail.feature.settings.import.ExistingAccountMatcher
 import app.k9mail.feature.settings.import.SettingsImportExternalContract.AccountActivator
 import com.fsck.k9.helper.SingleLiveEvent
 import com.fsck.k9.helper.measureRealtimeMillisWithResult
@@ -42,6 +43,7 @@ internal class SettingsImportViewModel(
     private val accountActivator: AccountActivator,
     private val migrationManager: MigrationManager,
     private val importAppFetcher: ImportAppFetcher,
+    private val existingAccountMatcher: ExistingAccountMatcher,
     private val backgroundDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val logger: Logger,
     viewModelScope: CoroutineScope = CoroutineScope(Dispatchers.Main.immediate + SupervisorJob()),
@@ -176,7 +178,11 @@ internal class SettingsImportViewModel(
             }
 
             val accountSettingsItems = savedAccountList.map { saved ->
-                SettingsListItem.Account(saved.accountIndex, saved.displayName).apply {
+                SettingsListItem.Account(
+                    accountIndex = saved.accountIndex,
+                    displayName = saved.displayName,
+                    isAlreadySetUp = saved.isAlreadySetUp,
+                ).apply {
                     selected = saved.selected
                     importStatus = saved.importStatus
                     enabled = if (hasImportStarted) {
@@ -404,7 +410,11 @@ internal class SettingsImportViewModel(
                     items.add(SettingsListItem.GeneralSettings())
                 }
                 contents.accounts.mapIndexedTo(items) { index, accountDescription ->
-                    SettingsListItem.Account(index, accountDescription.name)
+                    SettingsListItem.Account(
+                        accountIndex = index,
+                        displayName = accountDescription.name,
+                        isAlreadySetUp = existingAccountMatcher.isAlreadySetUp(accountDescription),
+                    )
                 }
 
                 updateUiModel {
@@ -574,6 +584,7 @@ internal class SettingsImportViewModel(
                     displayName = accountItem.displayName,
                     accountUuid = accountsMap[accountIndex]!!,
                     selected = accountItem.selected,
+                    isAlreadySetUp = accountItem.isAlreadySetUp,
                     importStatus = accountItem.importStatus,
                     incomingServerName = accountState?.incomingServerName,
                     outgoingServerName = accountState?.outgoingServerName,
@@ -641,6 +652,7 @@ private class SavedAccountState(
     val displayName: String,
     val accountUuid: String,
     val selected: Boolean,
+    val isAlreadySetUp: Boolean,
     val importStatus: ImportStatus,
     val incomingServerName: String?,
     val outgoingServerName: String?,

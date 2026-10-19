@@ -83,12 +83,14 @@ internal class GeneralSettingsItem(importStatus: ImportStatus) :
 
 internal class AccountViewHolder(view: View) : ImportCheckBoxViewHolder(view) {
     val accountDisplayName: MaterialTextView = view.findViewById(R.id.accountDisplayName)
+    val accountSecondaryInfo: MaterialTextView = view.findViewById(R.id.accountSecondaryInfo)
 }
 
 internal class AccountItem(account: SettingsListItem.Account) :
     ImportListItem<AccountViewHolder>(account.accountIndex + ACCOUNT_ITEMS_ID_OFFSET, account.importStatus) {
 
     private val displayName = account.displayName
+    private val isAlreadySetUp = account.isAlreadySetUp
 
     override val type = R.id.settings_import_list_account_item
     override val layoutRes = R.layout.settings_import_account_list_item
@@ -98,5 +100,9 @@ internal class AccountItem(account: SettingsListItem.Account) :
     override fun bindView(holder: AccountViewHolder, payloads: List<Any>) {
         super.bindView(holder, payloads)
         holder.accountDisplayName.text = displayName
+        holder.accountSecondaryInfo.isVisible = isAlreadySetUp
+        if (isAlreadySetUp) {
+            holder.accountSecondaryInfo.setText(R.string.settings_import_account_already_set_up)
+        }
     }
 }

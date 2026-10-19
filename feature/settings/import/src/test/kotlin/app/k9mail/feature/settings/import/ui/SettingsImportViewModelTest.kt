@@ -3,6 +3,9 @@ package app.k9mail.feature.settings.import.ui
 import android.app.Application
 import android.content.ContentResolver
 import androidx.core.net.toUri
+import app.k9mail.feature.settings.import.ExistingAccount
+import app.k9mail.feature.settings.import.ExistingAccountMatcher
+import app.k9mail.feature.settings.import.ExistingAccountProvider
 import app.k9mail.feature.settings.import.SettingsImportExternalContract.AccountActivator
 import assertk.all
 import assertk.assertThat
@@ -40,12 +43,14 @@ class SettingsImportViewModelTest {
     private val accountActivator = mock<AccountActivator>()
     private val migrationManager = FakeMigrationManager(featureIncluded = true)
     private val importAppFetcher = mock<ImportAppFetcher>()
+    private val existingAccountProvider = FakeExistingAccountProvider()
     private val viewModel = SettingsImportViewModel(
         contentResolver = contentResolver,
         settingsImporter = settingsImporter,
         accountActivator = accountActivator,
         migrationManager = migrationManager,
         importAppFetcher = importAppFetcher,
+        existingAccountMatcher = ExistingAccountMatcher(existingAccountProvider),
         backgroundDispatcher = Dispatchers.Unconfined,
         viewModelScope = testScope,
         logger = TestLogger(),
@@ -287,4 +292,92 @@ class SettingsImportViewModelTest {
         assertThat(uiModelLiveData.value!!.closeButtonLabel).isEqualTo(CloseButtonLabel.OK)
         assertThat(uiModelLiveData.value!!.statusText).isEqualTo(StatusText.IMPORT_SUCCESS)
     }
+
+    @Test
+    fun `account that is already set up should be unselected and not imported`() {
+        existingAccountProvider.accounts = listOf(
+            ExistingAccount(
+                email = "user@example.com",
+                incomingServerHost = "imap.example.com",
+                incomingServerUsername = "user@example.com",
+            ),
+        )
+        viewModel.initialize()
+        val uiModelLiveData = viewModel.getUiModel()
+
+        viewModel.onDocumentPicked("content://settings".toUri())
+
+        val existingAccount = EXISTING_ACCOUNT
+        val newAccount = NEW_ACCOUNT
+        val inputStream = "".byteInputStream()
+        contentResolver.stub {
+            on { openInputStream("content://settings".toUri()) } doReturn inputStream
+        }
+        settingsImporter.stub {
+            on { getImportStreamContents(inputStream) } doReturn ImportContents(
+                globalSettings = false,
+                accounts = listOf(existingAccount, newAccount),
+            )
+        }
+
+        // Read settings data from the picked file
+        testScope.testScheduler.advanceUntilIdle()
+
+        assertThat(uiModelLiveData.value!!.settingsList).all {
+            hasSize(2)
+            index(0).isInstanceOf<SettingsListItem.Account>()
+                .prop(SettingsListItem.Account::isAlreadySetUp).isTrue()
+            index(0).prop(SettingsListItem::selected).isFalse()
+            index(1).isInstanceOf<SettingsListItem.Account>()
+                .prop(SettingsListItem.Account::isAlreadySetUp).isFalse()
+            index(1).prop(SettingsListItem::selected).isTrue()
+        }
+
+        settingsImporter.stub {
+            on { importSettings(inputStream, false, listOf("uuid-2")) } doReturn ImportResults(
+                globalSettings = false,
+                importedAccounts = listOf(
+                    AccountDescriptionPair(
+                        original = newAccount,
+                        imported = newAccount,
+                        authorizationNeeded = false,
+                        incomingPasswordNeeded = false,
+                        outgoingPasswordNeeded = false,
+                        incomingServerName = "irrelevant",
+                        outgoingServerName = "irrelevant",
+                    ),
+                ),
+                erroneousAccounts = emptyList(),
+            )
+        }
+
+        viewModel.onImportButtonClicked()
+
+        // Import settings
+        testScope.testScheduler.advanceUntilIdle()
+
+        assertThat(uiModelLiveData.value!!.statusText).isEqualTo(StatusText.IMPORT_SUCCESS)
+    }
 }
+
+private class FakeExistingAccountProvider : ExistingAccountProvider {
+    var accounts: List<ExistingAccount> = emptyList()
+
+    override fun getExistingAccounts(): List<ExistingAccount> = accounts
+}
+
+private val EXISTING_ACCOUNT = AccountDescription(
+    name = "Account 1",
+    uuid = "uuid-1",
+    email = "user@example.com",
+    incomingServerHost = "imap.example.com",
+    incomingServerUsername = "user@example.com",
+)
+
+private val NEW_ACCOUNT = AccountDescription(
+    name = "Account 2",
+    uuid = "uuid-2",
+    email = "other@example.com",
+    incomingServerHost = "imap.other.example.com",
+    incomingServerUsername = "other@example.com",
+)

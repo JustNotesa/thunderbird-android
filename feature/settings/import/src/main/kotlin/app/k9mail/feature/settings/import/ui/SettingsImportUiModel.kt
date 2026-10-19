@@ -217,7 +217,15 @@ sealed class SettingsListItem {
     var importStatus: ImportStatus = ImportStatus.NOT_AVAILABLE
 
     class GeneralSettings : SettingsListItem()
-    class Account(val accountIndex: Int, var displayName: String) : SettingsListItem()
+    class Account(
+        val accountIndex: Int,
+        var displayName: String,
+        val isAlreadySetUp: Boolean = false,
+    ) : SettingsListItem() {
+        init {
+            selected = !isAlreadySetUp
+        }
+    }
 }
 
 enum class ImportStatus(val isSuccess: Boolean, val isActionRequired: Boolean) {
