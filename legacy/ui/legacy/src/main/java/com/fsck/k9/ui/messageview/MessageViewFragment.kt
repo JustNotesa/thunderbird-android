@@ -649,7 +649,6 @@ class MessageViewFragment :
             if (fragment::account.isInitialized) {
                 MessageHomeActivity.launch(requireContext(), fragment.account)
             }
-            }
         }
 
         override fun onFolderClick() {
