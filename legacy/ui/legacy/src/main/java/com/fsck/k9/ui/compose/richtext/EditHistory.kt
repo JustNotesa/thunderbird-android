@@ -5,6 +5,7 @@ import android.text.Editable
 import android.text.TextWatcher
 import android.widget.EditText
 import net.thunderbird.feature.mail.message.composer.richtext.FormattedText
+import net.thunderbird.feature.mail.message.composer.richtext.TextFormat
 
 private const val MAX_STEPS = 100
 private const val TYPING_PAUSE_MILLIS = 1000L
@@ -13,9 +14,10 @@ private const val TYPING_PAUSE_MILLIS = 1000L
  * Undo and redo for the message text field, text and formatting together.
  *
  * A step is the state of the text before a change, as formatted text with its selection. Typing is one step until the
- * user pauses or ends a word; every format change is a step of its own. The end marker of the empty last line is
- * formatting, not text the user typed, so it belongs to the step of the edit that caused it. When the text is replaced
- * as a whole, e.g. by a draft, the history starts anew.
+ * user pauses or ends a word; every format change is a step of its own. The format a collapsed cursor has is no text
+ * either, so it is part of the step as well. The end marker of the empty last line is formatting, not text the user
+ * typed, so it belongs to the step of the edit that caused it. When the text is replaced as a whole, e.g. by a draft,
+ * the history starts anew.
  *
  * @param clock the time in milliseconds, for tests
  */
@@ -123,6 +125,11 @@ internal class EditHistory(
             val length = editText.text.length
             val selectionStart = snapshot.selectionStart.coerceIn(0, length)
             editText.setSelection(selectionStart, snapshot.selectionEnd.coerceIn(0, length))
+            // The formats of a collapsed cursor are no text, so the restored text doesn't bring them back.
+            for (format in snapshot.pendingFormats) {
+                val flags = getSpanFlagsFor(selectionStart, selectionStart)
+                editText.text.setSpan(format.createSpan(), selectionStart, selectionStart, flags)
+            }
         } finally {
             isRestoring = false
         }
@@ -132,14 +139,30 @@ internal class EditHistory(
     }
 
     private fun currentSnapshot(): Snapshot {
+        val selectionStart = editText.selectionStart
+        val selectionEnd = editText.selectionEnd
+
         return Snapshot(
             formattedText = RichTextFormatter.formattedText(editText.text),
-            selectionStart = editText.selectionStart,
-            selectionEnd = editText.selectionEnd,
+            selectionStart = selectionStart,
+            selectionEnd = selectionEnd,
+            // Only a collapsed cursor has formats of its own: they apply to what is typed next.
+            pendingFormats = if (selectionStart == selectionEnd) {
+                TextFormat.entries.filterTo(mutableSetOf()) { format ->
+                    RichTextFormatter.isActive(editText.text, format, selectionStart, selectionEnd)
+                }
+            } else {
+                emptySet()
+            },
         )
     }
 
-    private data class Snapshot(val formattedText: FormattedText, val selectionStart: Int, val selectionEnd: Int)
+    private data class Snapshot(
+        val formattedText: FormattedText,
+        val selectionStart: Int,
+        val selectionEnd: Int,
+        val pendingFormats: Set<TextFormat> = emptySet(),
+    )
 }
 
 /**

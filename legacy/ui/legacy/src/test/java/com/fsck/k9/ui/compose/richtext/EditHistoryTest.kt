@@ -8,6 +8,10 @@ import assertk.assertions.isEmpty
 import assertk.assertions.isEqualTo
 import assertk.assertions.isFalse
 import assertk.assertions.isTrue
+import com.fsck.k9.ui.compose.richtext.bar.FormatBarEvent
+import com.fsck.k9.ui.compose.richtext.bar.FormatBarState
+import com.fsck.k9.ui.compose.richtext.bar.applyFormatBarEvent
+import com.fsck.k9.ui.compose.richtext.bar.formatBarStateOf
 import net.thunderbird.core.android.testing.RobolectricTest
 import net.thunderbird.feature.mail.message.composer.richtext.Alignment
 import net.thunderbird.feature.mail.message.composer.richtext.BlockType
@@ -31,6 +35,11 @@ class EditHistoryTest : RobolectricTest() {
             editText.text.append(character)
             now += 100
         }
+    }
+
+    private fun barState(): FormatBarState {
+        val selection = editText.selectionStart
+        return formatBarStateOf(editText.text, selection, selection, FormatBarState())
     }
 
     @Test
@@ -190,6 +199,67 @@ class EditHistoryTest : RobolectricTest() {
         // Assert
         val selection = editText.selectionStart
         assertThat(RichTextFormatter.isActive(editText.text, TextFormat.Bold, selection, selection)).isFalse()
+    }
+
+    @Test
+    fun `undo of a format at a collapsed cursor should switch its button off`() {
+        // Arrange
+        val testSubject = createTestSubject("Hello")
+        testSubject.beforeFormatChange()
+        applyFormatBarEvent(editText.text, FormatBarEvent.ToggleFormat(TextFormat.Bold), 5, 5)
+
+        // Act
+        testSubject.undo()
+
+        // Assert
+        assertThat(barState().activeFormats).isEmpty()
+    }
+
+    @Test
+    fun `redo of a format at a collapsed cursor should switch its button on again`() {
+        // Arrange
+        val testSubject = createTestSubject("Hello")
+        testSubject.beforeFormatChange()
+        applyFormatBarEvent(editText.text, FormatBarEvent.ToggleFormat(TextFormat.Italic), 5, 5)
+        testSubject.undo()
+
+        // Act
+        testSubject.redo()
+
+        // Assert
+        assertThat(barState().activeFormats).isEqualTo(setOf(TextFormat.Italic))
+    }
+
+    @Test
+    fun `undo of a format at a collapsed cursor should keep the format that was pending before it`() {
+        // Arrange
+        val testSubject = createTestSubject("Hello")
+        applyFormatBarEvent(editText.text, FormatBarEvent.ToggleFormat(TextFormat.Bold), 5, 5)
+        testSubject.beforeFormatChange()
+        applyFormatBarEvent(editText.text, FormatBarEvent.ToggleFormat(TextFormat.Italic), 5, 5)
+
+        // Act
+        testSubject.undo()
+
+        // Assert
+        assertThat(barState().activeFormats).isEqualTo(setOf(TextFormat.Bold))
+    }
+
+    @Test
+    fun `redo of a format at a collapsed cursor should put it back where the step had it`() {
+        // Arrange
+        val testSubject = createTestSubject("Hello")
+        editText.setSelection(2)
+        testSubject.beforeFormatChange()
+        applyFormatBarEvent(editText.text, FormatBarEvent.ToggleFormat(TextFormat.Bold), 2, 2)
+        testSubject.undo()
+
+        // Act
+        testSubject.redo()
+
+        // Assert
+        assertThat(RichTextFormatter.isActive(editText.text, TextFormat.Bold, 2, 2)).isTrue()
+        assertThat(RichTextFormatter.isActive(editText.text, TextFormat.Bold, 5, 5)).isFalse()
     }
 
     @Test
