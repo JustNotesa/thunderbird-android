@@ -18,6 +18,7 @@ import androidx.recyclerview.widget.RecyclerView
 import app.k9mail.core.ui.legacy.designsystem.atom.icon.Icons
 import app.k9mail.feature.launcher.FeatureLauncherActivity
 import app.k9mail.feature.launcher.FeatureLauncherTarget
+import app.k9mail.feature.migration.launcher.api.MigrationManager
 import com.fsck.k9.ui.R
 import com.fsck.k9.ui.base.livedata.observeNotNull
 import com.fsck.k9.ui.settings.account.AccountSettingsActivity
@@ -40,6 +41,7 @@ class SettingsListFragment : Fragment(), ItemTouchCallback {
     private val viewModel: SettingsViewModel by viewModel()
     private val fundingManager: FundingManager by inject()
     private val brandNameProvider: BrandNameProvider by inject()
+    private val migrationManager: MigrationManager by inject()
 
     private lateinit var itemAdapter: ItemAdapter<GenericItem>
 
@@ -123,6 +125,22 @@ class SettingsListFragment : Fragment(), ItemTouchCallback {
                     navigationAction = R.id.action_settingsListScreen_to_settingsImportScreen,
                     icon = Icons.Outlined.Download,
                 )
+
+                migrationManager.createTransferSendIntent(requireContext())?.let { intent ->
+                    addIntent(
+                        text = getString(R.string.settings_transfer_to_new_device_title),
+                        icon = Icons.Outlined.DriveFileMove,
+                        intent = intent,
+                    )
+                }
+
+                migrationManager.createTransferTextIntent(requireContext())?.let { intent ->
+                    addIntent(
+                        text = getString(R.string.settings_copy_accounts_for_password_manager_title),
+                        icon = Icons.Outlined.ContentCopy,
+                        intent = intent,
+                    )
+                }
             }
 
             addSection(title = getString(R.string.settings_list_miscellaneous_category)) {

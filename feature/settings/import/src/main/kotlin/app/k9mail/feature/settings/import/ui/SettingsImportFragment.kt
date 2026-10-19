@@ -52,6 +52,10 @@ class SettingsImportFragment : Fragment() {
         migrationManager.getQrCodeActivityResultContract(),
         pickDocumentCallback,
     )
+    private val transferPasteLauncher = registerForActivityResult(
+        migrationManager.getTransferPasteActivityResultContract(),
+        pickDocumentCallback,
+    )
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -81,6 +85,7 @@ class SettingsImportFragment : Fragment() {
         initializeSettingsImportList(viewHolder.settingsImportList)
         viewHolder.pickDocumentButton.setOnClickListener { viewModel.onPickDocumentButtonClicked() }
         viewHolder.scanQrCodeButton.setOnClickListener { viewModel.onScanQrCodeButtonClicked() }
+        viewHolder.pasteAccountsButton.setOnClickListener { viewModel.onPasteAccountsButtonClicked() }
         viewHolder.pickAppButton.setOnClickListener { viewModel.onPickAppButtonClicked() }
         viewHolder.importButton.setOnClickListener { viewModel.onImportButtonClicked() }
         viewHolder.closeButton.setOnClickListener { viewModel.onCloseButtonClicked() }
@@ -140,6 +145,8 @@ class SettingsImportFragment : Fragment() {
         pickDocumentButton.isEnabled = model.isPickDocumentButtonEnabled
         scanQrCodeButton.isInvisible = !model.isScanQrCodeButtonVisible
         scanQrCodeButton.isEnabled = model.isScanQrCodeButtonEnabled
+        pasteAccountsButton.isInvisible = !model.isPasteAccountsButtonVisible
+        pasteAccountsButton.isEnabled = model.isPasteAccountsButtonEnabled
         pickAppButton.isInvisible = !model.isPickAppButtonVisible
         pickAppButton.isEnabled = model.isPickAppButtonEnabled
         loadingProgressBar.isVisible = model.isLoadingProgressVisible
@@ -209,6 +216,7 @@ class SettingsImportFragment : Fragment() {
             is Action.Close -> closeImportScreen(action)
             is Action.PickDocument -> pickDocument()
             is Action.ScanQrCode -> scanQrCode()
+            is Action.PasteAccounts -> pasteAccounts()
             is Action.PickApp -> pickApp()
             is Action.PasswordPrompt -> showPasswordPrompt(action)
             is Action.StartAuthorization -> startAuthorization(action)
@@ -232,6 +240,10 @@ class SettingsImportFragment : Fragment() {
 
     private fun scanQrCode() {
         qrCodeScannerLauncher.launch(Unit)
+    }
+
+    private fun pasteAccounts() {
+        transferPasteLauncher.launch(Unit)
     }
 
     private fun pickApp() {
@@ -308,6 +320,7 @@ class SettingsImportFragment : Fragment() {
 private class ViewHolder(view: View) {
     val pickDocumentButton: View = view.findViewById(R.id.pickDocumentButton)
     val scanQrCodeButton: View = view.findViewById(R.id.scanQrCodeButton)
+    val pasteAccountsButton: View = view.findViewById(R.id.pasteAccountsButton)
     val pickAppButton: View = view.findViewById(R.id.pickAppButton)
     val importButton: View = view.findViewById(R.id.importButton)
     val closeButton: MaterialButton = view.findViewById(R.id.closeButton)

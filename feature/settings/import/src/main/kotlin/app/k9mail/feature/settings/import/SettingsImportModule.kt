@@ -9,6 +9,9 @@ import org.koin.core.module.dsl.viewModel
 import org.koin.dsl.module
 
 val featureSettingsImportModule = module {
+    factory<ExistingAccountProvider> { AccountManagerExistingAccountProvider(accountManager = get()) }
+    factory { ExistingAccountMatcher(existingAccountProvider = get()) }
+
     factory {
         ImportAppFetcher(
             context = androidContext(),
@@ -23,6 +26,7 @@ val featureSettingsImportModule = module {
             accountActivator = get(),
             migrationManager = get(),
             importAppFetcher = get(),
+            existingAccountMatcher = get(),
             logger = get(),
         )
     }

@@ -11,6 +11,7 @@ import androidx.compose.ui.res.stringResource
 import app.k9mail.feature.migration.qrcode.R
 import app.k9mail.feature.migration.qrcode.domain.QrCodeDomainContract.UseCase
 import app.k9mail.feature.migration.qrcode.ui.QrCodeScannerContract.DisplayText
+import app.k9mail.feature.migration.qrcode.ui.QrCodeScannerContract.TransferFailureReason
 import net.thunderbird.components.ui.bolt.theme.BoltTheme
 
 @Composable
@@ -53,6 +54,25 @@ private fun buildString(text: DisplayText): String {
 
         is DisplayText.ProgressText -> {
             stringResource(R.string.migration_qrcode_scanning_progress, text.scannedCount, text.totalCount)
+        }
+
+        DisplayText.ReceivingTransfer -> {
+            stringResource(R.string.migration_qrcode_transfer_receiving)
+        }
+
+        DisplayText.ConnectingToHotspot -> {
+            stringResource(R.string.migration_qrcode_transfer_connecting_hotspot)
+        }
+
+        is DisplayText.TransferFailed -> {
+            stringResource(
+                when (text.reason) {
+                    TransferFailureReason.Unreachable -> R.string.migration_qrcode_transfer_unreachable
+                    TransferFailureReason.Corrupted -> R.string.migration_qrcode_transfer_corrupted
+                    TransferFailureReason.Unsupported -> R.string.migration_qrcode_transfer_unsupported
+                    TransferFailureReason.HotspotUnavailable -> R.string.migration_qrcode_transfer_hotspot_unavailable
+                },
+            )
         }
     }
 }

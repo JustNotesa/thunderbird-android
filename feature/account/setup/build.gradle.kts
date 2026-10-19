@@ -15,7 +15,9 @@ android {
 
 dependencies {
     implementation(projects.core.common)
+    implementation(projects.core.android.account)
     implementation(projects.core.validation)
+    implementation(projects.feature.mail.account.api)
     implementation(projects.core.ui.contract)
     implementation(projects.core.ui.navigation)
 

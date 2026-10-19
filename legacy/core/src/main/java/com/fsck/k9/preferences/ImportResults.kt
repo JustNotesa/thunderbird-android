@@ -19,4 +19,7 @@ data class AccountDescriptionPair(
 data class AccountDescription(
     val name: String,
     val uuid: String,
+    val email: String? = null,
+    val incomingServerHost: String? = null,
+    val incomingServerUsername: String? = null,
 )
