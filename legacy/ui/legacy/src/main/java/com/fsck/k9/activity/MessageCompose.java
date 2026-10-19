@@ -233,6 +233,8 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
     private static final String STATE_REFERENCES = "com.fsck.k9.activity.MessageCompose.references";
     private static final String STATE_KEY_READ_RECEIPT = "com.fsck.k9.activity.MessageCompose.messageReadReceipt";
     private static final String STATE_KEY_CAPTURING_INLINE_IMAGE = "com.fsck.k9.activity.MessageCompose.capturingInlineImage";
+    private static final String STATE_KEY_PENDING_INLINE_IMAGES =
+            "com.fsck.k9.activity.MessageCompose.pendingInlineImages";
     private static final String STATE_KEY_HTML_SOURCE_MODE = "com.fsck.k9.activity.MessageCompose.htmlSourceMode";
     private static final String STATE_KEY_EDITOR_ZOOM = "com.fsck.k9.activity.MessageCompose.editorZoom";
     private static final float DEFAULT_EDITOR_ZOOM = 100f;
@@ -850,6 +852,8 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
         outState.putBoolean(STATE_KEY_HTML_SOURCE_MODE, messageFormattingToolbar.isHtmlSourceMode());
         outState.putFloat(STATE_KEY_EDITOR_ZOOM, messageFormattingToolbar.getZoomPercent());
         outState.putBoolean(STATE_KEY_CAPTURING_INLINE_IMAGE, capturingInlineImage);
+        // An image that is still being scaled when the device is rotated is put into the text by the next activity.
+        outState.putParcelableArrayList(STATE_KEY_PENDING_INLINE_IMAGES, inlineImageController.saveState());
         outState.putBoolean(STATE_KEY_CHANGES_MADE_SINCE_LAST_SAVE, changesMadeSinceLastSave);
         outState.putBoolean(STATE_ALREADY_NOTIFIED_USER_OF_EMPTY_SUBJECT, alreadyNotifiedUserOfEmptySubject);
         outState.putIntegerArrayList(STATE_ACTIVE_IN_APP_NOTIFICATIONS, new ArrayList<>(activeInAppNotifications));
@@ -891,6 +895,9 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
         } else {
             draftMessageId = null;
         }
+        // The toolbar is attached since onCreate, so the images land in the text the user sees now.
+        inlineImageController.restoreState(
+                savedInstanceState.getParcelableArrayList(STATE_KEY_PENDING_INLINE_IMAGES));
         identity = BundleCompat.getParcelable(savedInstanceState, STATE_IDENTITY, Identity.class);
         identityChanged = savedInstanceState.getBoolean(STATE_IDENTITY_CHANGED);
         repliedToMessageId = savedInstanceState.getString(STATE_IN_REPLY_TO);
