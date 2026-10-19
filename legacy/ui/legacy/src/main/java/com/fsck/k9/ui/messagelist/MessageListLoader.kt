@@ -1,6 +1,10 @@
 package com.fsck.k9.ui.messagelist
 
+import android.database.DatabaseUtils
 import app.k9mail.legacy.mailstore.MessageListRepository
+import app.k9mail.legacy.message.controller.MessageReference
+import app.k9mail.legacy.ui.folder.FolderNameFormatter
+import com.fsck.k9.activity.FolderInfoHolder
 import com.fsck.k9.contacts.ContactLetterBitmapCreator
 import com.fsck.k9.helper.MessageHelper
 import com.fsck.k9.mailstore.LocalStoreProvider
@@ -9,9 +13,11 @@ import com.fsck.k9.search.getLegacyAccounts
 import net.thunderbird.core.android.account.LegacyAccount
 import net.thunderbird.core.android.account.LegacyAccountManager
 import net.thunderbird.core.android.account.SortType
+import net.thunderbird.core.common.exception.MessagingException
 import net.thunderbird.core.featureflag.FeatureFlagProvider
 import net.thunderbird.core.featureflag.keys.GeneratedFeatureFlagKey
 import net.thunderbird.core.preference.display.visualSettings.message.list.MessageListPreferencesManager
+import net.thunderbird.feature.account.AccountId
 import net.thunderbird.feature.mail.folder.api.OutboxFolderManager
 import net.thunderbird.feature.search.legacy.LocalMessageSearch
 import net.thunderbird.feature.search.legacy.api.MessageSearchField
@@ -28,6 +34,7 @@ class MessageListLoader(
     private val outboxFolderManager: OutboxFolderManager,
     private val featureFlagProvider: FeatureFlagProvider,
     private val contactLetterBitmapCreator: ContactLetterBitmapCreator,
+    private val folderNameFormatter: FolderNameFormatter,
 ) {
 
     fun getMessageList(config: MessageListConfig): MessageListInfo {
@@ -69,7 +76,7 @@ class MessageListLoader(
             },
         )
 
-        return when {
+        val messageListItems = when {
             threadId != null -> {
                 messageListRepository.getThread(accountId, threadId, sortOrder, mapper)
             }
@@ -84,30 +91,61 @@ class MessageListLoader(
                 messageListRepository.getMessages(accountId, selection, selectionArgs, sortOrder, mapper)
             }
         }
+
+        return if (config.search.isManualSearch) {
+            messageListItems.withFolderNames(account)
+        } else {
+            messageListItems
+        }
+    }
+
+    /**
+     * Search results can span multiple folders. Add the folder name so the user can tell where a message is stored.
+     */
+    private fun List<MessageListItem>.withFolderNames(account: LegacyAccount): List<MessageListItem> {
+        val folderNames = map { it.folderId }
+            .distinct()
+            .associateWith { folderId -> loadFolderDisplayName(account, folderId) }
+
+        return map { it.copy(folderName = folderNames[it.folderId]) }
+    }
+
+    private fun loadFolderDisplayName(account: LegacyAccount, folderId: Long): String? {
+        return try {
+            val localFolder = localStoreProvider.getInstanceByLegacyAccount(account).getFolder(folderId)
+            localFolder.open()
+            FolderInfoHolder(folderNameFormatter, outboxFolderManager, localFolder, account).displayName
+        } catch (e: MessagingException) {
+            Log.w(e, "Couldn't load folder name")
+            null
+        }
     }
 
     private fun buildSelection(account: LegacyAccount, config: MessageListConfig): Pair<String, Array<String>> {
         val query = StringBuilder()
         val queryArgs = mutableListOf<String>()
 
+        val additionalSelections = mutableListOf<String>()
+
         val activeMessage = config.activeMessage
-        val selectActive = activeMessage != null && activeMessage.accountId == account.id
-        if (selectActive && activeMessage != null) {
-            query.append("(${MessageColumns.UID} = ? AND ${MessageColumns.FOLDER_ID} = ?) OR (")
+        if (activeMessage != null && activeMessage.accountId == account.id) {
+            additionalSelections.add("${MessageColumns.UID} = ? AND ${MessageColumns.FOLDER_ID} = ?")
             queryArgs.add(activeMessage.uid)
             queryArgs.add(activeMessage.folderId.toString())
+        }
+
+        additionalSelections.addAll(buildIncludedMessagesSelections(account.id, config.includedMessages))
+
+        additionalSelections.forEach { additionalSelection ->
+            query.append('(').append(additionalSelection).append(") OR ")
         }
 
         val whereClause = SqlWhereClause.Builder()
             .withConditions(config.search.conditions)
             .build()
 
-        query.append(whereClause.selection)
+        query.append('(').append(whereClause.selection).append(')')
         queryArgs.addAll(whereClause.selectionArgs)
-
-        if (selectActive) {
-            query.append(')')
-        }
 
         val selection = query.toString()
         val selectionArgs = queryArgs.toTypedArray()
@@ -223,6 +261,24 @@ private fun Comparator<MessageListItem>.thenByDate(config: MessageListConfig): C
     } else {
         thenByDescending { it.messageDate }
     }
+}
+
+/**
+ * Create one SQL selection per folder that matches the given messages of the account.
+ *
+ * The message UIDs are provided by the server, so they are escaped before being put into the selection.
+ */
+internal fun buildIncludedMessagesSelections(
+    accountId: AccountId,
+    includedMessages: Set<MessageReference>,
+): List<String> {
+    return includedMessages
+        .filter { it.accountId == accountId }
+        .groupBy { it.folderId }
+        .map { (folderId, messageReferences) ->
+            val uids = messageReferences.joinToString(separator = ",") { DatabaseUtils.sqlEscapeString(it.uid) }
+            "${MessageColumns.FOLDER_ID} = $folderId AND ${MessageColumns.UID} IN ($uids)"
+        }
 }
 
 data class MessageListInfo(val messageListItems: List<MessageListItem>, val hasMoreMessages: Boolean)

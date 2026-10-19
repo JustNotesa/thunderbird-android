@@ -31,6 +31,7 @@ import app.k9mail.legacy.di.DI;
 import app.k9mail.legacy.mailstore.FolderDetailsAccessor;
 import app.k9mail.legacy.mailstore.MessageStore;
 import app.k9mail.legacy.mailstore.MessageStoreManager;
+import app.k9mail.legacy.mailstore.MoreMessages;
 import app.k9mail.legacy.mailstore.SaveMessageData;
 import app.k9mail.legacy.message.controller.MessageReference;
 import app.k9mail.legacy.message.controller.MessagingControllerMailChecker;
@@ -41,6 +42,7 @@ import com.fsck.k9.K9;
 import com.fsck.k9.Preferences;
 import com.fsck.k9.backend.BackendManager;
 import com.fsck.k9.backend.api.Backend;
+import com.fsck.k9.backend.api.KeptMessages;
 import com.fsck.k9.backend.api.SyncConfig;
 import com.fsck.k9.backend.api.SyncListener;
 import com.fsck.k9.controller.ControllerExtension.ControllerInternals;
@@ -122,6 +124,9 @@ import static net.thunderbird.core.common.mail.Flag.X_REMOTE_COPY_STARTED;
  */
 public class MessagingController implements MessagingControllerRegistry, MessagingControllerMailChecker {
     public static final Set<Flag> SYNC_FLAGS = EnumSet.of(Flag.SEEN, Flag.FLAGGED, Flag.ANSWERED, Flag.FORWARDED);
+
+    private static final int MAX_CONSECUTIVE_CASCADE_SEARCH_FAILURES = 3;
+    private static final long NO_START_FOLDER_ID = -1L;
 
     private static final long FOLDER_LIST_STALENESS_THRESHOLD = 30 * 60 * 1000L;
 
@@ -507,7 +512,7 @@ public class MessagingController implements MessagingControllerRegistry, Messagi
                 messageServerIds = messageServerIds.subList(0, resultLimit);
             }
 
-            loadSearchResultsSynchronous(account, messageServerIds, localFolder);
+            loadSearchResultsSynchronous(account, messageServerIds, localFolder, listener);
         } catch (Exception e) {
             if (Thread.currentThread().isInterrupted()) {
                 Log.i(e, "Caught exception on aborted remote search; safe to ignore.");
@@ -542,7 +547,7 @@ public class MessagingController implements MessagingControllerRegistry, Messagi
 
                 localFolder.open();
 
-                loadSearchResultsSynchronous(account, messageServerIds, localFolder);
+                loadSearchResultsSynchronous(account, messageServerIds, localFolder, listener);
             } catch (MessagingException e) {
                 Log.e(e, "Exception in loadSearchResults");
             } finally {
@@ -554,18 +559,303 @@ public class MessagingController implements MessagingControllerRegistry, Messagi
     }
 
     private void loadSearchResultsSynchronous(LegacyAccountDto account, List<String> messageServerIds,
-        LocalFolder localFolder)
-        throws MessagingException {
+        LocalFolder localFolder, MessagingListener listener) throws MessagingException {
 
         Backend backend = getBackend(account);
         String folderServerId = localFolder.getServerId();
+        String folderName = localFolder.getName();
+        int total = messageServerIds.size();
+        int current = 0;
 
         for (String messageServerId : messageServerIds) {
+            current++;
+            if (listener != null) {
+                listener.remoteSearchDownloadProgress(folderName, current, total);
+            }
+
             LocalMessage localMessage = localFolder.getMessage(messageServerId);
 
             if (localMessage == null) {
                 backend.downloadMessageStructure(folderServerId, messageServerId);
+
+                LocalMessage downloadedMessage = localFolder.getMessage(messageServerId);
+                if (listener != null && downloadedMessage != null) {
+                    listener.remoteSearchMessageDownloaded(folderName, downloadedMessage.getSubject());
+                }
             }
+        }
+    }
+
+    /**
+     * Search all folders of all accounts on the server.
+     *
+     * @param startAccountUuid
+     *         The account to search first, or {@code null} if the search wasn't started from a single account.
+     * @param startFolderId
+     *         The folder of the start account to search first, or {@code null} if the search wasn't started from a
+     *         single folder.
+     * @param searchMessageContents
+     *         {@code true} to also search the contents of the messages instead of only the sender, recipients and
+     *         subject. This is slower.
+     */
+    public Future<?> searchRemoteMessagesCascading(@Nullable String startAccountUuid, @Nullable Long startFolderId,
+            String query, Set<Flag> requiredFlags, Set<Flag> forbiddenFlags, boolean searchMessageContents,
+            MessagingListener listener) {
+        return searchRemoteMessagesCascading(startAccountUuid, startFolderId, query, requiredFlags, forbiddenFlags,
+                searchMessageContents, false, 0, listener);
+    }
+
+    /**
+     * @param startFolderOnly
+     *         {@code true} to search nothing but the folder the search was started from.
+     * @param searchedFolderCount
+     *         The number of folders a search that was stopped has already searched. They are skipped, so the search
+     *         continues where it was stopped.
+     */
+    public Future<?> searchRemoteMessagesCascading(@Nullable String startAccountUuid, @Nullable Long startFolderId,
+            String query, Set<Flag> requiredFlags, Set<Flag> forbiddenFlags, boolean searchMessageContents,
+            boolean startFolderOnly, int searchedFolderCount, MessagingListener listener) {
+        Log.i("searchRemoteMessagesCascading (acct = %s, startFolderId = %d, contents = %b, startFolderOnly = %b, "
+                + "searched = %d)", startAccountUuid, startFolderId, searchMessageContents, startFolderOnly,
+                searchedFolderCount);
+
+        return threadPool.submit(() -> searchRemoteMessagesCascadingSynchronous(startAccountUuid, startFolderId, query,
+                requiredFlags, forbiddenFlags, searchMessageContents, startFolderOnly, searchedFolderCount,
+                listener));
+    }
+
+    @VisibleForTesting
+    void searchRemoteMessagesCascadingSynchronous(@Nullable String startAccountUuid, @Nullable Long startFolderId,
+            String query, Set<Flag> requiredFlags, Set<Flag> forbiddenFlags, boolean searchMessageContents,
+            MessagingListener listener) {
+        searchRemoteMessagesCascadingSynchronous(startAccountUuid, startFolderId, query, requiredFlags,
+                forbiddenFlags, searchMessageContents, false, 0, listener);
+    }
+
+    @VisibleForTesting
+    void searchRemoteMessagesCascadingSynchronous(@Nullable String startAccountUuid, @Nullable Long startFolderId,
+            String query, Set<Flag> requiredFlags, Set<Flag> forbiddenFlags, boolean searchMessageContents,
+            boolean startFolderOnly, int searchedFolderCount, MessagingListener listener) {
+        long listenerFolderId = startFolderId != null ? startFolderId : NO_START_FOLDER_ID;
+        if (listener != null) {
+            listener.remoteSearchStarted(listenerFolderId);
+        }
+
+        try {
+            List<CascadeSearchTarget> targets = buildCascadeSearchTargets(startAccountUuid, startFolderId);
+            if (startFolderOnly) {
+                targets = keepStartFolder(targets, startAccountUuid, startFolderId);
+            }
+            int folderCount = targets.size();
+            int folderIndex = 0;
+            int failedFolderCount = 0;
+            int notLoadedResultCount = 0;
+            String failureReason = null;
+            Map<String, Integer> consecutiveFailures = new HashMap<>();
+            Set<String> unreachableAccounts = new HashSet<>();
+
+            for (CascadeSearchTarget target : targets) {
+                if (Thread.currentThread().isInterrupted()) {
+                    break;
+                }
+
+                folderIndex++;
+                if (folderIndex <= searchedFolderCount) {
+                    continue;
+                }
+
+                String accountUuid = target.account.getId().toString();
+                if (unreachableAccounts.contains(accountUuid)) {
+                    // Don't keep trying the remaining folders of an account whose server can't be reached.
+                    failedFolderCount++;
+                    continue;
+                }
+
+                if (listener != null) {
+                    listener.remoteSearchCascadeProgress(accountUuid, target.account.getDisplayName(),
+                            target.folderName, folderIndex, folderCount);
+                }
+
+                try {
+                    notLoadedResultCount += searchSingleFolderOnServer(target.account, target.folderId, query,
+                            requiredFlags, forbiddenFlags, searchMessageContents, listener);
+                    consecutiveFailures.remove(accountUuid);
+                } catch (Exception e) {
+                    if (Thread.currentThread().isInterrupted()) {
+                        break;
+                    }
+                    Log.e(e, "Cascading remote search failed for folder %d of account %s", target.folderId,
+                            accountUuid);
+
+                    failedFolderCount++;
+                    failureReason = getRootCauseMessage(e);
+                    Integer previousFailures = consecutiveFailures.get(accountUuid);
+                    int failures = previousFailures == null ? 1 : previousFailures + 1;
+                    consecutiveFailures.put(accountUuid, failures);
+                    if (failures >= MAX_CONSECUTIVE_CASCADE_SEARCH_FAILURES) {
+                        unreachableAccounts.add(accountUuid);
+                    }
+                }
+            }
+
+            if (listener != null && !Thread.currentThread().isInterrupted()) {
+                if (failedFolderCount > 0) {
+                    listener.remoteSearchCascadeIncomplete(failedFolderCount, folderCount, failureReason);
+                }
+                if (notLoadedResultCount > 0) {
+                    listener.remoteSearchResultsLimited(notLoadedResultCount);
+                }
+            }
+        } catch (Exception e) {
+            if (Thread.currentThread().isInterrupted()) {
+                Log.i(e, "Caught exception on aborted cascading remote search; safe to ignore.");
+            } else {
+                Log.e(e, "Could not complete cascading remote search");
+                if (listener != null) {
+                    listener.remoteSearchFailed(null, e.getMessage());
+                }
+            }
+        } finally {
+            if (listener != null) {
+                listener.remoteSearchFinished(listenerFolderId, 0, 0, null);
+            }
+        }
+    }
+
+    private static String getRootCauseMessage(Throwable throwable) {
+        Throwable rootCause = throwable;
+        while (rootCause.getCause() != null && rootCause.getCause() != rootCause) {
+            rootCause = rootCause.getCause();
+        }
+        return rootCause.getLocalizedMessage();
+    }
+
+    /**
+     * @return The number of search results that were not loaded because of the account's server search limit.
+     */
+    private int searchSingleFolderOnServer(LegacyAccountDto account, long folderId, String query,
+            Set<Flag> requiredFlags, Set<Flag> forbiddenFlags, boolean searchMessageContents,
+            MessagingListener listener) throws MessagingException {
+        LocalStore localStore = localStoreProvider.getInstance(account);
+        LocalFolder localFolder = localStore.getFolder(folderId);
+        if (!localFolder.exists()) {
+            throw new MessagingException("Folder not found");
+        }
+
+        localFolder.open();
+        String folderServerId = localFolder.getServerId();
+
+        Backend backend = getBackend(account);
+        boolean performFullTextSearch = searchMessageContents || account.isRemoteSearchFullText();
+        List<String> foundMessageServerIds = backend.search(folderServerId, query, requiredFlags, forbiddenFlags,
+                performFullTextSearch, step -> {
+                    if (listener != null) {
+                        listener.remoteSearchStep(step);
+                    }
+                });
+
+        List<String> newMessageServerIds = localFolder.extractNewMessages(foundMessageServerIds);
+        List<String> notLoadedMessageServerIds = Collections.emptyList();
+
+        int resultLimit = account.getRemoteSearchNumResults();
+        if (resultLimit > 0 && newMessageServerIds.size() > resultLimit) {
+            notLoadedMessageServerIds = newMessageServerIds.subList(resultLimit, newMessageServerIds.size());
+            newMessageServerIds = newMessageServerIds.subList(0, resultLimit);
+        }
+
+        loadSearchResultsSynchronous(account, newMessageServerIds, localFolder, listener);
+
+        if (!foundMessageServerIds.isEmpty()) {
+            List<String> availableMessageServerIds = new ArrayList<>(foundMessageServerIds);
+            availableMessageServerIds.removeAll(notLoadedMessageServerIds);
+
+            keepMessages(account, folderId, availableMessageServerIds);
+            if (listener != null) {
+                listener.remoteSearchFolderResults(account.getId().toString(), folderId, availableMessageServerIds);
+            }
+        }
+
+        return notLoadedMessageServerIds.size();
+    }
+
+    /**
+     * Search results stay on the device, so the next search doesn't have to download them again. Otherwise the next
+     * synchronization of the folder would remove the ones that are older than the messages it is synchronized with.
+     */
+    private void keepMessages(LegacyAccountDto account, long folderId, List<String> messageServerIds) {
+        MessageStore messageStore = messageStoreManager.getMessageStore(account);
+        Set<String> keptMessages = KeptMessages.parse(
+                messageStore.getFolderExtraString(folderId, KeptMessages.FOLDER_EXTRA));
+
+        Set<String> newKeptMessages = new HashSet<>(keptMessages);
+        if (newKeptMessages.addAll(messageServerIds)) {
+            messageStore.setFolderExtraString(folderId, KeptMessages.FOLDER_EXTRA,
+                    KeptMessages.format(newKeptMessages));
+        }
+    }
+
+    private List<CascadeSearchTarget> buildCascadeSearchTargets(@Nullable String startAccountUuid,
+            @Nullable Long startFolderId) throws MessagingException {
+        List<LegacyAccountDto> orderedAccounts = new ArrayList<>();
+        for (LegacyAccountDto account : preferences.getAccounts()) {
+            if (account.getId().toString().equals(startAccountUuid)) {
+                orderedAccounts.add(0, account);
+            } else {
+                orderedAccounts.add(account);
+            }
+        }
+
+        List<CascadeSearchTarget> targets = new ArrayList<>();
+        for (LegacyAccountDto account : orderedAccounts) {
+            if (!isPushCapable(account)) {
+                // The backend of this account does not support server-side search.
+                continue;
+            }
+
+            boolean isStartAccount = account.getId().toString().equals(startAccountUuid);
+            MessageStore messageStore = messageStoreManager.getMessageStore(account);
+            List<CascadeSearchTarget> accountTargets = messageStore.getFolders(true, folder ->
+                    new CascadeSearchTarget(account, folder.getId(), folder.getName(), folder.getServerId()));
+
+            for (CascadeSearchTarget target : accountTargets) {
+                if (target.serverId == null) {
+                    continue;
+                }
+
+                if (isStartAccount && startFolderId != null && target.folderId == startFolderId) {
+                    targets.add(0, target);
+                } else {
+                    targets.add(target);
+                }
+            }
+        }
+
+        return targets;
+    }
+
+    private List<CascadeSearchTarget> keepStartFolder(List<CascadeSearchTarget> targets,
+            @Nullable String startAccountUuid, @Nullable Long startFolderId) {
+        List<CascadeSearchTarget> startFolder = new ArrayList<>();
+        for (CascadeSearchTarget target : targets) {
+            if (startFolderId != null && target.folderId == startFolderId &&
+                    target.account.getId().toString().equals(startAccountUuid)) {
+                startFolder.add(target);
+            }
+        }
+        return startFolder;
+    }
+
+    private static class CascadeSearchTarget {
+        final LegacyAccountDto account;
+        final long folderId;
+        final String folderName;
+        final String serverId;
+
+        CascadeSearchTarget(LegacyAccountDto account, long folderId, String folderName, String serverId) {
+            this.account = account;
+            this.folderId = folderId;
+            this.folderName = folderName;
+            this.serverId = serverId;
         }
     }
 
@@ -587,6 +877,299 @@ public class MessagingController implements MessagingControllerRegistry, Messagi
         }
 
         synchronizeMailboxSynchronous(account, folderId, false, null, new NotificationState());
+    }
+
+    /**
+     * Create a folder on the server and add it to the folders of the account.
+     *
+     * @param parentFolderId
+     *         The folder the new folder is created in, or {@code null} to create it at the top level.
+     */
+    public void createFolder(LegacyAccountDto account, @Nullable Long parentFolderId, String folderName,
+            FolderOperationListener listener) {
+        putBackground("createFolder", null, () -> createFolderSynchronous(account, parentFolderId, folderName,
+                listener));
+    }
+
+    @VisibleForTesting
+    void createFolderSynchronous(LegacyAccountDto account, @Nullable Long parentFolderId, String folderName,
+            FolderOperationListener listener) {
+        try {
+            String folderServerId = folderName;
+            if (parentFolderId != null) {
+                String parentServerId = getFolderServerId(account, parentFolderId);
+                folderServerId = parentServerId + account.folderPathDelimiter() + folderName;
+            }
+
+            getBackend(account).createFolder(folderServerId);
+            refreshFolderListSynchronous(account);
+            listener.onFinished(null);
+        } catch (Exception e) {
+            Log.e(e, "Couldn't create folder");
+            listener.onFinished(getRootCauseMessage(e));
+        }
+    }
+
+    /**
+     * Delete a folder and all messages in it from the server, and remove it from the folders of the account.
+     *
+     * @param includeSubfolders
+     *         {@code true} to also delete the folders below it. Otherwise they stay where they are.
+     */
+    public void deleteFolder(LegacyAccountDto account, long folderId, boolean includeSubfolders,
+            FolderOperationListener listener) {
+        putBackground("deleteFolder", null, () -> deleteFolderSynchronous(account, folderId, includeSubfolders,
+                listener));
+    }
+
+    @VisibleForTesting
+    void deleteFolderSynchronous(LegacyAccountDto account, long folderId, boolean includeSubfolders,
+            FolderOperationListener listener) {
+        try {
+            String folderServerId = getFolderServerId(account, folderId);
+            Backend backend = getBackend(account);
+
+            if (includeSubfolders) {
+                List<Subfolder> subfolders = getSubfolders(account, folderServerId);
+                for (Subfolder subfolder : subfolders) {
+                    if (isSpecialFolder(account, subfolder.folderId)) {
+                        throw new MessagingException("One of the subfolders is used by the account, e.g. for sent "
+                                + "messages or the trash");
+                    }
+                }
+
+                // A folder can only be removed completely once the folders below it are gone.
+                Collections.sort(subfolders, (first, second) ->
+                        Integer.compare(second.serverId.length(), first.serverId.length()));
+                for (Subfolder subfolder : subfolders) {
+                    backend.deleteFolder(subfolder.serverId);
+                }
+            }
+
+            backend.deleteFolder(folderServerId);
+            refreshFolderListSynchronous(account);
+            listener.onFinished(null);
+        } catch (Exception e) {
+            Log.e(e, "Couldn't delete folder %d", folderId);
+            // Some of it may have worked
+            refreshFolderListSynchronous(account);
+            listener.onFinished(getRootCauseMessage(e));
+        }
+    }
+
+    /**
+     * @return The number of folders below the given folder.
+     */
+    public int getSubfolderCount(LegacyAccountDto account, long folderId) {
+        try {
+            return getSubfolders(account, getFolderServerId(account, folderId)).size();
+        } catch (Exception e) {
+            Log.e(e, "Couldn't count the subfolders of folder %d", folderId);
+            return 0;
+        }
+    }
+
+    /**
+     * Give a folder another name. It stays where it is, and its subfolders, messages and settings stay with it.
+     */
+    public void renameFolder(LegacyAccountDto account, long folderId, String newFolderName,
+            FolderOperationListener listener) {
+        putBackground("renameFolder", null, () -> renameFolderSynchronous(account, folderId, newFolderName,
+                listener));
+    }
+
+    @VisibleForTesting
+    void renameFolderSynchronous(LegacyAccountDto account, long folderId, String newFolderName,
+            FolderOperationListener listener) {
+        try {
+            String folderServerId = getFolderServerId(account, folderId);
+            String pathDelimiter = account.folderPathDelimiter();
+            int parentEnd = pathDelimiter.isEmpty() ? -1 : folderServerId.lastIndexOf(pathDelimiter);
+            String parentPath = parentEnd == -1 ? "" : folderServerId.substring(0, parentEnd + pathDelimiter.length());
+
+            changeFolderPath(account, folderId, folderServerId, parentPath + newFolderName);
+            listener.onFinished(null);
+        } catch (Exception e) {
+            Log.e(e, "Couldn't rename folder %d", folderId);
+            listener.onFinished(getRootCauseMessage(e));
+        }
+    }
+
+    /**
+     * Move a folder into another folder. Its subfolders, messages and settings move along with it.
+     *
+     * @param newParentFolderId
+     *         The folder to move it into, or {@code null} to move it to the top level.
+     */
+    public void moveFolder(LegacyAccountDto account, long folderId, @Nullable Long newParentFolderId,
+            FolderOperationListener listener) {
+        putBackground("moveFolder", null, () -> moveFolderSynchronous(account, folderId, newParentFolderId,
+                listener));
+    }
+
+    @VisibleForTesting
+    void moveFolderSynchronous(LegacyAccountDto account, long folderId, @Nullable Long newParentFolderId,
+            FolderOperationListener listener) {
+        try {
+            String folderServerId = getFolderServerId(account, folderId);
+            String pathDelimiter = account.folderPathDelimiter();
+            int parentEnd = pathDelimiter.isEmpty() ? -1 : folderServerId.lastIndexOf(pathDelimiter);
+            String folderName = parentEnd == -1 ? folderServerId :
+                    folderServerId.substring(parentEnd + pathDelimiter.length());
+
+            String newFolderServerId = folderName;
+            if (newParentFolderId != null) {
+                String parentServerId = getFolderServerId(account, newParentFolderId);
+                if (parentServerId.equals(folderServerId) ||
+                        parentServerId.startsWith(folderServerId + pathDelimiter)) {
+                    throw new MessagingException("A folder can't be moved into itself");
+                }
+                newFolderServerId = parentServerId + pathDelimiter + folderName;
+            }
+
+            changeFolderPath(account, folderId, folderServerId, newFolderServerId);
+            listener.onFinished(null);
+        } catch (Exception e) {
+            Log.e(e, "Couldn't move folder %d", folderId);
+            listener.onFinished(getRootCauseMessage(e));
+        }
+    }
+
+    private void changeFolderPath(LegacyAccountDto account, long folderId, String folderServerId,
+            String newFolderServerId) throws MessagingException {
+        if (newFolderServerId.equals(folderServerId)) {
+            throw new MessagingException("The folder is already there");
+        }
+        if (isSpecialFolder(account, folderId)) {
+            throw new MessagingException("The folder is used by the account, e.g. for sent messages or the trash");
+        }
+
+        MessageStore messageStore = messageStoreManager.getMessageStore(account);
+        if (messageStore.getFolderId(newFolderServerId) != null) {
+            throw new MessagingException("A folder with this name already exists there");
+        }
+
+        List<Subfolder> subfolders = getSubfolders(account, folderServerId);
+        getBackend(account).renameFolder(folderServerId, newFolderServerId);
+
+        // Let the folders on the device follow, so they keep their messages and settings. Otherwise refreshing the
+        // folder list would remove them and create new ones.
+        messageStore.setFolderServerId(folderId, newFolderServerId, newFolderServerId);
+        for (Subfolder subfolder : subfolders) {
+            String newServerId = newFolderServerId + subfolder.serverId.substring(folderServerId.length());
+            messageStore.setFolderServerId(subfolder.folderId, newServerId, newServerId);
+        }
+
+        refreshFolderListSynchronous(account);
+    }
+
+    private List<Subfolder> getSubfolders(LegacyAccountDto account, String folderServerId)
+            throws MessagingException {
+        String pathDelimiter = account.folderPathDelimiter();
+        List<Subfolder> subfolders = new ArrayList<>();
+        if (pathDelimiter.isEmpty()) {
+            return subfolders;
+        }
+
+        MessageStore messageStore = messageStoreManager.getMessageStore(account);
+        List<Subfolder> folders = messageStore.getFolders(true, folder ->
+                new Subfolder(folder.getId(), folder.getServerId()));
+        for (Subfolder folder : folders) {
+            if (folder.serverId != null && folder.serverId.startsWith(folderServerId + pathDelimiter)) {
+                subfolders.add(folder);
+            }
+        }
+        return subfolders;
+    }
+
+    private boolean isSpecialFolder(LegacyAccountDto account, long folderId) {
+        Long id = folderId;
+        return id.equals(account.getInboxFolderId()) || id.equals(account.getDraftsFolderId()) ||
+                id.equals(account.getSentFolderId()) || id.equals(account.getTrashFolderId()) ||
+                id.equals(account.getSpamFolderId()) || id.equals(account.getArchiveFolderId());
+    }
+
+    private static class Subfolder {
+        final long folderId;
+        final String serverId;
+
+        Subfolder(long folderId, String serverId) {
+            this.folderId = folderId;
+            this.serverId = serverId;
+        }
+    }
+
+    /**
+     * Load the next, bigger portion of the older messages of a folder. See {@link MessageLoadingSteps}.
+     *
+     * @param onFinished
+     *         Called when loading has ended, whether it worked or not. Problems are reported to the listeners.
+     */
+    public void loadNextMessages(LegacyAccountDto account, long folderId, Runnable onFinished) {
+        putBackground("loadNextMessages", null, () -> {
+            try {
+                loadNextMessagesSynchronous(account, folderId);
+            } finally {
+                onFinished.run();
+            }
+        });
+    }
+
+    @VisibleForTesting
+    void loadNextMessagesSynchronous(LegacyAccountDto account, long folderId) {
+        MessageStore messageStore = messageStoreManager.getMessageStore(account);
+        Integer visibleLimit = messageStore.getFolder(folderId, FolderDetailsAccessor::getVisibleLimit);
+        if (visibleLimit == null) {
+            Log.v("loadNextMessages(%s, %d): Folder not found", account, folderId);
+            return;
+        }
+
+        if (visibleLimit > 0) {
+            setVisibleLimit(messageStore, folderId, MessageLoadingSteps.INSTANCE.nextVisibleLimit(visibleLimit));
+        }
+
+        synchronizeMailboxSynchronous(account, folderId, false, null, new NotificationState());
+    }
+
+    /**
+     * Load the newest messages of a folder that has no messages on the device yet.
+     *
+     * @param messageCount
+     *         How many messages to load. Only as many as the user is about to look at, so opening a folder doesn't
+     *         download more than necessary. Folders that are synchronized automatically keep their size.
+     * @param onFinished
+     *         Called when loading has ended, whether it worked or not. Problems are reported to the listeners.
+     */
+    public void loadFirstMessages(LegacyAccountDto account, long folderId, int messageCount, Runnable onFinished) {
+        putBackground("loadFirstMessages", null, () -> {
+            try {
+                loadFirstMessagesSynchronous(account, folderId, messageCount);
+            } finally {
+                onFinished.run();
+            }
+        });
+    }
+
+    @VisibleForTesting
+    void loadFirstMessagesSynchronous(LegacyAccountDto account, long folderId, int messageCount) {
+        MessageStore messageStore = messageStoreManager.getMessageStore(account);
+        Boolean isSyncEnabled = messageStore.getFolder(folderId, FolderDetailsAccessor::isSyncEnabled);
+        if (isSyncEnabled == null) {
+            Log.v("loadFirstMessages(%s, %d): Folder not found", account, folderId);
+            return;
+        }
+
+        if (!isSyncEnabled && messageCount > 0) {
+            setVisibleLimit(messageStore, folderId, messageCount);
+        }
+
+        synchronizeMailboxSynchronous(account, folderId, false, null, new NotificationState());
+    }
+
+    private void setVisibleLimit(MessageStore messageStore, long folderId, int visibleLimit) {
+        messageStore.setVisibleLimit(folderId, visibleLimit);
+        // Whether there are more messages on the server has to be found out again with the new limit
+        messageStore.setMoreMessages(folderId, MoreMessages.UNKNOWN);
     }
 
     /**
@@ -1765,6 +2348,18 @@ public class MessagingController implements MessagingControllerRegistry, Messagi
 
     public boolean isCopyCapable(final LegacyAccountDto account) {
         return getBackend(account).getSupportsCopy();
+    }
+
+    /**
+     * @return {@code true} if at least one account supports searching messages on the server.
+     */
+    public boolean supportsRemoteSearch() {
+        for (LegacyAccountDto account : preferences.getAccounts()) {
+            if (isPushCapable(account)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public boolean isPushCapable(LegacyAccountDto account) {

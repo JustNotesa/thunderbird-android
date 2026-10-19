@@ -1,8 +1,11 @@
 package com.fsck.k9.controller;
 
 
+import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -16,6 +19,9 @@ import com.fsck.k9.K9RobolectricTest;
 import com.fsck.k9.Preferences;
 import com.fsck.k9.backend.BackendManager;
 import com.fsck.k9.backend.api.Backend;
+import com.fsck.k9.backend.api.KeptMessages;
+import com.fsck.k9.backend.api.SearchListener;
+import com.fsck.k9.backend.api.SearchStep;
 import com.fsck.k9.mail.AuthType;
 import com.fsck.k9.mail.AuthenticationFailedException;
 import com.fsck.k9.mail.CertificateChainException;
@@ -28,6 +34,10 @@ import com.fsck.k9.mailstore.LocalFolder;
 import com.fsck.k9.mailstore.LocalMessage;
 import com.fsck.k9.mailstore.LocalStore;
 import com.fsck.k9.mailstore.LocalStoreProvider;
+import app.k9mail.legacy.mailstore.FolderDetailsAccessor;
+import app.k9mail.legacy.mailstore.MoreMessages;
+import app.k9mail.legacy.mailstore.FolderMapper;
+import app.k9mail.legacy.mailstore.ListenableMessageStore;
 import app.k9mail.legacy.mailstore.MessageStoreManager;
 import com.fsck.k9.mailstore.OutboxState;
 import com.fsck.k9.mailstore.OutboxStateRepository;
@@ -52,6 +62,7 @@ import net.thunderbird.legacy.core.mailstore.folder.FakeOutboxFolderManager;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.ArgumentMatchers;
 import org.mockito.InOrder;
 import org.mockito.Mock;
@@ -62,6 +73,12 @@ import org.robolectric.RuntimeEnvironment;
 import org.robolectric.shadows.ShadowLog;
 
 import static java.util.Collections.emptyList;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.ArgumentMatchers.eq;
@@ -70,6 +87,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
@@ -317,6 +335,483 @@ public class MessagingControllerTest extends K9RobolectricTest {
         controller.searchRemoteMessagesSynchronous(accountId, FOLDER_ID, "query", reqFlags, forbiddenFlags, listener);
 
         verify(listener).remoteSearchFinished(FOLDER_ID, 0, 50, Collections.<String>emptyList());
+    }
+
+    @Test
+    public void searchRemoteMessagesSynchronous_shouldNotifyAboutDownloadedMessage() throws Exception {
+        setupRemoteSearch();
+        when(localNewMessage2.getSubject()).thenReturn("Subject");
+
+        controller.searchRemoteMessagesSynchronous(accountId, FOLDER_ID, "query", reqFlags, forbiddenFlags, listener);
+
+        verify(listener).remoteSearchMessageDownloaded(nullable(String.class), eq("Subject"));
+    }
+
+    @Test
+    public void searchRemoteMessagesCascadingSynchronous_withoutFailures_shouldNotReportIncompleteSearch()
+            throws Exception {
+        setupCascadingRemoteSearch(3);
+
+        controller.searchRemoteMessagesCascadingSynchronous(accountId.toString(), 1L, "query", null, null, false, listener);
+
+        verify(backend, times(3)).search(anyString(), eq("query"), nullable(Set.class), nullable(Set.class), eq(false),
+            any(SearchListener.class));
+        verify(listener, never()).remoteSearchCascadeIncomplete(anyInt(), anyInt(), nullable(String.class));
+        verify(listener).remoteSearchFinished(1L, 0, 0, null);
+    }
+
+    @Test
+    public void searchRemoteMessagesCascadingSynchronous_withFailingFolder_shouldSearchOtherFoldersAndReportFailure()
+            throws Exception {
+        setupCascadingRemoteSearch(3);
+        when(backend.search(eq("folder2"), anyString(), nullable(Set.class), nullable(Set.class), eq(false),
+            any(SearchListener.class)))
+            .thenThrow(new MessagingException("IO Error", new IOException("Connection reset")));
+
+        controller.searchRemoteMessagesCascadingSynchronous(accountId.toString(), 1L, "query", null, null, false, listener);
+
+        verify(backend, times(3)).search(anyString(), eq("query"), nullable(Set.class), nullable(Set.class), eq(false),
+            any(SearchListener.class));
+        verify(listener).remoteSearchCascadeIncomplete(1, 3, "Connection reset");
+        verify(listener).remoteSearchFinished(1L, 0, 0, null);
+    }
+
+    @Test
+    public void searchRemoteMessagesCascadingSynchronous_withUnreachableServer_shouldStopTryingAndReportFailure()
+            throws Exception {
+        setupCascadingRemoteSearch(10);
+        when(backend.search(anyString(), anyString(), nullable(Set.class), nullable(Set.class), eq(false),
+            any(SearchListener.class)))
+            .thenThrow(new MessagingException("IO Error", new IOException("Unable to resolve host")));
+
+        controller.searchRemoteMessagesCascadingSynchronous(accountId.toString(), 1L, "query", null, null, false, listener);
+
+        verify(backend, times(3)).search(anyString(), eq("query"), nullable(Set.class), nullable(Set.class), eq(false),
+            any(SearchListener.class));
+        verify(listener).remoteSearchCascadeIncomplete(10, 10, "Unable to resolve host");
+        verify(listener).remoteSearchFinished(1L, 0, 0, null);
+    }
+
+    @Test
+    public void searchRemoteMessagesCascadingSynchronous_searchingMessageContents_shouldPerformFullTextSearch()
+            throws Exception {
+        setupCascadingRemoteSearch(2);
+
+        controller.searchRemoteMessagesCascadingSynchronous(accountId.toString(), 1L, "query", null, null, true, listener);
+
+        verify(backend, times(2)).search(anyString(), eq("query"), nullable(Set.class), nullable(Set.class), eq(true),
+            any(SearchListener.class));
+    }
+
+    @Test
+    public void searchRemoteMessagesCascadingSynchronous_shouldReportMessagesFoundInFolder() throws Exception {
+        setupCascadingRemoteSearch(2);
+        when(backend.search(eq("folder2"), anyString(), nullable(Set.class), nullable(Set.class), eq(false),
+            any(SearchListener.class)))
+            .thenReturn(Arrays.asList("uid1", "uid2"));
+
+        controller.searchRemoteMessagesCascadingSynchronous(accountId.toString(), 1L, "query", null, null, false, listener);
+
+        verify(listener).remoteSearchFolderResults(accountId.toString(), 2L, Arrays.asList("uid1", "uid2"));
+        verify(listener, never()).remoteSearchFolderResults(eq(accountId.toString()), eq(1L), ArgumentMatchers.<String>anyList());
+        verify(listener, never()).remoteSearchResultsLimited(anyInt());
+    }
+
+    @Test
+    public void searchRemoteMessagesCascadingSynchronous_withMoreResultsThanLimit_shouldReportNotLoadedResults()
+            throws Exception {
+        setupCascadingRemoteSearch(1);
+        account.setRemoteSearchNumResults(2);
+        List<String> foundMessages = Arrays.asList("uid1", "uid2", "uid3", "uid4", "uid5");
+        when(backend.search(eq("folder1"), anyString(), nullable(Set.class), nullable(Set.class), eq(false),
+            any(SearchListener.class)))
+            .thenReturn(foundMessages);
+        when(localStore.getFolder(1L).extractNewMessages(ArgumentMatchers.<String>anyList())).thenReturn(foundMessages);
+
+        controller.searchRemoteMessagesCascadingSynchronous(accountId.toString(), 1L, "query", null, null, false, listener);
+
+        verify(backend).downloadMessageStructure("folder1", "uid1");
+        verify(backend).downloadMessageStructure("folder1", "uid2");
+        verify(backend, never()).downloadMessageStructure("folder1", "uid3");
+        verify(listener).remoteSearchFolderResults(accountId.toString(), 1L, Arrays.asList("uid1", "uid2"));
+        verify(listener).remoteSearchResultsLimited(3);
+    }
+
+    @Test
+    public void searchRemoteMessagesCascadingSynchronous_withoutStartFolder_shouldSearchAllFolders()
+            throws Exception {
+        setupCascadingRemoteSearch(3);
+
+        controller.searchRemoteMessagesCascadingSynchronous(null, null, "query", null, null, false, listener);
+
+        verify(backend).search(eq("folder1"), eq("query"), nullable(Set.class), nullable(Set.class), eq(false),
+            any(SearchListener.class));
+        verify(backend).search(eq("folder2"), eq("query"), nullable(Set.class), nullable(Set.class), eq(false),
+            any(SearchListener.class));
+        verify(backend).search(eq("folder3"), eq("query"), nullable(Set.class), nullable(Set.class), eq(false),
+            any(SearchListener.class));
+        verify(listener).remoteSearchFinished(-1L, 0, 0, null);
+    }
+
+    @Test
+    public void searchRemoteMessagesCascadingSynchronous_withStartFolder_shouldSearchStartFolderFirst()
+            throws Exception {
+        setupCascadingRemoteSearch(3);
+
+        controller.searchRemoteMessagesCascadingSynchronous(accountId.toString(), 3L, "query", null, null, false,
+            listener);
+
+        InOrder inOrder = inOrder(backend);
+        inOrder.verify(backend).search(eq("folder3"), anyString(), nullable(Set.class), nullable(Set.class), eq(false),
+            any(SearchListener.class));
+        inOrder.verify(backend).search(eq("folder1"), anyString(), nullable(Set.class), nullable(Set.class), eq(false),
+            any(SearchListener.class));
+        inOrder.verify(backend).search(eq("folder2"), anyString(), nullable(Set.class), nullable(Set.class), eq(false),
+            any(SearchListener.class));
+    }
+
+    @Test
+    public void searchRemoteMessagesCascadingSynchronous_continuingStoppedSearch_shouldSkipSearchedFolders()
+            throws Exception {
+        setupCascadingRemoteSearch(3);
+
+        controller.searchRemoteMessagesCascadingSynchronous(accountId.toString(), 1L, "query", null, null, false,
+            false, 2, listener);
+
+        verify(backend, never()).search(eq("folder1"), anyString(), nullable(Set.class), nullable(Set.class),
+            eq(false), any(SearchListener.class));
+        verify(backend, never()).search(eq("folder2"), anyString(), nullable(Set.class), nullable(Set.class),
+            eq(false), any(SearchListener.class));
+        verify(backend).search(eq("folder3"), eq("query"), nullable(Set.class), nullable(Set.class), eq(false),
+            any(SearchListener.class));
+        verify(listener).remoteSearchCascadeProgress(eq(accountId.toString()), nullable(String.class),
+            nullable(String.class), eq(3), eq(3));
+    }
+
+    @Test
+    public void searchRemoteMessagesCascadingSynchronous_withStartFolderOnly_shouldNotSearchOtherFolders()
+            throws Exception {
+        setupCascadingRemoteSearch(3);
+
+        controller.searchRemoteMessagesCascadingSynchronous(accountId.toString(), 2L, "query", null, null, false,
+            true, 0, listener);
+
+        verify(backend).search(eq("folder2"), eq("query"), nullable(Set.class), nullable(Set.class), eq(false),
+            any(SearchListener.class));
+        verify(backend, never()).search(eq("folder1"), anyString(), nullable(Set.class), nullable(Set.class),
+            eq(false), any(SearchListener.class));
+        verify(backend, never()).search(eq("folder3"), anyString(), nullable(Set.class), nullable(Set.class),
+            eq(false), any(SearchListener.class));
+        verify(listener).remoteSearchCascadeProgress(eq(accountId.toString()), nullable(String.class),
+            nullable(String.class), eq(1), eq(1));
+    }
+
+    @Test
+    public void searchRemoteMessagesCascadingSynchronous_shouldKeepFoundMessagesOnTheDevice() throws Exception {
+        ListenableMessageStore messageStore = setupCascadingRemoteSearch(2);
+        when(messageStore.getFolderExtraString(2L, KeptMessages.FOLDER_EXTRA)).thenReturn("uid1");
+        when(backend.search(eq("folder2"), anyString(), nullable(Set.class), nullable(Set.class), eq(false),
+            any(SearchListener.class)))
+            .thenReturn(Arrays.asList("uid1", "uid2"));
+
+        controller.searchRemoteMessagesCascadingSynchronous(accountId.toString(), 1L, "query", null, null, false, listener);
+
+        ArgumentCaptor<String> keptMessages = ArgumentCaptor.forClass(String.class);
+        verify(messageStore).setFolderExtraString(eq(2L), eq(KeptMessages.FOLDER_EXTRA), keptMessages.capture());
+        assertEquals(new HashSet<>(Arrays.asList("uid1", "uid2")), KeptMessages.parse(keptMessages.getValue()));
+    }
+
+    @Test
+    public void searchRemoteMessagesCascadingSynchronous_shouldReportWhatTheSearchIsDoing() throws Exception {
+        setupCascadingRemoteSearch(1);
+        when(backend.search(eq("folder1"), anyString(), nullable(Set.class), nullable(Set.class), eq(false),
+            any(SearchListener.class)))
+            .thenAnswer(invocation -> {
+                SearchListener searchListener = invocation.getArgument(5);
+                searchListener.onSearchStep(SearchStep.CONNECTING);
+                searchListener.onSearchStep(SearchStep.WAITING_FOR_RESPONSE);
+                return Collections.emptyList();
+            });
+
+        controller.searchRemoteMessagesCascadingSynchronous(accountId.toString(), 1L, "query", null, null, false, listener);
+
+        InOrder inOrder = inOrder(listener);
+        inOrder.verify(listener).remoteSearchStep(SearchStep.CONNECTING);
+        inOrder.verify(listener).remoteSearchStep(SearchStep.WAITING_FOR_RESPONSE);
+    }
+
+    @Test
+    public void supportsRemoteSearch_withAccountSupportingIt_shouldReturnTrue() {
+        when(backend.isPushCapable()).thenReturn(true);
+
+        assertTrue(controller.supportsRemoteSearch());
+    }
+
+    @Test
+    public void supportsRemoteSearch_withoutAccountSupportingIt_shouldReturnFalse() {
+        when(backend.isPushCapable()).thenReturn(false);
+
+        assertFalse(controller.supportsRemoteSearch());
+    }
+
+    private ListenableMessageStore setupCascadingRemoteSearch(int folderCount) throws Exception {
+        List<FolderDetailsAccessor> folders = new ArrayList<>();
+        for (long folderId = 1; folderId <= folderCount; folderId++) {
+            LocalFolder cascadeLocalFolder = mock(LocalFolder.class);
+            when(cascadeLocalFolder.exists()).thenReturn(true);
+            when(cascadeLocalFolder.getServerId()).thenReturn("folder" + folderId);
+            when(cascadeLocalFolder.extractNewMessages(ArgumentMatchers.<String>anyList()))
+                .thenReturn(Collections.<String>emptyList());
+            when(localStore.getFolder(folderId)).thenReturn(cascadeLocalFolder);
+
+            FolderDetailsAccessor folder = mock(FolderDetailsAccessor.class);
+            when(folder.getId()).thenReturn(folderId);
+            when(folder.getName()).thenReturn("Folder " + folderId);
+            when(folder.getServerId()).thenReturn("folder" + folderId);
+            folders.add(folder);
+        }
+
+        ListenableMessageStore messageStore = mock(ListenableMessageStore.class);
+        when(messageStore.getFolders(eq(true), ArgumentMatchers.<FolderMapper<Object>>any())).thenAnswer(invocation -> {
+            FolderMapper<Object> mapper = invocation.getArgument(1);
+            List<Object> result = new ArrayList<>();
+            for (FolderDetailsAccessor folder : folders) {
+                result.add(mapper.map(folder));
+            }
+            return result;
+        });
+        when(messageStoreManager.getMessageStore(account)).thenReturn(messageStore);
+        when(backend.isPushCapable()).thenReturn(true);
+
+        return messageStore;
+    }
+
+    @Test
+    public void createFolderSynchronous_withParentFolder_shouldCreateFolderBelowIt() throws Exception {
+        setupFolderWithServerId("Parent");
+        FolderOperationListener folderOperationListener = mock(FolderOperationListener.class);
+
+        controller.createFolderSynchronous(account, FOLDER_ID, "Child", folderOperationListener);
+
+        verify(backend).createFolder("Parent/Child");
+        verify(backend).refreshFolderList();
+        verify(folderOperationListener).onFinished(null);
+    }
+
+    @Test
+    public void createFolderSynchronous_withoutParentFolder_shouldCreateFolderAtTopLevel() throws Exception {
+        FolderOperationListener folderOperationListener = mock(FolderOperationListener.class);
+
+        controller.createFolderSynchronous(account, null, "New", folderOperationListener);
+
+        verify(backend).createFolder("New");
+        verify(folderOperationListener).onFinished(null);
+    }
+
+    @Test
+    public void createFolderSynchronous_withFailure_shouldReportReason() throws Exception {
+        FolderOperationListener folderOperationListener = mock(FolderOperationListener.class);
+        doThrow(new MessagingException("Refused")).when(backend).createFolder("New");
+
+        controller.createFolderSynchronous(account, null, "New", folderOperationListener);
+
+        verify(folderOperationListener).onFinished("Refused");
+        verify(backend, never()).refreshFolderList();
+    }
+
+    @Test
+    public void deleteFolderSynchronous_shouldDeleteFolderOnServer() throws Exception {
+        setupFolderWithServerId("Old");
+        FolderOperationListener folderOperationListener = mock(FolderOperationListener.class);
+
+        controller.deleteFolderSynchronous(account, FOLDER_ID, false, folderOperationListener);
+
+        verify(backend).deleteFolder("Old");
+        verify(backend).refreshFolderList();
+        verify(folderOperationListener).onFinished(null);
+    }
+
+    @Test
+    public void deleteFolderSynchronous_withFailure_shouldReportReason() throws Exception {
+        setupFolderWithServerId("Old");
+        FolderOperationListener folderOperationListener = mock(FolderOperationListener.class);
+        doThrow(new MessagingException("Not allowed")).when(backend).deleteFolder("Old");
+
+        controller.deleteFolderSynchronous(account, FOLDER_ID, false, folderOperationListener);
+
+        verify(folderOperationListener).onFinished("Not allowed");
+    }
+
+    @Test
+    public void deleteFolderSynchronous_includingSubfolders_shouldDeleteDeepestFoldersFirst() throws Exception {
+        setupFolders("Old", "Old/Sub", "Old/Sub/Deep", "Older");
+        FolderOperationListener folderOperationListener = mock(FolderOperationListener.class);
+
+        controller.deleteFolderSynchronous(account, 1L, true, folderOperationListener);
+
+        InOrder inOrder = inOrder(backend);
+        inOrder.verify(backend).deleteFolder("Old/Sub/Deep");
+        inOrder.verify(backend).deleteFolder("Old/Sub");
+        inOrder.verify(backend).deleteFolder("Old");
+        verify(backend, never()).deleteFolder("Older");
+        verify(folderOperationListener).onFinished(null);
+    }
+
+    @Test
+    public void deleteFolderSynchronous_withoutSubfolders_shouldKeepThem() throws Exception {
+        setupFolders("Old", "Old/Sub");
+        FolderOperationListener folderOperationListener = mock(FolderOperationListener.class);
+
+        controller.deleteFolderSynchronous(account, 1L, false, folderOperationListener);
+
+        verify(backend).deleteFolder("Old");
+        verify(backend, never()).deleteFolder("Old/Sub");
+    }
+
+    @Test
+    public void renameFolderSynchronous_shouldKeepFolderAndSubfoldersOnTheDevice() throws Exception {
+        ListenableMessageStore messageStore = setupFolders("Parent", "Parent/Old", "Parent/Old/Sub");
+        FolderOperationListener folderOperationListener = mock(FolderOperationListener.class);
+
+        controller.renameFolderSynchronous(account, 2L, "New", folderOperationListener);
+
+        verify(backend).renameFolder("Parent/Old", "Parent/New");
+        verify(messageStore).setFolderServerId(2L, "Parent/New", "Parent/New");
+        verify(messageStore).setFolderServerId(3L, "Parent/New/Sub", "Parent/New/Sub");
+        verify(folderOperationListener).onFinished(null);
+    }
+
+    @Test
+    public void renameFolderSynchronous_withExistingName_shouldFail() throws Exception {
+        ListenableMessageStore messageStore = setupFolders("Old", "New");
+        when(messageStore.getFolderId("New")).thenReturn(2L);
+        FolderOperationListener folderOperationListener = mock(FolderOperationListener.class);
+
+        controller.renameFolderSynchronous(account, 1L, "New", folderOperationListener);
+
+        verify(backend, never()).renameFolder(anyString(), anyString());
+        verify(folderOperationListener).onFinished("A folder with this name already exists there");
+    }
+
+    @Test
+    public void moveFolderSynchronous_shouldMoveFolderIntoNewParent() throws Exception {
+        ListenableMessageStore messageStore = setupFolders("Parent/Folder", "Target");
+        FolderOperationListener folderOperationListener = mock(FolderOperationListener.class);
+
+        controller.moveFolderSynchronous(account, 1L, 2L, folderOperationListener);
+
+        verify(backend).renameFolder("Parent/Folder", "Target/Folder");
+        verify(messageStore).setFolderServerId(1L, "Target/Folder", "Target/Folder");
+        verify(folderOperationListener).onFinished(null);
+    }
+
+    @Test
+    public void moveFolderSynchronous_withoutNewParent_shouldMoveFolderToTopLevel() throws Exception {
+        setupFolders("Parent/Folder");
+        FolderOperationListener folderOperationListener = mock(FolderOperationListener.class);
+
+        controller.moveFolderSynchronous(account, 1L, null, folderOperationListener);
+
+        verify(backend).renameFolder("Parent/Folder", "Folder");
+    }
+
+    @Test
+    public void moveFolderSynchronous_intoOwnSubfolder_shouldFail() throws Exception {
+        setupFolders("Folder", "Folder/Sub");
+        FolderOperationListener folderOperationListener = mock(FolderOperationListener.class);
+
+        controller.moveFolderSynchronous(account, 1L, 2L, folderOperationListener);
+
+        verify(backend, never()).renameFolder(anyString(), anyString());
+        verify(folderOperationListener).onFinished("A folder can't be moved into itself");
+    }
+
+    /**
+     * Folders with the IDs 1, 2, 3, … in the order of the given server IDs.
+     */
+    private ListenableMessageStore setupFolders(String... serverIds) throws Exception {
+        List<FolderDetailsAccessor> folders = new ArrayList<>();
+        ListenableMessageStore messageStore = mock(ListenableMessageStore.class);
+        when(messageStore.getFolderId(anyString())).thenReturn(null);
+        for (int index = 0; index < serverIds.length; index++) {
+            long folderId = index + 1;
+            FolderDetailsAccessor folder = mock(FolderDetailsAccessor.class);
+            when(folder.getId()).thenReturn(folderId);
+            when(folder.getServerId()).thenReturn(serverIds[index]);
+            folders.add(folder);
+            when(messageStore.getFolderServerId(folderId)).thenReturn(serverIds[index]);
+        }
+        when(messageStore.getFolders(eq(true), ArgumentMatchers.<FolderMapper<Object>>any())).thenAnswer(invocation -> {
+            FolderMapper<Object> mapper = invocation.getArgument(1);
+            List<Object> result = new ArrayList<>();
+            for (FolderDetailsAccessor folder : folders) {
+                result.add(mapper.map(folder));
+            }
+            return result;
+        });
+        when(messageStoreManager.getMessageStore(account)).thenReturn(messageStore);
+
+        return messageStore;
+    }
+
+    private void setupFolderWithServerId(String serverId) {
+        ListenableMessageStore messageStore = mock(ListenableMessageStore.class);
+        when(messageStore.getFolderServerId(FOLDER_ID)).thenReturn(serverId);
+        when(messageStoreManager.getMessageStore(account)).thenReturn(messageStore);
+    }
+
+    @Test
+    public void loadNextMessagesSynchronous_shouldMoveOnToTheNextStep() {
+        ListenableMessageStore messageStore = setupFolderForLoadingMessages(25, false);
+
+        controller.loadNextMessagesSynchronous(account, FOLDER_ID);
+
+        verify(messageStore).setVisibleLimit(FOLDER_ID, 45);
+        verify(messageStore).setMoreMessages(FOLDER_ID, MoreMessages.UNKNOWN);
+    }
+
+    @Test
+    public void loadNextMessagesSynchronous_withAllMessagesLoaded_shouldNotChangeVisibleLimit() {
+        ListenableMessageStore messageStore = setupFolderForLoadingMessages(0, false);
+
+        controller.loadNextMessagesSynchronous(account, FOLDER_ID);
+
+        verify(messageStore, never()).setVisibleLimit(anyLong(), anyInt());
+    }
+
+    @Test
+    public void loadFirstMessagesSynchronous_shouldOnlyLoadRequestedNumberOfMessages() {
+        ListenableMessageStore messageStore = setupFolderForLoadingMessages(100, false);
+
+        controller.loadFirstMessagesSynchronous(account, FOLDER_ID, 12);
+
+        verify(messageStore).setVisibleLimit(FOLDER_ID, 12);
+        verify(messageStore).setMoreMessages(FOLDER_ID, MoreMessages.UNKNOWN);
+    }
+
+    @Test
+    public void loadFirstMessagesSynchronous_withFolderThatIsSynchronizedAutomatically_shouldKeepItsSize() {
+        ListenableMessageStore messageStore = setupFolderForLoadingMessages(100, true);
+
+        controller.loadFirstMessagesSynchronous(account, FOLDER_ID, 12);
+
+        verify(messageStore, never()).setVisibleLimit(anyLong(), anyInt());
+    }
+
+    private ListenableMessageStore setupFolderForLoadingMessages(int visibleLimit, boolean isSyncEnabled) {
+        FolderDetailsAccessor folder = mock(FolderDetailsAccessor.class);
+        when(folder.getVisibleLimit()).thenReturn(visibleLimit);
+        when(folder.isSyncEnabled()).thenReturn(isSyncEnabled);
+
+        ListenableMessageStore messageStore = mock(ListenableMessageStore.class);
+        when(messageStore.getFolder(eq(FOLDER_ID), ArgumentMatchers.<FolderMapper<Object>>any())).thenAnswer(
+            invocation -> {
+                FolderMapper<Object> mapper = invocation.getArgument(1);
+                return mapper.map(folder);
+            });
+        when(messageStoreManager.getMessageStore(account)).thenReturn(messageStore);
+
+        return messageStore;
     }
 
     @Test

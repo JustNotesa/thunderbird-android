@@ -5,6 +5,7 @@ import app.k9mail.feature.telemetry.api.TelemetryManager
 import com.fsck.k9.K9
 import com.fsck.k9.job.K9JobManager
 import com.fsck.k9.ui.base.AppLanguageManager
+import com.fsck.k9.ui.messagelist.SearchHistory
 import net.thunderbird.core.common.action.SwipeAction
 import net.thunderbird.core.common.action.SwipeActions
 import net.thunderbird.core.preference.AnimationPreference
@@ -26,6 +27,7 @@ class GeneralSettingsDataStore(
     private val appLanguageManager: AppLanguageManager,
     private val generalSettingsManager: GeneralSettingsManager,
     private val telemetryManager: TelemetryManager,
+    private val searchHistory: SearchHistory,
 ) : PreferenceDataStore() {
 
     private var skipSaveSettings = false
@@ -65,6 +67,7 @@ class GeneralSettingsDataStore(
             "privacy_hide_useragent" -> privacySettings.isHideUserAgent
             "privacy_hide_timezone" -> privacySettings.isHideTimeZone
             "privacy_incognito_keyboard" -> privacySettings.isIncognitoKeyboardEnabled
+            "privacy_search_history" -> privacySettings.isSearchHistoryEnabled
             "debug_logging" -> debuggingSettings.isDebugLoggingEnabled
             "sync_debug_logging" -> debuggingSettings.isSyncLoggingEnabled
             "sensitive_logging" -> debuggingSettings.isSensitiveLoggingEnabled
@@ -111,6 +114,7 @@ class GeneralSettingsDataStore(
             "privacy_hide_useragent" -> setIsHideUserAgent(isHideUserAgent = value)
             "privacy_hide_timezone" -> setIsHideTimeZone(isHideTimeZone = value)
             "privacy_incognito_keyboard" -> setIsIncognitoKeyboardEnabled(isIncognitoKeyboardEnabled = value)
+            "privacy_search_history" -> setIsSearchHistoryEnabled(isSearchHistoryEnabled = value)
             "debug_logging" -> setIsDebugLoggingEnabled(isDebugLoggingEnabled = value)
             "sync_debug_logging" -> setIsSyncLoggingEnabled(isSyncLoggingEnabled = value)
             "sensitive_logging" -> setIsSensitiveLoggingEnabled(isSensitiveLoggingEnabled = value)
@@ -760,6 +764,21 @@ class GeneralSettingsDataStore(
                     isIncognitoKeyboardEnabled = isIncognitoKeyboardEnabled,
                 ),
             )
+        }
+    }
+
+    private fun setIsSearchHistoryEnabled(isSearchHistoryEnabled: Boolean) {
+        skipSaveSettings = true
+        generalSettingsManager.update { settings ->
+            settings.copy(
+                privacy = settings.privacy.copy(
+                    isSearchHistoryEnabled = isSearchHistoryEnabled,
+                ),
+            )
+        }
+
+        if (!isSearchHistoryEnabled) {
+            searchHistory.clear()
         }
     }
 

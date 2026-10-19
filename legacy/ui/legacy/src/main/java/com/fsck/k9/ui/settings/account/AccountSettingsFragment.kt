@@ -34,6 +34,7 @@ import com.fsck.k9.notification.NotificationSettingsUpdater
 import com.fsck.k9.ui.R
 import com.fsck.k9.ui.base.extensions.withArguments
 import com.fsck.k9.ui.endtoend.AutocryptKeyTransferActivity
+import com.fsck.k9.ui.helper.SizeFormatter
 import com.fsck.k9.ui.settings.onClick
 import com.fsck.k9.ui.settings.oneTimeClickListener
 import com.fsck.k9.ui.settings.remove
@@ -66,6 +67,8 @@ class AccountSettingsFragment : PreferenceFragmentCompat(), ConfirmationDialogFr
     private val notificationSettingsUpdater: NotificationSettingsUpdater by inject()
     private val vibrator: Vibrator by inject()
     private val appNameProvider: AppNameProvider by inject()
+
+    private val sizeFormatter: SizeFormatter by lazy { SizeFormatter(resources) }
 
     private lateinit var dataStore: AccountSettingsDataStore
 
@@ -101,6 +104,7 @@ class AccountSettingsFragment : PreferenceFragmentCompat(), ConfirmationDialogFr
         initializeGeneralSettings()
         initializeReadingMail()
         initializeFetchingMail()
+        initializeStorageInfo(account)
         initializeSearch()
         initializeIncomingServer()
         initializeComposition()
@@ -155,6 +159,11 @@ class AccountSettingsFragment : PreferenceFragmentCompat(), ConfirmationDialogFr
         val account = getAccount()
         initializeCryptoSettings(account)
 
+        // Messages might have been downloaded or removed since the size was displayed the last time
+        if (findPreference<Preference>(PREFERENCE_STORAGE_INFO) != null) {
+            viewModel.loadLocalStorageSize(account)
+        }
+
         // Don't update the notification preferences when resuming after the user has selected a new notification sound
         // via NotificationSoundPreference. Otherwise we race the background thread and might read data from the old
         // NotificationChannel, overwriting the notification sound with the previous value.
@@ -193,6 +202,43 @@ class AccountSettingsFragment : PreferenceFragmentCompat(), ConfirmationDialogFr
                 target = FeatureLauncherTarget.AccountFetchingMailSettings(accountId),
                 launcher = launcherForActivityResult,
             )
+        }
+    }
+
+    private fun initializeStorageInfo(account: LegacyAccountDto) {
+        val storageInfoPreference = findPreference<Preference>(PREFERENCE_STORAGE_INFO) ?: return
+
+        fun updateStorageInfo() {
+            val deviceInfo = formatDeviceStorage(viewModel.localStorageSize.value)
+            val serverInfo = formatServerStorage(viewModel.serverStorage.value)
+            storageInfoPreference.summary = "$deviceInfo\n$serverInfo"
+        }
+
+        viewModel.localStorageSize.observe(this) { updateStorageInfo() }
+        viewModel.serverStorage.observe(this) { updateStorageInfo() }
+        viewModel.loadServerStorage(account)
+    }
+
+    private fun formatDeviceStorage(localStorageSize: LocalStorageSize?): String {
+        return when (localStorageSize) {
+            is LocalStorageSize.Known -> {
+                getString(R.string.account_settings_storage_device, sizeFormatter.formatSize(localStorageSize.bytes))
+            }
+            LocalStorageSize.Unknown -> getString(R.string.account_settings_storage_device_unknown)
+            null -> getString(R.string.account_settings_storage_device_calculating)
+        }
+    }
+
+    private fun formatServerStorage(serverStorage: ServerStorage?): String {
+        return when (serverStorage) {
+            is ServerStorage.Known -> getString(
+                R.string.account_settings_storage_server,
+                sizeFormatter.formatSize(serverStorage.usedBytes),
+                sizeFormatter.formatSize(serverStorage.freeBytes),
+            )
+            ServerStorage.NotReported -> getString(R.string.account_settings_storage_server_not_reported)
+            ServerStorage.Unknown -> getString(R.string.account_settings_storage_server_unknown)
+            ServerStorage.Loading, null -> getString(R.string.account_settings_storage_server_checking)
         }
     }
 
@@ -539,6 +585,7 @@ class AccountSettingsFragment : PreferenceFragmentCompat(), ConfirmationDialogFr
 
         private const val PREFERENCE_READING_MAIL = "reading_mail"
         private const val PREFERENCE_FETCHING_MAIL = "fetching_mail"
+        private const val PREFERENCE_STORAGE_INFO = "storage_info"
         private const val PREFERENCE_SEARCH = "search"
         private const val PREFERENCE_INCOMING_SERVER = "incoming"
         private const val PREFERENCE_COMPOSITION = "composition"

@@ -33,6 +33,7 @@ class MessageViewContainerFragment : Fragment() {
         }
 
     private var showAccountIndicator: Boolean = true
+    private var showFolder: Boolean = false
 
     lateinit var messageReference: MessageReference
         private set
@@ -69,8 +70,9 @@ class MessageViewContainerFragment : Fragment() {
         }
 
         showAccountIndicator = arguments?.getBoolean(ARG_SHOW_ACCOUNT_INDICATOR) ?: showAccountIndicator
+        showFolder = arguments?.getBoolean(ARG_SHOW_FOLDER) ?: showFolder
 
-        adapter = MessageViewContainerAdapter(this, showAccountIndicator)
+        adapter = MessageViewContainerAdapter(this, showAccountIndicator, showFolder)
     }
 
     override fun onAttach(context: Context) {
@@ -231,6 +233,7 @@ class MessageViewContainerFragment : Fragment() {
     private class MessageViewContainerAdapter(
         fragment: Fragment,
         private val showAccountIndicator: Boolean,
+        private val showFolder: Boolean,
     ) : FragmentStateAdapter(fragment) {
 
         var messageList: List<MessageListItem> = emptyList()
@@ -260,7 +263,7 @@ class MessageViewContainerFragment : Fragment() {
             check(position in messageList.indices)
 
             val messageReference = messageList[position].messageReference
-            return MessageViewFragment.newInstance(messageReference, showAccountIndicator)
+            return MessageViewFragment.newInstance(messageReference, showAccountIndicator, showFolder)
         }
 
         fun getMessageReference(position: Int): MessageReference? {
@@ -305,16 +308,19 @@ class MessageViewContainerFragment : Fragment() {
 
         private const val ARG_REFERENCE = "reference"
         private const val ARG_SHOW_ACCOUNT_INDICATOR = "showAccountIndicator"
+        private const val ARG_SHOW_FOLDER = "showFolder"
 
         private const val STATE_MESSAGE_REFERENCE = "messageReference"
 
         fun newInstance(
             reference: MessageReference,
             isShowAccountIndicator: Boolean,
+            isShowFolder: Boolean,
         ): MessageViewContainerFragment {
             return MessageViewContainerFragment().withArguments(
                 ARG_REFERENCE to reference.toIdentityString(),
                 ARG_SHOW_ACCOUNT_INDICATOR to isShowAccountIndicator,
+                ARG_SHOW_FOLDER to isShowFolder,
             )
         }
     }

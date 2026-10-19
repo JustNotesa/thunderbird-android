@@ -324,4 +324,11 @@
 
     </PreferenceScreen>
 
+    <Preference
+        android:key="storage_info"
+        android:layout="@layout/account_settings_storage_info"
+        android:persistent="false"
+        android:selectable="false"
+        />
+
 </PreferenceScreen>

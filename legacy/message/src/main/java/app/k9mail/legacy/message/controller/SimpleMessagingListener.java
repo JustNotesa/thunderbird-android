@@ -5,6 +5,7 @@ package app.k9mail.legacy.message.controller;
 import java.util.List;
 
 import android.content.Context;
+import com.fsck.k9.backend.api.SearchStep;
 import com.fsck.k9.mail.Message;
 import com.fsck.k9.mail.Part;
 import net.thunderbird.core.android.account.LegacyAccountDto;
@@ -86,6 +87,35 @@ public abstract class SimpleMessagingListener implements MessagingListener {
 
     @Override
     public void remoteSearchServerQueryComplete(long folderId, int numResults, int maxResults) {
+    }
+
+    @Override
+    public void remoteSearchCascadeProgress(String accountUuid, String accountName, String folderName, int folderIndex,
+            int folderCount) {
+    }
+
+    @Override
+    public void remoteSearchStep(SearchStep step) {
+    }
+
+    @Override
+    public void remoteSearchDownloadProgress(String folderName, int completed, int total) {
+    }
+
+    @Override
+    public void remoteSearchMessageDownloaded(String folderName, String subject) {
+    }
+
+    @Override
+    public void remoteSearchCascadeIncomplete(int failedFolderCount, int folderCount, String reason) {
+    }
+
+    @Override
+    public void remoteSearchFolderResults(String accountUuid, long folderId, List<String> messageServerIds) {
+    }
+
+    @Override
+    public void remoteSearchResultsLimited(int notLoadedCount) {
     }
 
     @Override

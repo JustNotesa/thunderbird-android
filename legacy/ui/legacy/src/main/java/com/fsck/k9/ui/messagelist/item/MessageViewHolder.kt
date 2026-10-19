@@ -1,8 +1,11 @@
 package com.fsck.k9.ui.messagelist.item
 
+import android.content.res.ColorStateList
 import android.content.res.Resources
 import android.graphics.Typeface
 import android.graphics.drawable.Drawable
+import android.graphics.drawable.InsetDrawable
+import android.graphics.drawable.RippleDrawable
 import android.text.Spannable
 import android.text.SpannableStringBuilder
 import android.text.style.AbsoluteSizeSpan
@@ -16,6 +19,7 @@ import android.widget.TextView
 import androidx.annotation.DimenRes
 import androidx.constraintlayout.widget.Guideline
 import androidx.core.content.res.ResourcesCompat
+import androidx.core.graphics.ColorUtils
 import androidx.core.graphics.drawable.DrawableCompat
 import androidx.core.view.isVisible
 import app.k9mail.core.ui.legacy.designsystem.atom.icon.Icons
@@ -29,8 +33,13 @@ import com.fsck.k9.ui.messagelist.MessageListItem
 import com.google.android.material.textview.MaterialTextView
 import java.util.Locale
 import kotlin.math.max
+import kotlin.math.min
+import net.thunderbird.core.android.account.LegacyAccount
 import net.thunderbird.core.preference.display.visualSettings.message.list.UiDensity
 import net.thunderbird.feature.mail.message.list.R as MessageListR
+
+private const val FOLDER_BUTTON_BACKGROUND_ALPHA = 0x24
+private const val FOLDER_RIPPLE_ALPHA = 0x3D
 
 @Suppress("TooManyFunctions")
 class MessageViewHolder(
@@ -56,6 +65,17 @@ class MessageViewHolder(
     val starClickAreaView: View = view.findViewById(R.id.star_click_area)
     val attachmentView: ImageView = view.findViewById(R.id.attachment)
     val statusView: ImageView = view.findViewById(R.id.status)
+    val previewContinuationView: MaterialTextView = view.findViewById(R.id.preview_continuation)
+    val folderNameView: MaterialTextView = view.findViewById(R.id.folder_name)
+    val folderButtonView: ImageView = view.findViewById(R.id.folder_button)
+
+    // The drawable is shared between list items, but each item uses the color of its account.
+    private val folderRipple: RippleDrawable? by lazy {
+        val background = folderNameClickAreaView.background?.mutate()
+        folderNameClickAreaView.background = background
+        (background as? InsetDrawable)?.drawable as? RippleDrawable
+    }
+    val folderNameClickAreaView: View = view.findViewById(R.id.folder_name_click_area)
 
     private val itemBackground = MessageListItemBackground(res, colors.regularBackground)
 
@@ -157,7 +177,66 @@ class MessageViewHolder(
             } else {
                 statusView.isVisible = false
             }
+
+            bindFolder(account, folderName)
         }
+    }
+
+    private fun bindFolder(account: LegacyAccount, folderName: String?) {
+        val showFolder = folderName != null
+        previewContinuationView.isVisible = showFolder
+        folderNameView.isVisible = showFolder
+        folderButtonView.isVisible = showFolder
+        folderNameClickAreaView.isVisible = showFolder
+        previewView.minHeight = if (showFolder) {
+            res.getDimensionPixelSize(R.dimen.messageListFolderPreviewMinHeight)
+        } else {
+            0
+        }
+        if (folderName == null) return
+
+        val accountColor = account.profile.color
+        folderNameView.text = buildFolderLabel(account, folderName)
+        folderNameView.setTextColor(accountColor)
+        folderButtonView.imageTintList = ColorStateList.valueOf(accountColor)
+        folderButtonView.backgroundTintList = ColorStateList.valueOf(
+            ColorUtils.setAlphaComponent(accountColor, FOLDER_BUTTON_BACKGROUND_ALPHA),
+        )
+        folderNameClickAreaView.contentDescription =
+            res.getString(R.string.message_list_content_description_open_folder, folderName)
+        folderRipple?.setColor(
+            ColorStateList.valueOf(ColorUtils.setAlphaComponent(accountColor, FOLDER_RIPPLE_ALPHA)),
+        )
+
+        // The text is set by updatePreviewContinuation() once the preview has been laid out.
+        previewContinuationView.text = null
+        previewContinuationView.setTextColor(previewView.currentTextColor)
+    }
+
+    /**
+     * The folder is displayed on an extra line below the preview. Continue the preview text in the free space of
+     * that line, starting where the preview had to stop.
+     */
+    private fun updatePreviewContinuation() {
+        if (!previewContinuationView.isVisible) return
+        val layout = previewView.layout ?: return
+
+        val text = previewView.text
+        val lastVisibleLine = min(layout.lineCount, previewView.maxLines) - 1
+        val continuationStart = if (lastVisibleLine >= 0) min(layout.getLineEnd(lastVisibleLine), text.length) else 0
+        val continuation = text.subSequence(continuationStart, text.length).trimStart()
+
+        if (continuation.toString() != previewContinuationView.text.toString()) {
+            previewContinuationView.setText(continuation, TextView.BufferType.SPANNABLE)
+        }
+    }
+
+    /**
+     * Prefix the folder name with the account's monogram so folders of different accounts can be told apart.
+     */
+    private fun buildFolderLabel(account: LegacyAccount, folderName: String): String {
+        val accountMonogram = account.profile.avatar.avatarMonogram
+        return if (accountMonogram.isNullOrBlank()) folderName else "$accountMonogram / $folderName"
     }
 
     private fun buildSubject(
@@ -294,6 +373,7 @@ class MessageViewHolder(
             onLongClickListener: View.OnLongClickListener,
             contactPictureContainerClickListener: View.OnClickListener,
             starClickListener: View.OnClickListener,
+            folderClickListener: View.OnClickListener,
         ): MessageViewHolder {
             val view = layoutInflater.inflate(R.layout.message_list_item, parent, false)
             view.setOnClickListener(onClickListener)
@@ -333,6 +413,16 @@ class MessageViewHolder(
             holder.starView.isVisible = appearance.stars
             holder.starClickAreaView.isVisible = appearance.stars
             holder.starClickAreaView.setOnClickListener(starClickListener)
+
+            appearance.fontSizes.setViewTextSize(
+                holder.previewContinuationView,
+                appearance.fontSizes.messageListPreview,
+            )
+            holder.previewView.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+                // Changing the text during a layout pass isn't allowed, so do it right afterwards.
+                holder.previewContinuationView.post { holder.updatePreviewContinuation() }
+            }
+            holder.folderNameClickAreaView.setOnClickListener(folderClickListener)
 
             view.tag = holder
 
@@ -379,6 +469,9 @@ class MessageViewHolder(
                 setMarginTop(textViewMarginTop)
                 setLineSpacing(lineSpacingExtra, lineSpacingMultiplier)
             }
+            val folderLineMinBottomSpace = res.getDimensionPixelSize(R.dimen.messageListFolderLineMinBottomSpace)
+            (holder.previewContinuationView.layoutParams as? ViewGroup.MarginLayoutParams)?.bottomMargin =
+                max(folderLineMinBottomSpace - verticalPadding, 0)
         }
 
         private fun View.setMarginTop(margin: Int) {

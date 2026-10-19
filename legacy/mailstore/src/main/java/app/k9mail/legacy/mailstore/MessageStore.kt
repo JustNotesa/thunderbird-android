@@ -305,6 +305,12 @@ interface MessageStore {
     fun setStatus(folderId: Long, status: String?)
 
     /**
+     * Change the server ID and the name of a folder that was renamed or moved on the server. Its messages and
+     * settings stay with it.
+     */
+    fun setFolderServerId(folderId: Long, folderServerId: String, name: String)
+
+    /**
      * Update a folder's "visible limit" value.
      */
     fun setVisibleLimit(folderId: Long, visibleLimit: Int)

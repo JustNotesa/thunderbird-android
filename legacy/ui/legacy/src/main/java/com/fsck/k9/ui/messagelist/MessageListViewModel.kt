@@ -19,6 +19,12 @@ class MessageListViewModel(
 
     val messageSortOverrides = LinkedList<Pair<MessageReference, MessageSortOverride>>()
 
+    /**
+     * Messages a server search has found. The server decides what matches, so they are displayed in the search
+     * results even if the local search wouldn't find them.
+     */
+    val remoteSearchResults = mutableSetOf<MessageReference>()
+
     fun getMessageListLiveData(): LiveData<MessageListInfo> {
         return messageListLiveData
     }

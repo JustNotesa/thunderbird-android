@@ -1,0 +1,191 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The height must not depend on what is displayed. Otherwise the messages below would move while the server search
+     is running or when it ends. That's why views that aren't needed are made invisible instead of removing them. -->
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="?attr/colorSurface"
+    android:orientation="vertical"
+    android:paddingHorizontal="16dp"
+    android:paddingVertical="12dp"
+    >
+
+    <!-- Only for a search that was started from a folder: where to look for messages -->
+    <com.google.android.material.chip.ChipGroup
+        android:id="@+id/search_scope"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="4dp"
+        android:visibility="gone"
+        app:chipSpacingHorizontal="8dp"
+        app:singleLine="true"
+        tools:visibility="visible"
+        >
+
+        <com.google.android.material.chip.Chip
+            android:id="@+id/search_scope_folder"
+            style="@style/Widget.Material3.Chip.Filter"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/search_scope_folder"
+            />
+
+        <com.google.android.material.chip.Chip
+            android:id="@+id/search_scope_everywhere"
+            style="@style/Widget.Material3.Chip.Filter"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/search_scope_everywhere"
+            />
+
+    </com.google.android.material.chip.ChipGroup>
+
+    <!-- Always as high as the button, so the height doesn't depend on whether the button is displayed -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:minHeight="32dp"
+        android:orientation="horizontal"
+        >
+
+        <FrameLayout
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:layout_marginEnd="12dp"
+            >
+
+            <ProgressBar
+                android:id="@+id/search_status_spinner"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:indeterminate="true"
+                />
+
+            <ImageView
+                android:id="@+id/search_status_icon"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:contentDescription="@null"
+                android:visibility="gone"
+                tools:srcCompat="@drawable/ic_error"
+                tools:tint="?attr/colorError"
+                />
+
+        </FrameLayout>
+
+        <com.google.android.material.textview.MaterialTextView
+            android:id="@+id/search_status_text"
+            android:textAppearance="?attr/textAppearanceBodyMedium"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:ellipsize="end"
+            android:lines="1"
+            tools:text="Server search: folder 12 of 290"
+            />
+
+        <!-- Skips the rest of the running search and searches the message contents right away -->
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/search_contents_skip_button"
+            style="@style/Widget.Material3.Button.TextButton.Icon"
+            android:layout_width="wrap_content"
+            android:layout_height="32dp"
+            android:layout_marginStart="8dp"
+            android:insetTop="0dp"
+            android:insetBottom="0dp"
+            android:minHeight="0dp"
+            android:paddingVertical="0dp"
+            android:text="@string/remote_search_contents_skip_action"
+            android:visibility="gone"
+            app:icon="@drawable/ic_find_in_page"
+            tools:visibility="visible"
+            />
+
+    </LinearLayout>
+
+    <!-- Starts below the text of the title, next to the icon -->
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:id="@+id/search_status_details"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="32dp"
+        android:layout_marginTop="8dp"
+        >
+
+        <LinearLayout
+            android:id="@+id/search_status_progress_group"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            >
+
+            <ProgressBar
+                android:id="@+id/search_status_progress"
+                style="?android:attr/progressBarStyleHorizontal"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                tools:max="290"
+                tools:progress="11"
+                />
+
+            <com.google.android.material.textview.MaterialTextView
+                android:id="@+id/search_status_folder"
+                android:textAppearance="?attr/textAppearanceBodySmall"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:ellipsize="middle"
+                android:singleLine="true"
+                tools:text="Projects/Customers/2026"
+                />
+
+            <com.google.android.material.textview.MaterialTextView
+                android:id="@+id/search_status_detail"
+                android:textAppearance="?attr/textAppearanceBodySmall"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:ellipsize="end"
+                android:lines="1"
+                tools:text="3 messages found. Latest: Quarterly report"
+                />
+
+        </LinearLayout>
+
+        <!-- Uses the space that isn't taken up by the button -->
+        <com.google.android.material.textview.MaterialTextView
+            android:id="@+id/search_status_message"
+            android:textAppearance="?attr/textAppearanceBodySmall"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:ellipsize="end"
+            android:paddingBottom="4dp"
+            android:visibility="invisible"
+            app:layout_constraintBottom_toTopOf="@id/search_contents_button"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/search_contents_button"
+            style="@style/Widget.Material3.Button.TonalButton.Icon"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/remote_search_contents_action"
+            android:visibility="gone"
+            app:icon="@drawable/ic_find_in_page"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            />
+
+    </androidx.constraintlayout.widget.ConstraintLayout>
+
+</LinearLayout>

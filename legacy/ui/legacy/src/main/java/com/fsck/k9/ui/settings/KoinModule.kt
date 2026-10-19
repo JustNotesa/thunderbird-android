@@ -28,13 +28,23 @@ val settingsUiModule = module {
             appLanguageManager = get(),
             generalSettingsManager = get(),
             telemetryManager = get(),
+            searchHistory = get(),
         )
     }
     single(named("SaveSettingsExecutorService")) {
         Executors.newSingleThreadExecutor(NamedThreadFactory("SaveSettings"))
     }
 
-    viewModel { AccountSettingsViewModel(get(), get(), get()) }
+    viewModel {
+        AccountSettingsViewModel(
+            accountManager = get(),
+            remoteFolderQueryRepository = get(),
+            specialFolderSelectionStrategy = get(),
+            messageStoreManager = get(),
+            backendManager = get(),
+            logger = get(),
+        )
+    }
     single {
         AccountSettingsDataStoreFactory(
             preferences = get(),

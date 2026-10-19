@@ -3,8 +3,10 @@ package com.fsck.k9.mail.store.imap
 import assertk.assertFailure
 import assertk.assertThat
 import assertk.assertions.containsExactly
+import assertk.assertions.isEqualTo
 import assertk.assertions.isInstanceOf
 import assertk.assertions.isNotNull
+import assertk.assertions.isNull
 import assertk.assertions.isSameInstanceAs
 import com.fsck.k9.mail.AuthType
 import com.fsck.k9.mail.ConnectionSecurity
@@ -18,6 +20,9 @@ import java.io.IOException
 import java.util.ArrayDeque
 import java.util.Deque
 import net.thunderbird.core.common.exception.MessagingException
+import net.thunderbird.core.logging.testing.TestLogger
+import net.thunderbird.legacy.logging.Log
+import org.junit.Before
 import org.junit.Test
 import org.mockito.ArgumentMatchers.anyString
 import org.mockito.kotlin.doReturn
@@ -29,6 +34,11 @@ import org.mockito.kotlin.verify
 
 class RealImapStoreTest {
     private val imapStore = createTestImapStore()
+
+    @Before
+    fun setUp() {
+        Log.logger = TestLogger()
+    }
 
     @Test
     fun `checkSettings() should create ImapConnection and call open()`() {
@@ -114,6 +124,36 @@ class RealImapStoreTest {
 
         verify(imapConnection, never()).executeSimpleCommand("""LIST "" "*" RETURN (SPECIAL-USE)""")
         verify(imapConnection).executeSimpleCommand("""LIST "" "*"""")
+    }
+
+    @Test
+    fun `getStorageQuota() with QUOTA capability should return storage quota`() {
+        val imapConnection = createMockConnection().stub {
+            on { hasCapability(Capabilities.QUOTA) } doReturn true
+            on { executeSimpleCommand("""GETQUOTAROOT "INBOX"""") } doReturn listOf(
+                createImapResponse("""* QUOTAROOT INBOX """""),
+                createImapResponse("""* QUOTA "" (STORAGE 10 512)"""),
+                createImapResponse("5 OK GETQUOTAROOT completed"),
+            )
+        }
+        imapStore.enqueueImapConnection(imapConnection)
+
+        val result = imapStore.getStorageQuota()
+
+        assertThat(result).isEqualTo(ImapStorageQuota(usedBytes = 10_240L, limitBytes = 524_288L))
+    }
+
+    @Test
+    fun `getStorageQuota() without QUOTA capability should return null without asking the server`() {
+        val imapConnection = createMockConnection().stub {
+            on { hasCapability(Capabilities.QUOTA) } doReturn false
+        }
+        imapStore.enqueueImapConnection(imapConnection)
+
+        val result = imapStore.getStorageQuota()
+
+        assertThat(result).isNull()
+        verify(imapConnection, never()).executeSimpleCommand("""GETQUOTAROOT "INBOX"""")
     }
 
     @Test

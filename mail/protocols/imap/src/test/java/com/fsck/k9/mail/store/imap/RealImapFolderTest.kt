@@ -251,6 +251,47 @@ class RealImapFolderTest {
     }
 
     @Test
+    fun renameTo_shouldIssueRenameCommand() {
+        val imapFolder = createFolder("Folder")
+        val newImapFolder = createFolder("Parent/New")
+
+        imapFolder.renameTo(newImapFolder)
+
+        verify(imapConnection).executeSimpleCommand("RENAME \"Folder\" \"Parent/New\"")
+    }
+
+    @Test
+    fun renameTo_withFolderMissingAfterwards_shouldThrow() {
+        val imapFolder = createFolder("Parent/Folder")
+        val newImapFolder = createFolder("Folder")
+        doThrow(NegativeImapResponseException::class).whenever(imapConnection)
+            .executeSimpleCommand("STATUS \"Folder\" (UIDVALIDITY)")
+
+        assertFailure {
+            imapFolder.renameTo(newImapFolder)
+        }.isInstanceOf<MessagingException>()
+    }
+
+    @Test
+    fun delete_shouldIssueDeleteCommand() {
+        val imapFolder = createFolder("Folder")
+
+        imapFolder.delete()
+
+        verify(imapConnection).executeSimpleCommand("DELETE \"Folder\"")
+    }
+
+    @Test
+    fun delete_withNegativeImapResponse_shouldThrow() {
+        val imapFolder = createFolder("Folder")
+        doThrow(NegativeImapResponseException::class).whenever(imapConnection).executeSimpleCommand("DELETE \"Folder\"")
+
+        assertFailure {
+            imapFolder.delete()
+        }.isInstanceOf<NegativeImapResponseException>()
+    }
+
+    @Test
     fun create_withoutNegativeImapResponse_shouldReturnTrue() {
         val folderName = "Folder"
         val imapFolder = createFolder(folderName)
@@ -757,6 +798,18 @@ class RealImapFolderTest {
 
         assertThat(messages).isNotNull()
             .extracting { it.uid }.containsOnly("11", "22", "25")
+    }
+
+    @Test
+    fun getExistingUids_shouldReturnUidsFoundOnServer() {
+        val folder = createFolder("Folder")
+        prepareImapFolderForOpen(OpenMode.READ_ONLY)
+        setupUidSearchResponses("* SEARCH 11", "* SEARCH 25")
+        folder.open(OpenMode.READ_ONLY)
+
+        val uids = folder.getExistingUids(listOf("11", "22", "25"))
+
+        assertThat(uids).containsOnly("11", "25")
     }
 
     @Test

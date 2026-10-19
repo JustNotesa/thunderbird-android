@@ -78,6 +78,21 @@ interface Backend {
         performFullTextSearch: Boolean,
     ): List<String>
 
+    /**
+     * Like [search], but reports what the search is doing at the moment to [listener].
+     */
+    @Throws(MessagingException::class)
+    fun search(
+        folderServerId: String,
+        query: String?,
+        requiredFlags: Set<Flag>?,
+        forbiddenFlags: Set<Flag>?,
+        performFullTextSearch: Boolean,
+        listener: SearchListener,
+    ): List<String> {
+        return search(folderServerId, query, requiredFlags, forbiddenFlags, performFullTextSearch)
+    }
+
     @Throws(MessagingException::class)
     fun fetchPart(folderServerId: String, messageServerId: String, part: Part, bodyFactory: BodyFactory)
 
@@ -91,4 +106,36 @@ interface Backend {
     fun sendMessage(message: Message)
 
     fun createPusher(callback: BackendPusherCallback): BackendPusher
+
+    /**
+     * Returns how much storage the account uses on the server and how much it is allowed to use.
+     *
+     * @return `null` if the server doesn't report it.
+     */
+    @Throws(MessagingException::class)
+    fun getStorageQuota(): StorageQuota? = null
+
+    /**
+     * Create a folder on the server.
+     */
+    @Throws(MessagingException::class)
+    fun createFolder(folderServerId: String) {
+        throw MessagingException("Creating folders is not supported for this account")
+    }
+
+    /**
+     * Rename or move a folder on the server. Its subfolders move along with it.
+     */
+    @Throws(MessagingException::class)
+    fun renameFolder(folderServerId: String, newFolderServerId: String) {
+        throw MessagingException("Renaming folders is not supported for this account")
+    }
+
+    /**
+     * Delete a folder and all messages in it from the server.
+     */
+    @Throws(MessagingException::class)
+    fun deleteFolder(folderServerId: String) {
+        throw MessagingException("Deleting folders is not supported for this account")
+    }
 }

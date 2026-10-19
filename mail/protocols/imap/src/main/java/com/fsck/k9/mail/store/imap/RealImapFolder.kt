@@ -284,6 +284,54 @@ internal class RealImapFolder(
         }
     }
 
+    @Throws(MessagingException::class)
+    override fun delete() {
+        // Like create() this has to work without the folder being selected.
+        val connection = synchronized(this) {
+            this.connection ?: connectionManager.getConnection()
+        }
+
+        try {
+            // https://datatracker.ietf.org/doc/html/rfc3501#section-6.3.4
+            connection.executeSimpleCommand("DELETE ${ImapUtility.encodeString(encodedName)}")
+        } catch (ioe: IOException) {
+            throw ioExceptionHandler(this.connection, ioe)
+        } finally {
+            if (this.connection == null) {
+                connectionManager.releaseConnection(connection)
+            }
+        }
+    }
+
+    @Throws(MessagingException::class)
+    override fun renameTo(folder: ImapFolder) {
+        require(folder is RealImapFolder) { "'folder' needs to be a RealImapFolder instance" }
+
+        val connection = synchronized(this) {
+            this.connection ?: connectionManager.getConnection()
+        }
+
+        try {
+            // https://datatracker.ietf.org/doc/html/rfc3501#section-6.3.5
+            val escapedFolderName = ImapUtility.encodeString(encodedName)
+            val escapedNewFolderName = ImapUtility.encodeString(folderNameCodec.encode(folder.prefixedName))
+            connection.executeSimpleCommand("RENAME $escapedFolderName $escapedNewFolderName")
+
+            // Some servers confirm the command without doing anything, e.g. when moving a subfolder to the top level.
+            try {
+                connection.executeSimpleCommand("STATUS $escapedNewFolderName (UIDVALIDITY)")
+            } catch (e: NegativeImapResponseException) {
+                throw MessagingException("The server confirmed the change but didn't carry it out", true, e)
+            }
+        } catch (ioe: IOException) {
+            throw ioExceptionHandler(this.connection, ioe)
+        } finally {
+            if (this.connection == null) {
+                connectionManager.releaseConnection(connection)
+            }
+        }
+    }
+
     /**
      * Copies the given messages to the specified folder.
      *
@@ -521,6 +569,24 @@ internal class RealImapFolder(
 
             val searchResponse = SearchResponse.parse(imapResponses)
             return getMessages(searchResponse, listener)
+        } catch (ioe: IOException) {
+            throw ioExceptionHandler(connection, ioe)
+        }
+    }
+
+    @Throws(MessagingException::class)
+    override fun getExistingUids(uids: Collection<String>): Set<String> {
+        if (uids.isEmpty()) return emptySet()
+        checkOpen()
+
+        try {
+            val imapResponses = connection!!.executeCommandWithIdSet(
+                commandPrefix = "UID SEARCH UID",
+                commandSuffix = " NOT DELETED",
+                ids = uids.map { it.toLong() }.toSet(),
+            )
+
+            return SearchResponse.parse(imapResponses).numbers.map { it.toString() }.toSet()
         } catch (ioe: IOException) {
             throw ioExceptionHandler(connection, ioe)
         }

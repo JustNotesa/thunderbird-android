@@ -75,6 +75,18 @@ open class TestImapFolder(override val serverId: String) : ImapFolder {
         throw UnsupportedOperationException("not implemented")
     }
 
+    override fun delete() {
+        throw UnsupportedOperationException("not implemented")
+    }
+
+    override fun renameTo(folder: ImapFolder) {
+        throw UnsupportedOperationException("not implemented")
+    }
+
+    override fun getExistingUids(uids: Collection<String>): Set<String> {
+        return uids.filter { messages.containsKey(it.toLong()) }.toSet()
+    }
+
     override fun getMessages(
         start: Int,
         end: Int,

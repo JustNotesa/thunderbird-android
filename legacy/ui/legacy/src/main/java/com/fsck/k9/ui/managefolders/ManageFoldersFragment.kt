@@ -1,5 +1,27 @@
 package com.fsck.k9.ui.managefolders
 
+import androidx.appcompat.widget.Toolbar
+import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.ViewCompositionStrategy
+import androidx.core.view.isVisible
+import kotlinx.collections.immutable.toImmutableList
+import net.thunderbird.core.ui.theme.api.FeatureThemeProvider
+import net.thunderbird.feature.account.storage.mapper.AvatarDataMapper
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.ViewCompat
+import android.graphics.drawable.ColorDrawable
+import android.view.DragEvent
+import android.widget.TextView
+import androidx.core.graphics.ColorUtils
+import com.fsck.k9.ui.resolveColorAttribute
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import net.thunderbird.feature.mail.folder.FolderType
+import net.thunderbird.feature.mail.folder.api.Folder
+import com.fsck.k9.ui.base.R as BaseR
+import com.google.android.material.R as MaterialR
+import android.widget.Toast
+import androidx.core.content.ContextCompat
+import android.os.Build
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.Menu
@@ -31,15 +53,24 @@ import org.koin.android.ext.android.inject
 import org.koin.androidx.viewmodel.ext.android.viewModel
 import org.koin.core.parameter.parametersOf
 
+@Suppress("TooManyFunctions")
 class ManageFoldersFragment : Fragment() {
     private val viewModel: ManageFoldersViewModel by viewModel()
     private val folderNameFormatter: FolderNameFormatter by inject()
     private val messagingController: MessagingController by inject()
     private val preferences: Preferences by inject()
+    private val avatarMapper: AvatarDataMapper by inject()
+    private val themeProvider: FeatureThemeProvider by inject()
     private val folderIconProvider: FolderIconProvider by inject { parametersOf(requireActivity().theme) }
 
     private lateinit var account: LegacyAccountDto
     private lateinit var itemAdapter: ItemAdapter<FolderListItem>
+    private var folders: Map<Long, Folder> = emptyMap()
+    private var draggedFolderView: View? = null
+    private var displayFolders: List<DisplayFolder> = emptyList()
+    private val expandedFolderIds = mutableSetOf<Long>()
+    private var folderFilter: String = ""
+    private var dropTargetView: View? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -54,6 +85,8 @@ class ManageFoldersFragment : Fragment() {
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        showAccountInToolbar(requireActivity() as AppCompatActivity)
+
         val menuHost: MenuHost = requireActivity()
         menuHost.addMenuProvider(
             object : MenuProvider {
@@ -71,6 +104,10 @@ class ManageFoldersFragment : Fragment() {
                     return when (menuItem.itemId) {
                         R.id.list_folders -> {
                             refreshFolderList()
+                            true
+                        }
+                        R.id.create_folder -> {
+                            createFolder()
                             true
                         }
                         else -> false
@@ -98,22 +135,275 @@ class ManageFoldersFragment : Fragment() {
                 openFolderSettings(item.folderId)
                 true
             }
+            onLongClickListener = { view, _, item: FolderListItem, _ ->
+                startFolderDrag(view, item)
+            }
         }
 
         val recyclerView = requireView().findViewById<RecyclerView>(R.id.folderList)
         recyclerView.adapter = folderListAdapter
+        recyclerView.setOnDragListener { _, event -> onDragOverFolderList(recyclerView, folderListAdapter, event) }
+
+        val topLevelTarget = requireView().findViewById<TextView>(R.id.folder_move_target)
+        topLevelTarget.setOnDragListener { _, event -> onDragOverTopLevelTarget(topLevelTarget, event) }
+    }
+
+    /**
+     * A folder is moved by dragging it onto the folder it is to be moved into, or onto the text above the list to
+     * move it to the top level.
+     */
+    private fun startFolderDrag(view: View, item: FolderListItem): Boolean {
+        val folder = folders[item.folderId]
+        if (folder != null && !folder.isLocalOnly && folder.type == FolderType.REGULAR) {
+            val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) View.DRAG_FLAG_OPAQUE else 0
+            if (ViewCompat.startDragAndDrop(view, null, FolderDragShadow(view), item.folderId, flags)) {
+                // The folder is on its way, only a trace of it stays behind
+                view.alpha = DRAGGED_FOLDER_ALPHA
+                draggedFolderView = view
+            }
+        } else if (folder != null) {
+            Toast.makeText(requireContext(), R.string.folder_move_not_possible, Toast.LENGTH_SHORT).show()
+        }
+
+        return folder != null
+    }
+
+    private fun onDragOverFolderList(
+        recyclerView: RecyclerView,
+        adapter: FastAdapter<FolderListItem>,
+        event: DragEvent,
+    ): Boolean {
+        when (event.action) {
+            DragEvent.ACTION_DRAG_LOCATION -> {
+                highlightDropTarget(recyclerView.findChildViewUnder(event.x, event.y))
+                scrollWhileDragging(recyclerView, event.y)
+            }
+
+            DragEvent.ACTION_DROP -> {
+                val targetView = recyclerView.findChildViewUnder(event.x, event.y)
+                val targetFolderId = targetView
+                    ?.let { recyclerView.getChildAdapterPosition(it) }
+                    ?.takeIf { it != RecyclerView.NO_POSITION }
+                    ?.let { adapter.getItem(it)?.folderId }
+                highlightDropTarget(null)
+                if (targetFolderId != null) {
+                    confirmMoveFolder(event.localState as Long, targetFolderId)
+                }
+            }
+
+            DragEvent.ACTION_DRAG_EXITED, DragEvent.ACTION_DRAG_ENDED -> highlightDropTarget(null)
+        }
+        return true
+    }
+
+    private fun onDragOverTopLevelTarget(target: TextView, event: DragEvent): Boolean {
+        when (event.action) {
+            DragEvent.ACTION_DRAG_STARTED -> target.setText(R.string.folder_move_top_level_target)
+            DragEvent.ACTION_DRAG_ENTERED -> highlightDropTarget(target)
+            DragEvent.ACTION_DRAG_EXITED -> highlightDropTarget(null)
+            DragEvent.ACTION_DROP -> {
+                highlightDropTarget(null)
+                confirmMoveFolder(event.localState as Long, null)
+            }
+
+            DragEvent.ACTION_DRAG_ENDED -> {
+                highlightDropTarget(null)
+                draggedFolderView?.alpha = 1f
+                draggedFolderView = null
+                target.setText(R.string.folder_move_hint)
+            }
+        }
+        return true
+    }
+
+    private fun highlightDropTarget(view: View?) {
+        if (view === dropTargetView) return
+
+        dropTargetView?.foreground = null
+        dropTargetView = view
+        view?.foreground = ColorDrawable(
+            ColorUtils.setAlphaComponent(
+                requireContext().theme.resolveColorAttribute(MaterialR.attr.colorOnSurface),
+                DROP_TARGET_HIGHLIGHT_ALPHA,
+            ),
+        )
+    }
+
+    private fun scrollWhileDragging(recyclerView: RecyclerView, y: Float) {
+        val edge = recyclerView.height / DRAG_SCROLL_EDGE_FRACTION
+        val distance = (DRAG_SCROLL_DISTANCE_DP * resources.displayMetrics.density).toInt()
+        if (y < edge) {
+            recyclerView.scrollBy(0, -distance)
+        } else if (y > recyclerView.height - edge) {
+            recyclerView.scrollBy(0, distance)
+        }
+    }
+
+    private fun confirmMoveFolder(folderId: Long, targetFolderId: Long?) {
+        val folder = folders[folderId]
+        val targetFolder = targetFolderId?.let { folders[it] }
+        val isTargetKnown = targetFolderId == null || targetFolder != null
+        if (folder == null || !isTargetKnown || folderId == targetFolderId) return
+
+        if (targetFolder?.isLocalOnly == true) {
+            Toast.makeText(requireContext(), R.string.folder_move_not_possible, Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val folderName = folderNameFormatter.displayName(folder)
+        val message = if (targetFolder == null) {
+            getString(R.string.folder_move_confirm_top_level_message, folderName)
+        } else {
+            getString(R.string.folder_move_confirm_message, folderName, folderNameFormatter.displayName(targetFolder))
+        }
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle(R.string.folder_move_confirm_title)
+            .setMessage(message)
+            .setPositiveButton(R.string.folder_move_confirm_action) { _, _ -> moveFolder(folderId, targetFolderId) }
+            .setNegativeButton(BaseR.string.cancel_action, null)
+            .show()
+    }
+
+    private fun moveFolder(folderId: Long, targetFolderId: Long?) {
+        val applicationContext = requireContext().applicationContext
+        messagingController.moveFolder(account, folderId, targetFolderId) { error ->
+            val message = if (error == null) {
+                applicationContext.getString(R.string.folder_moved)
+            } else {
+                applicationContext.getString(R.string.folder_move_failed, error)
+            }
+            ContextCompat.getMainExecutor(applicationContext).execute {
+                Toast.makeText(applicationContext, message, Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    override fun onDestroyView() {
+        // The screen of a single folder keeps the name of the account, but the accounts can't be chosen there
+        val activity = requireActivity() as AppCompatActivity
+        activity.supportActionBar?.subtitle = account.displayName
+        activity.findViewById<Toolbar>(BaseR.id.toolbar).setOnClickListener(null)
+
+        super.onDestroyView()
+    }
+
+    /**
+     * The toolbar tells which account the folders belong to, also on the screens of the single folders. With more
+     * than one account, it leads to the folders of another one.
+     */
+    private fun showAccountInToolbar(activity: AppCompatActivity) {
+        val accounts = preferences.getAccounts()
+        val currentAccount = account
+        val toolbar = activity.findViewById<Toolbar>(BaseR.id.toolbar)
+        if (accounts.size <= 1) {
+            activity.supportActionBar?.subtitle = currentAccount.displayName
+            toolbar.setOnClickListener(null)
+            return
+        }
+
+        val accountList = requireView().findViewById<ComposeView>(R.id.account_list)
+        val folderManagementAccounts = accounts.map { account ->
+            FolderManagementAccount(
+                uuid = account.id.toString(),
+                name = account.displayName,
+                email = account.email,
+                color = account.chipColor,
+                avatar = avatarMapper.toDomain(account.avatar),
+            )
+        }.toImmutableList()
+        val currentAccountUuid = currentAccount.id.toString()
+        accountList.setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
+        accountList.setContent {
+            themeProvider.WithTheme {
+                FolderManagementAccountList(
+                    accounts = folderManagementAccounts,
+                    selectedAccountUuid = currentAccountUuid,
+                    onAccountClick = { selectedAccount ->
+                        showAccountList(activity, isVisible = false)
+                        val account = accounts.first { it.id.toString() == selectedAccount.uuid }
+                        if (account.id != currentAccount.id) {
+                            ManageFoldersActivity.launch(activity, account)
+                            activity.finish()
+                        }
+                    },
+                )
+            }
+        }
+
+        showAccountList(activity, isVisible = false)
+        toolbar.setOnClickListener {
+            showAccountList(activity, isVisible = !accountList.isVisible)
+        }
+    }
+
+    /**
+     * The accounts are displayed above the folders after tapping the name of the current one.
+     */
+    private fun showAccountList(activity: AppCompatActivity, isVisible: Boolean) {
+        requireView().findViewById<View>(R.id.account_list).isVisible = isVisible
+        requireView().findViewById<View>(R.id.account_list_scrim).apply {
+            this.isVisible = isVisible
+            setOnClickListener { showAccountList(activity, isVisible = false) }
+        }
+        activity.supportActionBar?.subtitle = getString(
+            if (isVisible) R.string.folder_management_account_expanded else R.string.folder_management_account,
+            account.displayName,
+        )
     }
 
     private fun updateFolderList(displayFolders: List<DisplayFolder>) {
-        val folderListItems = displayFolders.map { displayFolder ->
-            val databaseId = displayFolder.folder.id
-            val folderIconResource = folderIconProvider.getFolderIcon(displayFolder.folder.type)
-            val displayName = folderNameFormatter.displayName(displayFolder.folder)
+        this.displayFolders = displayFolders
+        folders = displayFolders.associate { it.folder.id to it.folder }
+        showFolders()
+    }
 
-            FolderListItem(databaseId, folderIconResource, displayName)
+    /**
+     * Subfolders are displayed below the folder they are in once it is expanded, like in the folder drawer. While
+     * the user is looking for a folder, all folders are listed with their full names instead.
+     */
+    private fun showFolders() {
+        val folderListItems = if (folderFilter.isEmpty()) {
+            FolderTree.build(displayFolders.map { it.folder }, account.folderPathDelimiter, expandedFolderIds)
+                .map { row ->
+                    val parentName = row.parent?.name
+                    val displayName = folderNameFormatter.displayName(row.folder)
+                    FolderListItem(
+                        folderId = row.folder.id,
+                        folderIconResource = folderIconProvider.getFolderIcon(row.folder.type),
+                        displayName = if (parentName == null) {
+                            displayName
+                        } else {
+                            displayName.removePrefix(parentName + account.folderPathDelimiter)
+                        },
+                        depth = row.depth,
+                        isExpanded = row.isExpanded.takeIf { row.hasSubfolders },
+                        onExpandClick = ::toggleSubfolders,
+                    )
+                }
+        } else {
+            displayFolders.map { displayFolder ->
+                FolderListItem(
+                    folderId = displayFolder.folder.id,
+                    folderIconResource = folderIconProvider.getFolderIcon(displayFolder.folder.type),
+                    displayName = folderNameFormatter.displayName(displayFolder.folder),
+                )
+            }
         }
 
         itemAdapter.set(folderListItems)
+        itemAdapter.filter(folderFilter)
+    }
+
+    private fun toggleSubfolders(folderId: Long) {
+        if (!expandedFolderIds.remove(folderId)) {
+            expandedFolderIds.add(folderId)
+        }
+        showFolders()
+    }
+
+    private fun filterFolders(filter: String) {
+        folderFilter = filter
+        showFolders()
     }
 
     private fun openFolderSettings(folderId: Long) {
@@ -132,12 +422,12 @@ class ManageFoldersFragment : Fragment() {
         folderSearchView.setOnQueryTextListener(
             object : SearchView.OnQueryTextListener {
                 override fun onQueryTextSubmit(query: String): Boolean {
-                    itemAdapter.filter(query)
+                    filterFolders(query)
                     return true
                 }
 
                 override fun onQueryTextChange(newText: String): Boolean {
-                    itemAdapter.filter(newText)
+                    filterFolders(newText)
                     return true
                 }
             },
@@ -158,6 +448,24 @@ class ManageFoldersFragment : Fragment() {
         messagingController.refreshFolderList(account)
     }
 
+    private fun createFolder() {
+        val context = requireContext()
+        FolderNameDialog.show(context, R.string.folder_create_action, account.folderPathDelimiter) { name ->
+            val applicationContext = context.applicationContext
+            messagingController.createFolder(account, null, name) { error ->
+                // The folder shows up in the list by itself. A failure has to be said.
+                val message = if (error == null) {
+                    applicationContext.getString(R.string.folder_created)
+                } else {
+                    applicationContext.getString(R.string.folder_create_failed, error)
+                }
+                ContextCompat.getMainExecutor(applicationContext).execute {
+                    Toast.makeText(applicationContext, message, Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+    }
+
     private fun folderListFilter(item: FolderListItem, constraint: CharSequence?): Boolean {
         if (constraint.isNullOrEmpty()) return true
 
@@ -171,5 +479,10 @@ class ManageFoldersFragment : Fragment() {
 
     companion object {
         const val EXTRA_ACCOUNT = "account"
+
+        private const val DRAGGED_FOLDER_ALPHA = 0.3f
+        private const val DROP_TARGET_HIGHLIGHT_ALPHA = 40
+        private const val DRAG_SCROLL_EDGE_FRACTION = 6
+        private const val DRAG_SCROLL_DISTANCE_DP = 12
     }
 }

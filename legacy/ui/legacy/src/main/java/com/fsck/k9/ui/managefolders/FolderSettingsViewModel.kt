@@ -9,6 +9,7 @@ import com.fsck.k9.controller.MessagingController
 import com.fsck.k9.helper.SingleLiveEvent
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import net.thunderbird.core.android.account.LegacyAccountDto
 import net.thunderbird.components.core.outcome.fold
@@ -20,6 +21,7 @@ import net.thunderbird.legacy.logging.Log
 
 private const val NO_FOLDER_ID = 0L
 
+@Suppress("TooManyFunctions")
 class FolderSettingsViewModel(
     private val preferences: Preferences,
     private val folderDetailsRepository: FolderDetailsRepository,
@@ -84,6 +86,36 @@ class FolderSettingsViewModel(
         messagingController.clearFolder(account, folderId)
     }
 
+    val folderPathDelimiter: String
+        get() = account.folderPathDelimiter
+
+    fun createSubfolder(name: String) {
+        messagingController.createFolder(account, folderId, name) { error ->
+            actionLiveData.postValue(if (error == null) Action.FolderCreated else Action.CreateFolderFailed(error))
+        }
+    }
+
+    fun renameFolder(name: String) {
+        messagingController.renameFolder(account, folderId, name) { error ->
+            actionLiveData.postValue(if (error == null) Action.FolderRenamed else Action.RenameFolderFailed(error))
+        }
+    }
+
+    fun showDeleteFolderConfirmationDialog() {
+        viewModelScope.launch {
+            val subfolderCount = withContext(ioDispatcher) {
+                messagingController.getSubfolderCount(account, folderId)
+            }
+            sendActionEvent(Action.ShowDeleteFolderConfirmationDialog(subfolderCount))
+        }
+    }
+
+    fun onDeleteFolderConfirmation(includeSubfolders: Boolean) {
+        messagingController.deleteFolder(account, folderId, includeSubfolders) { error ->
+            actionLiveData.postValue(if (error == null) Action.FolderDeleted else Action.DeleteFolderFailed(error))
+        }
+    }
+
     fun getActionEvents(): LiveData<Action> = actionLiveData
 
     private fun sendActionEvent(action: Action) {
@@ -97,4 +129,11 @@ data class FolderSettingsData(val folder: Folder, val dataStore: FolderSettingsD
 
 sealed class Action {
     object ShowClearFolderConfirmationDialog : Action()
+    data class ShowDeleteFolderConfirmationDialog(val subfolderCount: Int) : Action()
+    object FolderRenamed : Action()
+    data class RenameFolderFailed(val reason: String) : Action()
+    object FolderCreated : Action()
+    data class CreateFolderFailed(val reason: String) : Action()
+    object FolderDeleted : Action()
+    data class DeleteFolderFailed(val reason: String) : Action()
 }

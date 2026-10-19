@@ -11,10 +11,13 @@ import android.view.MenuInflater
 import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
+import android.widget.AutoCompleteTextView
+import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.ActivityResultLauncher
 import androidx.annotation.Discouraged
 import androidx.annotation.StringRes
+import androidx.appcompat.R as AppCompatR
 import androidx.appcompat.view.ActionMode
 import androidx.appcompat.widget.SearchView
 import androidx.compose.animation.animateContentSize
@@ -29,6 +32,7 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsCompat.Type.systemBars
 import androidx.core.view.isGone
+import androidx.core.view.doOnPreDraw
 import androidx.core.view.isVisible
 import androidx.core.view.setPadding
 import androidx.core.view.updateLayoutParams
@@ -54,6 +58,7 @@ import com.fsck.k9.K9
 import com.fsck.k9.activity.FolderInfoHolder
 import com.fsck.k9.activity.MessageSearchActivity
 import com.fsck.k9.activity.misc.ContactPicture
+import com.fsck.k9.backend.api.SearchStep
 import com.fsck.k9.controller.MessagingControllerWrapper
 import com.fsck.k9.fragment.ConfirmationDialogFragment
 import com.fsck.k9.fragment.ConfirmationDialogFragment.ConfirmationDialogFragmentListener
@@ -129,6 +134,13 @@ import net.thunderbird.feature.mail.message.list.R as MessageListApiR
 
 const val MAXIMUM_MESSAGE_SORT_OVERRIDES = 3
 const val MINIMUM_CLICK_INTERVAL = 200L
+private const val NO_FOLDER_ID = -1L
+private const val SEARCH_STEP_UPDATE_INTERVAL = 1000L
+private const val LOAD_MORE_MESSAGES_DISTANCE = 3
+private const val LOADED_MESSAGES_SETTLING_TIME = 1000L
+private const val REMOTE_SEARCH_READING_TIME = 8_000L
+private const val ADDITIONAL_FIRST_MESSAGES = 2
+private const val MILLISECONDS_PER_SECOND = 1000L
 const val RECENT_CHANGES_SNACKBAR_DURATION = 10 * 1000
 
 private const val TAG = "BaseMessageListFragment"
@@ -161,6 +173,7 @@ class LegacyMessageListFragment :
     private val recentChangesViewModel: RecentChangesViewModel by viewModel()
 
     private val generalSettingsManager: GeneralSettingsManager by inject()
+    private val searchHistory: SearchHistory by inject()
     private val sortTypeToastProvider: SortTypeToastProvider by inject()
     private val folderNameFormatter: FolderNameFormatter by inject { parametersOf(requireContext()) }
     private val messagingController: MessagingControllerWrapper by inject()
@@ -222,6 +235,38 @@ class LegacyMessageListFragment :
     private var currentFolder: FolderInfoHolder? = null
     private var remoteSearchFuture: Future<*>? = null
     private var extraSearchResults: List<String>? = null
+    private var hasRemoteSearchFailed = false
+    private var isAutomaticRemoteSearchScheduled = false
+    private val automaticRemoteSearchRunnable = Runnable {
+        if (isResumed && isRemoteSearchAllowed) {
+            onRemoteSearchRequested()
+        }
+    }
+    private var remoteSearchProblem: String? = null
+    private var remoteSearchProblemReason: String? = null
+    private var remoteSearchFoundCount = 0
+    private var remoteSearchNotLoadedCount = 0
+    private var isSearchingMessageContents = false
+    private var hasSearchedMessageContents = false
+    private var isRemoteSearchStopped = false
+    private var remoteSearchListener: RemoteSearchListener? = null
+    private var remoteSearchFolderIndex = 0
+    private var stoppedRemoteSearch: StoppedRemoteSearch? = null
+    private var isLoadingMoreMessagesRequested = false
+    private var isWaitingForLoadedMessages = false
+    private var messageCountBeforeLoading = 0
+    private val loadedMessagesDisplayedRunnable = Runnable { onLoadedMessagesDisplayed() }
+
+    @Volatile
+    private var hasLoadingMessagesFailed = false
+
+    @Volatile
+    private var loadingMessagesFailureReason: String? = null
+    private var searchStatus: ServerSearchStatus? = null
+    private var searchScope: SearchScope? = null
+    private var searchStep: SearchStep? = null
+    private var searchStepStartTime = 0L
+    private val searchStepRunnable = Runnable { showSearchStep() }
     private var threadTitle: String? = null
     private var allAccounts = false
     private var sortType = SortType.SORT_DATE
@@ -281,14 +326,26 @@ class LegacyMessageListFragment :
             resetActionMode()
             invalidateMenu()
             maybeHideFloatingActionButton()
+            onActiveChanged()
         }
 
+    private val stopRemoteSearchRunnable = Runnable { stopRemoteSearch(canContinue = true) }
+
     override fun isSearchViewCollapsed(): Boolean {
-        return searchView?.isIconified != false
+        val searchView = searchView ?: return true
+
+        // The search results always display the search field. It only counts as open while it is being edited.
+        return if (isManualSearch) !searchView.hasFocus() else searchView.isIconified
     }
 
     override fun expandSearchView() {
-        searchView?.isIconified = false
+        val searchView = searchView ?: return
+
+        if (isManualSearch) {
+            searchView.requestFocus()
+        } else {
+            searchView.isIconified = false
+        }
     }
 
     override val isShowAccountIndicator: Boolean
@@ -480,6 +537,8 @@ class LegacyMessageListFragment :
 
     private fun initializeMessageListLayout(view: View) {
         initializeSwipeRefreshLayout(view)
+        initializeBackToSearchResults(view)
+        initializeSearchStatus()
         initializeFloatingActionButton(view)
         initializeRecyclerView(view)
         initializeRecentChangesSnackbar()
@@ -490,10 +549,179 @@ class LegacyMessageListFragment :
         loadMessageList()
     }
 
+    private fun initializeBackToSearchResults(view: View) {
+        val folderOrigin = fragmentListener.folderOrigin.takeUnless { isThreadDisplay }
+        view.findViewById<TextView>(R.id.back_to_search_results).apply {
+            isVisible = folderOrigin != null
+            setText(
+                when (folderOrigin) {
+                    FolderOrigin.MESSAGE -> R.string.back_to_message
+                    else -> R.string.back_to_search_results
+                },
+            )
+            setOnClickListener { fragmentListener.returnToFolderOrigin() }
+        }
+    }
+
+    private fun initializeSearchStatus() {
+        if (!isRemoteSearchSupported) return
+
+        // A search that was started from a folder can be limited to that folder.
+        if (searchScope == null && account != null && currentFolder != null) {
+            searchScope = SearchScope.EVERYWHERE
+        }
+
+        if (isRemoteSearch && remoteSearchFuture == null) {
+            // The server search has ended while the message list wasn't displayed, e.g. while reading a message.
+            showSearchOutcome()
+        } else if (searchStatus == null) {
+            showSearchStatus(ServerSearchStatus.Running(getString(R.string.local_search_status)))
+        }
+    }
+
+    /**
+     * Display the state of the server search as the first row of the search results.
+     *
+     * The row is there right from the start and always has the same height. And because it is part of the list, it
+     * only moves when the user scrolls the list. So the messages never move on their own.
+     */
+    private fun showSearchStatus(status: ServerSearchStatus) {
+        searchStatus = status
+
+        val viewItems = adapter.viewItems.filterNot { it is MessageListViewItem.SearchStatus }.toMutableList()
+        val index = viewItems.indexOfFirst { it !is MessageListViewItem.InAppNotificationBannerList }
+        val viewItem = MessageListViewItem.SearchStatus(status, searchScope)
+        viewItems.add(if (index == -1) viewItems.size else index, viewItem)
+        adapter.viewItems = viewItems
+    }
+
+    /**
+     * Display which folder the remote search is working on and how many folders there are in total.
+     */
+    private fun showSearchProgress(folderIndex: Int, folderCount: Int, folderLabel: String) {
+        val statusText = if (isSearchingMessageContents) {
+            R.string.remote_search_contents_status_progress
+        } else {
+            R.string.remote_search_status_progress
+        }
+        endSearchStep()
+        remoteSearchFolderIndex = folderIndex
+        showSearchStatus(
+            ServerSearchStatus.Running(
+                title = getString(statusText, folderIndex, folderCount),
+                progress = ServerSearchStatus.Progress(folderIndex, folderCount, folderLabel),
+                detail = (searchStatus as? ServerSearchStatus.Running)?.detail,
+                isMessageContentsSearchOffered = !isSearchingMessageContents,
+            ),
+        )
+    }
+
+    private fun showSearchDetail(text: String) {
+        endSearchStep()
+        val status = searchStatus as? ServerSearchStatus.Running ?: return
+        showSearchStatus(status.copy(detail = text, activity = null))
+    }
+
+    /**
+     * Remember what the remote search is doing at the moment.
+     *
+     * It is only displayed when it takes a while, e.g. because the server can't be reached. Otherwise the text would
+     * change all the time while one folder after the other is searched.
+     */
+    private fun startSearchStep(step: SearchStep) {
+        handler.removeCallbacks(searchStepRunnable)
+        searchStep = step
+        searchStepStartTime = SystemClock.elapsedRealtime()
+        handler.postDelayed(searchStepRunnable, SEARCH_STEP_UPDATE_INTERVAL)
+    }
+
+    private fun endSearchStep() {
+        handler.removeCallbacks(searchStepRunnable)
+        searchStep = null
+    }
+
+    /**
+     * Display what the remote search has been doing for how long, so it doesn't look like it is stuck.
+     */
+    private fun showSearchStep() {
+        val step = searchStep ?: return
+        val status = searchStatus as? ServerSearchStatus.Running ?: return
+        val context = context ?: return
+
+        val text = when (step) {
+            SearchStep.CONNECTING -> R.string.remote_search_step_connecting
+            SearchStep.WAITING_FOR_RESPONSE -> R.string.remote_search_step_waiting
+        }
+        val seconds = (SystemClock.elapsedRealtime() - searchStepStartTime) / MILLISECONDS_PER_SECOND
+        showSearchStatus(status.copy(activity = context.getString(text, seconds)))
+
+        handler.postDelayed(searchStepRunnable, SEARCH_STEP_UPDATE_INTERVAL)
+    }
+
+    /**
+     * Display how the remote search has ended. A problem must never go unnoticed, so this stays visible until the
+     * next remote search is started.
+     */
+    private fun showSearchOutcome() {
+        endSearchStep()
+        val context = context ?: return
+        val problem = remoteSearchProblem
+        // A search that has failed altogether needs its space to say why. It can be started again by pulling down.
+        val isMessageContentsSearchOffered = isRemoteSearchRestartAllowed &&
+            !hasSearchedMessageContents &&
+            !hasRemoteSearchFailed
+
+        val status = if (problem != null) {
+            ServerSearchStatus.Ended(
+                title = problem,
+                result = ServerSearchStatus.Result.PROBLEM,
+                message = remoteSearchProblemReason,
+                isMessageContentsSearchOffered = isMessageContentsSearchOffered,
+            )
+        } else if (isRemoteSearchStopped) {
+            ServerSearchStatus.Ended(
+                title = context.getString(R.string.remote_search_stopped),
+                result = ServerSearchStatus.Result.STOPPED,
+                message = context.getString(R.string.remote_search_stopped_details),
+                isMessageContentsSearchOffered = isMessageContentsSearchOffered,
+            )
+        } else {
+            val title = if (hasSearchedMessageContents) {
+                R.string.remote_search_contents_finished
+            } else {
+                R.string.remote_search_finished
+            }
+            ServerSearchStatus.Ended(
+                title = context.getString(title),
+                result = ServerSearchStatus.Result.COMPLETE,
+                isMessageContentsSearchOffered = isMessageContentsSearchOffered,
+            )
+        }
+        showSearchStatus(status)
+    }
+
+    override fun onSearchScopeSelected(scope: SearchScope) {
+        if (scope == searchScope) return
+
+        searchScope = scope
+        // Results from other folders are no longer wanted, or the search has to find them first.
+        legacyViewModel.remoteSearchResults.clear()
+        hasSearchedMessageContents = false
+        onRemoteSearchRequested()
+    }
+
+    override fun onSearchMessageContentsClicked() {
+        if (connectivityManager.isNetworkAvailable()) {
+            onRemoteSearchRequested(searchMessageContents = true)
+        } else {
+            Toast.makeText(activity, getText(R.string.remote_search_unavailable_no_network), Toast.LENGTH_SHORT).show()
+        }
+    }
+
     private fun initializeSwipeRefreshLayout(view: View) {
         val swipeRefreshLayout = view.findViewById<SwipeRefreshLayout>(R.id.swiperefresh)
 
-        if (isRemoteSearchAllowed) {
+        if (isRemoteSearchSupported) {
             swipeRefreshLayout.setOnRefreshListener { onRemoteSearchRequested() }
         } else if (isCheckMailSupported) {
             swipeRefreshLayout.setOnRefreshListener { checkMail() }
@@ -574,6 +802,15 @@ class LegacyMessageListFragment :
 
         recyclerView.layoutManager = LinearLayoutManager()
         recyclerView.itemAnimator = MessageListItemAnimator()
+        recyclerView.addOnScrollListener(
+            object : RecyclerView.OnScrollListener() {
+                override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
+                    if (dy > 0) {
+                        loadMoreMessagesIfEndIsNear()
+                    }
+                }
+            },
+        )
 
         val itemTouchHelper = ItemTouchHelper(
             MessageListSwipeCallback(
@@ -709,6 +946,7 @@ class LegacyMessageListFragment :
             sortDateAscending,
             activeMessage,
             legacyViewModel.messageSortOverrides.toMap(),
+            legacyViewModel.remoteSearchResults.toSet(),
         )
 
         if (forceUpdate) {
@@ -758,19 +996,17 @@ class LegacyMessageListFragment :
         val title = when {
             isUnifiedFolders -> getString(R.string.integrated_inbox_title)
             isNewMessagesView -> getString(R.string.new_messages_title)
-            isManualSearch -> getString(R.string.search_results)
+            // The search results display the search field with their query instead of a title.
+            isManualSearch -> ""
             isThreadDisplay -> threadTitle ?: ""
             isSingleFolderMode -> currentFolder!!.displayName
             else -> ""
         }
 
-        val subtitle = account.let { account ->
-            if (account == null || isUnifiedFolders || accountManager.getAccounts().size == 1) {
-                null
-            } else {
-                account.profile.name
-            }
-        }
+        val subtitle = account
+            ?.takeUnless { isUnifiedFolders || isManualSearch }
+            ?.takeIf { accountManager.getAccounts().size > 1 }
+            ?.profile?.name
 
         fragmentListener.setMessageListTitle(title, subtitle)
     }
@@ -784,12 +1020,18 @@ class LegacyMessageListFragment :
     }
 
     override fun onFooterClicked() {
-        val account = this.account ?: return
-        val currentFolder = this.currentFolder ?: return
+        val account = this.account
+        val currentFolder = this.currentFolder
+        if (account == null || currentFolder == null) {
+            // A search spanning multiple folders or accounts only offers to continue on the server.
+            if (isRemoteSearchAllowed) {
+                onRemoteSearch()
+            }
+            return
+        }
 
         if (currentFolder.moreMessages && !localSearch.isManualSearch) {
-            val folderId = currentFolder.databaseId
-            messagingController.loadMoreMessages(account.id, folderId)
+            loadMoreMessages()
         } else if (isRemoteSearch) {
             val additionalSearchResults = extraSearchResults ?: return
             if (additionalSearchResults.isEmpty()) return
@@ -812,6 +1054,8 @@ class LegacyMessageListFragment :
                 loadSearchResults,
                 activityListener,
             )
+        } else if (isRemoteSearchAllowed) {
+            onRemoteSearch()
         }
     }
 
@@ -837,7 +1081,24 @@ class LegacyMessageListFragment :
         }
     }
 
+    override fun onMessageFolderClicked(messageListItem: MessageListItem) {
+        if (!isActive) return
+
+        val clickTime = SystemClock.elapsedRealtime()
+        if (clickTime - lastMessageClick < MINIMUM_CLICK_INTERVAL) return
+
+        if (adapter.selectedCount > 0) {
+            toggleMessageSelect(messageListItem)
+        } else {
+            lastMessageClick = clickTime
+            fragmentListener.showFolder(messageListItem.account, messageListItem.folderId)
+        }
+    }
+
     override fun onDestroyView() {
+        handler.removeCallbacks(stopRemoteSearchRunnable)
+        handler.removeCallbacks(loadedMessagesDisplayedRunnable)
+        isWaitingForLoadedMessages = false
         coordinatorLayout = null
         recyclerView = null
         messageListSwipeCallback = null
@@ -907,10 +1168,41 @@ class LegacyMessageListFragment :
         messagingControllerRegistry.addListener(activityListener)
 
         updateTitle()
+
+        if (!initialMessageListLoad) {
+            startAutomaticRemoteSearch()
+        }
+        continueStoppedRemoteSearch()
+    }
+
+    /**
+     * A search keeps running while the user has a quick look at one of its results. When the user stays with the
+     * message, the search is stopped to not use the connection for something nobody is waiting for. It continues
+     * when the user returns to the search results.
+     */
+    private fun onActiveChanged() {
+        handler.removeCallbacks(stopRemoteSearchRunnable)
+        if (isActive) {
+            if (isResumed) {
+                continueStoppedRemoteSearch()
+            }
+        } else if (remoteSearchFuture != null) {
+            handler.postDelayed(stopRemoteSearchRunnable, REMOTE_SEARCH_READING_TIME)
+        }
+    }
+
+    private fun continueStoppedRemoteSearch() {
+        val stoppedRemoteSearch = stoppedRemoteSearch ?: return
+        if (!isActive || remoteSearchFuture != null || !connectivityManager.isNetworkAvailable()) return
+
+        onRemoteSearchRequested(stoppedRemoteSearch.searchMessageContents, stoppedRemoteSearch.searchedFolderCount)
     }
 
     override fun onPause() {
         super.onPause()
+
+        recyclerView?.removeCallbacks(automaticRemoteSearchRunnable)
+        isAutomaticRemoteSearchScheduled = false
 
         messagingControllerRegistry.removeListener(activityListener)
     }
@@ -932,24 +1224,66 @@ class LegacyMessageListFragment :
         changeSort(sortType, sortAscending)
     }
 
-    private fun onRemoteSearchRequested() {
-        val folderId = currentFolder!!.databaseId
-        val queryString = localSearch.remoteSearchArguments
+    /**
+     * @param searchedFolderCount The number of folders a search that was stopped has already searched. The search
+     *   continues after them.
+     */
+    private fun onRemoteSearchRequested(searchMessageContents: Boolean = false, searchedFolderCount: Int = 0) {
+        val queryString = manualSearchQuery ?: return
+
+        // A search that is still running is replaced, e.g. when the user doesn't want to wait for it to finish
+        // before the message contents are searched.
+        remoteSearchListener = null
+        remoteSearchFuture?.cancel(true)
+        stoppedRemoteSearch = null
 
         isRemoteSearch = true
+        isSearchingMessageContents = searchMessageContents
+        hasRemoteSearchFailed = false
+        isRemoteSearchStopped = false
+        remoteSearchProblem = null
+        remoteSearchProblemReason = null
+        remoteSearchFolderIndex = searchedFolderCount
+        if (searchedFolderCount == 0) {
+            remoteSearchFoundCount = 0
+            remoteSearchNotLoadedCount = 0
+        }
         swipeRefreshLayout?.isEnabled = false
 
-        val account = this.account ?: return
+        // Widen the visible search to all folders and accounts so that results found by the
+        // cascading remote search show up in this list. Unless the user only wants to search the folder the search
+        // was started from.
+        val startAccount = account
+        val startFolder = currentFolder
+        val isLimitedToFolder = searchScope == SearchScope.FOLDER && startAccount != null && startFolder != null
+        localSearch = createManualQuerySearch(queryString).apply {
+            if (isLimitedToFolder) {
+                addAccountUuid(startAccount!!.id.toString())
+                addAllowedFolder(startFolder!!.databaseId)
+            }
+        }
+        loadMessageList(forceUpdate = true)
 
-        remoteSearchFuture = messagingController.searchRemoteMessages(
-            account.id,
-            folderId,
+        // The account and folder the search was started from are searched first. A search that was started from
+        // multiple folders or accounts, e.g. the Unified Folders, has neither.
+        remoteSearchFuture = messagingController.searchRemoteMessagesCascading(
+            account?.id,
+            currentFolder?.databaseId,
             queryString,
             null,
             null,
-            activityListener,
+            searchMessageContents,
+            isLimitedToFolder,
+            searchedFolderCount,
+            RemoteSearchListener().also { remoteSearchListener = it },
         )
 
+        showSearchStatus(
+            ServerSearchStatus.Running(
+                title = getString(R.string.remote_search_sending_query),
+                isMessageContentsSearchOffered = !searchMessageContents,
+            ),
+        )
         invalidateMenu()
     }
 
@@ -1125,9 +1459,6 @@ class LegacyMessageListFragment :
 
     private fun prepareSearchMenu(menu: Menu) {
         val searchItem = menu.findItem(R.id.search)
-        searchItem.isVisible = !isManualSearch
-
-        if (!searchItem.isVisible) return
 
         searchView?.let { searchView ->
             searchItem.actionView = searchView
@@ -1140,8 +1471,7 @@ class LegacyMessageListFragment :
         searchView.setOnQueryTextListener(
             object : SearchView.OnQueryTextListener {
                 override fun onQueryTextSubmit(query: String): Boolean {
-                    onSearchRequested(query)
-                    collapseSearchView()
+                    submitSearch(query)
                     return true
                 }
 
@@ -1151,10 +1481,83 @@ class LegacyMessageListFragment :
             },
         )
 
-        searchView.setQuery(initialSearchViewQuery, false)
-        searchView.isIconified = initialSearchViewIconified
+        initializeSearchSuggestions(searchView)
+
+        if (isManualSearch) {
+            // The search results display their query so it can be changed. Leave room for the other toolbar actions.
+            searchView.maxWidth = resources.displayMetrics.widthPixels -
+                resources.getDimensionPixelSize(R.dimen.messageListSearchResultsToolbarReservedWidth)
+            searchView.setIconifiedByDefault(false)
+            searchView.setQuery(initialSearchViewQuery ?: manualSearchQuery, false)
+            searchView.clearFocus()
+        } else {
+            searchView.setQuery(initialSearchViewQuery, false)
+            searchView.isIconified = initialSearchViewIconified
+        }
 
         this.searchView = searchView
+    }
+
+    /**
+     * Suggest the most recent search queries below the search field.
+     */
+    private fun initializeSearchSuggestions(searchView: SearchView) {
+        val searchHistoryAdapter = SearchHistoryAdapter(
+            context = searchView.context,
+            queries = { if (isSearchHistoryEnabled) searchHistory.getQueries() else emptyList() },
+            onRemoveQuery = { query -> searchHistory.remove(query) },
+        )
+        searchView.suggestionsAdapter = searchHistoryAdapter
+
+        // Display the suggestions as soon as the search field is opened, not only once the user has typed something.
+        searchView.findViewById<AutoCompleteTextView>(AppCompatR.id.search_src_text)?.threshold = 0
+
+        searchView.setOnSuggestionListener(
+            object : SearchView.OnSuggestionListener {
+                override fun onSuggestionSelect(position: Int): Boolean = false
+
+                override fun onSuggestionClick(position: Int): Boolean {
+                    searchHistoryAdapter.getQuery(position)?.let { query -> submitSearch(query) }
+                    return true
+                }
+            },
+        )
+    }
+
+    private val isSearchHistoryEnabled: Boolean
+        get() = generalSettingsManager.getConfig().privacy.isSearchHistoryEnabled
+
+    private fun submitSearch(query: String) {
+        if (isSearchHistoryEnabled) {
+            searchHistory.add(query)
+        }
+
+        if (isManualSearch) {
+            replaceSearch(query)
+        } else {
+            onSearchRequested(query)
+            collapseSearchView()
+        }
+    }
+
+    /**
+     * Display the results for [query] instead of the current search results. The new search covers the same
+     * account and folder as the current one.
+     */
+    private fun replaceSearch(query: String) {
+        searchView?.clearFocus()
+
+        val currentIntent = requireActivity().intent
+        val searchIntent = Intent(requireContext(), MessageSearchActivity::class.java).apply {
+            action = Intent.ACTION_SEARCH
+            putExtra(SearchManager.QUERY, query)
+            putExtra(SearchManager.APP_DATA, currentIntent.getBundleExtra(SearchManager.APP_DATA))
+
+            addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        }
+
+        startActivity(searchIntent)
     }
 
     private fun prepareMenu(menu: Menu) {
@@ -1217,8 +1620,14 @@ class LegacyMessageListFragment :
 
     override fun collapseSearchView() {
         searchView?.let { searchView ->
-            searchView.setQuery(null, false)
-            searchView.isIconified = true
+            if (isManualSearch) {
+                // Discard the changes to the query of the displayed search results
+                searchView.setQuery(manualSearchQuery, false)
+                searchView.clearFocus()
+            } else {
+                searchView.setQuery(null, false)
+                searchView.isIconified = true
+            }
         }
     }
 
@@ -1404,24 +1813,61 @@ class LegacyMessageListFragment :
     }
 
     private fun updateFooterText() {
+        // While a remote search is running, the MessagingListener callbacks supply progress messages
+        // for the footer. Don't overwrite them here.
+        if (remoteSearchFuture != null) return
+
         val currentFolder = this.currentFolder
         val account = this.account
 
         val footerText = if (initialMessageListLoad) {
             null
-        } else if (localSearch.isManualSearch || currentFolder == null || account == null) {
+        } else if (localSearch.isManualSearch) {
+            getSearchResultsFooterText()
+        } else if (currentFolder == null || account == null) {
             null
-        } else if (currentFolder.loading) {
+        } else if (currentFolder.loading || isLoadingMoreMessagesRequested || isWaitingForLoadedMessages) {
             getString(R.string.status_loading_more)
         } else if (!currentFolder.moreMessages) {
             null
-        } else if (account.displayCount == 0) {
-            getString(R.string.message_list_load_more_messages_action)
+        } else if (hasLoadingMessagesFailed) {
+            val reason = loadingMessagesFailureReason
+            if (reason.isNullOrBlank()) {
+                getString(R.string.message_list_load_more_messages_failed)
+            } else {
+                getString(R.string.message_list_load_more_messages_failed_reason, reason)
+            }
         } else {
-            getString(R.string.load_more_messages_fmt, account.displayCount)
+            // More messages are loaded when the user gets here. Tapping is only needed if that wasn't possible.
+            getString(R.string.message_list_load_more_messages_action)
         }
 
         updateFooterText(footerText)
+    }
+
+    private fun getSearchResultsFooterText(): String? {
+        val extraSearchResults = this.extraSearchResults
+        return if (hasRemoteSearchFailed) {
+            getString(R.string.remote_search_error)
+        } else if (remoteSearchNotLoadedCount > 0) {
+            resources.getQuantityString(
+                R.plurals.remote_search_results_limited,
+                remoteSearchNotLoadedCount,
+                remoteSearchNotLoadedCount,
+            )
+        } else if (!extraSearchResults.isNullOrEmpty()) {
+            // A remote search found more results than were downloaded. Offer to load more.
+            account?.let { getString(R.string.load_more_messages_fmt, it.remoteSearchNumResults) }
+        } else if (adapter.viewItems.any { it is MessageListViewItem.Message }) {
+            null
+        } else if (isRemoteSearch) {
+            // A remote search completed without results; say so instead of showing a generic message.
+            getString(R.string.remote_search_no_results)
+        } else if (isRemoteSearchAllowed) {
+            getString(R.string.search_no_results_search_server_prompt)
+        } else {
+            getString(R.string.search_no_results)
+        }
     }
 
     override fun updateFooterText(text: String?) {
@@ -1863,33 +2309,53 @@ class LegacyMessageListFragment :
 
     override fun onStop() {
         // If we represent a remote search, then kill that before going back.
-        if (isRemoteSearch && remoteSearchFuture != null) {
-            try {
-                logger.info(logTag) { "Remote search in progress, attempting to abort..." }
-
-                // Canceling the future stops any message fetches in progress.
-                val cancelSuccess = remoteSearchFuture!!.cancel(true) // mayInterruptIfRunning = true
-                if (!cancelSuccess) {
-                    logger.error(logTag) { "Could not cancel remote search future." }
-                }
-
-                // Closing the folder will kill off the connection if we're mid-search.
-                val searchAccount = account!!
-
-                // Send a remoteSearchFinished() message for good measure.
-                activityListener.remoteSearchFinished(
-                    currentFolder!!.databaseId,
-                    0,
-                    searchAccount.remoteSearchNumResults,
-                    null,
-                )
-            } catch (e: Exception) {
-                // Since the user is going back, log and squash any exceptions.
-                logger.error(logTag, e) { "Could not abort remote search before going back" }
-            }
-        }
+        stopRemoteSearch(canContinue = !requireActivity().isFinishing)
 
         super.onStop()
+    }
+
+    /**
+     * Stop a remote search that is running.
+     *
+     * @param canContinue Whether the search continues where it was stopped when the user returns to the search
+     *   results, e.g. from looking at a folder or a message. The folder it was working on is searched again.
+     */
+    private fun stopRemoteSearch(canContinue: Boolean) {
+        if (!isRemoteSearch || remoteSearchFuture == null) return
+
+        if (canContinue) {
+            stoppedRemoteSearch = StoppedRemoteSearch(
+                searchMessageContents = isSearchingMessageContents,
+                searchedFolderCount = (remoteSearchFolderIndex - 1).coerceAtLeast(0),
+            )
+        }
+
+        // The stopped search may still report something. Only what is said here counts from now on.
+        remoteSearchListener = null
+
+        // An aborted search of the message contents can be started again.
+        isSearchingMessageContents = false
+        isRemoteSearchStopped = true
+        try {
+            logger.info(logTag) { "Remote search in progress, attempting to abort..." }
+
+            // Canceling the future stops any message fetches in progress.
+            val cancelSuccess = remoteSearchFuture!!.cancel(true) // mayInterruptIfRunning = true
+            if (!cancelSuccess) {
+                logger.error(logTag) { "Could not cancel remote search future." }
+            }
+
+            // Send a remoteSearchFinished() message for good measure.
+            activityListener.remoteSearchFinished(
+                currentFolder?.databaseId ?: NO_FOLDER_ID,
+                0,
+                account?.remoteSearchNumResults ?: 0,
+                null,
+            )
+        } catch (e: Exception) {
+            // Since the user is going back, log and squash any exceptions.
+            logger.error(logTag, e) { "Could not abort remote search before going back" }
+        }
     }
 
     fun openMessage(messageReference: MessageReference) {
@@ -2007,11 +2473,26 @@ class LegacyMessageListFragment :
         }
     }
 
+    /**
+     * The query the user has entered for a manual search.
+     */
+    private val manualSearchQuery: String?
+        get() = activity?.intent?.getStringExtra(SearchManager.QUERY)?.trim()?.takeIf { it.isNotEmpty() }
+            ?: localSearch.remoteSearchArguments
+
+    private val hasAccountSupportingRemoteSearch: Boolean by lazy { messagingController.supportsRemoteSearch() }
+
+    private val isRemoteSearchSupported: Boolean
+        get() = isManualSearch && hasAccountSupportingRemoteSearch
+
     private val isRemoteSearchAllowed: Boolean
-        get() = isManualSearch &&
-            !isRemoteSearch &&
-            isSingleFolderMode &&
-            (account?.id?.let { messagingController.isPushCapable(it) } == true)
+        get() = !isRemoteSearch && isRemoteSearchSupported
+
+    /**
+     * A remote search that has finished or was aborted can be started again, e.g. via pull-to-refresh.
+     */
+    private val isRemoteSearchRestartAllowed: Boolean
+        get() = isRemoteSearch && remoteSearchFuture == null && isRemoteSearchSupported
 
     fun onSearchRequested(query: String): Boolean {
         val folderId = currentFolder?.databaseId
@@ -2048,7 +2529,11 @@ class LegacyMessageListFragment :
             if (featureFlagProvider.provide(GeneratedFeatureFlagKey.DISPLAY_IN_APP_NOTIFICATIONS).isEnabled()) {
                 add(MessageListViewItem.InAppNotificationBannerList)
             }
+            searchStatus?.let { add(MessageListViewItem.SearchStatus(it, searchScope)) }
             addAll(messageListItems.map { MessageListViewItem.Message(it) })
+            // Keep the current footer (e.g. remote search progress) across list rebuilds.
+            // updateFooterText() below recomputes it when no remote search is running.
+            adapter.viewItems.filterIsInstance<MessageListViewItem.Footer>().firstOrNull()?.let { add(it) }
         }
 
         rememberedSelected?.let {
@@ -2070,7 +2555,146 @@ class LegacyMessageListFragment :
 
         currentFolder?.let { currentFolder ->
             currentFolder.moreMessages = messageListInfo.hasMoreMessages
-            updateFooterText()
+        }
+        updateFooterText()
+
+        startAutomaticRemoteSearch()
+        if (isWaitingForLoadedMessages) {
+            handler.removeCallbacks(loadedMessagesDisplayedRunnable)
+            handler.postDelayed(loadedMessagesDisplayedRunnable, LOADED_MESSAGES_SETTLING_TIME)
+        } else {
+            loadMoreMessagesIfScreenIsNotFilled()
+        }
+    }
+
+    /**
+     * Whether older messages of the displayed folder can be loaded from the server now.
+     */
+    private val isLoadingMoreMessagesPossible: Boolean
+        get() {
+            val currentFolder = currentFolder ?: return false
+            return isSingleAccountMode &&
+                isSingleFolderMode &&
+                !isThreadDisplay &&
+                isRemoteFolder &&
+                currentFolder.moreMessages &&
+                !currentFolder.loading &&
+                !isLoadingMoreMessagesRequested &&
+                !isWaitingForLoadedMessages
+        }
+
+    /**
+     * The messages of a folder are only loaded as far as the user looks at them: enough to fill the screen when the
+     * folder is opened, and more when the user scrolls towards the end of the messages that are on the device.
+     *
+     * After a failure the user has to ask for it, so a server that can't be reached isn't tried over and over.
+     */
+    private val isLoadingMoreMessagesWanted: Boolean
+        get() = isResumed && !initialMessageListLoad && !hasLoadingMessagesFailed && isLoadingMoreMessagesPossible
+
+    private fun loadMoreMessagesIfEndIsNear() {
+        if (!isLoadingMoreMessagesWanted || !isOldestMessageDisplayedLast) return
+        val layoutManager = recyclerView?.layoutManager as? LinearLayoutManager ?: return
+
+        val lastVisiblePosition = layoutManager.findLastVisibleItemPosition()
+        if (lastVisiblePosition >= adapter.itemCount - 1 - LOAD_MORE_MESSAGES_DISTANCE) {
+            loadMoreMessages()
+        }
+    }
+
+    /**
+     * Older messages are added to the end of the list only when it is sorted by date, newest first. With any other
+     * sort order reaching the end of the list doesn't mean the user is looking for older messages.
+     */
+    private val isOldestMessageDisplayedLast: Boolean
+        get() = (sortType == SortType.SORT_DATE || sortType == SortType.SORT_ARRIVAL) && !sortAscending
+
+    private fun loadMoreMessagesIfScreenIsNotFilled() {
+        val recyclerView = recyclerView ?: return
+
+        // Whether the list can be scrolled is only known once it has been laid out with its current messages.
+        recyclerView.doOnPreDraw {
+            if (isLoadingMoreMessagesWanted && !recyclerView.canScrollVertically(1)) {
+                loadMoreMessages()
+            }
+        }
+        recyclerView.invalidate()
+    }
+
+    private fun loadMoreMessages() {
+        val account = account ?: return
+        val currentFolder = currentFolder ?: return
+        if (isLoadingMoreMessagesRequested || isWaitingForLoadedMessages) return
+
+        isLoadingMoreMessagesRequested = true
+        hasLoadingMessagesFailed = false
+        updateFooterText()
+
+        messageCountBeforeLoading = displayedMessageCount
+        val onFinished: () -> Unit = {
+            handler.post {
+                isLoadingMoreMessagesRequested = false
+
+                // The message list is updated once for every message that was loaded, and it may still be catching
+                // up. Its end is not the end of the loaded messages until it has come to rest.
+                isWaitingForLoadedMessages = true
+                handler.postDelayed(loadedMessagesDisplayedRunnable, LOADED_MESSAGES_SETTLING_TIME)
+            }
+        }
+        // A folder that only has a few messages on the device, e.g. search results, hasn't been looked at yet.
+        if (messageCountBeforeLoading >= messageCountFillingScreen) {
+            messagingController.loadNextMessages(account.id, currentFolder.databaseId, onFinished)
+        } else {
+            messagingController.loadFirstMessages(
+                account.id,
+                currentFolder.databaseId,
+                messageCountFillingScreen,
+                onFinished,
+            )
+        }
+    }
+
+    private val displayedMessageCount: Int
+        get() = adapter.viewItems.count { it is MessageListViewItem.Message }
+
+    private fun onLoadedMessagesDisplayed() {
+        isWaitingForLoadedMessages = false
+        if (!isAdded) return
+
+        updateFooterText()
+
+        // Continue if this wasn't enough to fill the screen. Only when it has brought new messages though. Otherwise
+        // this would go on forever.
+        if (displayedMessageCount > messageCountBeforeLoading) {
+            loadMoreMessagesIfScreenIsNotFilled()
+        }
+    }
+
+    /**
+     * How many messages it takes to fill the message list, plus a few so the list can be scrolled.
+     */
+    private val messageCountFillingScreen: Int
+        get() {
+            val listHeight = recyclerView?.height?.takeIf { it > 0 } ?: resources.displayMetrics.heightPixels
+            val smallestRowHeight = resources.getDimensionPixelSize(R.dimen.messageListSmallestRowHeight)
+            return listHeight / smallestRowHeight + ADDITIONAL_FIRST_MESSAGES
+        }
+
+    /**
+     * Continue with a server search as soon as the local search results are displayed.
+     */
+    private fun startAutomaticRemoteSearch() {
+        if (!isResumed || isAutomaticRemoteSearchScheduled || !isRemoteSearchAllowed) return
+        val recyclerView = recyclerView ?: return
+
+        isAutomaticRemoteSearchScheduled = true
+        if (connectivityManager.isNetworkAvailable()) {
+            // Don't start the search from within the list update that triggered it.
+            recyclerView.post(automaticRemoteSearchRunnable)
+        } else {
+            remoteSearchProblem = getString(R.string.remote_search_unavailable)
+            remoteSearchProblemReason = getString(R.string.remote_search_unavailable_no_network)
+            showSearchOutcome()
         }
     }
 
@@ -2207,7 +2831,7 @@ class LegacyMessageListFragment :
         get() = !isManualSearch && isCheckMailSupported
 
     private val isPullToRefreshAllowed: Boolean
-        get() = isRemoteSearchAllowed || isCheckMailAllowed
+        get() = isRemoteSearchAllowed || isRemoteSearchRestartAllowed || isCheckMailAllowed
 
     private var itemSelectedOnSwipeStart = false
 
@@ -2342,6 +2966,68 @@ class LegacyMessageListFragment :
         }
     }
 
+    private data class StoppedRemoteSearch(val searchMessageContents: Boolean, val searchedFolderCount: Int)
+
+    /**
+     * Passes on what a server search reports for as long as it is the current search. A search that was stopped or
+     * replaced by another one may still report something until it notices.
+     */
+    private inner class RemoteSearchListener : SimpleMessagingListener() {
+        private val listener: MessageListActivityListener?
+            get() = activityListener.takeIf { remoteSearchListener === this }
+
+        override fun remoteSearchStarted(folderId: Long) {
+            listener?.remoteSearchStarted(folderId)
+        }
+
+        override fun remoteSearchCascadeProgress(
+            accountUuid: String,
+            accountName: String,
+            folderName: String,
+            folderIndex: Int,
+            folderCount: Int,
+        ) {
+            listener?.remoteSearchCascadeProgress(accountUuid, accountName, folderName, folderIndex, folderCount)
+        }
+
+        override fun remoteSearchStep(step: SearchStep) {
+            listener?.remoteSearchStep(step)
+        }
+
+        override fun remoteSearchDownloadProgress(folderName: String, completed: Int, total: Int) {
+            listener?.remoteSearchDownloadProgress(folderName, completed, total)
+        }
+
+        override fun remoteSearchMessageDownloaded(folderName: String, subject: String?) {
+            listener?.remoteSearchMessageDownloaded(folderName, subject)
+        }
+
+        override fun remoteSearchFolderResults(accountUuid: String, folderId: Long, messageServerIds: List<String>) {
+            listener?.remoteSearchFolderResults(accountUuid, folderId, messageServerIds)
+        }
+
+        override fun remoteSearchResultsLimited(notLoadedCount: Int) {
+            listener?.remoteSearchResultsLimited(notLoadedCount)
+        }
+
+        override fun remoteSearchCascadeIncomplete(failedFolderCount: Int, folderCount: Int, reason: String?) {
+            listener?.remoteSearchCascadeIncomplete(failedFolderCount, folderCount, reason)
+        }
+
+        override fun remoteSearchFailed(folderServerId: String?, err: String?) {
+            listener?.remoteSearchFailed(folderServerId, err)
+        }
+
+        override fun remoteSearchFinished(
+            folderId: Long,
+            numResults: Int,
+            maxResults: Int,
+            extraResults: List<String>?,
+        ) {
+            listener?.remoteSearchFinished(folderId, numResults, maxResults, extraResults)
+        }
+    }
+
     internal inner class MessageListActivityListener : SimpleMessagingListener() {
         private val lock = Any()
 
@@ -2353,15 +3039,110 @@ class LegacyMessageListFragment :
 
         override fun remoteSearchFailed(folderServerId: String?, err: String?) {
             handler.post {
+                hasRemoteSearchFailed = true
                 activity?.let { activity ->
+                    remoteSearchProblem = activity.getString(R.string.remote_search_error)
+                    remoteSearchProblemReason = err
                     Toast.makeText(activity, R.string.remote_search_error, Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+
+        override fun remoteSearchCascadeIncomplete(failedFolderCount: Int, folderCount: Int, reason: String?) {
+            handler.post {
+                if (!isAdded) return@post
+
+                // Displayed by showSearchOutcome() when the remote search has finished.
+                if (failedFolderCount >= folderCount) {
+                    hasRemoteSearchFailed = true
+                    remoteSearchProblem = getString(R.string.remote_search_error)
+                    remoteSearchProblemReason = reason
+                } else {
+                    val details = getString(R.string.remote_search_incomplete_details, failedFolderCount, folderCount)
+                    remoteSearchProblem = getString(R.string.remote_search_incomplete)
+                    remoteSearchProblemReason = listOfNotNull(details, reason).joinToString(separator = " ")
                 }
             }
         }
 
         override fun remoteSearchStarted(folderId: Long) {
             handler.progress(true)
-            handler.updateFooter(getString(R.string.remote_search_sending_query))
+
+            handler.post {
+                if (isAdded) {
+                    updateFooterText(null)
+                }
+            }
+        }
+
+        override fun remoteSearchCascadeProgress(
+            accountUuid: String,
+            accountName: String,
+            folderName: String,
+            folderIndex: Int,
+            folderCount: Int,
+        ) {
+            handler.post {
+                if (!isAdded) return@post
+
+                val isCurrentAccount = accountUuid == account?.id?.toString()
+                val folderLabel = if (isCurrentAccount) folderName else "$accountName / $folderName"
+                showSearchProgress(folderIndex, folderCount, folderLabel)
+            }
+        }
+
+        override fun remoteSearchStep(step: SearchStep) {
+            handler.post {
+                // A search that has ended in the meantime doesn't do anything anymore.
+                if (remoteSearchFuture != null) {
+                    startSearchStep(step)
+                }
+            }
+        }
+
+        override fun remoteSearchDownloadProgress(folderName: String, completed: Int, total: Int) {
+            handler.post {
+                if (!isAdded) return@post
+
+                showSearchDetail(getString(R.string.remote_search_status_downloading, completed, total))
+            }
+        }
+
+        override fun remoteSearchFolderResults(accountUuid: String, folderId: Long, messageServerIds: List<String>) {
+            handler.post {
+                if (!isAdded) return@post
+
+                // The server decides what matches. Display its results even if the local search doesn't find them,
+                // e.g. because the message contents haven't been downloaded.
+                val accountId = AccountIdFactory.of(accountUuid)
+                val messageReferences = messageServerIds.map { MessageReference(accountId, folderId, it) }
+                if (legacyViewModel.remoteSearchResults.addAll(messageReferences)) {
+                    loadMessageList()
+                }
+            }
+        }
+
+        override fun remoteSearchResultsLimited(notLoadedCount: Int) {
+            handler.post {
+                remoteSearchNotLoadedCount = notLoadedCount
+            }
+        }
+
+        override fun remoteSearchMessageDownloaded(folderName: String, subject: String?) {
+            handler.post {
+                if (!isAdded) return@post
+
+                remoteSearchFoundCount++
+                val displaySubject = subject?.takeIf { it.isNotBlank() } ?: getString(R.string.general_no_subject)
+                showSearchDetail(
+                    resources.getQuantityString(
+                        R.plurals.remote_search_status_found,
+                        remoteSearchFoundCount,
+                        remoteSearchFoundCount,
+                        displaySubject,
+                    ),
+                )
+            }
         }
 
         override fun enableProgressIndicator(enable: Boolean) {
@@ -2377,30 +3158,19 @@ class LegacyMessageListFragment :
             handler.progress(false)
             handler.remoteSearchFinished()
 
-            extraSearchResults = extraResults
-            if (extraResults != null && extraResults.isNotEmpty()) {
-                handler.updateFooter(String.format(getString(R.string.load_more_messages_fmt), maxResults))
-            } else {
-                handler.updateFooter(null)
+            handler.post {
+                extraSearchResults = extraResults
+                if (isSearchingMessageContents) {
+                    isSearchingMessageContents = false
+                    // Offer the search again if it didn't cover all folders
+                    hasSearchedMessageContents = remoteSearchProblem == null
+                }
+                showSearchOutcome()
+                swipeRefreshLayout?.isEnabled = isPullToRefreshAllowed
+                if (isAdded) {
+                    updateFooterText()
+                }
             }
-        }
-
-        override fun remoteSearchServerQueryComplete(folderId: Long, numResults: Int, maxResults: Int) {
-            handler.progress(true)
-
-            val footerText = if (maxResults != 0 && numResults > maxResults) {
-                resources.getQuantityString(
-                    R.plurals.remote_search_downloading_limited,
-                    maxResults,
-                    maxResults,
-                    numResults,
-                )
-            } else {
-                resources.getQuantityString(R.plurals.remote_search_downloading, numResults, numResults)
-            }
-
-            handler.updateFooter(footerText)
-            informUserOfStatus()
         }
 
         private fun informUserOfStatus() {
@@ -2409,6 +3179,7 @@ class LegacyMessageListFragment :
 
         override fun synchronizeMailboxStarted(account: LegacyAccountDto, folderId: Long) {
             if (updateForMe(account, folderId)) {
+                hasLoadingMessagesFailed = false
                 handler.progress(true)
                 handler.folderLoading(folderId, true)
 
@@ -2467,6 +3238,9 @@ class LegacyMessageListFragment :
 
         override fun synchronizeMailboxFailed(account: LegacyAccountDto, folderId: Long, message: String) {
             if (updateForMe(account, folderId)) {
+                // Displayed in the footer of the message list, and keeps messages from being loaded again and again
+                loadingMessagesFailureReason = message
+                hasLoadingMessagesFailed = true
                 handler.progress(false)
                 handler.folderLoading(folderId, false)
             }

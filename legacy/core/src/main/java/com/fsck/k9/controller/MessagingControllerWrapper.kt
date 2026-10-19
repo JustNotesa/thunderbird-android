@@ -35,6 +35,16 @@ class MessagingControllerWrapper(
         messagingController.loadMoreMessages(account, folderId)
     }
 
+    fun loadNextMessages(id: AccountId, folderId: Long, onFinished: () -> Unit) {
+        val account = getAccountDtoOrThrow(id)
+        messagingController.loadNextMessages(account, folderId, onFinished)
+    }
+
+    fun loadFirstMessages(id: AccountId, folderId: Long, messageCount: Int, onFinished: () -> Unit) {
+        val account = getAccountDtoOrThrow(id)
+        messagingController.loadFirstMessages(account, folderId, messageCount, onFinished)
+    }
+
     fun loadSearchResults(
         id: AccountId,
         folderId: Long,
@@ -63,6 +73,28 @@ class MessagingControllerWrapper(
         query,
         requiredFlags,
         forbiddenFlags,
+        listener,
+    )
+
+    fun searchRemoteMessagesCascading(
+        id: AccountId?,
+        startFolderId: Long?,
+        query: String?,
+        requiredFlags: Set<Flag>?,
+        forbiddenFlags: Set<Flag>?,
+        searchMessageContents: Boolean,
+        startFolderOnly: Boolean,
+        searchedFolderCount: Int,
+        listener: MessagingListener,
+    ): Future<*>? = messagingController.searchRemoteMessagesCascading(
+        id?.toString(),
+        startFolderId,
+        query,
+        requiredFlags,
+        forbiddenFlags,
+        searchMessageContents,
+        startFolderOnly,
+        searchedFolderCount,
         listener,
     )
 
@@ -198,6 +230,8 @@ class MessagingControllerWrapper(
         val account = getAccountDtoOrNull(id) ?: return false
         return messagingController.supportsExpunge(account)
     }
+
+    fun supportsRemoteSearch(): Boolean = messagingController.supportsRemoteSearch()
 
     fun isPushCapable(id: AccountId): Boolean {
         val account = getAccountDtoOrNull(id) ?: return false

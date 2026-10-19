@@ -5,12 +5,24 @@
 
     <dimen name="message_view_pager_page_margin">16dp</dimen>
     <dimen name="messageListSwipeThreshold">72dp</dimen>
+    <!-- Navigation icon and overflow menu next to the search field of the search results -->
+    <dimen name="messageListSearchResultsToolbarReservedWidth">120dp</dimen>
+    <!-- Used to work out how many messages fill the screen. Rows are at least this high. -->
+    <dimen name="messageListSmallestRowHeight">56dp</dimen>
+    <dimen name="folderListSubfolderIndentation">24dp</dimen>
     <dimen name="messageListSwipeIconPadding">24dp</dimen>
     <dimen name="messageListSwipeTextPadding">12dp</dimen>
 
     <dimen name="messageListStartKeyline">72dp</dimen>
     <dimen name="messageListContactPictureSize">40dp</dimen>
     <dimen name="messageListHorizontalPadding">16dp</dimen>
+    <dimen name="messageListFolderButtonSize">32dp</dimen>
+    <dimen name="messageListFolderTouchTargetHeight">40dp</dimen>
+    <dimen name="messageListFolderTouchTargetInset">4dp</dimen>
+    <!-- The folder button is taller than the text line it is centered on. These keep it clear of the star above and
+         inside the list item below. -->
+    <dimen name="messageListFolderPreviewMinHeight">35dp</dimen>
+    <dimen name="messageListFolderLineMinBottomSpace">7dp</dimen>
 
     <!-- The rows are separated by whitespace, not by a divider line: the background is inset and rounded. -->
     <dimen name="messageListItemBackgroundInset">8dp</dimen>

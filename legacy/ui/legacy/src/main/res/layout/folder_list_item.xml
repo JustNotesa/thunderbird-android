@@ -24,14 +24,28 @@
 
     <com.google.android.material.textview.MaterialTextView
         android:id="@+id/folder_name"
-        android:layout_width="wrap_content"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
+        android:layout_weight="1"
         android:paddingStart="0dp"
         android:paddingTop="12dp"
         android:paddingEnd="16dp"
         android:paddingBottom="12dp"
         android:textAppearance="?attr/textAppearanceTitleMedium"
         tools:text="Inbox"
+        />
+
+    <!-- Shows or hides the subfolders -->
+    <ImageView
+        android:id="@+id/folder_expand"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_marginEnd="8dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:padding="12dp"
+        android:visibility="gone"
+        tools:srcCompat="@drawable/ic_expand_more"
+        tools:visibility="visible"
         />
 
 </LinearLayout>

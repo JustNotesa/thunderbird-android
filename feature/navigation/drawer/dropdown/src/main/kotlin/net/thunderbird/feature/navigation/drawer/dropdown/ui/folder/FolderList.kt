@@ -6,10 +6,16 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalResources
 import app.k9mail.legacy.ui.folder.FolderNameFormatter
+import kotlinx.coroutines.flow.first
 import net.thunderbird.components.ui.bolt.theme.BoltTheme
 import net.thunderbird.feature.navigation.drawer.dropdown.domain.entity.DisplayFolder
 import net.thunderbird.feature.navigation.drawer.dropdown.domain.entity.DisplayTreeFolder
@@ -26,6 +32,27 @@ internal fun FolderList(
     val resources = LocalResources.current
     val folderNameFormatter = remember { FolderNameFormatter(resources) }
     val listState = rememberLazyListState()
+
+    // Bring the selected folder into view whenever another folder is selected, e.g. when a folder was opened from
+    // somewhere else than this list.
+    val selectedFolderId = selectedFolder?.id
+    val selectedItemIndex = remember(rootFolder, selectedFolderId) {
+        rootFolder.children.indexOfFirst { folder ->
+            selectedFolderId != null &&
+                (folder.displayFolder?.id == selectedFolderId || folder.containsFolder(selectedFolderId))
+        }
+    }
+    val isSelectedFolderListed = selectedItemIndex >= 0
+    var folderIdToReveal by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(selectedFolderId, isSelectedFolderListed) {
+        if (isSelectedFolderListed) {
+            val visibleItems = snapshotFlow { listState.layoutInfo.visibleItemsInfo }.first { it.isNotEmpty() }
+            if (visibleItems.none { it.index == selectedItemIndex }) {
+                listState.scrollToItem(selectedItemIndex)
+            }
+            folderIdToReveal = selectedFolderId
+        }
+    }
 
     LazyColumn(
         state = listState,
@@ -45,8 +72,10 @@ internal fun FolderList(
                 showStarredCount = showStarredCount,
                 onClick = onFolderClick,
                 folderNameFormatter = folderNameFormatter,
-                selectedFolderId = selectedFolder?.id,
+                selectedFolderId = selectedFolderId,
                 isExpandInitial = isExpandedInitial,
+                folderIdToReveal = folderIdToReveal,
+                onFolderReveal = { folderIdToReveal = null },
             )
         }
     }

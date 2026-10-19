@@ -20,6 +20,7 @@ val messageListUiModule = module {
             outboxFolderManager = get(),
             featureFlagProvider = get(),
             contactLetterBitmapCreator = get(),
+            folderNameFormatter = get(),
         )
     }
     factory {
@@ -36,4 +37,5 @@ val messageListUiModule = module {
         )
     }
     single { SortTypeToastProvider() }
+    single { SearchHistory(context = get()) }
 }

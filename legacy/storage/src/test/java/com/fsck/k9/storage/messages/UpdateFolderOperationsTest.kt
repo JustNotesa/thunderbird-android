@@ -184,6 +184,18 @@ class UpdateFolderOperationsTest : RobolectricTest() {
     }
 
     @Test
+    fun `update server ID and name`() {
+        val folderId = sqliteDatabase.createFolder(serverId = "Old", name = "Old")
+
+        updateFolderOperations.setServerId(folderId = folderId, folderServerId = "Parent/New", name = "Parent/New")
+
+        val folder = sqliteDatabase.readFolders().first()
+        assertThat(folder.id).isEqualTo(folderId)
+        assertThat(folder.serverId).isEqualTo("Parent/New")
+        assertThat(folder.name).isEqualTo("Parent/New")
+    }
+
+    @Test
     fun `disable push for all folders`() {
         sqliteDatabase.createFolder(pushEnabled = true)
         sqliteDatabase.createFolder(pushEnabled = false)

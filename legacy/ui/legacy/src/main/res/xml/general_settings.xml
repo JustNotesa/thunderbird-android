@@ -559,6 +559,12 @@
             android:title="@string/global_settings_privacy_incognito_keyboard"
             />
 
+        <CheckBoxPreference
+            android:key="privacy_search_history"
+            android:summary="@string/global_settings_privacy_search_history_detail"
+            android:title="@string/global_settings_privacy_search_history"
+            />
+
     </PreferenceScreen>
 
     <PreferenceScreen

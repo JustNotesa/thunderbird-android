@@ -32,6 +32,12 @@ interface ImapFolder {
     @Throws(MessagingException::class)
     fun getUidFromMessageId(messageId: String): String?
 
+    /**
+     * @return Those of the given UIDs that belong to messages that exist on the server and aren't marked as deleted.
+     */
+    @Throws(MessagingException::class)
+    fun getExistingUids(uids: Collection<String>): Set<String>
+
     @Throws(MessagingException::class)
     fun getMessages(
         start: Int,
@@ -101,6 +107,18 @@ interface ImapFolder {
      */
     @Throws(MessagingException::class)
     fun create(folderType: FolderType = FolderType.REGULAR): Boolean
+
+    /**
+     * Delete the folder and all messages in it from the server.
+     */
+    @Throws(MessagingException::class)
+    fun delete()
+
+    /**
+     * Give the folder the name and location of [folder], which must not exist yet. Subfolders move along with it.
+     */
+    @Throws(MessagingException::class)
+    fun renameTo(folder: ImapFolder)
 }
 
 interface FetchListener {

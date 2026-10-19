@@ -258,6 +258,10 @@ class K9MessageStore(
         updateFolderOperations.setStatus(folderId, status)
     }
 
+    override fun setFolderServerId(folderId: Long, folderServerId: String, name: String) {
+        updateFolderOperations.setServerId(folderId, folderServerId, name)
+    }
+
     override fun setVisibleLimit(folderId: Long, visibleLimit: Int) {
         updateFolderOperations.setVisibleLimit(folderId, visibleLimit)
     }

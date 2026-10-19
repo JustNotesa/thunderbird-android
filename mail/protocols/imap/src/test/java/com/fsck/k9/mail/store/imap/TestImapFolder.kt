@@ -53,6 +53,18 @@ internal open class TestImapFolder(
         throw UnsupportedOperationException("not implemented")
     }
 
+    override fun delete() {
+        throw UnsupportedOperationException("not implemented")
+    }
+
+    override fun renameTo(folder: ImapFolder) {
+        throw UnsupportedOperationException("not implemented")
+    }
+
+    override fun getExistingUids(uids: Collection<String>): Set<String> {
+        throw UnsupportedOperationException("not implemented")
+    }
+
     override fun getMessages(
         start: Int,
         end: Int,

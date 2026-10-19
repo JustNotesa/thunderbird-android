@@ -58,6 +58,14 @@ interface MessageListFragmentBridgeContract {
         fun setMessageListProgress(level: Int)
         fun showThread(account: LegacyAccount, threadRootId: Long)
         fun openMessage(messageReference: MessageReference)
+        fun showFolder(account: LegacyAccount, folderId: Long)
+
+        /**
+         * Where the displayed folder was opened from, if the user can return there. `null` once the user has moved
+         * on to another folder.
+         */
+        val folderOrigin: FolderOrigin?
+        fun returnToFolderOrigin()
         fun setMessageListTitle(title: String, subtitle: String? = null)
         fun onCompose(account: LegacyAccount?)
         fun startSearch(query: String, account: LegacyAccount?, folderId: Long?): Boolean

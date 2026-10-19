@@ -4,6 +4,8 @@ import com.fsck.k9.backend.api.Backend
 import com.fsck.k9.backend.api.BackendPusher
 import com.fsck.k9.backend.api.BackendPusherCallback
 import com.fsck.k9.backend.api.BackendStorage
+import com.fsck.k9.backend.api.SearchListener
+import com.fsck.k9.backend.api.StorageQuota
 import com.fsck.k9.backend.api.SyncConfig
 import com.fsck.k9.backend.api.SyncListener
 import com.fsck.k9.mail.BodyFactory
@@ -17,6 +19,7 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
+import net.thunderbird.core.common.exception.MessagingException
 import net.thunderbird.core.common.mail.Flag
 import net.thunderbird.feature.mail.folder.api.FolderPathDelimiter
 
@@ -154,6 +157,24 @@ class ImapBackend(
         )
     }
 
+    override fun search(
+        folderServerId: String,
+        query: String?,
+        requiredFlags: Set<Flag>?,
+        forbiddenFlags: Set<Flag>?,
+        performFullTextSearch: Boolean,
+        listener: SearchListener,
+    ): List<String> {
+        return commandSearch.search(
+            folderServerId = folderServerId,
+            query = query,
+            requiredFlags = requiredFlags,
+            forbiddenFlags = forbiddenFlags,
+            performFullTextSearch = performFullTextSearch,
+            listener = listener,
+        )
+    }
+
     override fun fetchPart(folderServerId: String, messageServerId: String, part: Part, bodyFactory: BodyFactory) {
         commandFetchMessage.fetchPart(
             folderServerId = folderServerId,
@@ -177,5 +198,25 @@ class ImapBackend(
 
     override fun createPusher(callback: BackendPusherCallback): BackendPusher {
         return ImapBackendPusher(imapStore, powerManager, idleRefreshManager, pushConfigProvider, callback, accountName)
+    }
+
+    override fun createFolder(folderServerId: String) {
+        if (!imapStore.getFolder(folderServerId).create()) {
+            throw MessagingException("The server has refused to create the folder")
+        }
+    }
+
+    override fun renameFolder(folderServerId: String, newFolderServerId: String) {
+        imapStore.getFolder(folderServerId).renameTo(imapStore.getFolder(newFolderServerId))
+    }
+
+    override fun deleteFolder(folderServerId: String) {
+        imapStore.getFolder(folderServerId).delete()
+    }
+
+    override fun getStorageQuota(): StorageQuota? {
+        return imapStore.getStorageQuota()?.let { imapStorageQuota ->
+            StorageQuota(usedBytes = imapStorageQuota.usedBytes, limitBytes = imapStorageQuota.limitBytes)
+        }
     }
 }

@@ -46,8 +46,10 @@ import com.fsck.k9.ui.R
 import com.fsck.k9.ui.base.BaseActivity
 import com.fsck.k9.ui.managefolders.ManageFoldersActivity
 import com.fsck.k9.ui.messagelist.DefaultFolderProvider
+import com.fsck.k9.ui.messagelist.FolderOrigin
 import com.fsck.k9.ui.messagelist.MessageListFragmentBridgeContract
 import com.fsck.k9.ui.messagelist.MessageListFragmentBridgeContract.MessageListFragmentListener
+import com.fsck.k9.ui.messagelist.createManualQuerySearch
 import com.fsck.k9.ui.messageview.MessageViewContainerFragment
 import com.fsck.k9.ui.messageview.MessageViewContainerFragment.MessageViewContainerListener
 import com.fsck.k9.ui.messageview.MessageViewFragment.MessageViewFragmentListener
@@ -81,7 +83,6 @@ import net.thunderbird.feature.search.legacy.LocalMessageSearch
 import net.thunderbird.feature.search.legacy.SearchAccount
 import net.thunderbird.feature.search.legacy.api.MessageSearchField
 import net.thunderbird.feature.search.legacy.api.SearchAttribute
-import net.thunderbird.feature.search.legacy.api.SearchCondition
 import net.thunderbird.feature.search.legacy.serialization.LocalMessageSearchSerializer
 import net.thunderbird.legacy.logging.Log
 import org.koin.android.ext.android.inject
@@ -144,6 +145,18 @@ open class MessageHomeActivity :
     private var search: LocalMessageSearch? = null
     private var singleFolderMode = false
 
+    /**
+     * Set if this activity was opened on top of another one to display the folder of a message. Going back then
+     * returns there instead of the default folder.
+     */
+    private var openedFrom: FolderOrigin? = null
+
+    /**
+     * `true` as long as the folder this activity was opened for is displayed. The way back is only offered there,
+     * not in the folders the user moves on to.
+     */
+    private var isOriginFolderDisplayed = false
+
     private var messageListActivityConfig: MessageListActivityConfig? = null
 
     /**
@@ -176,6 +189,14 @@ open class MessageHomeActivity :
             finish()
             return
         }
+
+        val openedFromName = if (savedInstanceState != null) {
+            savedInstanceState.getString(STATE_OPENED_FROM)
+        } else {
+            intent.getStringExtra(EXTRA_OPENED_FROM)
+        }
+        openedFrom = FolderOrigin.entries.find { it.name == openedFromName }
+        isOriginFolderDisplayed = savedInstanceState?.getBoolean(STATE_ORIGIN_FOLDER_DISPLAYED) ?: (openedFrom != null)
 
         if (useSplitView()) {
             setLayout(R.layout.split_message_list)
@@ -306,6 +327,7 @@ open class MessageHomeActivity :
         }
 
         setIntent(intent)
+        isOriginFolderDisplayed = false
 
         // Start with a fresh fragment back stack
         supportFragmentManager.popBackStackImmediate(
@@ -525,51 +547,7 @@ open class MessageHomeActivity :
             // Query was received from Search Dialog
             val query = queryString.trim()
 
-            val search = LocalMessageSearch().apply {
-                isManualSearch = true
-                or(
-                    SearchCondition(
-                        MessageSearchField.SENDER,
-                        SearchAttribute.CONTAINS,
-                        query,
-                    ),
-                )
-                or(
-                    SearchCondition(
-                        MessageSearchField.TO,
-                        SearchAttribute.CONTAINS,
-                        query,
-                    ),
-                )
-                or(
-                    SearchCondition(
-                        MessageSearchField.CC,
-                        SearchAttribute.CONTAINS,
-                        query,
-                    ),
-                )
-                or(
-                    SearchCondition(
-                        MessageSearchField.BCC,
-                        SearchAttribute.CONTAINS,
-                        query,
-                    ),
-                )
-                or(
-                    SearchCondition(
-                        MessageSearchField.SUBJECT,
-                        SearchAttribute.CONTAINS,
-                        query,
-                    ),
-                )
-                or(
-                    SearchCondition(
-                        MessageSearchField.MESSAGE_CONTENTS,
-                        SearchAttribute.CONTAINS,
-                        query,
-                    ),
-                )
-            }
+            val search = createManualQuerySearch(query)
 
             val appData = intent.getBundleExtra(SearchManager.APP_DATA)
             if (appData != null) {
@@ -681,6 +659,8 @@ open class MessageHomeActivity :
         outState.putSerializable(STATE_DISPLAY_MODE, displayMode)
         outState.putBoolean(STATE_MESSAGE_VIEW_ONLY, messageViewOnly)
         outState.putBoolean(STATE_MESSAGE_LIST_WAS_DISPLAYED, messageListWasDisplayed)
+        outState.putString(STATE_OPENED_FROM, openedFrom?.name)
+        outState.putBoolean(STATE_ORIGIN_FOLDER_DISPLAYED, isOriginFolderDisplayed)
     }
 
     public override fun onRestoreInstanceState(savedInstanceState: Bundle) {
@@ -810,6 +790,7 @@ open class MessageHomeActivity :
     }
 
     private fun performSearch(search: LocalMessageSearch) {
+        isOriginFolderDisplayed = false
         initializeFromLocalSearch(search)
 
         val fragmentManager = supportFragmentManager
@@ -845,7 +826,6 @@ open class MessageHomeActivity :
         return eventHandled
     }
 
-    @Suppress("NestedBlockDepth")
     private fun handleOnBackPressed(callback: OnBackPressedCallback) {
         if (isDrawerEnabled && navigationDrawer!!.isOpen) {
             navigationDrawer!!.close()
@@ -857,24 +837,34 @@ open class MessageHomeActivity :
             }
         } else if (!isSearchViewCollapsed()) {
             collapseSearchView()
+        } else if (openedFrom != null && supportFragmentManager.backStackEntryCount == 0) {
+            // Return to the search results or the message this activity was opened from
+            finish()
         } else if (isDrawerEnabled && account != null && supportFragmentManager.backStackEntryCount == 0) {
-            if (generalSettingsManager.getConfig().display.inboxSettings.isShowUnifiedInbox) {
-                if (search!!.id != SearchAccount.UNIFIED_FOLDERS) {
-                    openUnifiedFolders()
-                } else {
-                    dispatchOnBackPressed(callback)
-                }
-            } else {
-                val defaultFolderId = defaultFolderProvider.getDefaultFolder(account!!)
-                val currentFolder = if (singleFolderMode) search!!.folderIds[0] else null
-                if (currentFolder == null || defaultFolderId != currentFolder) {
-                    openFolderImmediately(defaultFolderId)
-                } else {
-                    dispatchOnBackPressed(callback)
-                }
-            }
+            returnToDefaultFolderOrLeave(callback)
         } else {
             dispatchOnBackPressed(callback)
+        }
+    }
+
+    /**
+     * Going back from any other folder first returns to the default folder (or the Unified Folders).
+     */
+    private fun returnToDefaultFolderOrLeave(callback: OnBackPressedCallback) {
+        if (generalSettingsManager.getConfig().display.inboxSettings.isShowUnifiedInbox) {
+            if (search!!.id != SearchAccount.UNIFIED_FOLDERS) {
+                openUnifiedFolders()
+            } else {
+                dispatchOnBackPressed(callback)
+            }
+        } else {
+            val defaultFolderId = defaultFolderProvider.getDefaultFolder(account!!)
+            val currentFolder = if (singleFolderMode) search!!.folderIds[0] else null
+            if (currentFolder == null || defaultFolderId != currentFolder) {
+                openFolderImmediately(defaultFolderId)
+            } else {
+                dispatchOnBackPressed(callback)
+            }
         }
     }
 
@@ -1129,6 +1119,42 @@ open class MessageHomeActivity :
         progressBar!!.progress = level
     }
 
+    override fun showFolder(account: LegacyAccount, folderId: Long) {
+        showFolder(account.id.toString(), folderId, FolderOrigin.SEARCH_RESULTS)
+    }
+
+    override fun showMessageFolder(messageReference: MessageReference) {
+        showFolder(messageReference.accountId.toString(), messageReference.folderId, FolderOrigin.MESSAGE)
+    }
+
+    private fun showFolder(accountUuid: String, folderId: Long, origin: FolderOrigin) {
+        val search = LocalMessageSearch().apply {
+            addAccountUuid(accountUuid)
+            addAllowedFolder(folderId)
+        }
+
+        if (isDrawerEnabled) {
+            // The user is already browsing folders here. Display the folder like one chosen in the drawer.
+            actionDisplaySearch(this, search, noThreading = false, newTask = false)
+            return
+        }
+
+        // Search results don't have the navigation drawer. Display the folder in a new activity on top of them. Other
+        // folders can be opened from there, but going back returns to the search results or the message.
+        val intent = Intent(this, MessageHomeActivity::class.java).apply {
+            putExtra(EXTRA_SEARCH, LocalMessageSearchSerializer.serialize(search))
+            putExtra(EXTRA_OPENED_FROM, origin.name)
+        }
+        startActivity(intent)
+    }
+
+    override val folderOrigin: FolderOrigin?
+        get() = openedFrom.takeIf { isOriginFolderDisplayed }
+
+    override fun returnToFolderOrigin() {
+        finish()
+    }
+
     override fun openMessage(messageReference: MessageReference) {
         val account = accountManager.getById(messageReference.accountId) ?: error("Account not found")
         val folderId = messageReference.folderId
@@ -1141,6 +1167,9 @@ open class MessageHomeActivity :
             val fragment = MessageViewContainerFragment.newInstance(
                 reference = messageReference,
                 isShowAccountIndicator = isShowAccountIndicator,
+                // In a list that covers more than one folder the user can't tell where the message is stored. Search
+                // results do, even when the search was started from a single folder.
+                isShowFolder = !singleFolderMode || search?.isManualSearch == true,
             )
             supportFragmentManager.commitNow {
                 replace(R.id.message_view_container, fragment, FRAGMENT_TAG_MESSAGE_VIEW_CONTAINER)
@@ -1234,7 +1263,7 @@ open class MessageHomeActivity :
 
     override fun startSearch(query: String, account: LegacyAccount?, folderId: Long?): Boolean {
         // If this search was started from a MessageList of a single folder, pass along that folder info
-        // so that we can enable remote search.
+        // so that the remote search starts with that folder.
         val appData = if (account != null && folderId != null) {
             Bundle().apply {
                 putString(EXTRA_SEARCH_ACCOUNT, account.id.toString())
@@ -1551,6 +1580,7 @@ open class MessageHomeActivity :
         const val EXTRA_ACCOUNT = "account_uuid"
         private const val EXTRA_MESSAGE_REFERENCE = "message_reference"
         private const val EXTRA_MESSAGE_VIEW_ONLY = "message_view_only"
+        private const val EXTRA_OPENED_FROM = "opened_from"
 
         // used for remote search
         const val EXTRA_SEARCH_ACCOUNT = "com.fsck.k9.search_account"
@@ -1559,6 +1589,8 @@ open class MessageHomeActivity :
         private const val STATE_DISPLAY_MODE = "displayMode"
         private const val STATE_MESSAGE_VIEW_ONLY = "messageViewOnly"
         private const val STATE_MESSAGE_LIST_WAS_DISPLAYED = "messageListWasDisplayed"
+        private const val STATE_OPENED_FROM = "openedFrom"
+        private const val STATE_ORIGIN_FOLDER_DISPLAYED = "originFolderDisplayed"
 
         private const val FIRST_FRAGMENT_TRANSACTION = "first"
         private const val FRAGMENT_TAG_MESSAGE_VIEW_CONTAINER = "MessageViewContainerFragment"
