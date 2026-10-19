@@ -304,7 +304,7 @@ class EditorZoomTest : RobolectricTest() {
     }
 
     @Test
-    fun `a tap on an image should still stay with the text field`() {
+    fun `a finger that goes down over an image should be kept back from the text field`() {
         // Arrange
         showImage()
 
@@ -312,7 +312,7 @@ class EditorZoomTest : RobolectricTest() {
         val handled = on(ACTION_DOWN, FIRST_FINGER_X)
 
         // Assert
-        assertThat(handled).isFalse()
+        assertThat(handled).isTrue()
     }
 
     @Test
