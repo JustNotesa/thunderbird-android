@@ -22,13 +22,22 @@ internal class GetDisplayTreeFolder(
     private var placeholderCounter = 0L
 
     override fun invoke(folders: List<DisplayFolder>, maxDepth: Int): DisplayTreeFolder {
-        val unifiedFolderTreeList = folders.filterIsInstance<UnifiedDisplayFolder>().map {
+        val unifiedFolderTreeList = folders.filterIsInstance<UnifiedDisplayFolder>().map { unifiedFolder ->
             DisplayTreeFolder(
-                displayFolder = it,
-                displayName = it.unifiedType.id,
-                totalUnreadCount = it.unreadMessageCount,
-                totalStarredCount = it.starredMessageCount,
-                children = persistentListOf(),
+                displayFolder = unifiedFolder,
+                displayName = unifiedFolder.unifiedType.id,
+                totalUnreadCount = unifiedFolder.unreadMessageCount,
+                totalStarredCount = unifiedFolder.starredMessageCount,
+                children = unifiedFolder.children.map { accountFolder ->
+                    DisplayTreeFolder(
+                        displayFolder = accountFolder.folder,
+                        displayName = accountFolder.accountName,
+                        totalUnreadCount = accountFolder.folder.unreadMessageCount,
+                        totalStarredCount = accountFolder.folder.starredMessageCount,
+                        children = persistentListOf(),
+                        accountLabel = accountFolder.accountName,
+                    )
+                }.toImmutableList(),
             )
         }
 

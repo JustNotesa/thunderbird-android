@@ -64,6 +64,7 @@ import com.fsck.k9.mailstore.LocalStoreProvider
 import com.fsck.k9.search.getLegacyAccounts
 import com.fsck.k9.search.isNewMessages
 import com.fsck.k9.search.isUnified
+import com.fsck.k9.search.unifiedSpecialFolderType
 import com.fsck.k9.ui.BuildConfig
 import com.fsck.k9.ui.R
 import com.fsck.k9.ui.choosefolder.ChooseFolderActivity
@@ -757,7 +758,10 @@ class LegacyMessageListFragment :
     }
 
     private fun setWindowTitle() {
+        val unifiedFolderType = localSearch.unifiedSpecialFolderType
+
         val title = when {
+            unifiedFolderType != null -> getString(unifiedFolderTitle(unifiedFolderType))
             isUnifiedFoldersView -> getString(R.string.integrated_inbox_title)
             isNewMessagesView -> getString(R.string.new_messages_title)
             isManualSearch -> getString(R.string.search_results)
@@ -766,12 +770,11 @@ class LegacyMessageListFragment :
             else -> ""
         }
 
-        val subtitle = account.let { account ->
-            if (account == null || isUnifiedFoldersView || accountManager.findAll().size == 1) {
-                null
-            } else {
-                account.profile.name
-            }
+        val currentAccount = account
+        val subtitle = when {
+            unifiedFolderType != null -> getString(R.string.unified_folders_subtitle)
+            currentAccount == null || isUnifiedFoldersView || accountManager.findAll().size == 1 -> null
+            else -> currentAccount.profile.name
         }
 
         fragmentListener.setMessageListTitle(title, subtitle)

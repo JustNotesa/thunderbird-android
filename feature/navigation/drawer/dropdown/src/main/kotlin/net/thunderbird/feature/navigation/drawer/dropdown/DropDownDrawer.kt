@@ -12,6 +12,7 @@ import kotlinx.coroutines.flow.update
 import net.thunderbird.core.ui.theme.api.FeatureThemeProvider
 import net.thunderbird.feature.account.AccountId
 import net.thunderbird.feature.account.UnifiedAccountId
+import net.thunderbird.feature.mail.folder.FolderType
 import net.thunderbird.feature.navigation.drawer.api.NavigationDrawer
 import net.thunderbird.feature.navigation.drawer.api.R
 import net.thunderbird.feature.navigation.drawer.dropdown.domain.entity.UnifiedDisplayFolderType
@@ -31,7 +32,7 @@ class DropDownDrawer(
     override val parent: AppCompatActivity,
     private val openAccount: (accountId: AccountId) -> Unit,
     private val openFolder: (accountId: AccountId, folderId: Long) -> Unit,
-    private val openUnifiedFolder: () -> Unit,
+    private val openUnifiedFolder: (folderType: FolderType) -> Unit,
     private val openSettings: () -> Unit,
     private val openAddAccount: () -> Unit,
     createDrawerListener: () -> DrawerLayout.DrawerListener,
@@ -88,10 +89,15 @@ class DropDownDrawer(
     }
 
     override fun selectUnifiedInbox() {
+        selectUnifiedFolder(FolderType.INBOX)
+    }
+
+    override fun selectUnifiedFolder(folderType: FolderType) {
+        val unifiedFolderType = UnifiedDisplayFolderType.fromFolderType(folderType) ?: UnifiedDisplayFolderType.INBOX
         drawerState.update {
             it.copy(
                 selectedAccountId = UnifiedAccountId,
-                selectedFolderId = UnifiedDisplayFolderType.INBOX.id,
+                selectedFolderId = unifiedFolderType.id,
             )
         }
     }

@@ -9,10 +9,14 @@ import androidx.compose.ui.unit.dp
 import kotlinx.collections.immutable.persistentListOf
 import net.thunderbird.components.ui.bolt.PreviewWithTheme
 import net.thunderbird.components.ui.bolt.atom.Surface
+import net.thunderbird.core.preference.display.inboxSettings.UnifiedFoldersLayout
 import net.thunderbird.feature.navigation.drawer.api.NavigationDrawerExternalContract.DrawerConfig
 import net.thunderbird.feature.navigation.drawer.dropdown.ui.FakeData.DISPLAY_FOLDER
+import net.thunderbird.feature.navigation.drawer.dropdown.ui.FakeData.DISPLAY_TREE_FOLDER_WITH_UNIFIED_TREE
 import net.thunderbird.feature.navigation.drawer.dropdown.ui.FakeData.MAIL_DISPLAY_ACCOUNT
+import net.thunderbird.feature.navigation.drawer.dropdown.ui.FakeData.PINNED_DISPLAY_TREE_FOLDERS
 import net.thunderbird.feature.navigation.drawer.dropdown.ui.FakeData.UNIFIED_FOLDER
+import net.thunderbird.feature.navigation.drawer.dropdown.ui.FakeData.UNIFIED_TREE_FOLDER
 import net.thunderbird.feature.navigation.drawer.dropdown.ui.FakeData.createAccountList
 import net.thunderbird.feature.navigation.drawer.dropdown.ui.FakeData.createDisplayFolderList
 
@@ -110,6 +114,62 @@ internal fun DrawerContentWithSelectedUnifiedFolderPreview() {
 
 @Composable
 @Preview(showBackground = true)
+internal fun DrawerContentUnifiedTreeLayoutPreview() {
+    PreviewWithTheme {
+        DrawerContent(
+            state = DrawerContract.State(
+                accounts = persistentListOf(
+                    MAIL_DISPLAY_ACCOUNT,
+                ),
+                selectedAccountId = MAIL_DISPLAY_ACCOUNT.id,
+                folders = persistentListOf(
+                    UNIFIED_TREE_FOLDER,
+                ),
+                rootFolder = DISPLAY_TREE_FOLDER_WITH_UNIFIED_TREE,
+                selectedFolderId = UNIFIED_TREE_FOLDER.folderId,
+                selectedFolder = UNIFIED_TREE_FOLDER,
+                config = DrawerConfig(
+                    showUnifiedFolders = true,
+                    showStarredCount = false,
+                    expandAllFolder = true,
+                    unifiedFoldersLayout = UnifiedFoldersLayout.Tree,
+                ),
+            ),
+            onEvent = {},
+        )
+    }
+}
+
+@Composable
+@Preview(showBackground = true)
+internal fun DrawerContentPinnedLayoutPreview() {
+    PreviewWithTheme {
+        DrawerContent(
+            state = DrawerContract.State(
+                accounts = persistentListOf(
+                    MAIL_DISPLAY_ACCOUNT,
+                ),
+                selectedAccountId = MAIL_DISPLAY_ACCOUNT.id,
+                folders = persistentListOf(
+                    DISPLAY_FOLDER,
+                ),
+                selectedFolderId = PINNED_DISPLAY_TREE_FOLDERS.first().displayFolder?.folderId,
+                selectedFolder = PINNED_DISPLAY_TREE_FOLDERS.first().displayFolder,
+                pinnedFolders = PINNED_DISPLAY_TREE_FOLDERS,
+                config = DrawerConfig(
+                    showUnifiedFolders = true,
+                    showStarredCount = false,
+                    expandAllFolder = false,
+                    unifiedFoldersLayout = UnifiedFoldersLayout.Pinned,
+                ),
+            ),
+            onEvent = {},
+        )
+    }
+}
+
+@Composable
+@Preview(showBackground = true)
 internal fun DrawerContentSingleAccountPreview() {
     val displayFolders = createDisplayFolderList(hasUnifiedFolder = false)
 
@@ -126,6 +186,7 @@ internal fun DrawerContentSingleAccountPreview() {
                     showUnifiedFolders = false,
                     showStarredCount = false,
                     expandAllFolder = false,
+                    unifiedFoldersLayout = UnifiedFoldersLayout.Flat,
                 ),
                 showAccountSelector = false,
             ),
@@ -152,6 +213,7 @@ internal fun DrawerContentSingleAccountWithAccountSelectionPreview() {
                     showUnifiedFolders = false,
                     showStarredCount = false,
                     expandAllFolder = false,
+                    unifiedFoldersLayout = UnifiedFoldersLayout.Flat,
                 ),
                 showAccountSelector = true,
             ),
@@ -177,6 +239,7 @@ internal fun DrawerContentMultipleAccountsAccountPreview() {
                     showUnifiedFolders = false,
                     showStarredCount = false,
                     expandAllFolder = false,
+                    unifiedFoldersLayout = UnifiedFoldersLayout.Flat,
                 ),
                 showAccountSelector = false,
             ),
@@ -201,6 +264,7 @@ internal fun DrawerContentMultipleAccountsWithAccountSelectionPreview() {
                     showUnifiedFolders = false,
                     showStarredCount = false,
                     expandAllFolder = false,
+                    unifiedFoldersLayout = UnifiedFoldersLayout.Flat,
                 ),
                 showAccountSelector = true,
             ),
@@ -225,6 +289,7 @@ internal fun DrawerContentMultipleAccountsWithDifferentAccountSelectionPreview()
                     showUnifiedFolders = false,
                     showStarredCount = false,
                     expandAllFolder = false,
+                    unifiedFoldersLayout = UnifiedFoldersLayout.Flat,
                 ),
                 showAccountSelector = true,
             ),
@@ -254,6 +319,7 @@ internal fun DrawerContentSmallScreenPreview() {
                         showUnifiedFolders = false,
                         showStarredCount = false,
                         expandAllFolder = false,
+                        unifiedFoldersLayout = UnifiedFoldersLayout.Flat,
                     ),
                     showAccountSelector = true,
                 ),
@@ -284,6 +350,7 @@ internal fun DrawerContentVerySmallScreenPreview() {
                         showUnifiedFolders = false,
                         showStarredCount = false,
                         expandAllFolder = false,
+                        unifiedFoldersLayout = UnifiedFoldersLayout.Flat,
                     ),
                     showAccountSelector = true,
                 ),

@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
 import net.thunderbird.account.fake.FakeAccountData.ACCOUNT_ID
 import net.thunderbird.account.fake.FakeAccountData.ACCOUNT_ID_RAW
+import net.thunderbird.feature.mail.folder.FolderType
 import net.thunderbird.feature.navigation.drawer.dropdown.FolderDrawerState
 import net.thunderbird.feature.navigation.drawer.dropdown.ui.DrawerContract.Effect
 import net.thunderbird.feature.navigation.drawer.dropdown.ui.DrawerContract.Event
@@ -29,7 +30,7 @@ internal class DrawerViewKtTest : ComposeTest() {
                 drawerState = FolderDrawerState(),
                 openAccount = { counter.openAccountCount++ },
                 openFolder = { _, _ -> counter.openFolderCount++ },
-                openUnifiedFolder = { counter.openUnifiedFolderCount++ },
+                openUnifiedFolder = { _ -> counter.openUnifiedFolderCount++ },
                 openSettings = { counter.openSettingsCount++ },
                 openAddAccount = { counter.openAddAccountCount++ },
                 closeDrawer = { counter.closeDrawerCount++ },
@@ -53,7 +54,7 @@ internal class DrawerViewKtTest : ComposeTest() {
         )
 
         verifyCounter.openUnifiedFolderCount++
-        viewModel.effect(Effect.OpenUnifiedFolder)
+        viewModel.effect(Effect.OpenUnifiedFolder(FolderType.INBOX))
 
         verifyCounter.openSettingsCount++
         viewModel.effect(Effect.OpenSettings)
@@ -79,7 +80,7 @@ internal class DrawerViewKtTest : ComposeTest() {
                 drawerState = state.value,
                 openAccount = { },
                 openFolder = { _, _ -> },
-                openUnifiedFolder = { },
+                openUnifiedFolder = { _ -> },
                 openSettings = { },
                 openAddAccount = { },
                 closeDrawer = { },

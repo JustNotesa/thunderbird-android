@@ -7,7 +7,9 @@ import net.thunderbird.feature.navigation.drawer.dropdown.ui.FakeData.DISPLAY_FO
 import net.thunderbird.feature.navigation.drawer.dropdown.ui.FakeData.DISPLAY_TREE_FOLDER
 import net.thunderbird.feature.navigation.drawer.dropdown.ui.FakeData.DISPLAY_TREE_FOLDER_WITH_NESTED_FOLDERS
 import net.thunderbird.feature.navigation.drawer.dropdown.ui.FakeData.DISPLAY_TREE_FOLDER_WITH_UNIFIED_FOLDER
+import net.thunderbird.feature.navigation.drawer.dropdown.ui.FakeData.DISPLAY_TREE_FOLDER_WITH_UNIFIED_TREE
 import net.thunderbird.feature.navigation.drawer.dropdown.ui.FakeData.EMPTY_DISPLAY_TREE_FOLDER
+import net.thunderbird.feature.navigation.drawer.dropdown.ui.FakeData.PINNED_DISPLAY_TREE_FOLDERS
 
 @Composable
 @Preview(showBackground = true)
@@ -57,6 +59,35 @@ internal fun FolderListWithUnifiedFolderPreviewSelected() {
             selectedFolder = null,
             onFolderClick = {},
             showStarredCount = false,
+        )
+    }
+}
+
+@Composable
+@Preview(showBackground = true)
+internal fun FolderListWithUnifiedTreePreview() {
+    PreviewWithTheme {
+        FolderList(
+            rootFolder = DISPLAY_TREE_FOLDER_WITH_UNIFIED_TREE,
+            selectedFolder = DISPLAY_TREE_FOLDER_WITH_UNIFIED_TREE.children.first().displayFolder,
+            onFolderClick = {},
+            showStarredCount = false,
+            isExpandedInitial = true,
+        )
+    }
+}
+
+@Composable
+@Preview(showBackground = true)
+internal fun FolderListWithPinnedFoldersPreview() {
+    PreviewWithTheme {
+        FolderList(
+            rootFolder = DISPLAY_TREE_FOLDER_WITH_UNIFIED_FOLDER,
+            selectedFolder = PINNED_DISPLAY_TREE_FOLDERS.first().displayFolder,
+            onFolderClick = {},
+            showStarredCount = false,
+            pinnedFolders = PINNED_DISPLAY_TREE_FOLDERS,
+            accountSectionTitle = "Account Name",
         )
     }
 }

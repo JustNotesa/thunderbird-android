@@ -3,6 +3,7 @@ package net.thunderbird.feature.navigation.drawer.dropdown.ui
 import assertk.assertThat
 import assertk.assertions.isEqualTo
 import kotlinx.collections.immutable.persistentListOf
+import net.thunderbird.core.preference.display.inboxSettings.UnifiedFoldersLayout
 import net.thunderbird.feature.navigation.drawer.api.NavigationDrawerExternalContract.DrawerConfig
 import net.thunderbird.feature.navigation.drawer.dropdown.domain.entity.DisplayTreeFolder
 import net.thunderbird.feature.navigation.drawer.dropdown.ui.DrawerContract.State
@@ -20,6 +21,7 @@ internal class DrawerStateTest {
                     showUnifiedFolders = false,
                     showStarredCount = false,
                     expandAllFolder = false,
+                    unifiedFoldersLayout = UnifiedFoldersLayout.Flat,
                 ),
                 showAccountSelector = true,
                 accounts = persistentListOf(),

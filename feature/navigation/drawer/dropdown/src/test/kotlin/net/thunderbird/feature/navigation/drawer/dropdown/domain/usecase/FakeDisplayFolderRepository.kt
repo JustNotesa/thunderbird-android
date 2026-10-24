@@ -7,6 +7,7 @@ import net.thunderbird.feature.account.AccountId
 
 internal class FakeDisplayFolderRepository(
     private val foldersFlow: Flow<List<DisplayFolder>>,
+    private val foldersByAccount: Map<AccountId, Flow<List<DisplayFolder>>> = emptyMap(),
 ) : DisplayFolderRepository {
     override fun getDisplayFoldersFlow(
         accountId: AccountId,
@@ -16,6 +17,6 @@ internal class FakeDisplayFolderRepository(
     }
 
     override fun getDisplayFoldersFlow(accountId: AccountId): Flow<List<DisplayFolder>> {
-        return foldersFlow
+        return foldersByAccount[accountId] ?: foldersFlow
     }
 }

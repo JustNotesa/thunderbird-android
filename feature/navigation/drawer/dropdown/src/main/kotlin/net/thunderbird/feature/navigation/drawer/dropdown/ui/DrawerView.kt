@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import net.thunderbird.core.ui.contract.mvi.observe
 import net.thunderbird.feature.account.AccountId
+import net.thunderbird.feature.mail.folder.FolderType
 import net.thunderbird.feature.navigation.drawer.dropdown.FolderDrawerState
 import net.thunderbird.feature.navigation.drawer.dropdown.ui.DrawerContract.Effect
 import net.thunderbird.feature.navigation.drawer.dropdown.ui.DrawerContract.Event
@@ -16,7 +17,7 @@ internal fun DrawerView(
     drawerState: FolderDrawerState,
     openAccount: (accountId: AccountId) -> Unit,
     openFolder: (accountId: AccountId, folderId: Long) -> Unit,
-    openUnifiedFolder: () -> Unit,
+    openUnifiedFolder: (folderType: FolderType) -> Unit,
     openSettings: () -> Unit,
     openAddAccount: () -> Unit,
     closeDrawer: () -> Unit,
@@ -31,7 +32,7 @@ internal fun DrawerView(
                 effect.folderId,
             )
 
-            Effect.OpenUnifiedFolder -> openUnifiedFolder()
+            is Effect.OpenUnifiedFolder -> openUnifiedFolder(effect.folderType)
 
             is Effect.OpenSettings -> openSettings()
 

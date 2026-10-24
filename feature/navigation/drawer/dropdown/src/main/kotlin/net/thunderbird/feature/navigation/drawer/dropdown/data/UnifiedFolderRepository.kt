@@ -2,20 +2,20 @@ package net.thunderbird.feature.navigation.drawer.dropdown.data
 
 import app.k9mail.legacy.message.controller.MessageCountsProvider
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
-import net.thunderbird.feature.account.UnifiedAccountId
+import net.thunderbird.core.android.account.LegacyAccount
+import net.thunderbird.core.android.account.LegacyAccountManager
 import net.thunderbird.feature.mail.folder.FolderType
 import net.thunderbird.feature.navigation.drawer.dropdown.domain.DomainContract
 import net.thunderbird.feature.navigation.drawer.dropdown.domain.entity.UnifiedDisplayFolder
 import net.thunderbird.feature.navigation.drawer.dropdown.domain.entity.UnifiedDisplayFolderType
 import net.thunderbird.feature.search.legacy.LocalMessageSearch
-import net.thunderbird.feature.search.legacy.LocalMessageSearchType
-import net.thunderbird.feature.search.legacy.UnifiedFolderSelection
-import net.thunderbird.feature.search.legacy.api.MessageSearchField
-import net.thunderbird.feature.search.legacy.api.SearchAttribute
+import net.thunderbird.feature.search.legacy.SearchAccount
 
 internal class UnifiedFolderRepository(
     private val messageCountsProvider: MessageCountsProvider,
+    private val accountManager: LegacyAccountManager,
 ) : DomainContract.UnifiedFolderRepository {
 
     override fun getUnifiedDisplayFolderFlow(unifiedFolderType: UnifiedDisplayFolderType): Flow<UnifiedDisplayFolder> {
@@ -29,17 +29,32 @@ internal class UnifiedFolderRepository(
         }
     }
 
-    private fun createUnifiedFolderSearch(unifiedFolderType: UnifiedDisplayFolderType): LocalMessageSearch {
-        return when (unifiedFolderType) {
-            UnifiedDisplayFolderType.INBOX -> createUnifiedInboxSearch()
-        }
+    override fun getUnifiedFolderTypesFlow(): Flow<List<UnifiedDisplayFolderType>> {
+        return accountManager.observeAll().map { accounts ->
+            UnifiedDisplayFolderType.entries.filter { unifiedFolderType ->
+                unifiedFolderType == UnifiedDisplayFolderType.INBOX ||
+                    accounts.any { account -> account.hasFolder(unifiedFolderType.folderType) }
+            }
+        }.distinctUntilChanged()
     }
 
-    private fun createUnifiedInboxSearch(): LocalMessageSearch {
-        return LocalMessageSearch().apply {
-            id = UnifiedAccountId
-            type = LocalMessageSearchType.Unified(UnifiedFolderSelection.Special(FolderType.INBOX))
-            and(MessageSearchField.INTEGRATE, "1", SearchAttribute.EQUALS)
+    private fun createUnifiedFolderSearch(unifiedFolderType: UnifiedDisplayFolderType): LocalMessageSearch {
+        return SearchAccount.createUnifiedSearch(
+            folderType = unifiedFolderType.folderType,
+            title = "",
+            detail = "",
+        ).relatedSearch
+    }
+
+    private fun LegacyAccount.hasFolder(folderType: FolderType): Boolean {
+        return when (folderType) {
+            FolderType.INBOX -> inboxFolderId != null
+            FolderType.DRAFTS -> draftsFolderId != null
+            FolderType.SENT -> sentFolderId != null
+            FolderType.ARCHIVE -> archiveFolderId != null
+            FolderType.SPAM -> spamFolderId != null
+            FolderType.TRASH -> trashFolderId != null
+            FolderType.OUTBOX, FolderType.REGULAR -> false
         }
     }
 }

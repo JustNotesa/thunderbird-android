@@ -20,6 +20,7 @@ val navigationDropDownDrawerModule: Module = module {
     single<DomainContract.UnifiedFolderRepository> {
         UnifiedFolderRepository(
             messageCountsProvider = get(),
+            accountManager = get(),
         )
     }
 
@@ -49,6 +50,7 @@ val navigationDropDownDrawerModule: Module = module {
         GetDisplayFoldersForAccount(
             displayFolderRepository = get(),
             unifiedFolderRepository = get(),
+            accountManager = get(),
         )
     }
 

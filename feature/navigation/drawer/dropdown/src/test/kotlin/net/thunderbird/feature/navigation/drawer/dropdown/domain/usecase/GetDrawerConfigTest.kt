@@ -6,6 +6,7 @@ import kotlin.test.Test
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
+import net.thunderbird.core.preference.display.inboxSettings.UnifiedFoldersLayout
 import net.thunderbird.feature.navigation.drawer.api.NavigationDrawerExternalContract.DrawerConfig
 import net.thunderbird.feature.navigation.drawer.api.NavigationDrawerExternalContract.DrawerConfigLoader
 import org.mockito.Mockito.mock
@@ -20,6 +21,7 @@ internal class GetDrawerConfigTest {
             showUnifiedFolders = true,
             showStarredCount = true,
             expandAllFolder = false,
+            unifiedFoldersLayout = UnifiedFoldersLayout.Flat,
         )
 
         val testSubject = GetDrawerConfig(configLoader = configLoader)

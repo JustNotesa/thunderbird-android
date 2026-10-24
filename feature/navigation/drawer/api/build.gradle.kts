@@ -13,4 +13,6 @@ codeCoverage {
 
 dependencies {
     api(projects.feature.account.api)
+    api(projects.core.preference.api)
+    api(projects.feature.mail.folder.api)
 }

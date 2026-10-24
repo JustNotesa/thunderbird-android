@@ -13,6 +13,7 @@ import net.thunderbird.feature.mail.folder.api.Folder
 import net.thunderbird.feature.navigation.drawer.dropdown.domain.entity.DisplayFolder
 import net.thunderbird.feature.navigation.drawer.dropdown.domain.entity.DisplayTreeFolder
 import net.thunderbird.feature.navigation.drawer.dropdown.domain.entity.MailDisplayFolder
+import net.thunderbird.feature.navigation.drawer.dropdown.domain.entity.UnifiedAccountFolder
 import net.thunderbird.feature.navigation.drawer.dropdown.domain.entity.UnifiedDisplayFolder
 import net.thunderbird.feature.navigation.drawer.dropdown.domain.entity.UnifiedDisplayFolderType
 
@@ -122,6 +123,58 @@ class GetDisplayTreeFolderTest {
                     displayName = regularFolder.folder.name,
                     totalUnreadCount = regularFolder.unreadMessageCount,
                     totalStarredCount = regularFolder.starredMessageCount,
+                ),
+            ),
+        )
+        assertThat(result).isEqualTo(expected)
+    }
+
+    @Test
+    fun `should create tree with account folders as children of a unified folder`() {
+        // arrange
+        val inboxFolder = createDisplayAccountFolder(
+            folderId = 1L,
+            folderName = "Inbox",
+            unreadMessageCount = 3,
+            starredMessageCount = 1,
+        )
+        val accountFolder = UnifiedAccountFolder(
+            accountName = ACCOUNT_NAME,
+            folder = inboxFolder,
+        )
+        val unifiedFolder = createDisplayUnifiedFolder(
+            unifiedFolderType = UnifiedDisplayFolderType.INBOX,
+            unreadMessageCount = 3,
+            starredMessageCount = 1,
+        ).copy(children = persistentListOf(accountFolder))
+        val folders = listOf(
+            unifiedFolder,
+        )
+        val testSubject = GetDisplayTreeFolder(logger = TestLogger())
+
+        // act
+        val result = testSubject(folders, 1)
+
+        // assert
+        val expected = createDisplayTreeFolder(
+            totalUnreadCount = 0,
+            totalStarredCount = 0,
+            children = persistentListOf(
+                createDisplayTreeFolder(
+                    displayFolder = unifiedFolder,
+                    displayName = unifiedFolder.unifiedType.id,
+                    totalUnreadCount = unifiedFolder.unreadMessageCount,
+                    totalStarredCount = unifiedFolder.starredMessageCount,
+                    children = persistentListOf(
+                        DisplayTreeFolder(
+                            displayFolder = inboxFolder,
+                            displayName = ACCOUNT_NAME,
+                            totalUnreadCount = inboxFolder.unreadMessageCount,
+                            totalStarredCount = inboxFolder.starredMessageCount,
+                            children = persistentListOf(),
+                            accountLabel = ACCOUNT_NAME,
+                        ),
+                    ),
                 ),
             ),
         )
@@ -442,6 +495,7 @@ class GetDisplayTreeFolderTest {
 
     private companion object {
         val ACCOUNT_ID = AccountIdFactory.create()
+        const val ACCOUNT_NAME = "Account Name"
 
         fun createDisplayAccountFolder(
             folderId: Long,

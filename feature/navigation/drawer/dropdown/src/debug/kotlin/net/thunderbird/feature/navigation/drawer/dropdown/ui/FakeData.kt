@@ -14,6 +14,7 @@ import net.thunderbird.feature.navigation.drawer.dropdown.domain.entity.DisplayF
 import net.thunderbird.feature.navigation.drawer.dropdown.domain.entity.DisplayTreeFolder
 import net.thunderbird.feature.navigation.drawer.dropdown.domain.entity.MailDisplayAccount
 import net.thunderbird.feature.navigation.drawer.dropdown.domain.entity.MailDisplayFolder
+import net.thunderbird.feature.navigation.drawer.dropdown.domain.entity.UnifiedAccountFolder
 import net.thunderbird.feature.navigation.drawer.dropdown.domain.entity.UnifiedDisplayAccount
 import net.thunderbird.feature.navigation.drawer.dropdown.domain.entity.UnifiedDisplayFolder
 import net.thunderbird.feature.navigation.drawer.dropdown.domain.entity.UnifiedDisplayFolderType
@@ -91,6 +92,36 @@ internal object FakeData {
         starredMessageCount = 567,
     )
 
+    val UNIFIED_SENT_FOLDER = UnifiedDisplayFolder(
+        folderId = UnifiedDisplayFolderType.SENT.id,
+        unifiedType = UnifiedDisplayFolderType.SENT,
+        unreadMessageCount = 24,
+        starredMessageCount = 3,
+    )
+
+    val UNIFIED_TREE_FOLDER = UnifiedDisplayFolder(
+        folderId = UnifiedDisplayFolderType.INBOX.id,
+        unifiedType = UnifiedDisplayFolderType.INBOX,
+        unreadMessageCount = 123,
+        starredMessageCount = 567,
+        children = persistentListOf(
+            UnifiedAccountFolder(
+                accountName = "job@example.com",
+                folder = DISPLAY_FOLDER.copy(
+                    folder = FOLDER.copy(id = 20, name = "Inbox", type = FolderType.INBOX),
+                    unreadMessageCount = 14,
+                ),
+            ),
+            UnifiedAccountFolder(
+                accountName = "jodie@example.com",
+                folder = DISPLAY_FOLDER.copy(
+                    folder = FOLDER.copy(id = 21, name = "Inbox", type = FolderType.INBOX),
+                    unreadMessageCount = 109,
+                ),
+            ),
+        ),
+    )
+
     val DISPLAY_TREE_FOLDER_WITH_UNIFIED_FOLDER = DisplayTreeFolder(
         displayFolder = null,
         displayName = null,
@@ -135,6 +166,56 @@ internal object FakeData {
                     ),
                 ),
             ),
+        ),
+    )
+
+    val DISPLAY_TREE_FOLDER_WITH_UNIFIED_TREE = DisplayTreeFolder(
+        displayFolder = null,
+        displayName = null,
+        totalUnreadCount = 137,
+        totalStarredCount = 570,
+        children = persistentListOf(
+            DisplayTreeFolder(
+                displayFolder = UNIFIED_TREE_FOLDER,
+                displayName = UnifiedDisplayFolderType.INBOX.id,
+                totalUnreadCount = 123,
+                totalStarredCount = 567,
+                children = persistentListOf(
+                    DisplayTreeFolder(
+                        displayFolder = UNIFIED_TREE_FOLDER.children[0].folder,
+                        displayName = UNIFIED_TREE_FOLDER.children[0].accountName,
+                        totalUnreadCount = 14,
+                        totalStarredCount = 5,
+                        children = persistentListOf(),
+                        accountLabel = UNIFIED_TREE_FOLDER.children[0].accountName,
+                    ),
+                    DisplayTreeFolder(
+                        displayFolder = UNIFIED_TREE_FOLDER.children[1].folder,
+                        displayName = UNIFIED_TREE_FOLDER.children[1].accountName,
+                        totalUnreadCount = 109,
+                        totalStarredCount = 562,
+                        children = persistentListOf(),
+                        accountLabel = UNIFIED_TREE_FOLDER.children[1].accountName,
+                    ),
+                ),
+            ),
+        ),
+    )
+
+    val PINNED_DISPLAY_TREE_FOLDERS = persistentListOf(
+        DisplayTreeFolder(
+            displayFolder = UNIFIED_FOLDER,
+            displayName = UnifiedDisplayFolderType.INBOX.id,
+            totalUnreadCount = 123,
+            totalStarredCount = 567,
+            children = persistentListOf(),
+        ),
+        DisplayTreeFolder(
+            displayFolder = UNIFIED_SENT_FOLDER,
+            displayName = UnifiedDisplayFolderType.SENT.id,
+            totalUnreadCount = 24,
+            totalStarredCount = 3,
+            children = persistentListOf(),
         ),
     )
 

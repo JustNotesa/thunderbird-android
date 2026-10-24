@@ -15,6 +15,7 @@ import net.thunderbird.core.preference.GeneralSettingsManager
 import net.thunderbird.core.preference.LockScreenNotificationVisibility
 import net.thunderbird.core.preference.SplitViewMode
 import net.thunderbird.core.preference.SubTheme
+import net.thunderbird.core.preference.display.inboxSettings.UnifiedFoldersLayout
 import net.thunderbird.core.preference.display.visualSettings.message.list.MessageListDateTimeFormat
 import net.thunderbird.core.preference.display.visualSettings.message.list.UiDensity
 import net.thunderbird.core.preference.interaction.PostMarkAsUnreadNavigation
@@ -146,6 +147,7 @@ class GeneralSettingsDataStore(
     override fun getString(key: String, defValue: String?): String? {
         val config = generalSettingsManager.getConfig()
         val coreSettings = config.display.coreSettings
+        val inboxSettings = config.display.inboxSettings
         val interactionSettings = config.interaction
         val notificationSettings = config.notification
         val networkSettings = config.network
@@ -159,6 +161,7 @@ class GeneralSettingsDataStore(
             "messageViewTheme" -> subThemeToString(coreSettings.messageViewTheme)
             "messagelist_preview_lines" -> messageListSettings.previewLines.toString()
             "message_list_date_time_format" -> messageListSettings.dateTimeFormat.toString()
+            "unified_folders_layout" -> inboxSettings.unifiedFoldersLayout.toString()
             "splitview_mode" -> coreSettings.splitViewMode.name
             "notification_quick_delete" -> notificationSettings.notificationQuickDeleteBehaviour.name
             "lock_screen_notification_visibility" -> notificationSettings.lockScreenNotificationVisibility.name
@@ -200,6 +203,7 @@ class GeneralSettingsDataStore(
             "messageViewTheme" -> setMessageViewTheme(value)
             "messagelist_preview_lines" -> setMessageListPreviewLines(value.toInt())
             "message_list_date_time_format" -> updateMessageListDateTimeFormat(value)
+            "unified_folders_layout" -> updateUnifiedFoldersLayout(value)
             "splitview_mode" -> setSplitViewModel(SplitViewMode.valueOf(value.uppercase()))
             "lock_screen_notification_visibility" -> {
                 setLockScreenNotificationVisibility(LockScreenNotificationVisibility.valueOf(value))
@@ -927,6 +931,19 @@ class GeneralSettingsDataStore(
                         messageListSettings = settings.display.visualSettings.messageListSettings.copy(
                             dateTimeFormat = MessageListDateTimeFormat.valueOf(value),
                         ),
+                    ),
+                ),
+            )
+        }
+    }
+
+    private fun updateUnifiedFoldersLayout(value: String) {
+        skipSaveSettings = true
+        generalSettingsManager.update { settings ->
+            settings.copy(
+                display = settings.display.copy(
+                    inboxSettings = settings.display.inboxSettings.copy(
+                        unifiedFoldersLayout = UnifiedFoldersLayout.valueOf(value),
                     ),
                 ),
             )

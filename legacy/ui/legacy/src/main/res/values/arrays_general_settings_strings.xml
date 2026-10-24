@@ -184,6 +184,12 @@
         <item>@string/general_settings_message_list_date_time_format_iso</item>
     </string-array>
 
+    <string-array name="unified_folders_layout_entries">
+        <item>@string/unified_folders_layout_flat</item>
+        <item>@string/unified_folders_layout_tree</item>
+        <item>@string/unified_folders_layout_pinned</item>
+    </string-array>
+
     <string-array name="post_remove_navigation_entries">
         <item>@string/general_settings_post_remove_action_return_to_list</item>
         <item>@string/general_settings_post_remove_action_show_previous_message</item>

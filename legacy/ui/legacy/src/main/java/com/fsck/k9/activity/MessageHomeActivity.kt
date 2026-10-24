@@ -39,7 +39,7 @@ import com.fsck.k9.K9.fontSizes
 import com.fsck.k9.activity.compose.MessageActions
 import com.fsck.k9.controller.MessagingController
 import com.fsck.k9.search.isUnified
-import com.fsck.k9.search.isUnifiedInbox
+import com.fsck.k9.search.unifiedSpecialFolderType
 import com.fsck.k9.ui.BuildConfig
 import com.fsck.k9.ui.R
 import com.fsck.k9.ui.base.BaseActivity
@@ -47,6 +47,7 @@ import com.fsck.k9.ui.managefolders.ManageFoldersActivity
 import com.fsck.k9.ui.messagelist.DefaultFolderProvider
 import com.fsck.k9.ui.messagelist.MessageListFragmentBridgeContract
 import com.fsck.k9.ui.messagelist.MessageListFragmentBridgeContract.MessageListFragmentListener
+import com.fsck.k9.ui.messagelist.unifiedFolderTitle
 import com.fsck.k9.ui.messageview.MessageViewContainerFragment
 import com.fsck.k9.ui.messageview.MessageViewContainerFragment.MessageViewContainerListener
 import com.fsck.k9.ui.messageview.MessageViewFragment.MessageViewFragmentListener
@@ -714,7 +715,7 @@ open class MessageHomeActivity :
             openAccount = { accountId -> openRealAccount(accountId) },
             openAddAccount = { launchAddAccountScreen() },
             openFolder = { accountId, folderId -> openFolder(accountId, folderId) },
-            openUnifiedFolder = { openUnifiedFolders() },
+            openUnifiedFolder = { folderType -> openUnifiedFolders(folderType) },
             openSettings = { SettingsActivity.launch(this) },
             createDrawerListener = { createDrawerListener() },
         )
@@ -766,10 +767,10 @@ open class MessageHomeActivity :
         onMessageListDisplayed()
     }
 
-    private fun openUnifiedFolders() {
+    private fun openUnifiedFolders(folderType: FolderType = FolderType.INBOX) {
         actionDisplaySearch(
             this,
-            createSearchAccount().relatedSearch,
+            createSearchAccount(folderType).relatedSearch,
             false,
             false,
         )
@@ -851,7 +852,7 @@ open class MessageHomeActivity :
             collapseSearchView()
         } else if (isDrawerEnabled && account != null && supportFragmentManager.backStackEntryCount == 0) {
             if (generalSettingsManager.getConfig().display.inboxSettings.isShowUnifiedInbox) {
-                if (!search!!.isUnifiedInbox) {
+                if (!search!!.isUnified) {
                     openUnifiedFolders()
                 } else {
                     dispatchOnBackPressed(callback)
@@ -1501,19 +1502,22 @@ open class MessageHomeActivity :
                     )
                 }
 
-                // Don't select any item in the drawer because the Unified Inbox is displayed,
+                // Don't select any item in the drawer because a unified folder is displayed,
                 // but not listed in the drawer
-                search.isUnifiedInbox &&
+                search.isUnified &&
                     !generalSettingsManager.getConfig().display.inboxSettings.isShowUnifiedInbox -> drawer.deselect()
 
-                search.isUnifiedInbox -> drawer.selectUnifiedInbox()
+                search.isUnified -> drawer.selectUnifiedFolder(
+                    search.unifiedSpecialFolderType ?: FolderType.INBOX,
+                )
             }
         } ?: logger.warn(TAG) { "Couldn't select folder for $accountId as LocalSearch is null." }
     }
 
-    private fun createSearchAccount(): SearchAccount {
-        return SearchAccount.createUnifiedInboxSearch(
-            title = coreResourceProvider.searchUnifiedFoldersTitle(),
+    private fun createSearchAccount(folderType: FolderType = FolderType.INBOX): SearchAccount {
+        return SearchAccount.createUnifiedSearch(
+            folderType = folderType,
+            title = getString(unifiedFolderTitle(folderType)),
             detail = coreResourceProvider.searchUnifiedFoldersDetail(),
         )
     }

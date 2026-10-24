@@ -18,6 +18,8 @@ import net.thunderbird.core.preference.storage.Storage
 import net.thunderbird.core.preference.storage.StorageEditor
 import net.thunderbird.core.preference.storage.StoragePersister
 import net.thunderbird.core.preference.storage.StorageProvider
+import net.thunderbird.core.preference.storage.getEnumOrDefault
+import net.thunderbird.core.preference.storage.putEnum
 
 private const val TAG = "DefaultDisplayInboxSettingsPreferenceManager"
 
@@ -72,6 +74,10 @@ class DefaultDisplayInboxSettingsPreferenceManager(
             DisplayInboxSettingKey.MessageListSenderAboveSubject.value,
             DISPLAY_SETTINGS_DEFAULT_IS_MESSAGE_LIST_SENDER_ABOVE_SUBJECT,
         ),
+        unifiedFoldersLayout = storage.getEnumOrDefault(
+            DisplayInboxSettingKey.UnifiedFoldersLayout.value,
+            DISPLAY_SETTINGS_DEFAULT_UNIFIED_FOLDERS_LAYOUT,
+        ),
     )
 
     private fun writeConfig(config: DisplayInboxSettings) {
@@ -97,6 +103,10 @@ class DefaultDisplayInboxSettingsPreferenceManager(
                 )
                 storageEditor.putBoolean(DisplayInboxSettingKey.ShowUnifiedInbox.value, config.isShowUnifiedInbox)
                 storageEditor.putBoolean(DisplayInboxSettingKey.ShowStarCount.value, config.isShowStarredCount)
+                storageEditor.putEnum(
+                    DisplayInboxSettingKey.UnifiedFoldersLayout.value,
+                    config.unifiedFoldersLayout,
+                )
                 storageEditor.commit().also { commited ->
                     logger.verbose(TAG) { "writeConfig: storageEditor.commit() resulted in: $commited" }
                 }

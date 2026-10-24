@@ -65,7 +65,8 @@ internal fun FolderListItem(
         NavigationDrawerItem(
             label = {
                 NavigationDrawerLabel(
-                    label = mapFolderName(displayFolder, folderNameFormatter, parentPrefix),
+                    label = treeFolder?.accountLabel
+                        ?: mapFolderName(displayFolder, folderNameFormatter, parentPrefix),
                     expandableState = if (treeFolder !== null && treeFolder.children.isNotEmpty()) isExpanded else null,
                     badge = {
                         FolderListItemBadge(
@@ -172,6 +173,11 @@ private fun mapFolderName(
 private fun mapUnifiedFolderName(folder: UnifiedDisplayFolder): String {
     return when (folder.unifiedType) {
         UnifiedDisplayFolderType.INBOX -> stringResource(R.string.navigation_drawer_dropdown_unified_inbox_title)
+        UnifiedDisplayFolderType.DRAFTS -> stringResource(R.string.navigation_drawer_dropdown_unified_drafts_title)
+        UnifiedDisplayFolderType.SENT -> stringResource(R.string.navigation_drawer_dropdown_unified_sent_title)
+        UnifiedDisplayFolderType.ARCHIVE -> stringResource(R.string.navigation_drawer_dropdown_unified_archive_title)
+        UnifiedDisplayFolderType.SPAM -> stringResource(R.string.navigation_drawer_dropdown_unified_spam_title)
+        UnifiedDisplayFolderType.TRASH -> stringResource(R.string.navigation_drawer_dropdown_unified_trash_title)
     }
 }
 
@@ -201,7 +207,12 @@ private fun mapDisplayAccountFolderIcon(folder: MailDisplayFolder): ImageVector 
 }
 
 private fun mapDisplayUnifiedFolderIcon(folder: UnifiedDisplayFolder): ImageVector {
-    when (folder.unifiedType) {
-        UnifiedDisplayFolderType.INBOX -> return Icons.Outlined.AllInbox
+    return when (folder.unifiedType) {
+        UnifiedDisplayFolderType.INBOX -> Icons.Outlined.AllInbox
+        UnifiedDisplayFolderType.DRAFTS -> Icons.Outlined.Drafts
+        UnifiedDisplayFolderType.SENT -> Icons.Outlined.Send
+        UnifiedDisplayFolderType.ARCHIVE -> Icons.Outlined.Archive
+        UnifiedDisplayFolderType.SPAM -> Icons.Outlined.Report
+        UnifiedDisplayFolderType.TRASH -> Icons.Outlined.Delete
     }
 }
