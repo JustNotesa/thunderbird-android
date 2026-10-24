@@ -5,12 +5,21 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.view.LayoutInflater
+import android.view.Menu
+import android.view.MenuInflater
+import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
+import androidx.activity.OnBackPressedCallback
 import androidx.annotation.DrawableRes
 import androidx.annotation.IdRes
+import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.view.ActionMode
+import androidx.core.view.MenuHost
+import androidx.core.view.MenuProvider
 import androidx.fragment.app.Fragment
+import androidx.lifecycle.Lifecycle
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -21,6 +30,7 @@ import app.k9mail.feature.launcher.FeatureLauncherTarget
 import app.k9mail.feature.migration.launcher.api.MigrationManager
 import com.fsck.k9.ui.R
 import com.fsck.k9.ui.base.livedata.observeNotNull
+import com.fsck.k9.ui.observe
 import com.fsck.k9.ui.settings.account.AccountSettingsActivity
 import com.fsck.k9.view.DraggableFrameLayout
 import com.mikepenz.fastadapter.FastAdapter
@@ -31,6 +41,7 @@ import com.mikepenz.fastadapter.drag.SimpleDragCallback
 import com.mikepenz.fastadapter.utils.DragDropUtil
 import net.thunderbird.core.android.account.LegacyAccountDto
 import net.thunderbird.core.common.provider.BrandNameProvider
+import net.thunderbird.feature.account.AccountIdFactory
 import net.thunderbird.feature.funding.api.FundingManager
 import net.thunderbird.feature.funding.api.FundingType
 import org.koin.android.ext.android.inject
@@ -45,13 +56,34 @@ class SettingsListFragment : Fragment(), ItemTouchCallback {
 
     private lateinit var itemAdapter: ItemAdapter<GenericItem>
 
+    private var dragCallback: SimpleDragCallback? = null
+    private var actionMode: ActionMode? = null
+    private var accounts: List<LegacyAccountDto> = emptyList()
+    private var isSelectionMode = false
+
+    private val actionModeCallback = AccountSelectionActionModeCallback(
+        onSelectAll = ::selectAllAccounts,
+        onDelete = ::showDeleteAccountsDialog,
+        onDestroy = ::exitSelectionMode,
+    )
+
+    private val backPressedCallback = object : OnBackPressedCallback(false) {
+        override fun handleOnBackPressed() {
+            actionMode?.finish()
+        }
+    }
+
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
         return inflater.inflate(R.layout.fragment_settings_list, container, false)
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         initializeSettingsList(recyclerView = view.findViewById(R.id.settings_list))
-        populateSettingsList()
+        observeAccounts()
+        observeAccountSelection()
+        addOptionsMenu()
+        listenForDeleteConfirmation()
+        requireActivity().onBackPressedDispatcher.addCallback(viewLifecycleOwner, backPressedCallback)
     }
 
     private fun initializeSettingsList(recyclerView: RecyclerView) {
@@ -60,6 +92,7 @@ class SettingsListFragment : Fragment(), ItemTouchCallback {
         val touchCallBack = SimpleDragCallback(this).apply {
             setIsDragEnabled(true)
         }
+        dragCallback = touchCallBack
         val touchHelper = ItemTouchHelper(touchCallBack)
 
         val settingsListAdapter = FastAdapter.with(itemAdapter).apply {
@@ -82,17 +115,30 @@ class SettingsListFragment : Fragment(), ItemTouchCallback {
         touchHelper.attachToRecyclerView(recyclerView)
     }
 
-    private fun populateSettingsList() {
-        viewModel.accounts.observeNotNull(this) { accounts ->
-            if (accounts.isEmpty()) {
+    private fun observeAccounts() {
+        viewModel.accounts.observeNotNull(this) { accountList ->
+            accounts = accountList
+            if (accountList.isEmpty()) {
                 launchOnboarding()
             } else {
-                populateSettingsList(accounts)
+                populateSettingsList(accountList)
             }
+
+            invalidateOptionsMenu()
         }
     }
 
-    private fun populateSettingsList(accounts: List<LegacyAccountDto>) {
+    private fun observeAccountSelection() {
+        viewModel.selection.observe(viewLifecycleOwner) { selectedIds ->
+            if (accounts.isNotEmpty()) {
+                populateSettingsList(accounts)
+            }
+
+            updateActionMode(selectedIds.size)
+        }
+    }
+
+    private fun populateSettingsList(accountList: List<LegacyAccountDto>) {
         val listItems = buildSettingsList {
             addAction(
                 text = getString(R.string.general_settings_title),
@@ -100,18 +146,7 @@ class SettingsListFragment : Fragment(), ItemTouchCallback {
                 icon = Icons.Outlined.Settings,
             )
 
-            addSection(title = getString(R.string.accounts_title)) {
-                val isDraggable = accounts.size > 1
-                for (account in accounts) {
-                    addAccount(account, isDraggable)
-                }
-
-                addAction(
-                    text = getString(R.string.add_account_action),
-                    navigationAction = R.id.action_settingsListScreen_to_addAccountScreen,
-                    icon = Icons.Outlined.Add,
-                )
-            }
+            addAccountsSection(accountList)
 
             addSection(title = getString(R.string.settings_list_transfer_category)) {
                 migrationManager.createTransferChoiceIntent(requireContext())?.let { intent ->
@@ -163,6 +198,27 @@ class SettingsListFragment : Fragment(), ItemTouchCallback {
         itemAdapter.setNewList(listItems)
     }
 
+    private fun SettingsListBuilder.addAccountsSection(accountList: List<LegacyAccountDto>) {
+        addSection(title = getString(R.string.accounts_title)) {
+            val isDraggable = accountList.size > 1 && !isSelectionMode
+            val selectedAccountIds = viewModel.selection.value
+            for (account in accountList) {
+                addAccount(
+                    account = account,
+                    isDraggable = isDraggable,
+                    isSelectionMode = isSelectionMode,
+                    selected = account.id in selectedAccountIds,
+                )
+            }
+
+            addAction(
+                text = getString(R.string.add_account_action),
+                navigationAction = R.id.action_settingsListScreen_to_addAccountScreen,
+                icon = Icons.Outlined.Add,
+            )
+        }
+    }
+
     private fun SettingsListBuilder.addFunding() {
         when (fundingManager.getFundingType()) {
             FundingType.GOOGLE_PLAY -> {
@@ -190,10 +246,18 @@ class SettingsListFragment : Fragment(), ItemTouchCallback {
 
     private fun handleItemClick(item: GenericItem) {
         when (item) {
-            is AccountItem -> launchAccountSettings(item.account)
-            is IntentItem -> startActivity(item.intent)
-            is SettingsActionItem -> findNavController().navigate(item.navigationAction)
-            is UrlActionItem -> openUrl(item.url)
+            is AccountItem -> handleAccountClick(item)
+            is IntentItem -> if (!isSelectionMode) startActivity(item.intent)
+            is SettingsActionItem -> if (!isSelectionMode) findNavController().navigate(item.navigationAction)
+            is UrlActionItem -> if (!isSelectionMode) openUrl(item.url)
+        }
+    }
+
+    private fun handleAccountClick(item: AccountItem) {
+        if (isSelectionMode) {
+            viewModel.toggleAccountSelection(item.account.id)
+        } else {
+            launchAccountSettings(item.account)
         }
     }
 
@@ -216,6 +280,103 @@ class SettingsListFragment : Fragment(), ItemTouchCallback {
         requireActivity().finishAffinity()
     }
 
+    private fun addOptionsMenu() {
+        val menuHost: MenuHost = requireActivity()
+        menuHost.addMenuProvider(
+            object : MenuProvider {
+                override fun onCreateMenu(menu: Menu, menuInflater: MenuInflater) {
+                    menuInflater.inflate(R.menu.settings_list_option, menu)
+                }
+
+                override fun onPrepareMenu(menu: Menu) {
+                    menu.findItem(R.id.select_accounts).isVisible = accounts.isNotEmpty()
+                }
+
+                override fun onMenuItemSelected(menuItem: MenuItem): Boolean {
+                    return when (menuItem.itemId) {
+                        R.id.select_accounts -> {
+                            startSelectionMode()
+                            true
+                        }
+                        else -> false
+                    }
+                }
+            },
+            viewLifecycleOwner,
+            Lifecycle.State.RESUMED,
+        )
+    }
+
+    private fun invalidateOptionsMenu() {
+        requireActivity().invalidateOptionsMenu()
+    }
+
+    private fun startSelectionMode() {
+        val newActionMode = startActionMode() ?: return
+        actionMode = newActionMode
+        isSelectionMode = true
+        backPressedCallback.isEnabled = true
+        dragCallback?.setIsDragEnabled(false)
+        populateSettingsList(accounts)
+        updateActionMode(0)
+    }
+
+    private fun exitSelectionMode() {
+        isSelectionMode = false
+        actionMode = null
+        backPressedCallback.isEnabled = false
+        dragCallback?.setIsDragEnabled(true)
+        viewModel.clearAccountSelection()
+    }
+
+    private fun startActionMode(): ActionMode? {
+        val activity = requireActivity() as? AppCompatActivity ?: return null
+
+        return activity.startSupportActionMode(actionModeCallback)
+    }
+
+    private fun selectAllAccounts() {
+        viewModel.selectAllAccounts(accounts.map { it.id })
+    }
+
+    private fun updateActionMode(selectedCount: Int) {
+        val currentActionMode = actionMode ?: return
+        currentActionMode.title = resources.getQuantityString(
+            R.plurals.settings_selected_accounts_count,
+            selectedCount,
+            selectedCount,
+        )
+        actionModeCallback.setDeleteEnabled(selectedCount > 0)
+        currentActionMode.invalidate()
+    }
+
+    private fun showDeleteAccountsDialog() {
+        val selectedAccountIds = viewModel.selection.value
+        if (selectedAccountIds.isEmpty()) return
+
+        val selectedAccounts = accounts.filter { it.id in selectedAccountIds }
+        DeleteAccountsDialogFragment.newInstance(
+            accountIds = selectedAccountIds.map { it.toString() },
+            accountNames = selectedAccounts.map { it.displayName },
+            allAccountsSelected = viewModel.isAllSelected(accounts.size),
+        ).show(childFragmentManager, TAG_DELETE_ACCOUNTS)
+    }
+
+    private fun listenForDeleteConfirmation() {
+        childFragmentManager.setFragmentResultListener(
+            DeleteAccountsDialogFragment.REQUEST_KEY,
+            viewLifecycleOwner,
+        ) { _, result ->
+            val accountIds = result.getStringArrayList(DeleteAccountsDialogFragment.RESULT_ACCOUNT_IDS).orEmpty()
+            deleteAccounts(accountIds)
+        }
+    }
+
+    private fun deleteAccounts(accountIds: List<String>) {
+        viewModel.deleteAccounts(accountIds.map { AccountIdFactory.of(it) })
+        actionMode?.finish()
+    }
+
     private fun buildSettingsList(block: SettingsListBuilder.() -> Unit): List<GenericItem> {
         return SettingsListBuilder().apply(block).toList()
     }
@@ -234,8 +395,13 @@ class SettingsListFragment : Fragment(), ItemTouchCallback {
             settingsList.add(UrlActionItem(itemId, text, url, icon))
         }
 
-        fun addAccount(account: LegacyAccountDto, isDraggable: Boolean) {
-            settingsList.add(AccountItem(account, isDraggable))
+        fun addAccount(
+            account: LegacyAccountDto,
+            isDraggable: Boolean,
+            isSelectionMode: Boolean,
+            selected: Boolean,
+        ) {
+            settingsList.add(AccountItem(account, isDraggable, isSelectionMode, selected))
         }
 
         fun addIntent(text: String, @DrawableRes icon: Int, intent: Intent) {
@@ -280,5 +446,9 @@ class SettingsListFragment : Fragment(), ItemTouchCallback {
         val newAccountPosition = newPosition - firstAccountPosition
 
         viewModel.moveAccount(account, newAccountPosition)
+    }
+
+    companion object {
+        private const val TAG_DELETE_ACCOUNTS = "delete_accounts_confirmation"
     }
 }

@@ -7,16 +7,49 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import net.thunderbird.core.android.account.LegacyAccountDto
 import net.thunderbird.core.android.account.LegacyAccountDtoManager
+import net.thunderbird.feature.account.AccountId
+import net.thunderbird.feature.account.settings.api.BackgroundAccountRemover
 
 internal class SettingsViewModel(
     private val accountManager: LegacyAccountDtoManager,
+    private val accountRemover: BackgroundAccountRemover,
     private val coroutineDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
     val accounts = accountManager.getAccountsFlow().asLiveData()
+
+    private val accountSelection = AccountSelection()
+    private val selectedAccountIds = MutableStateFlow<Set<AccountId>>(emptySet())
+
+    val selection: StateFlow<Set<AccountId>> = selectedAccountIds
+
+    fun toggleAccountSelection(accountId: AccountId) {
+        accountSelection.toggle(accountId)
+        publishSelection()
+    }
+
+    fun selectAllAccounts(accountIds: List<AccountId>) {
+        accountSelection.selectAll(accountIds)
+        publishSelection()
+    }
+
+    fun clearAccountSelection() {
+        accountSelection.clear()
+        publishSelection()
+    }
+
+    fun isAllSelected(totalCount: Int): Boolean = accountSelection.isAllSelected(totalCount)
+
+    fun deleteAccounts(accountIds: List<AccountId>) {
+        accountIds.forEach { accountId ->
+            accountRemover.removeAccountAsync(accountId)
+        }
+    }
 
     fun moveAccount(account: LegacyAccountDto, newPosition: Int) {
         viewModelScope.launch(coroutineDispatcher) {
@@ -27,5 +60,9 @@ internal class SettingsViewModel(
                 accountManager.moveAccount(account, newPosition)
             }
         }
+    }
+
+    private fun publishSelection() {
+        selectedAccountIds.value = accountSelection.selectedIds
     }
 }
