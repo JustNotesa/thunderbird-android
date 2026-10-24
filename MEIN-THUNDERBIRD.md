@@ -5,12 +5,12 @@ Funktionen. Er ist der Standard-Branch des Forks JustNotesa/thunderbird-android.
 
 ## Welche Branches es gibt
 
-| Branch | Wozu |
-|---|---|
-| `main` | Mozillas offizieller Stand, unverändert. Nur von Mozilla aktualisieren, nie eigene Arbeit darauf. |
-| `mein-thunderbird` | Die eigene App: alles zusammen, was benutzt wird. |
-| `feature/...` | Einzelne Funktionen in Arbeit (Editor, Konten, Suche, Ordner, Signaturen). Fertige Stände werden in `mein-thunderbird` gemischt. |
-| `integration/editor-accounts-search` | Der frühere Sammelbranch, aus dem `mein-thunderbird` entstanden ist. Neue Stände gehen ab jetzt nach `mein-thunderbird`. |
+|                Branch                |                                                               Wozu                                                               |
+|--------------------------------------|----------------------------------------------------------------------------------------------------------------------------------|
+| `main`                               | Mozillas offizieller Stand, unverändert. Nur von Mozilla aktualisieren, nie eigene Arbeit darauf.                                |
+| `mein-thunderbird`                   | Die eigene App: alles zusammen, was benutzt wird.                                                                                |
+| `feature/...`                        | Einzelne Funktionen in Arbeit (Editor, Konten, Suche, Ordner, Signaturen). Fertige Stände werden in `mein-thunderbird` gemischt. |
+| `integration/editor-accounts-search` | Der frühere Sammelbranch, aus dem `mein-thunderbird` entstanden ist. Neue Stände gehen ab jetzt nach `mein-thunderbird`.         |
 
 ## Die App bauen
 
