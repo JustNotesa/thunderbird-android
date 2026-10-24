@@ -8,6 +8,8 @@ import app.k9mail.legacy.message.controller.MessagingControllerRegistry
 import app.k9mail.legacy.message.controller.MessagingListener
 import app.k9mail.legacy.message.controller.SimpleMessagingListener
 import assertk.assertThat
+import assertk.assertions.containsExactly
+import assertk.assertions.isEmpty
 import assertk.assertions.isEqualTo
 import com.fsck.k9.FakeLegacyAccount
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -17,8 +19,14 @@ import net.thunderbird.account.fake.FakeAccountData.ACCOUNT_ID
 import net.thunderbird.components.core.logging.testing.TestLogger
 import net.thunderbird.core.android.account.LegacyAccountManager
 import net.thunderbird.core.android.account.fake.FakeLegacyAccountManager
+import net.thunderbird.feature.account.AccountId
+import net.thunderbird.feature.account.AccountIdFactory
+import net.thunderbird.feature.mail.folder.FolderType
 import net.thunderbird.feature.search.legacy.LocalMessageSearch
+import net.thunderbird.feature.search.legacy.LocalMessageSearchType
 import net.thunderbird.feature.search.legacy.SearchConditionTreeNode
+import net.thunderbird.feature.search.legacy.UnifiedFolderSelection
+import net.thunderbird.feature.search.legacy.sql.SqlWhereClause
 import net.thunderbird.legacy.core.mailstore.folder.FakeOutboxFolderManager
 import org.junit.Test
 import org.mockito.kotlin.anyOrNull
@@ -28,6 +36,10 @@ import org.mockito.kotlin.mock
 
 private const val UNREAD_COUNT = 2
 private const val STARRED_COUNT = 3
+private const val FIRST_SENT_FOLDER_ID = 7L
+private const val SECOND_SENT_FOLDER_ID = 9L
+private val FIRST_ACCOUNT_ID = AccountIdFactory.create()
+private val SECOND_ACCOUNT_ID = AccountIdFactory.create()
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class DefaultMessageCountsProviderTest {
@@ -50,6 +62,8 @@ class DefaultMessageCountsProviderTest {
     }
 
     private val messagingControllerRegistry = mock<MessagingControllerRegistry> {}
+
+    private val conditionsByAccountId = mutableMapOf<AccountId, SearchConditionTreeNode>()
 
     private val messageCountsProvider = DefaultMessageCountsProvider(
         accountManager = accountManager,
@@ -102,6 +116,61 @@ class DefaultMessageCountsProviderTest {
 
         assertThat(messageCounts.unread).isEqualTo(UNREAD_COUNT)
         assertThat(messageCounts.starred).isEqualTo(STARRED_COUNT)
+    }
+
+    @Test
+    fun `getMessageCounts() with a unified Sent search should use the sent folder of each account`() {
+        // Arrange
+        val firstAccount = FakeLegacyAccount.create(id = FIRST_ACCOUNT_ID, sentFolderId = FIRST_SENT_FOLDER_ID)
+        val secondAccount = FakeLegacyAccount.create(id = SECOND_ACCOUNT_ID, sentFolderId = SECOND_SENT_FOLDER_ID)
+        val accountManager = mock<LegacyAccountManager> {
+            on { findAll() } doReturn listOf(firstAccount, secondAccount)
+        }
+        val firstMessageStore = createMessageStore(FIRST_ACCOUNT_ID)
+        val secondMessageStore = createMessageStore(SECOND_ACCOUNT_ID)
+        val messageStoreManager = mock<MessageStoreManager> {
+            on { getMessageStore(FIRST_ACCOUNT_ID) } doReturn firstMessageStore
+            on { getMessageStore(SECOND_ACCOUNT_ID) } doReturn secondMessageStore
+        }
+        val messageCountsProvider = DefaultMessageCountsProvider(
+            accountManager = accountManager,
+            messageStoreManager = messageStoreManager,
+            messagingControllerRegistry = messagingControllerRegistry,
+            outboxFolderManager = FakeOutboxFolderManager(),
+            logger = TestLogger(),
+        )
+        val search = LocalMessageSearch().apply {
+            type = LocalMessageSearchType.Unified(UnifiedFolderSelection.Special(FolderType.SENT))
+        }
+
+        // Act
+        val messageCounts = messageCountsProvider.getMessageCounts(search)
+
+        // Assert
+        assertThat(messageCounts).isEqualTo(MessageCounts(unread = 2 * UNREAD_COUNT, starred = 2 * STARRED_COUNT))
+        assertThat(search.leafSet).isEmpty()
+        assertSentFolderConditions(FIRST_ACCOUNT_ID, FIRST_SENT_FOLDER_ID)
+        assertSentFolderConditions(SECOND_ACCOUNT_ID, SECOND_SENT_FOLDER_ID)
+    }
+
+    private fun assertSentFolderConditions(accountId: AccountId, sentFolderId: Long) {
+        val conditions = conditionsByAccountId.getValue(accountId)
+        val whereClause = SqlWhereClause.Builder().withConditions(conditions).build()
+
+        assertThat(whereClause.selection).isEqualTo("folder_id = ?")
+        assertThat(whereClause.selectionArgs).containsExactly(sentFolderId.toString())
+    }
+
+    private fun createMessageStore(accountId: AccountId): ListenableMessageStore = mock {
+        on {
+            getUnreadMessageCount(
+                anyOrNull<SearchConditionTreeNode>(),
+            )
+        } doAnswer {
+            conditionsByAccountId[accountId] = it.getArgument(0)
+            UNREAD_COUNT
+        }
+        on { getStarredMessageCount(anyOrNull()) } doReturn STARRED_COUNT
     }
 
     @Test

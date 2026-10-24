@@ -3,6 +3,7 @@ package app.k9mail.feature.widget.message.list
 import app.k9mail.legacy.mailstore.MessageListRepository
 import com.fsck.k9.helper.MessageHelper
 import com.fsck.k9.mailstore.MessageColumns
+import com.fsck.k9.search.conditionsForAccount
 import com.fsck.k9.search.getLegacyAccounts
 import net.thunderbird.core.android.account.LegacyAccount
 import net.thunderbird.core.android.account.LegacyAccountManager
@@ -51,17 +52,17 @@ internal class MessageListLoader(
         val mapper = MessageListItemMapper(messageHelper, account, messageListPreferencesManager, outboxFolderManager)
 
         return if (config.showingThreadedList) {
-            val (selection, selectionArgs) = buildSelection(config)
+            val (selection, selectionArgs) = buildSelection(account, config)
             messageListRepository.getThreadedMessages(accountId, selection, selectionArgs, sortOrder, mapper)
         } else {
-            val (selection, selectionArgs) = buildSelection(config)
+            val (selection, selectionArgs) = buildSelection(account, config)
             messageListRepository.getMessages(accountId, selection, selectionArgs, sortOrder, mapper)
         }
     }
 
-    private fun buildSelection(config: MessageListConfig): Pair<String, Array<String>> {
+    private fun buildSelection(account: LegacyAccount, config: MessageListConfig): Pair<String, Array<String>> {
         val whereClause = SqlWhereClause.Builder()
-            .withConditions(config.search.conditions)
+            .withConditions(config.search.conditionsForAccount(account))
             .build()
 
         return whereClause.selection to whereClause.selectionArgs.toTypedArray()

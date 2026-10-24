@@ -19,6 +19,48 @@ class SearchAccount(
     val relatedSearch: LocalMessageSearch = search
 
     companion object {
+        /**
+         * Create a unified search for the special folder of the given [folderType] in every account.
+         *
+         * The folder of a unified search is resolved per account, because every account has its own folder ids. Use
+         * `LocalMessageSearch.unifiedSpecialFolderType` and `LocalMessageSearch.conditionsForAccount()` to evaluate the
+         * search for a single account.
+         *
+         * @throws IllegalArgumentException if [folderType] isn't a special folder that can be unified.
+         */
+        @JvmStatic
+        fun createUnifiedSearch(
+            folderType: FolderType,
+            title: String,
+            detail: String,
+        ): SearchAccount {
+            if (folderType == FolderType.INBOX) {
+                return createUnifiedInboxSearch(title, detail)
+            }
+
+            val folderSelection = when (folderType) {
+                FolderType.DRAFTS, FolderType.SENT, FolderType.ARCHIVE, FolderType.SPAM, FolderType.TRASH -> {
+                    UnifiedFolderSelection.Special(folderType)
+                }
+
+                FolderType.INBOX, FolderType.OUTBOX, FolderType.REGULAR -> {
+                    throw IllegalArgumentException("Unsupported unified folder type: $folderType")
+                }
+            }
+
+            val search = LocalMessageSearch().apply {
+                id = UnifiedAccountId
+                type = LocalMessageSearchType.Unified(folderSelection)
+            }
+
+            return SearchAccount(
+                id = UnifiedAccountId,
+                search = search,
+                name = title,
+                email = detail,
+            )
+        }
+
         @JvmStatic
         fun createUnifiedInboxSearch(
             title: String,
