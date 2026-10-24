@@ -1,6 +1,5 @@
 package app.k9mail.feature.migration.qrcode.transfer
 
-import kotlinx.coroutines.flow.first
 import net.thunderbird.core.android.account.LegacyAccount
 import net.thunderbird.core.android.account.LegacyAccountManager
 
@@ -21,7 +20,7 @@ internal class LegacyTransferAccountSource(
     private val accountManager: LegacyAccountManager,
 ) : TransferAccountSource {
     override suspend fun getAccounts(): List<TransferAccount> {
-        return accountManager.getAll().first().map { it.toTransferAccount() }
+        return accountManager.findAll().map { it.toTransferAccount() }
     }
 
     private fun LegacyAccount.toTransferAccount(): TransferAccount {

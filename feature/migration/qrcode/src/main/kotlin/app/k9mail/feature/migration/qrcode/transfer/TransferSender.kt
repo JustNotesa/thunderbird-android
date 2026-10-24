@@ -9,6 +9,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import net.thunderbird.legacy.logging.Log
 
+private const val TAG = "TransferSender"
 private const val MILLISECONDS_PER_SECOND = 1000L
 
 /**
@@ -108,7 +109,7 @@ internal class TransferSender(
                 onStop = onStop,
             )
         } catch (_: IOException) {
-            Log.d("Failed to open the port of the account transfer")
+            Log.d(TAG, "Failed to open the port of the account transfer")
             // Without a port to serve the container on there is nothing the hotspot could be used for.
             onStop()
             TransferSendResult.Failed

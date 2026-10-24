@@ -61,7 +61,7 @@ internal fun FolderListItem(
     onFolderReveal: () -> Unit = {},
 ) {
     val isExpanded = rememberExpandedState(isExpandInitial, treeFolder, selectedFolderId)
-    val folderRevealer = rememberFolderRevealer(folderIdToReveal == displayFolder.id, onFolderReveal)
+    val folderRevealer = rememberFolderRevealer(folderIdToReveal == displayFolder.folderId, onFolderReveal)
 
     var unreadCount = displayFolder.unreadMessageCount
     var starredCount = displayFolder.starredMessageCount
@@ -79,7 +79,8 @@ internal fun FolderListItem(
         NavigationDrawerItem(
             label = {
                 NavigationDrawerLabel(
-                    label = mapFolderName(displayFolder, folderNameFormatter, parentPrefix),
+                    label = treeFolder?.accountLabel
+                        ?: mapFolderName(displayFolder, folderNameFormatter, parentPrefix),
                     expandableState = if (treeFolder !== null && treeFolder.children.isNotEmpty()) isExpanded else null,
                     badge = {
                         FolderListItemBadge(
@@ -90,10 +91,10 @@ internal fun FolderListItem(
                     },
                 )
             },
-            selected = selectedFolderId == displayFolder.id,
+            selected = selectedFolderId == displayFolder.folderId,
             onClick = {
                 when (displayFolder) {
-                    is MailDisplayFolder if displayFolder.accountId == null -> isExpanded.value = !isExpanded.value
+                    is MailDisplayFolder if displayFolder.isPlaceholder -> isExpanded.value = !isExpanded.value
                     else -> onClick(displayFolder)
                 }
             },
@@ -277,6 +278,11 @@ private fun mapFolderName(
 private fun mapUnifiedFolderName(folder: UnifiedDisplayFolder): String {
     return when (folder.unifiedType) {
         UnifiedDisplayFolderType.INBOX -> stringResource(R.string.navigation_drawer_dropdown_unified_inbox_title)
+        UnifiedDisplayFolderType.DRAFTS -> stringResource(R.string.navigation_drawer_dropdown_unified_drafts_title)
+        UnifiedDisplayFolderType.SENT -> stringResource(R.string.navigation_drawer_dropdown_unified_sent_title)
+        UnifiedDisplayFolderType.ARCHIVE -> stringResource(R.string.navigation_drawer_dropdown_unified_archive_title)
+        UnifiedDisplayFolderType.SPAM -> stringResource(R.string.navigation_drawer_dropdown_unified_spam_title)
+        UnifiedDisplayFolderType.TRASH -> stringResource(R.string.navigation_drawer_dropdown_unified_trash_title)
     }
 }
 
@@ -289,8 +295,7 @@ private fun mapFolderIcon(folder: DisplayFolder): ImageVector {
 }
 
 private fun mapDisplayAccountFolderIcon(folder: MailDisplayFolder): ImageVector {
-    // Show a special icon for top-group regular folders, but not for placeholders (accountId == null)
-    if (folder.folder.type == FolderType.REGULAR && folder.isInTopGroup && folder.accountId != null) {
+    if (folder.folder.type == FolderType.REGULAR && folder.isInTopGroup && !folder.isPlaceholder) {
         return Icons.Outlined.FavoriteFolder
     }
 
@@ -307,7 +312,12 @@ private fun mapDisplayAccountFolderIcon(folder: MailDisplayFolder): ImageVector 
 }
 
 private fun mapDisplayUnifiedFolderIcon(folder: UnifiedDisplayFolder): ImageVector {
-    when (folder.unifiedType) {
-        UnifiedDisplayFolderType.INBOX -> return Icons.Outlined.AllInbox
+    return when (folder.unifiedType) {
+        UnifiedDisplayFolderType.INBOX -> Icons.Outlined.AllInbox
+        UnifiedDisplayFolderType.DRAFTS -> Icons.Outlined.Drafts
+        UnifiedDisplayFolderType.SENT -> Icons.Outlined.Send
+        UnifiedDisplayFolderType.ARCHIVE -> Icons.Outlined.Archive
+        UnifiedDisplayFolderType.SPAM -> Icons.Outlined.Report
+        UnifiedDisplayFolderType.TRASH -> Icons.Outlined.Delete
     }
 }

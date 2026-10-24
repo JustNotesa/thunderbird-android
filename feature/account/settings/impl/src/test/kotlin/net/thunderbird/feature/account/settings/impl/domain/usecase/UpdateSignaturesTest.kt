@@ -232,8 +232,14 @@ internal class UpdateSignaturesTest {
 
         override fun observeById(accountId: AccountId): Flow<LegacyAccount?> = flowOf(account)
 
-        override suspend fun update(account: LegacyAccount) {
-            updatedAccount = account
+        override suspend fun update(
+            accountId: AccountId,
+            transform: (LegacyAccount) -> LegacyAccount,
+        ): LegacyAccount? {
+            val currentAccount = account ?: return null
+            val updated = transform(currentAccount)
+            updatedAccount = updated
+            return updated
         }
     }
 
@@ -254,6 +260,7 @@ internal class UpdateSignaturesTest {
                 name = "AccountProfileName",
                 color = 0xFF0000,
                 avatar = AvatarDto(
+                    accountId = id,
                     avatarType = AvatarTypeDto.ICON,
                     avatarMonogram = null,
                     avatarImageUri = null,

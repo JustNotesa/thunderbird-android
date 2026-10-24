@@ -32,7 +32,6 @@ import app.k9mail.feature.account.setup.ui.specialfolders.SpecialFoldersFormUiMo
 import app.k9mail.feature.account.setup.ui.specialfolders.SpecialFoldersViewModel
 import com.fsck.k9.mail.folders.FolderFetcher
 import com.fsck.k9.mail.store.imap.ImapFolderFetcher
-import kotlinx.coroutines.flow.first
 import net.thunderbird.core.android.account.LegacyAccountManager
 import okhttp3.OkHttpClient
 import org.koin.core.module.Module
@@ -57,7 +56,7 @@ val featureAccountSetupModule: Module = module {
     single<ExistingAccountServerSettingsProvider> {
         val accountManager = get<LegacyAccountManager>()
         ExistingAccountServerSettingsProvider {
-            accountManager.getAll().first().map { account ->
+            accountManager.findAll().map { account ->
                 ExistingAccountServerSettings(
                     emailAddress = account.email,
                     incoming = account.incomingServerSettings,

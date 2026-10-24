@@ -8,8 +8,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
+import net.thunderbird.components.core.logging.Logger
 import net.thunderbird.components.core.outcome.handle
-import net.thunderbird.core.logging.Logger
 import net.thunderbird.core.ui.contract.mvi.BaseViewModel
 import net.thunderbird.feature.account.AccountId
 import net.thunderbird.feature.account.settings.impl.domain.AccountSettingsDomainContract.AccountSettingError
@@ -166,6 +166,8 @@ internal class SignatureSettingsViewModel(
             is AccountSettingError.NotFound -> accountSettingError.message
             is AccountSettingError.StorageError -> accountSettingError.message
             is AccountSettingError.UnsupportedFormat -> accountSettingError.message
+            is AccountSettingError.UnsupportedMessageFormat -> accountSettingError.message
+            is AccountSettingError.UnsupportedQuoteStyle -> accountSettingError.message
         }
         logger.error(tag = TAG, message = { message })
         updateState { it.copy(error = error) }

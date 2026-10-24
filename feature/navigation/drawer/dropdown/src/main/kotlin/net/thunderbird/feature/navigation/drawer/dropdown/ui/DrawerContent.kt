@@ -29,6 +29,7 @@ import net.thunderbird.components.ui.bolt.atom.DividerHorizontal
 import net.thunderbird.components.ui.bolt.atom.Surface
 import net.thunderbird.components.ui.bolt.theme.BoltTheme
 import net.thunderbird.feature.navigation.drawer.dropdown.domain.entity.DisplayAccount
+import net.thunderbird.feature.navigation.drawer.dropdown.domain.entity.MailDisplayAccount
 import net.thunderbird.feature.navigation.drawer.dropdown.domain.entity.UnifiedDisplayAccount
 import net.thunderbird.feature.navigation.drawer.dropdown.ui.DrawerContract.Event
 import net.thunderbird.feature.navigation.drawer.dropdown.ui.DrawerContract.State
@@ -158,7 +159,8 @@ private fun FolderContent(
     state: State,
     onEvent: (Event) -> Unit,
 ) {
-    val isUnifiedAccount = state.accounts.firstOrNull { it.id == state.selectedAccountId } is UnifiedDisplayAccount
+    val selectedAccount = state.accounts.firstOrNull { it.id == state.selectedAccountId }
+    val isUnifiedAccount = selectedAccount is UnifiedDisplayAccount
 
     Surface(
         color = BoltTheme.colors.surfaceContainerLow,
@@ -174,12 +176,13 @@ private fun FolderContent(
                     onEvent(Event.OnFolderClick(folder))
                 },
                 showStarredCount = state.config.showStarredCount,
+                pinnedFolders = state.pinnedFolders,
+                accountSectionTitle = (selectedAccount as? MailDisplayAccount)?.name,
                 modifier = Modifier.weight(1f),
             )
             DividerHorizontal()
             FolderSettingList(
                 onSyncAccountClick = { onEvent(Event.OnSyncAccount) },
-                onManageFoldersClick = { onEvent(Event.OnManageFoldersClick) },
                 onSyncAllAccountsClick = { onEvent(Event.OnSyncAllAccounts) },
                 onSettingsClick = { onEvent(Event.OnSettingsClick) },
                 isUnifiedAccount = isUnifiedAccount,

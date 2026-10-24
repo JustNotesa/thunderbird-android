@@ -1,6 +1,5 @@
 package app.k9mail.feature.migration.qrcode.transfer.auth
 
-import kotlinx.coroutines.flow.first
 import net.thunderbird.core.android.account.LegacyAccountManager
 
 /**
@@ -20,7 +19,7 @@ internal class LegacyPasswordAccountSource(
     private val accountManager: LegacyAccountManager,
 ) : PasswordAccountSource {
     override suspend fun getAll(): List<Pair<PasswordAccount, String?>> {
-        return accountManager.getAll().first().map { account ->
+        return accountManager.findAll().map { account ->
             val displayName = account.name?.takeIf { it.isNotBlank() } ?: account.email
             val password = account.incomingServerSettings.password
 

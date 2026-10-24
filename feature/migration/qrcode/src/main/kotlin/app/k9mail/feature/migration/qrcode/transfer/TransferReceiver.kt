@@ -5,6 +5,8 @@ import app.k9mail.feature.migration.qrcode.transfer.hotspot.HotspotNetworkConnec
 import javax.net.SocketFactory
 import net.thunderbird.legacy.logging.Log
 
+private const val TAG = "TransferReceiver"
+
 /**
  * Receives an account transfer: fetches the encrypted container of the transfer from the sending device, decrypts it
  * with the key material of the QR code and reads the accounts it holds. The container is fetched from the local network
@@ -55,7 +57,7 @@ internal class TransferReceiver(
             is TransferRoute.Hotspot -> fetchOverHotspot(route = route, qrCode = qrCode)
 
             else -> {
-                Log.d("Unsupported transfer route for receiving an account transfer")
+                Log.d(TAG, "Unsupported transfer route for receiving an account transfer")
                 ContainerFetch.Failed(TransferReceiveResult.UnsupportedRoute)
             }
         }
@@ -75,7 +77,7 @@ internal class TransferReceiver(
         val connected = hotspotConnector.connect(ssid = route.ssid, passphrase = route.passphrase)
 
         if (connected !is HotspotConnectResult.Connected) {
-            Log.d("The hotspot of the sending device couldn't be joined")
+            Log.d(TAG, "The hotspot of the sending device couldn't be joined")
             return ContainerFetch.Failed(TransferReceiveResult.HotspotUnavailable)
         }
 

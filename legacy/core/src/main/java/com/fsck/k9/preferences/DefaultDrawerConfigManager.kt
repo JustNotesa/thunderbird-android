@@ -4,9 +4,11 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.stateIn
 import net.thunderbird.core.preference.display.inboxSettings.DisplayInboxSettingsPreferenceManager
+import net.thunderbird.core.preference.display.inboxSettings.UnifiedFoldersLayout
 import net.thunderbird.core.preference.display.visualSettings.DisplayVisualSettingsPreferenceManager
 import net.thunderbird.core.preference.update
 import net.thunderbird.feature.navigation.drawer.api.NavigationDrawerExternalContract.DrawerConfig
@@ -16,15 +18,18 @@ internal class DefaultDrawerConfigManager(
     private val displayInboxSettingsPreferenceManager: DisplayInboxSettingsPreferenceManager,
     private val displayVisualSettingsPreferenceManager: DisplayVisualSettingsPreferenceManager,
 ) : DrawerConfigManager {
-    private val drawerConfig: StateFlow<DrawerConfig> = flow {
-        emit(
-            DrawerConfig(
-                showStarredCount = displayInboxSettingsPreferenceManager.getConfig().isShowStarredCount,
-                showUnifiedFolders = displayInboxSettingsPreferenceManager.getConfig().isShowUnifiedInbox,
-                expandAllFolder = displayVisualSettingsPreferenceManager.getConfig().drawerExpandAllFolder,
-            ),
+    private val drawerConfig: StateFlow<DrawerConfig> = combine(
+        displayInboxSettingsPreferenceManager.getConfigFlow(),
+        displayVisualSettingsPreferenceManager.getConfigFlow(),
+    ) { inboxSettings, visualSettings ->
+        DrawerConfig(
+            showStarredCount = inboxSettings.isShowStarredCount,
+            showUnifiedFolders = inboxSettings.isShowUnifiedInbox,
+            expandAllFolder = visualSettings.drawerExpandAllFolder,
+            unifiedFoldersLayout = inboxSettings.unifiedFoldersLayout,
         )
     }
+        .distinctUntilChanged()
         .stateIn(
             scope = coroutineScope,
             started = SharingStarted.WhileSubscribed(),
@@ -32,6 +37,7 @@ internal class DefaultDrawerConfigManager(
                 showStarredCount = false,
                 showUnifiedFolders = false,
                 expandAllFolder = false,
+                unifiedFoldersLayout = UnifiedFoldersLayout.Flat,
             ),
         )
 
@@ -40,6 +46,7 @@ internal class DefaultDrawerConfigManager(
             it.copy(
                 isShowStarredCount = config.showStarredCount,
                 isShowUnifiedInbox = config.showUnifiedFolders,
+                unifiedFoldersLayout = config.unifiedFoldersLayout,
             )
         }
         displayVisualSettingsPreferenceManager.update {

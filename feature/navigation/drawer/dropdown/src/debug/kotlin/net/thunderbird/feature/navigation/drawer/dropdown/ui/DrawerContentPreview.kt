@@ -9,10 +9,14 @@ import androidx.compose.ui.unit.dp
 import kotlinx.collections.immutable.persistentListOf
 import net.thunderbird.components.ui.bolt.PreviewWithTheme
 import net.thunderbird.components.ui.bolt.atom.Surface
+import net.thunderbird.core.preference.display.inboxSettings.UnifiedFoldersLayout
 import net.thunderbird.feature.navigation.drawer.api.NavigationDrawerExternalContract.DrawerConfig
 import net.thunderbird.feature.navigation.drawer.dropdown.ui.FakeData.DISPLAY_FOLDER
+import net.thunderbird.feature.navigation.drawer.dropdown.ui.FakeData.DISPLAY_TREE_FOLDER_WITH_UNIFIED_TREE
 import net.thunderbird.feature.navigation.drawer.dropdown.ui.FakeData.MAIL_DISPLAY_ACCOUNT
+import net.thunderbird.feature.navigation.drawer.dropdown.ui.FakeData.PINNED_DISPLAY_TREE_FOLDERS
 import net.thunderbird.feature.navigation.drawer.dropdown.ui.FakeData.UNIFIED_FOLDER
+import net.thunderbird.feature.navigation.drawer.dropdown.ui.FakeData.UNIFIED_TREE_FOLDER
 import net.thunderbird.feature.navigation.drawer.dropdown.ui.FakeData.createAccountList
 import net.thunderbird.feature.navigation.drawer.dropdown.ui.FakeData.createDisplayFolderList
 
@@ -80,7 +84,7 @@ internal fun DrawerContentWithSelectedFolderPreview() {
                     UNIFIED_FOLDER,
                     DISPLAY_FOLDER,
                 ),
-                selectedFolderId = DISPLAY_FOLDER.id,
+                selectedFolderId = DISPLAY_FOLDER.folderId,
             ),
             onEvent = {},
         )
@@ -101,7 +105,63 @@ internal fun DrawerContentWithSelectedUnifiedFolderPreview() {
                     UNIFIED_FOLDER,
                     DISPLAY_FOLDER,
                 ),
-                selectedFolderId = UNIFIED_FOLDER.id,
+                selectedFolderId = UNIFIED_FOLDER.folderId,
+            ),
+            onEvent = {},
+        )
+    }
+}
+
+@Composable
+@Preview(showBackground = true)
+internal fun DrawerContentUnifiedTreeLayoutPreview() {
+    PreviewWithTheme {
+        DrawerContent(
+            state = DrawerContract.State(
+                accounts = persistentListOf(
+                    MAIL_DISPLAY_ACCOUNT,
+                ),
+                selectedAccountId = MAIL_DISPLAY_ACCOUNT.id,
+                folders = persistentListOf(
+                    UNIFIED_TREE_FOLDER,
+                ),
+                rootFolder = DISPLAY_TREE_FOLDER_WITH_UNIFIED_TREE,
+                selectedFolderId = UNIFIED_TREE_FOLDER.folderId,
+                selectedFolder = UNIFIED_TREE_FOLDER,
+                config = DrawerConfig(
+                    showUnifiedFolders = true,
+                    showStarredCount = false,
+                    expandAllFolder = true,
+                    unifiedFoldersLayout = UnifiedFoldersLayout.Tree,
+                ),
+            ),
+            onEvent = {},
+        )
+    }
+}
+
+@Composable
+@Preview(showBackground = true)
+internal fun DrawerContentPinnedLayoutPreview() {
+    PreviewWithTheme {
+        DrawerContent(
+            state = DrawerContract.State(
+                accounts = persistentListOf(
+                    MAIL_DISPLAY_ACCOUNT,
+                ),
+                selectedAccountId = MAIL_DISPLAY_ACCOUNT.id,
+                folders = persistentListOf(
+                    DISPLAY_FOLDER,
+                ),
+                selectedFolderId = PINNED_DISPLAY_TREE_FOLDERS.first().displayFolder?.folderId,
+                selectedFolder = PINNED_DISPLAY_TREE_FOLDERS.first().displayFolder,
+                pinnedFolders = PINNED_DISPLAY_TREE_FOLDERS,
+                config = DrawerConfig(
+                    showUnifiedFolders = true,
+                    showStarredCount = false,
+                    expandAllFolder = false,
+                    unifiedFoldersLayout = UnifiedFoldersLayout.Pinned,
+                ),
             ),
             onEvent = {},
         )
@@ -121,11 +181,12 @@ internal fun DrawerContentSingleAccountPreview() {
                 ),
                 selectedAccountId = MAIL_DISPLAY_ACCOUNT.id,
                 folders = displayFolders,
-                selectedFolderId = displayFolders[0].id,
+                selectedFolderId = displayFolders[0].folderId,
                 config = DrawerConfig(
                     showUnifiedFolders = false,
                     showStarredCount = false,
                     expandAllFolder = false,
+                    unifiedFoldersLayout = UnifiedFoldersLayout.Flat,
                 ),
                 showAccountSelector = false,
             ),
@@ -147,11 +208,12 @@ internal fun DrawerContentSingleAccountWithAccountSelectionPreview() {
                 ),
                 selectedAccountId = MAIL_DISPLAY_ACCOUNT.id,
                 folders = displayFolders,
-                selectedFolderId = displayFolders[0].id,
+                selectedFolderId = displayFolders[0].folderId,
                 config = DrawerConfig(
                     showUnifiedFolders = false,
                     showStarredCount = false,
                     expandAllFolder = false,
+                    unifiedFoldersLayout = UnifiedFoldersLayout.Flat,
                 ),
                 showAccountSelector = true,
             ),
@@ -172,11 +234,12 @@ internal fun DrawerContentMultipleAccountsAccountPreview() {
                 accounts = accountList,
                 selectedAccountId = accountList[0].id,
                 folders = displayFolders,
-                selectedFolderId = UNIFIED_FOLDER.id,
+                selectedFolderId = UNIFIED_FOLDER.folderId,
                 config = DrawerConfig(
                     showUnifiedFolders = false,
                     showStarredCount = false,
                     expandAllFolder = false,
+                    unifiedFoldersLayout = UnifiedFoldersLayout.Flat,
                 ),
                 showAccountSelector = false,
             ),
@@ -196,11 +259,12 @@ internal fun DrawerContentMultipleAccountsWithAccountSelectionPreview() {
                 accounts = accountList,
                 selectedAccountId = accountList[1].id,
                 folders = createDisplayFolderList(hasUnifiedFolder = true),
-                selectedFolderId = UNIFIED_FOLDER.id,
+                selectedFolderId = UNIFIED_FOLDER.folderId,
                 config = DrawerConfig(
                     showUnifiedFolders = false,
                     showStarredCount = false,
                     expandAllFolder = false,
+                    unifiedFoldersLayout = UnifiedFoldersLayout.Flat,
                 ),
                 showAccountSelector = true,
             ),
@@ -220,11 +284,12 @@ internal fun DrawerContentMultipleAccountsWithDifferentAccountSelectionPreview()
                 accounts = accountList,
                 selectedAccountId = accountList[2].id,
                 folders = createDisplayFolderList(hasUnifiedFolder = true),
-                selectedFolderId = UNIFIED_FOLDER.id,
+                selectedFolderId = UNIFIED_FOLDER.folderId,
                 config = DrawerConfig(
                     showUnifiedFolders = false,
                     showStarredCount = false,
                     expandAllFolder = false,
+                    unifiedFoldersLayout = UnifiedFoldersLayout.Flat,
                 ),
                 showAccountSelector = true,
             ),
@@ -249,11 +314,12 @@ internal fun DrawerContentSmallScreenPreview() {
                     accounts = accountList,
                     selectedAccountId = accountList[2].id,
                     folders = createDisplayFolderList(hasUnifiedFolder = true),
-                    selectedFolderId = UNIFIED_FOLDER.id,
+                    selectedFolderId = UNIFIED_FOLDER.folderId,
                     config = DrawerConfig(
                         showUnifiedFolders = false,
                         showStarredCount = false,
                         expandAllFolder = false,
+                        unifiedFoldersLayout = UnifiedFoldersLayout.Flat,
                     ),
                     showAccountSelector = true,
                 ),
@@ -279,11 +345,12 @@ internal fun DrawerContentVerySmallScreenPreview() {
                     accounts = accountList,
                     selectedAccountId = accountList[2].id,
                     folders = createDisplayFolderList(hasUnifiedFolder = true),
-                    selectedFolderId = UNIFIED_FOLDER.id,
+                    selectedFolderId = UNIFIED_FOLDER.folderId,
                     config = DrawerConfig(
                         showUnifiedFolders = false,
                         showStarredCount = false,
                         expandAllFolder = false,
+                        unifiedFoldersLayout = UnifiedFoldersLayout.Flat,
                     ),
                     showAccountSelector = true,
                 ),

@@ -9,6 +9,7 @@ import com.fsck.k9.contacts.ContactLetterBitmapCreator
 import com.fsck.k9.helper.MessageHelper
 import com.fsck.k9.mailstore.LocalStoreProvider
 import com.fsck.k9.mailstore.MessageColumns
+import com.fsck.k9.search.conditionsForAccount
 import com.fsck.k9.search.getLegacyAccounts
 import net.thunderbird.core.android.account.LegacyAccount
 import net.thunderbird.core.android.account.LegacyAccountManager
@@ -23,6 +24,8 @@ import net.thunderbird.feature.search.legacy.LocalMessageSearch
 import net.thunderbird.feature.search.legacy.api.MessageSearchField
 import net.thunderbird.feature.search.legacy.sql.SqlWhereClause
 import net.thunderbird.legacy.logging.Log
+
+private const val TAG = "MessageListLoader"
 
 @Suppress("LongParameterList")
 class MessageListLoader(
@@ -41,7 +44,7 @@ class MessageListLoader(
         return try {
             getMessageListInfo(config)
         } catch (e: Exception) {
-            Log.e(e, "Error while fetching message list")
+            Log.e(TAG, e, "Error while fetching message list")
 
             // TODO: Return an error object instead of an empty list
             MessageListInfo(messageListItems = emptyList(), hasMoreMessages = false)
@@ -112,11 +115,11 @@ class MessageListLoader(
 
     private fun loadFolderDisplayName(account: LegacyAccount, folderId: Long): String? {
         return try {
-            val localFolder = localStoreProvider.getInstanceByLegacyAccount(account).getFolder(folderId)
+            val localFolder = localStoreProvider.getInstance(account.id).getFolder(folderId)
             localFolder.open()
             FolderInfoHolder(folderNameFormatter, outboxFolderManager, localFolder, account).displayName
         } catch (e: MessagingException) {
-            Log.w(e, "Couldn't load folder name")
+            Log.w(TAG, e, "Couldn't load folder name")
             null
         }
     }
@@ -141,7 +144,7 @@ class MessageListLoader(
         }
 
         val whereClause = SqlWhereClause.Builder()
-            .withConditions(config.search.conditions)
+            .withConditions(config.search.conditionsForAccount(account))
             .build()
 
         query.append('(').append(whereClause.selection).append(')')
@@ -229,7 +232,7 @@ class MessageListLoader(
         return if (accounts.size == 1 && folderIds.size == 1) {
             val account = accounts[0]
             val folderId = folderIds[0]
-            val localStore = localStoreProvider.getInstanceByLegacyAccount(account)
+            val localStore = localStoreProvider.getInstance(account.id)
             val localFolder = localStore.getFolder(folderId)
             localFolder.open()
             localFolder.hasMoreMessages()

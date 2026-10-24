@@ -1,5 +1,8 @@
 package net.thunderbird.feature.search.legacy
 
+import net.thunderbird.feature.account.AccountId
+import net.thunderbird.feature.account.UnifiedAccountId
+import net.thunderbird.feature.mail.folder.FolderType
 import net.thunderbird.feature.search.legacy.api.MessageSearchField
 import net.thunderbird.feature.search.legacy.api.SearchAttribute
 
@@ -8,41 +11,70 @@ import net.thunderbird.feature.search.legacy.api.SearchAttribute
  * This is a meta-account containing all the messages that match the search.
  */
 class SearchAccount(
-    val id: String,
+    val id: AccountId,
     search: LocalMessageSearch,
     val name: String,
     val email: String,
 ) {
-    /**
-     * Returns the ID of this `SearchAccount` instance.
-     *
-     * This isn't really a UUID. But since we don't expose this value to other apps and we only use the account UUID
-     * as opaque string (e.g. as key in a `Map`) we're fine.
-     *
-     * Using a constant string is necessary to identify the same search account even when the corresponding
-     * [SearchAccount] object has been recreated.
-     */
-    val uuid: String = id
-
     val relatedSearch: LocalMessageSearch = search
 
     companion object {
-        const val UNIFIED_FOLDERS = "unified_folders"
-        const val NEW_MESSAGES = "new_messages"
+        /**
+         * Create a unified search for the special folder of the given [folderType] in every account.
+         *
+         * The folder of a unified search is resolved per account, because every account has its own folder ids. Use
+         * `LocalMessageSearch.unifiedSpecialFolderType` and `LocalMessageSearch.conditionsForAccount()` to evaluate the
+         * search for a single account.
+         *
+         * @throws IllegalArgumentException if [folderType] isn't a special folder that can be unified.
+         */
+        @JvmStatic
+        fun createUnifiedSearch(
+            folderType: FolderType,
+            title: String,
+            detail: String,
+        ): SearchAccount {
+            if (folderType == FolderType.INBOX) {
+                return createUnifiedInboxSearch(title, detail)
+            }
+
+            val folderSelection = when (folderType) {
+                FolderType.DRAFTS, FolderType.SENT, FolderType.ARCHIVE, FolderType.SPAM, FolderType.TRASH -> {
+                    UnifiedFolderSelection.Special(folderType)
+                }
+
+                FolderType.INBOX, FolderType.OUTBOX, FolderType.REGULAR -> {
+                    throw IllegalArgumentException("Unsupported unified folder type: $folderType")
+                }
+            }
+
+            val search = LocalMessageSearch().apply {
+                id = UnifiedAccountId
+                type = LocalMessageSearchType.Unified(folderSelection)
+            }
+
+            return SearchAccount(
+                id = UnifiedAccountId,
+                search = search,
+                name = title,
+                email = detail,
+            )
+        }
 
         @JvmStatic
-        fun createUnifiedFoldersSearch(
+        fun createUnifiedInboxSearch(
             title: String,
             detail: String,
         ): SearchAccount {
             val tmpSearch = LocalMessageSearch().apply {
-                id = UNIFIED_FOLDERS
+                id = UnifiedAccountId
+                type = LocalMessageSearchType.Unified(UnifiedFolderSelection.Special(FolderType.INBOX))
                 // The ingrate field is used to identify the unified folders.
                 and(MessageSearchField.INTEGRATE, "1", SearchAttribute.EQUALS)
             }
 
             return SearchAccount(
-                id = UNIFIED_FOLDERS,
+                id = UnifiedAccountId,
                 search = tmpSearch,
                 name = title,
                 email = detail,

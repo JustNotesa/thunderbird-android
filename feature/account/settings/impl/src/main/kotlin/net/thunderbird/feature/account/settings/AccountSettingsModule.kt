@@ -1,6 +1,7 @@
 package net.thunderbird.feature.account.settings
 
 import kotlinx.collections.immutable.ImmutableList
+import net.thunderbird.components.core.logging.Logger
 import net.thunderbird.core.common.resources.StringsResourceManager
 import net.thunderbird.feature.account.settings.api.AccountSettingsNavigation
 import net.thunderbird.feature.account.settings.impl.DefaultAccountSettingsNavigation
@@ -13,6 +14,7 @@ import net.thunderbird.feature.account.settings.impl.domain.usecase.UpdateFetchi
 import net.thunderbird.feature.account.settings.impl.domain.usecase.UpdateGeneralSettings
 import net.thunderbird.feature.account.settings.impl.domain.usecase.UpdateReadEmailSettings
 import net.thunderbird.feature.account.settings.impl.domain.usecase.UpdateSearchSettings
+import net.thunderbird.feature.account.settings.impl.domain.usecase.UpdateSendingMailSettings
 import net.thunderbird.feature.account.settings.impl.domain.usecase.UpdateSignatures
 import net.thunderbird.feature.account.settings.impl.domain.usecase.ValidateAccountName
 import net.thunderbird.feature.account.settings.impl.domain.usecase.ValidateAvatarMonogram
@@ -30,6 +32,10 @@ import net.thunderbird.feature.account.settings.impl.ui.readingMail.ReadingMailS
 import net.thunderbird.feature.account.settings.impl.ui.search.SearchSettingBuilder
 import net.thunderbird.feature.account.settings.impl.ui.search.SearchSettingsContract
 import net.thunderbird.feature.account.settings.impl.ui.search.SearchSettingsViewModel
+import net.thunderbird.feature.account.settings.impl.ui.sendingMail.SendingMailSettingContract
+import net.thunderbird.feature.account.settings.impl.ui.sendingMail.SendingMailSettingsBuilder
+import net.thunderbird.feature.account.settings.impl.ui.sendingMail.SendingMailSettingsOptionsMapper
+import net.thunderbird.feature.account.settings.impl.ui.sendingMail.SendingMailSettingsViewModel
 import net.thunderbird.feature.account.settings.impl.ui.signature.SignatureSettingsViewModel
 import org.koin.core.module.dsl.viewModel
 import org.koin.core.qualifier.named
@@ -52,6 +58,12 @@ val featureAccountSettingsModule = module {
 
     factory<UseCase.UpdateFetchingMailSettings> {
         UpdateFetchingMailSettings(
+            repository = get(),
+        )
+    }
+
+    factory<UseCase.UpdateSendingMailSettings> {
+        UpdateSendingMailSettings(
             repository = get(),
         )
     }
@@ -134,6 +146,19 @@ val featureAccountSettingsModule = module {
         )
     }
 
+    factory<SendingMailSettingsOptionsMapper> {
+        SendingMailSettingsOptionsMapper(
+            resources = get<StringsResourceManager>(),
+        )
+    }
+
+    factory<SendingMailSettingContract.SettingsBuilder> {
+        SendingMailSettingsBuilder(
+            resources = get<StringsResourceManager>(),
+            optionMapper = get<SendingMailSettingsOptionsMapper>(),
+        )
+    }
+
     factory<FetchingMailSettingsContract.SettingsBuilder> {
         FetchingMailSettingsBuilder(
             resources = get<StringsResourceManager>(),
@@ -166,6 +191,18 @@ val featureAccountSettingsModule = module {
             getLegacyAccount = get(),
             updateFetchingMailSettings = get(),
             fetchingMailSettingsOptionsMapper = get(),
+        )
+    }
+
+    viewModel { params ->
+        SendingMailSettingsViewModel(
+            accountId = params.get(),
+            logger = get<Logger>(),
+            getAccountName = get(),
+            getLegacyAccount = get(),
+            updateSendingMailSettings = get(),
+            optionsMapper = get(),
+            accountCapabilities = get(),
         )
     }
 

@@ -1,7 +1,7 @@
 package app.k9mail.feature.settings.import
 
 import com.fsck.k9.preferences.AccountDescription
-import net.thunderbird.core.android.account.LegacyAccountDtoManager
+import net.thunderbird.core.android.account.LegacyAccountManager
 
 /**
  * An account that is already set up on this device.
@@ -17,10 +17,10 @@ internal interface ExistingAccountProvider {
 }
 
 internal class AccountManagerExistingAccountProvider(
-    private val accountManager: LegacyAccountDtoManager,
+    private val accountManager: LegacyAccountManager,
 ) : ExistingAccountProvider {
     override fun getExistingAccounts(): List<ExistingAccount> {
-        return accountManager.getAccounts().map { account ->
+        return accountManager.findAll().map { account ->
             ExistingAccount(
                 email = account.identities.firstOrNull()?.email,
                 incomingServerHost = account.incomingServerSettings.host,

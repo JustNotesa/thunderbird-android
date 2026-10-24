@@ -7,7 +7,7 @@ import android.os.Bundle;
 
 import androidx.annotation.NonNull;
 import app.k9mail.core.android.common.compat.BundleCompat;
-import net.thunderbird.core.android.account.LegacyAccountDto;
+import net.thunderbird.core.android.account.LegacyAccount;
 import net.thunderbird.core.android.account.MessageFormat;
 import app.k9mail.legacy.di.DI;
 import com.fsck.k9.activity.MessageCompose;
@@ -35,6 +35,8 @@ import net.thunderbird.core.preference.GeneralSettingsManager;
 
 
 public class QuotedMessagePresenter {
+    private static final String TAG = "QuotedMessagePresenter";
+
     private static final String STATE_KEY_HTML_QUOTE = "state:htmlQuote";
     private static final String STATE_KEY_QUOTED_TEXT_MODE = "state:quotedTextShown";
     private static final String STATE_KEY_QUOTED_TEXT_FORMAT = "state:quotedTextFormat";
@@ -60,11 +62,11 @@ public class QuotedMessagePresenter {
     // needs. Not known for the quote of a draft, which has the lines in it.
     private String quoteSourceHtml;
     private String quoteHeaderText;
-    private LegacyAccountDto account;
+    private LegacyAccount account;
 
 
     public QuotedMessagePresenter(
-            MessageCompose messageCompose, QuotedMessageMvpView quotedMessageMvpView, LegacyAccountDto account) {
+            MessageCompose messageCompose, QuotedMessageMvpView quotedMessageMvpView, LegacyAccount account) {
         this.messageCompose = messageCompose;
         this.view = quotedMessageMvpView;
         onSwitchAccount(account);
@@ -75,7 +77,7 @@ public class QuotedMessagePresenter {
         quotedMessageMvpView.setOnClickPresenter(this);
     }
 
-    public void onSwitchAccount(LegacyAccountDto account) {
+    public void onSwitchAccount(LegacyAccount account) {
         this.account = account;
     }
 
@@ -218,7 +220,7 @@ public class QuotedMessagePresenter {
             try {
                 cursorPosition = Integer.parseInt(k9identity.get(IdentityField.CURSOR_POSITION));
             } catch (Exception e) {
-                Log.e(e, "Could not parse cursor position for MessageCompose; continuing.");
+                Log.e(TAG, e, "Could not parse cursor position for MessageCompose; continuing.");
             }
         }
 
@@ -281,15 +283,15 @@ public class QuotedMessagePresenter {
                 String text = MessageExtractor.getTextFromPart(part);
 
                 if (text == null) {
-                    Log.d("Empty message; skipping.");
+                    Log.d(TAG, "Empty message; skipping.");
                     bodyText = "";
                 } else {
-                    Log.d("Loading message with offset %d, length %d. Text length is %d.",
+                    Log.d(TAG, "Loading message with offset %d, length %d. Text length is %d.",
                             bodyOffset, bodyLength, text.length());
 
                     if (bodyOffset + bodyLength > text.length()) {
                         // The draft was edited outside of K-9 Mail?
-                        Log.d("The identity field from the draft contains an invalid LENGTH/OFFSET");
+                        Log.d(TAG, "The identity field from the draft contains an invalid LENGTH/OFFSET");
                         bodyOffset = 0;
                         bodyLength = 0;
                     }
@@ -325,14 +327,14 @@ public class QuotedMessagePresenter {
             quotedTextFormat = SimpleMessageFormat.TEXT;
             processSourceMessageText(messageViewInfo.rootPart, bodyOffset, bodyLength, true);
         } else {
-            Log.e("Unhandled message format.");
+            Log.e(TAG, "Unhandled message format.");
         }
 
         // Set the cursor position if we have it.
         try {
             view.setMessageContentCursorPosition(cursorPosition);
         } catch (Exception e) {
-            Log.e(e, "Could not set cursor position in MessageCompose; ignoring.");
+            Log.e(TAG, e, "Could not set cursor position in MessageCompose; ignoring.");
         }
 
         showOrHideQuotedText(quotedMode);
@@ -354,7 +356,7 @@ public class QuotedMessagePresenter {
 
         String messageText = MessageExtractor.getTextFromPart(textPart);
 
-        Log.d("Loading message with offset %d, length %d. Text length is %d.",
+        Log.d(TAG, "Loading message with offset %d, length %d. Text length is %d.",
                 bodyOffset, bodyLength, messageText.length());
 
         // If we had a body length (and it was valid), separate the composition from the quoted text
@@ -381,7 +383,7 @@ public class QuotedMessagePresenter {
                 messageText = messageText.substring(bodyOffset, bodyOffset + bodyLength);
             } catch (IndexOutOfBoundsException e) {
                 // Invalid bodyOffset or bodyLength.  The draft was edited outside of K-9 Mail?
-                Log.d("The identity field from the draft contains an invalid bodyOffset/bodyLength");
+                Log.d(TAG, "The identity field from the draft contains an invalid bodyOffset/bodyLength");
             }
         }
 

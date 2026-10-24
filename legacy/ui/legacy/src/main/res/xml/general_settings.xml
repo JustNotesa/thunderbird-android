@@ -225,6 +225,15 @@
                 android:title="@string/show_unified_inbox_title"
                 />
 
+            <ListPreference
+                android:dependency="show_unified_inbox"
+                android:entries="@array/unified_folders_layout_entries"
+                android:entryValues="@array/unified_folders_layout_values"
+                android:key="unified_folders_layout"
+                app:useSimpleSummaryProvider="true"
+                android:title="@string/unified_folders_layout_title"
+                />
+
             <CheckBoxPreference
                 android:key="show_starred_count"
                 android:title="@string/show_starred_count_title"

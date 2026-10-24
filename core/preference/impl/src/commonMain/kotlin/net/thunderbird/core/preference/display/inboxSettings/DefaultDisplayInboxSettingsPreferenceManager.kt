@@ -10,20 +10,22 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import net.thunderbird.core.logging.Logger
+import net.thunderbird.components.core.logging.Logger
 import net.thunderbird.core.preference.PreferenceChangeBroker
 import net.thunderbird.core.preference.PreferenceChangeSubscriber
 import net.thunderbird.core.preference.PreferenceScope
 import net.thunderbird.core.preference.storage.Storage
 import net.thunderbird.core.preference.storage.StorageEditor
 import net.thunderbird.core.preference.storage.StoragePersister
+import net.thunderbird.core.preference.storage.StorageProvider
+import net.thunderbird.core.preference.storage.getEnumOrDefault
+import net.thunderbird.core.preference.storage.putEnum
 
 private const val TAG = "DefaultDisplayInboxSettingsPreferenceManager"
 
 class DefaultDisplayInboxSettingsPreferenceManager(
     private val logger: Logger,
-    private val storagePersister: StoragePersister,
-    private val storageEditor: StorageEditor,
+    private val storageProvider: StorageProvider,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private var scope: CoroutineScope = CoroutineScope(SupervisorJob()),
     preferenceChangeBroker: PreferenceChangeBroker,
@@ -35,7 +37,7 @@ class DefaultDisplayInboxSettingsPreferenceManager(
     private val configState: MutableStateFlow<DisplayInboxSettings> = MutableStateFlow(value = loadConfig())
     private val mutex = Mutex()
     private val storage: Storage
-        get() = storagePersister.loadValues()
+        get() = storageProvider.loadLatestStorage()
 
     override fun getConfig(): DisplayInboxSettings = configState.value
 
@@ -72,12 +74,17 @@ class DefaultDisplayInboxSettingsPreferenceManager(
             DisplayInboxSettingKey.MessageListSenderAboveSubject.value,
             DISPLAY_SETTINGS_DEFAULT_IS_MESSAGE_LIST_SENDER_ABOVE_SUBJECT,
         ),
+        unifiedFoldersLayout = storage.getEnumOrDefault(
+            DisplayInboxSettingKey.UnifiedFoldersLayout.value,
+            DISPLAY_SETTINGS_DEFAULT_UNIFIED_FOLDERS_LAYOUT,
+        ),
     )
 
     private fun writeConfig(config: DisplayInboxSettings) {
         logger.debug(TAG) { "writeConfig() called with: config = $config" }
         scope.launch(ioDispatcher) {
             mutex.withLock {
+                val storageEditor = storageProvider.createStorageEditor()
                 storageEditor.putBoolean(
                     DisplayInboxSettingKey.MessageListSenderAboveSubject.value,
                     config.isMessageListSenderAboveSubject,
@@ -96,6 +103,10 @@ class DefaultDisplayInboxSettingsPreferenceManager(
                 )
                 storageEditor.putBoolean(DisplayInboxSettingKey.ShowUnifiedInbox.value, config.isShowUnifiedInbox)
                 storageEditor.putBoolean(DisplayInboxSettingKey.ShowStarCount.value, config.isShowStarredCount)
+                storageEditor.putEnum(
+                    DisplayInboxSettingKey.UnifiedFoldersLayout.value,
+                    config.unifiedFoldersLayout,
+                )
                 storageEditor.commit().also { commited ->
                     logger.verbose(TAG) { "writeConfig: storageEditor.commit() resulted in: $commited" }
                 }

@@ -4,7 +4,7 @@ import assertk.assertThat
 import assertk.assertions.isEqualTo
 import kotlin.test.BeforeTest
 import kotlin.test.Test
-import net.thunderbird.core.logging.testing.TestLogger
+import net.thunderbird.components.core.logging.testing.TestLogger
 import net.thunderbird.legacy.logging.Log
 
 private const val INCOMING_SERVER = """[0,"imap.domain.example",993,3,2,"username","My Account"]"""

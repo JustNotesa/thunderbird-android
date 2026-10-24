@@ -6,6 +6,7 @@ import java.io.IOException
 import net.thunderbird.legacy.logging.Log
 import okio.Buffer
 
+private const val TAG = "TransferPayload"
 private const val KEY_TYPE = "type"
 private const val KEY_VERSION = "version"
 private const val KEY_CREATED_AT = "createdAt"
@@ -57,10 +58,10 @@ internal object TransferPayload {
         return try {
             JsonReader.of(Buffer().writeUtf8(json)).use { readContent(it) }
         } catch (e: IllegalArgumentException) {
-            Log.d(e, "Transfer payload failed validation")
+            Log.d(TAG, e, "Transfer payload failed validation")
             null
         } catch (e: IOException) {
-            Log.d(e, "Failed to read transfer payload")
+            Log.d(TAG, e, "Failed to read transfer payload")
             null
         }
     }
@@ -86,7 +87,7 @@ internal object TransferPayload {
         return if (isSupported(type = type, version = version)) {
             createContent(createdAt = createdAt, accountsJson = accountsJson)
         } else {
-            Log.d("Unsupported transfer payload: type %s, version %s", type, version)
+            Log.d(TAG, "Unsupported transfer payload: type %s, version %s", type, version)
             null
         }
     }

@@ -20,7 +20,7 @@ import java.io.IOException
 import java.util.ArrayDeque
 import java.util.Deque
 import net.thunderbird.core.common.exception.MessagingException
-import net.thunderbird.core.logging.testing.TestLogger
+import net.thunderbird.components.core.logging.testing.TestLogger
 import net.thunderbird.legacy.logging.Log
 import org.junit.Before
 import org.junit.Test

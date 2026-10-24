@@ -5,30 +5,26 @@ import app.k9mail.core.ui.compose.testing.mvi.assertThatAndEffectTurbineConsumed
 import app.k9mail.core.ui.compose.testing.mvi.runMviTest
 import app.k9mail.core.ui.compose.testing.mvi.turbinesWithInitialStateCheck
 import assertk.assertThat
+import assertk.assertions.containsExactly
 import assertk.assertions.isEqualTo
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
-import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import net.thunderbird.components.ui.testing.coroutines.MainDispatcherHelper
+import net.thunderbird.core.preference.display.inboxSettings.UnifiedFoldersLayout
+import net.thunderbird.feature.account.AccountIdFactory
+import net.thunderbird.feature.account.UnifiedAccountId
 import net.thunderbird.feature.mail.folder.FolderType
-import net.thunderbird.feature.mail.folder.api.Folder
-import net.thunderbird.feature.navigation.drawer.api.NavigationDrawerExternalContract.DrawerConfig
-import net.thunderbird.feature.navigation.drawer.dropdown.domain.entity.DisplayFolder
-import net.thunderbird.feature.navigation.drawer.dropdown.domain.entity.DisplayTreeFolder
 import net.thunderbird.feature.navigation.drawer.dropdown.domain.entity.MailDisplayAccount
-import net.thunderbird.feature.navigation.drawer.dropdown.domain.entity.MailDisplayFolder
-import net.thunderbird.feature.navigation.drawer.dropdown.domain.entity.UnifiedDisplayFolder
+import net.thunderbird.feature.navigation.drawer.dropdown.domain.entity.UnifiedDisplayAccount
 import net.thunderbird.feature.navigation.drawer.dropdown.domain.entity.UnifiedDisplayFolderType
 import net.thunderbird.feature.navigation.drawer.dropdown.ui.DrawerContract.Effect
 import net.thunderbird.feature.navigation.drawer.dropdown.ui.DrawerContract.Event
@@ -236,66 +232,8 @@ internal class DrawerViewModelTest {
     }
 
     @Test
-    fun `should send OpenAccount effect when OnAccountClick event is received`() = runMviTest {
+    fun `should select the account and show its folders when OnAccountClick event is received`() = runMviTest {
         val displayAccounts = createDisplayAccountList(3)
-        val getDisplayAccountsFlow = MutableStateFlow(displayAccounts)
-        val testSubject = createTestSubject(
-            displayAccountsFlow = getDisplayAccountsFlow,
-        )
-        val turbines = turbinesWithInitialStateCheck(
-            testSubject,
-            State(
-                accounts = displayAccounts.toImmutableList(),
-                selectedAccountId = displayAccounts.first().id,
-            ),
-        )
-
-        advanceUntilIdle()
-
-        testSubject.event(Event.OnAccountClick(displayAccounts[1]))
-
-        advanceUntilIdle()
-
-        turbines.assertThatAndEffectTurbineConsumed {
-            isEqualTo(Effect.OpenAccount(displayAccounts[1].id))
-        }
-    }
-
-    @Test
-    fun `should emit CloseDrawer effect after emitting OpenAccount if AutoExpandFolder is Set`() = runMviTest {
-        val displayAccounts = createDisplayAccountList(1) + createDisplayAccount(
-            id = "uuid-1",
-            hasAutoExpandFolder = true,
-        )
-        val getDisplayAccountsFlow = MutableStateFlow(displayAccounts)
-        val testSubject = createTestSubject(
-            displayAccountsFlow = getDisplayAccountsFlow,
-        )
-        val turbines = turbinesWithInitialStateCheck(
-            testSubject,
-            State(
-                accounts = displayAccounts.toImmutableList(),
-                selectedAccountId = displayAccounts.first().id,
-            ),
-        )
-        advanceUntilIdle()
-
-        testSubject.event(Event.OnAccountClick(displayAccounts[1]))
-
-        assertThat(turbines.awaitEffectItem()).isEqualTo(
-            Effect.OpenAccount(displayAccounts[1].id),
-        )
-        turbines.assertThatAndEffectTurbineConsumed {
-            isEqualTo(Effect.CloseDrawer)
-        }
-    }
-
-    @Test
-    fun `should not emit CloseDrawer effect after emitting OpenAccount if AutoExpandFolder is None`() = runMviTest {
-        val displayAccounts = createDisplayAccountList(1) + createDisplayAccount(
-            id = "uuid-1",
-            hasAutoExpandFolder = false,
-        )
         val getDisplayAccountsFlow = MutableStateFlow(displayAccounts)
         val testSubject = createTestSubject(
             initialState = State(showAccountSelection = true),
@@ -309,16 +247,81 @@ internal class DrawerViewModelTest {
                 showAccountSelection = true,
             ),
         )
+
         advanceUntilIdle()
 
         testSubject.event(Event.OnAccountClick(displayAccounts[1]))
 
-        assertThat(turbines.awaitEffectItem()).isEqualTo(
-            Effect.OpenAccount(displayAccounts[1].id),
+        advanceUntilIdle()
+
+        assertThat(turbines.awaitStateItem().selectedAccountId).isEqualTo(displayAccounts[1].id)
+        assertThat(turbines.awaitStateItem().showAccountSelection).isEqualTo(false)
+
+        turbines.stateTurbine.ensureAllEventsConsumed()
+        turbines.effectTurbine.expectNoEvents()
+    }
+
+    @Test
+    fun `should not emit any effect when OnAccountClick event is received for an account with auto expand folder`() =
+        runMviTest {
+            val displayAccounts = createDisplayAccountList(1) + createDisplayAccount(
+                id = AccountIdFactory.create(),
+                hasAutoExpandFolder = true,
+            )
+            val getDisplayAccountsFlow = MutableStateFlow(displayAccounts)
+            val testSubject = createTestSubject(
+                initialState = State(showAccountSelection = true),
+                displayAccountsFlow = getDisplayAccountsFlow,
+            )
+            val turbines = turbinesWithInitialStateCheck(
+                testSubject,
+                State(
+                    accounts = displayAccounts.toImmutableList(),
+                    selectedAccountId = displayAccounts.first().id,
+                    showAccountSelection = true,
+                ),
+            )
+
+            advanceUntilIdle()
+
+            testSubject.event(Event.OnAccountClick(displayAccounts[1]))
+
+            advanceUntilIdle()
+
+            assertThat(turbines.awaitStateItem().selectedAccountId).isEqualTo(displayAccounts[1].id)
+            assertThat(turbines.awaitStateItem().showAccountSelection).isEqualTo(false)
+
+            turbines.stateTurbine.ensureAllEventsConsumed()
+            turbines.effectTurbine.expectNoEvents()
+        }
+
+    @Test
+    fun `should select the unified account and show its folders when the unified account is clicked`() = runMviTest {
+        val displayAccounts = createDisplayAccountList(1)
+        val getDisplayAccountsFlow = MutableStateFlow(displayAccounts)
+        val testSubject = createTestSubject(
+            initialState = State(showAccountSelection = true),
+            displayAccountsFlow = getDisplayAccountsFlow,
         )
-        assertThat(turbines.stateTurbine.awaitItem().showAccountSelection).isEqualTo(false)
+        val turbines = turbinesWithInitialStateCheck(
+            testSubject,
+            State(
+                accounts = displayAccounts.toImmutableList(),
+                selectedAccountId = displayAccounts.first().id,
+                showAccountSelection = true,
+            ),
+        )
 
         advanceUntilIdle()
+
+        testSubject.event(Event.OnAccountClick(createUnifiedDisplayAccount()))
+
+        advanceUntilIdle()
+
+        assertThat(turbines.awaitStateItem().selectedAccountId).isEqualTo(UnifiedAccountId)
+        assertThat(turbines.awaitStateItem().showAccountSelection).isEqualTo(false)
+
+        turbines.stateTurbine.ensureAllEventsConsumed()
         turbines.effectTurbine.expectNoEvents()
     }
 
@@ -369,6 +372,29 @@ internal class DrawerViewModelTest {
     }
 
     @Test
+    fun `should reload display folders when unified folders layout changes`() = runTest {
+        val displayAccounts = createDisplayAccountList(1)
+        val getDisplayAccountsFlow = MutableStateFlow(displayAccounts)
+        val displayFoldersFlow = MutableStateFlow(mapOf(displayAccounts[0].id to createDisplayFolderList(1)))
+        val getDrawerConfigFlow = MutableStateFlow(createDrawerConfig())
+        val requestedLayouts = mutableListOf<UnifiedFoldersLayout>()
+        val testSubject = createTestSubject(
+            drawerConfigFlow = getDrawerConfigFlow,
+            displayAccountsFlow = getDisplayAccountsFlow,
+            displayFoldersFlow = displayFoldersFlow,
+            requestedLayouts = requestedLayouts,
+        )
+
+        advanceUntilIdle()
+
+        getDrawerConfigFlow.emit(createDrawerConfig(unifiedFoldersLayout = UnifiedFoldersLayout.Tree))
+
+        advanceUntilIdle()
+
+        assertThat(requestedLayouts).containsExactly(UnifiedFoldersLayout.Flat, UnifiedFoldersLayout.Tree)
+    }
+
+    @Test
     fun `should emit OpenFolder effect when OnFolderClick event is received`() = runMviTest {
         val displayAccounts = createDisplayAccountList(3)
         val getDisplayAccountsFlow = MutableStateFlow(displayAccounts)
@@ -380,7 +406,7 @@ internal class DrawerViewModelTest {
             accounts = displayAccounts.toImmutableList(),
             selectedAccountId = displayAccounts[0].id,
             folders = displayFoldersMap[displayAccounts[0].id]!!.toImmutableList(),
-            selectedFolderId = displayFoldersMap[displayAccounts[0].id]!![0].id,
+            selectedFolderId = displayFoldersMap[displayAccounts[0].id]!![0].folderId,
             selectedFolder = displayFoldersMap[displayAccounts[0].id]!![0],
         )
         val testSubject = createTestSubject(
@@ -414,16 +440,19 @@ internal class DrawerViewModelTest {
         runMviTest {
             val displayAccounts = createDisplayAccountList(1)
             val getDisplayAccountsFlow = MutableStateFlow(displayAccounts)
+            val unifiedFolder = createDisplayUnifiedFolder(
+                id = UnifiedDisplayFolderType.SENT.id,
+                unifiedType = UnifiedDisplayFolderType.SENT,
+            )
             val displayFoldersMap = mapOf(
-                displayAccounts[0].id to
-                    createDisplayFolderList(1) + listOf(createDisplayUnifiedFolder()),
+                displayAccounts[0].id to createDisplayFolderList(1) + listOf(unifiedFolder),
             )
             val displayFoldersFlow = MutableStateFlow(displayFoldersMap)
             val initialState = State(
                 accounts = displayAccounts.toImmutableList(),
                 selectedAccountId = displayAccounts[0].id,
                 folders = displayFoldersMap[displayAccounts[0].id]!!.toImmutableList(),
-                selectedFolderId = displayFoldersMap[displayAccounts[0].id]!![0].id,
+                selectedFolderId = displayFoldersMap[displayAccounts[0].id]!![0].folderId,
                 selectedFolder = displayFoldersMap[displayAccounts[0].id]!![0],
             )
             val testSubject = createTestSubject(
@@ -440,24 +469,12 @@ internal class DrawerViewModelTest {
             // Consume the state update
             turbines.awaitStateItem()
 
-            assertThat(turbines.awaitEffectItem()).isEqualTo(Effect.OpenUnifiedFolder)
+            assertThat(turbines.awaitEffectItem()).isEqualTo(Effect.OpenUnifiedFolder(FolderType.SENT))
 
             turbines.assertThatAndEffectTurbineConsumed {
                 isEqualTo(Effect.CloseDrawer)
             }
         }
-
-    @Test
-    fun `should emit OpenManageFolders effect when OnManageFoldersClick event is received`() = runMviTest {
-        val testSubject = createTestSubject()
-        val turbines = turbinesWithInitialStateCheck(testSubject, State())
-
-        testSubject.event(Event.OnManageFoldersClick)
-
-        turbines.assertThatAndEffectTurbineConsumed {
-            isEqualTo(Effect.OpenManageFolders)
-        }
-    }
 
     @Test
     fun `should emit OpenSettings effect when OnSettingsClick event is received`() = runMviTest {
@@ -471,120 +488,11 @@ internal class DrawerViewModelTest {
         }
     }
 
-    private fun createTestSubject(
-        initialState: State = State(),
-        drawerConfigFlow: Flow<DrawerConfig> = flow { emit(createDrawerConfig()) },
-        displayAccountsFlow: Flow<List<MailDisplayAccount>> = flow { emit(emptyList()) },
-        displayFoldersFlow: Flow<Map<String, List<DisplayFolder>>> = flow { emit(emptyMap()) },
-        displayTreeFolder: DisplayTreeFolder = DisplayTreeFolder(
-            displayFolder = null,
-            displayName = null,
-            totalUnreadCount = 0,
-            totalStarredCount = 0,
-            children = persistentListOf(),
-        ),
-        syncAccountFlow: Flow<Result<Unit>> = flow { emit(Result.success(Unit)) },
-        syncAllAccounts: Flow<Result<Unit>> = flow { emit(Result.success(Unit)) },
-    ): DrawerViewModel {
-        return DrawerViewModel(
-            initialState = initialState,
-            getDrawerConfig = { drawerConfigFlow },
-            getDisplayAccounts = { displayAccountsFlow },
-            getDisplayFoldersForAccount = { accountId ->
-                displayFoldersFlow.map { it[accountId] ?: emptyList() }
-            },
-            getDisplayTreeFolder = { folders, maxDepth ->
-                displayTreeFolder
-            },
-            syncAccount = { syncAccountFlow },
-            syncAllAccounts = { syncAllAccounts },
-        )
-    }
-
-    private fun createDrawerConfig(
-        showUnifiedInbox: Boolean = false,
-        showStarredCount: Boolean = false,
-        expandAllFolder: Boolean = false,
-    ): DrawerConfig {
-        return DrawerConfig(
-            showUnifiedFolders = showUnifiedInbox,
-            showStarredCount = showStarredCount,
-            expandAllFolder = expandAllFolder,
-        )
-    }
-
-    private fun createDisplayAccount(
-        id: String = "uuid",
-        name: String = "name",
-        email: String = "test@example.com",
-        unreadCount: Int = 0,
-        starredCount: Int = 0,
-        hasAutoExpandFolder: Boolean = false,
-    ): MailDisplayAccount {
-        return MailDisplayAccount(
-            id = id,
-            name = name,
-            email = email,
-            color = 0,
-            unreadMessageCount = unreadCount,
-            starredMessageCount = starredCount,
+    private fun createUnifiedDisplayAccount(): UnifiedDisplayAccount {
+        return UnifiedDisplayAccount(
+            unreadMessageCount = 0,
+            starredMessageCount = 0,
             hasError = false,
-            hasAutoExpandFolder = hasAutoExpandFolder,
-        )
-    }
-
-    private fun createDisplayAccountList(count: Int): List<MailDisplayAccount> {
-        return List(count) { index ->
-            createDisplayAccount(
-                id = "uuid-$index",
-            )
-        }
-    }
-
-    private fun createDisplayFolder(
-        accountId: String = "uuid",
-        id: Long = 1234,
-        name: String = "name",
-        type: FolderType = FolderType.REGULAR,
-        unreadCount: Int = 0,
-        starredCount: Int = 0,
-    ): MailDisplayFolder {
-        val folder = Folder(
-            id = id,
-            name = name,
-            type = type,
-            isLocalOnly = false,
-        )
-
-        return MailDisplayFolder(
-            accountId = accountId,
-            folder = folder,
-            isInTopGroup = false,
-            unreadMessageCount = unreadCount,
-            starredMessageCount = starredCount,
-            pathDelimiter = "/",
-        )
-    }
-
-    private fun createDisplayFolderList(count: Int): List<MailDisplayFolder> {
-        return List(count) { index ->
-            createDisplayFolder(
-                id = index.toLong() + 100,
-            )
-        }
-    }
-
-    private fun createDisplayUnifiedFolder(
-        id: String = "unified_inbox",
-        unifiedType: UnifiedDisplayFolderType = UnifiedDisplayFolderType.INBOX,
-        unreadCount: Int = 0,
-        starredCount: Int = 0,
-    ): UnifiedDisplayFolder {
-        return UnifiedDisplayFolder(
-            id = id,
-            unifiedType = unifiedType,
-            unreadMessageCount = unreadCount,
-            starredMessageCount = starredCount,
         )
     }
 }

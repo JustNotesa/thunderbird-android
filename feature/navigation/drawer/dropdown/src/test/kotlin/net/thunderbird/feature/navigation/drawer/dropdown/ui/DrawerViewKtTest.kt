@@ -8,7 +8,9 @@ import assertk.assertions.isEqualTo
 import kotlin.test.Test
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
+import net.thunderbird.account.fake.FakeAccountData.ACCOUNT_ID
 import net.thunderbird.account.fake.FakeAccountData.ACCOUNT_ID_RAW
+import net.thunderbird.feature.mail.folder.FolderType
 import net.thunderbird.feature.navigation.drawer.dropdown.FolderDrawerState
 import net.thunderbird.feature.navigation.drawer.dropdown.ui.DrawerContract.Effect
 import net.thunderbird.feature.navigation.drawer.dropdown.ui.DrawerContract.Event
@@ -28,8 +30,7 @@ internal class DrawerViewKtTest : ComposeTest() {
                 drawerState = FolderDrawerState(),
                 openAccount = { counter.openAccountCount++ },
                 openFolder = { _, _ -> counter.openFolderCount++ },
-                openUnifiedFolder = { counter.openUnifiedFolderCount++ },
-                openManageFolders = { counter.openManageFoldersCount++ },
+                openUnifiedFolder = { _ -> counter.openUnifiedFolderCount++ },
                 openSettings = { counter.openSettingsCount++ },
                 openAddAccount = { counter.openAddAccountCount++ },
                 closeDrawer = { counter.closeDrawerCount++ },
@@ -47,16 +48,13 @@ internal class DrawerViewKtTest : ComposeTest() {
         verifyCounter.openFolderCount++
         viewModel.effect(
             Effect.OpenFolder(
-                accountId = ACCOUNT_ID_RAW,
+                accountId = ACCOUNT_ID,
                 folderId = 1,
             ),
         )
 
         verifyCounter.openUnifiedFolderCount++
-        viewModel.effect(Effect.OpenUnifiedFolder)
-
-        verifyCounter.openManageFoldersCount++
-        viewModel.effect(Effect.OpenManageFolders)
+        viewModel.effect(Effect.OpenUnifiedFolder(FolderType.INBOX))
 
         verifyCounter.openSettingsCount++
         viewModel.effect(Effect.OpenSettings)
@@ -82,8 +80,7 @@ internal class DrawerViewKtTest : ComposeTest() {
                 drawerState = state.value,
                 openAccount = { },
                 openFolder = { _, _ -> },
-                openUnifiedFolder = { },
-                openManageFolders = { },
+                openUnifiedFolder = { _ -> },
                 openSettings = { },
                 openAddAccount = { },
                 closeDrawer = { },
@@ -91,11 +88,11 @@ internal class DrawerViewKtTest : ComposeTest() {
             )
         }
 
-        drawerStateFlow.emit(initialDrawerState.copy(selectedAccountUuid = FakeData.ACCOUNT.id.toString()))
+        drawerStateFlow.emit(initialDrawerState.copy(selectedAccountId = ACCOUNT_ID))
 
-        viewModel.events.contains(Event.SelectAccount(FakeData.ACCOUNT.id.toString()))
+        viewModel.events.contains(Event.SelectAccount(accountId = ACCOUNT_ID))
 
-        drawerStateFlow.emit(initialDrawerState.copy(selectedAccountUuid = null))
+        drawerStateFlow.emit(initialDrawerState.copy(selectedAccountId = null))
 
         viewModel.events.contains(Event.SelectAccount(null))
 
@@ -113,7 +110,6 @@ internal class DrawerViewKtTest : ComposeTest() {
         var openAccountCount: Int = 0,
         var openFolderCount: Int = 0,
         var openUnifiedFolderCount: Int = 0,
-        var openManageFoldersCount: Int = 0,
         var openSettingsCount: Int = 0,
         var openAddAccountCount: Int = 0,
         var closeDrawerCount: Int = 0,

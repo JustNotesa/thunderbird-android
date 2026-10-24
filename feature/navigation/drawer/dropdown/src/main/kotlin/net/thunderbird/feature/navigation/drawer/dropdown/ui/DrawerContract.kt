@@ -3,7 +3,10 @@ package net.thunderbird.feature.navigation.drawer.dropdown.ui
 import androidx.compose.runtime.Stable
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
+import net.thunderbird.core.preference.display.inboxSettings.UnifiedFoldersLayout
 import net.thunderbird.core.ui.contract.mvi.UnidirectionalViewModel
+import net.thunderbird.feature.account.AccountId
+import net.thunderbird.feature.mail.folder.FolderType
 import net.thunderbird.feature.navigation.drawer.api.NavigationDrawerExternalContract.DrawerConfig
 import net.thunderbird.feature.navigation.drawer.dropdown.domain.entity.DisplayAccount
 import net.thunderbird.feature.navigation.drawer.dropdown.domain.entity.DisplayFolder
@@ -19,10 +22,11 @@ internal interface DrawerContract {
             showUnifiedFolders = false,
             showStarredCount = false,
             expandAllFolder = false,
+            unifiedFoldersLayout = UnifiedFoldersLayout.Flat,
         ),
         val showAccountSelector: Boolean = true,
         val accounts: ImmutableList<DisplayAccount> = persistentListOf(),
-        val selectedAccountId: String? = null,
+        val selectedAccountId: AccountId? = null,
         val rootFolder: DisplayTreeFolder = DisplayTreeFolder(
             displayFolder = null,
             displayName = null,
@@ -35,16 +39,21 @@ internal interface DrawerContract {
         val selectedFolder: DisplayFolder? = null,
         val showAccountSelection: Boolean = false,
         val isLoading: Boolean = false,
+
+        /**
+         * The unified folders that are pinned above the folders of the selected account. Only filled when the unified
+         * folders layout is [UnifiedFoldersLayout.Pinned] and a regular account is selected.
+         */
+        val pinnedFolders: ImmutableList<DisplayTreeFolder> = persistentListOf(),
     )
 
     sealed interface Event {
-        data class SelectAccount(val accountId: String?) : Event
+        data class SelectAccount(val accountId: AccountId?) : Event
         data class SelectFolder(val folderId: String?) : Event
         data class OnAccountClick(val account: DisplayAccount) : Event
         data class OnAccountViewClick(val account: DisplayAccount) : Event
         data class OnFolderClick(val folder: DisplayFolder) : Event
         data object OnAccountSelectorClick : Event
-        data object OnManageFoldersClick : Event
         data object OnSettingsClick : Event
         data object OnSyncAccount : Event
         data object OnSyncAllAccounts : Event
@@ -52,10 +61,9 @@ internal interface DrawerContract {
     }
 
     sealed interface Effect {
-        data class OpenAccount(val accountId: String) : Effect
-        data class OpenFolder(val accountId: String, val folderId: Long) : Effect
-        data object OpenUnifiedFolder : Effect
-        data object OpenManageFolders : Effect
+        data class OpenAccount(val accountId: AccountId) : Effect
+        data class OpenFolder(val accountId: AccountId, val folderId: Long) : Effect
+        data class OpenUnifiedFolder(val folderType: FolderType) : Effect
         data object OpenSettings : Effect
         data object OpenAddAccount : Effect
         data object CloseDrawer : Effect

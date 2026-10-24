@@ -12,11 +12,11 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import net.thunderbird.components.core.logging.Logger
 import net.thunderbird.components.core.outcome.fold
-import net.thunderbird.core.android.account.LegacyAccountDto
-import net.thunderbird.core.android.account.LegacyAccountDtoManager
+import net.thunderbird.core.android.account.LegacyAccount
+import net.thunderbird.core.android.account.LegacyAccountManager
 import net.thunderbird.core.common.exception.MessagingException
-import net.thunderbird.core.logging.Logger
 import net.thunderbird.feature.account.AccountId
 import net.thunderbird.feature.mail.folder.FolderType
 import net.thunderbird.feature.mail.folder.api.RemoteFolder
@@ -25,7 +25,7 @@ import net.thunderbird.feature.mail.folder.api.data.repository.RemoteFolderQuery
 private const val TAG = "AccountSettingsViewModel"
 
 class AccountSettingsViewModel(
-    private val accountManager: LegacyAccountDtoManager,
+    private val accountManager: LegacyAccountManager,
     private val remoteFolderQueryRepository: RemoteFolderQueryRepository,
     private val specialFolderSelectionStrategy: SpecialFolderSelectionStrategy,
     private val messageStoreManager: MessageStoreManager,
@@ -33,9 +33,9 @@ class AccountSettingsViewModel(
     private val logger: Logger,
     private val backgroundDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
-    val accounts = accountManager.getAccountsFlow().asLiveData()
+    val accounts = accountManager.observeAll().asLiveData()
     private var accountId: AccountId? = null
-    private val accountLiveData = MutableLiveData<LegacyAccountDto?>()
+    private val accountLiveData = MutableLiveData<LegacyAccount?>()
     private val foldersLiveData = MutableLiveData<RemoteFolderInfo>()
     private val localStorageSizeLiveData = MutableLiveData<LocalStorageSize>()
 
@@ -51,7 +51,7 @@ class AccountSettingsViewModel(
      */
     val serverStorage: LiveData<ServerStorage> = serverStorageLiveData
 
-    fun getAccount(accountId: AccountId): LiveData<LegacyAccountDto?> {
+    fun getAccount(accountId: AccountId): LiveData<LegacyAccount?> {
         if (this.accountId != accountId) {
             this.accountId = accountId
             viewModelScope.launch {
@@ -66,10 +66,10 @@ class AccountSettingsViewModel(
     }
 
     /**
-     * Returns the cached [LegacyAccountDto] if possible. Otherwise does a blocking load because
+     * Returns the cached [LegacyAccount] if possible. Otherwise does a blocking load because
      * `PreferenceFragmentCompat` doesn't support asynchronous preference loading.
      */
-    fun getAccountBlocking(accountId: AccountId): LegacyAccountDto {
+    fun getAccountBlocking(accountId: AccountId): LegacyAccount {
         return accountLiveData.value
             ?: loadAccount(accountId).also { account ->
                 this.accountId = accountId
@@ -78,15 +78,15 @@ class AccountSettingsViewModel(
             ?: error("Account $accountId not found")
     }
 
-    private fun loadAccount(accountId: AccountId): LegacyAccountDto? {
-        return accountManager.getById(accountId)
+    private fun loadAccount(accountId: AccountId): LegacyAccount? {
+        return accountManager.findById(accountId)
     }
 
-    fun loadLocalStorageSize(account: LegacyAccountDto) {
+    fun loadLocalStorageSize(accountId: AccountId) {
         viewModelScope.launch {
             localStorageSizeLiveData.value = withContext(backgroundDispatcher) {
                 try {
-                    LocalStorageSize.Known(messageStoreManager.getMessageStore(account).getSize())
+                    LocalStorageSize.Known(messageStoreManager.getMessageStore(accountId).getSize())
                 } catch (e: MessagingException) {
                     logger.error(TAG, e) { "Couldn't determine the local storage size" }
                     LocalStorageSize.Unknown
@@ -95,21 +95,13 @@ class AccountSettingsViewModel(
         }
     }
 
-    fun getFolders(account: LegacyAccountDto): LiveData<RemoteFolderInfo> {
-        if (foldersLiveData.value == null) {
-            loadFolders(account)
-        }
-
-        return foldersLiveData
-    }
-
-    fun loadServerStorage(account: LegacyAccountDto) {
+    fun loadServerStorage(accountId: AccountId) {
         serverStorageLiveData.value = ServerStorage.Loading
 
         viewModelScope.launch {
             serverStorageLiveData.value = withContext(backgroundDispatcher) {
                 try {
-                    val storageQuota = backendManager.getBackend(account.id).getStorageQuota()
+                    val storageQuota = backendManager.getBackend(accountId).getStorageQuota()
                     if (storageQuota != null) {
                         ServerStorage.Known(usedBytes = storageQuota.usedBytes, limitBytes = storageQuota.limitBytes)
                     } else {
@@ -123,10 +115,18 @@ class AccountSettingsViewModel(
         }
     }
 
-    private fun loadFolders(account: LegacyAccountDto) {
+    fun getFolders(accountId: AccountId): LiveData<RemoteFolderInfo> {
+        if (foldersLiveData.value == null) {
+            loadFolders(accountId)
+        }
+
+        return foldersLiveData
+    }
+
+    private fun loadFolders(accountId: AccountId) {
         viewModelScope.launch {
             val remoteFolderInfo = withContext(backgroundDispatcher) {
-                val folders = remoteFolderQueryRepository.getAllByAccountId(account.id)
+                val folders = remoteFolderQueryRepository.getAllByAccountId(accountId)
                     .fold(
                         onSuccess = { it },
                         onFailure = { error ->

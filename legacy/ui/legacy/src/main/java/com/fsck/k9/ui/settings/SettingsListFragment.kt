@@ -29,7 +29,7 @@ import com.mikepenz.fastadapter.adapters.ItemAdapter
 import com.mikepenz.fastadapter.drag.ItemTouchCallback
 import com.mikepenz.fastadapter.drag.SimpleDragCallback
 import com.mikepenz.fastadapter.utils.DragDropUtil
-import net.thunderbird.core.android.account.LegacyAccountDto
+import net.thunderbird.core.android.account.LegacyAccount
 import net.thunderbird.core.common.provider.BrandNameProvider
 import net.thunderbird.feature.funding.api.FundingManager
 import net.thunderbird.feature.funding.api.FundingType
@@ -92,7 +92,7 @@ class SettingsListFragment : Fragment(), ItemTouchCallback {
         }
     }
 
-    private fun populateSettingsList(accounts: List<LegacyAccountDto>) {
+    private fun populateSettingsList(accounts: List<LegacyAccount>) {
         val listItems = buildSettingsList {
             addAction(
                 text = getString(R.string.general_settings_title),
@@ -206,7 +206,7 @@ class SettingsListFragment : Fragment(), ItemTouchCallback {
         }
     }
 
-    private fun launchAccountSettings(account: LegacyAccountDto) {
+    private fun launchAccountSettings(account: LegacyAccount) {
         AccountSettingsActivity.start(requireActivity(), account.id.toString())
     }
 
@@ -234,7 +234,7 @@ class SettingsListFragment : Fragment(), ItemTouchCallback {
             settingsList.add(UrlActionItem(itemId, text, url, icon))
         }
 
-        fun addAccount(account: LegacyAccountDto, isDraggable: Boolean) {
+        fun addAccount(account: LegacyAccount, isDraggable: Boolean) {
             settingsList.add(AccountItem(account, isDraggable))
         }
 
@@ -279,6 +279,6 @@ class SettingsListFragment : Fragment(), ItemTouchCallback {
         val firstAccountPosition = itemAdapter.adapterItems.indexOfFirst { it is AccountItem }
         val newAccountPosition = newPosition - firstAccountPosition
 
-        viewModel.moveAccount(account, newAccountPosition)
+        viewModel.moveAccount(account.id, newAccountPosition)
     }
 }

@@ -10,10 +10,14 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import net.thunderbird.core.preference.display.inboxSettings.UnifiedFoldersLayout
 import net.thunderbird.core.ui.contract.mvi.BaseViewModel
+import net.thunderbird.feature.account.AccountId
 import net.thunderbird.feature.account.AccountIdFactory
+import net.thunderbird.feature.account.UnifiedAccountId
 import net.thunderbird.feature.navigation.drawer.dropdown.domain.DomainContract.UseCase
 import net.thunderbird.feature.navigation.drawer.dropdown.domain.entity.DisplayAccount
 import net.thunderbird.feature.navigation.drawer.dropdown.domain.entity.DisplayFolder
@@ -64,6 +68,10 @@ internal class DrawerViewModel(
         viewModelScope.launch {
             loadFolders()
         }
+
+        viewModelScope.launch {
+            loadPinnedFolders()
+        }
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -91,21 +99,30 @@ internal class DrawerViewModel(
 
     @OptIn(ExperimentalCoroutinesApi::class)
     private suspend fun loadFolders() {
-        state.map {
-            it.selectedAccountId
+        state.map { currentState ->
+            currentState.selectedAccountId?.let { accountId ->
+                accountId to currentState.config.unifiedFoldersLayout
+            }
         }.filterNotNull()
             .distinctUntilChanged()
-            .flatMapLatest { accountId ->
-                getDisplayFoldersForAccount(accountId)
+            .flatMapLatest { (accountId, unifiedFoldersLayout) ->
+                getDisplayFoldersForAccount(accountId, unifiedFoldersLayout)
             }.collect { folders ->
                 updateFolders(folders, getDisplayTreeFolder(folders, maxNestingLevel))
             }
     }
 
     private fun updateFolders(displayFolders: List<DisplayFolder>, rootFolder: DisplayTreeFolder) {
+        // A pinned unified folder is selected, but it isn't part of the account's folders.
+        var selectedFolder = state.value.pinnedFolders
+            .firstOrNull { it.displayFolder?.folderId == state.value.selectedFolderId }
+            ?.displayFolder
+
         // First try to find the folder in the flat list
-        var selectedFolder = displayFolders.find {
-            it.id == state.value.selectedFolderId
+        if (selectedFolder == null) {
+            selectedFolder = displayFolders.find {
+                it.folderId == state.value.selectedFolderId
+            }
         }
 
         // If not found, try to find it in the tree hierarchy
@@ -122,9 +139,39 @@ internal class DrawerViewModel(
             it.copy(
                 rootFolder = rootFolder,
                 folders = displayFolders.toImmutableList(),
-                selectedFolderId = selectedFolder?.id,
+                selectedFolderId = selectedFolder?.folderId,
                 selectedFolder = selectedFolder,
             )
+        }
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private suspend fun loadPinnedFolders() {
+        state.map { shouldShowPinnedFolders(it) }
+            .distinctUntilChanged()
+            .flatMapLatest { showPinnedFolders ->
+                if (showPinnedFolders) {
+                    getDisplayFoldersForAccount(UnifiedAccountId, UnifiedFoldersLayout.Flat)
+                        .map { getDisplayTreeFolder(it, maxNestingLevel).children }
+                } else {
+                    flowOf(emptyList<DisplayTreeFolder>())
+                }
+            }.collect { pinnedFolders ->
+                updatePinnedFolders(pinnedFolders)
+            }
+    }
+
+    private fun shouldShowPinnedFolders(currentState: State): Boolean {
+        val isPinnedLayout = currentState.config.showUnifiedFolders &&
+            currentState.config.unifiedFoldersLayout == UnifiedFoldersLayout.Pinned
+        val accountId = currentState.selectedAccountId
+
+        return isPinnedLayout && accountId != null && accountId != UnifiedAccountId
+    }
+
+    private fun updatePinnedFolders(pinnedFolders: List<DisplayTreeFolder>) {
+        updateState {
+            it.copy(pinnedFolders = pinnedFolders.toImmutableList())
         }
     }
 
@@ -134,7 +181,7 @@ internal class DrawerViewModel(
     private fun findFolderById(treeFolder: DisplayTreeFolder, folderId: String?): DisplayFolder? {
         if (folderId == null) return null
 
-        return if (treeFolder.displayFolder?.id == folderId) {
+        return if (treeFolder.displayFolder?.folderId == folderId) {
             treeFolder.displayFolder
         } else {
             // Recursively search in children
@@ -157,7 +204,7 @@ internal class DrawerViewModel(
 
             is Event.SelectFolder -> selectFolder(event.folderId)
 
-            is Event.OnAccountClick -> openAccount(event.account)
+            is Event.OnAccountClick -> showAccountFolders(event.account)
 
             is Event.OnFolderClick -> openFolder(event.folder)
 
@@ -179,8 +226,6 @@ internal class DrawerViewModel(
                 }
             }
 
-            Event.OnManageFoldersClick -> emitEffect(Effect.OpenManageFolders)
-
             Event.OnSettingsClick -> emitEffect(Effect.OpenSettings)
 
             Event.OnSyncAccount -> onSyncAccount()
@@ -191,8 +236,8 @@ internal class DrawerViewModel(
         }
     }
 
-    private fun selectAccount(accountId: String?) {
-        if (accountId != state.value.selectedAccountId) {
+    private fun selectAccount(accountId: AccountId?) {
+        if (accountId != state.value.selectedAccountId && !keepCurrentAccount(accountId)) {
             viewModelScope.launch {
                 updateState {
                     it.copy(
@@ -209,10 +254,46 @@ internal class DrawerViewModel(
         }
     }
 
+    /**
+     * A tap on an account in the account list shows the folders of that account. The drawer stays open and the message
+     * list isn't changed until the user selects a folder.
+     */
+    private fun showAccountFolders(account: DisplayAccount) {
+        viewModelScope.launch {
+            updateState {
+                it.copy(
+                    selectedAccountId = account.id,
+                )
+            }
+            delay(ACCOUNT_CLOSE_DELAY)
+            updateState {
+                it.copy(
+                    showAccountSelection = false,
+                )
+            }
+        }
+    }
+
+    /**
+     * After a pinned unified folder was opened, the activity re-selects the unified account. The user should stay in
+     * the account they were browsing, so the current account is kept.
+     */
+    private fun keepCurrentAccount(accountId: AccountId?): Boolean {
+        val currentState = state.value
+        val isPinnedLayout = currentState.config.unifiedFoldersLayout == UnifiedFoldersLayout.Pinned
+        val isSwitchToUnifiedAccount = accountId == UnifiedAccountId &&
+            currentState.selectedAccountId != UnifiedAccountId
+
+        return isPinnedLayout && isSwitchToUnifiedAccount &&
+            currentState.pinnedFolders.any { it.displayFolder?.folderId == currentState.selectedFolderId }
+    }
+
     private fun selectFolder(folderId: String?) {
         // Find the folder with the given ID
         val folder = folderId?.let {
-            state.value.folders.find { it.id == folderId }
+            // A pinned unified folder isn't part of the account's folders.
+            state.value.pinnedFolders.find { it.displayFolder?.folderId == folderId }?.displayFolder
+                ?: state.value.folders.find { it.folderId == folderId }
                 // If not found, try to find it in the tree hierarchy
                 ?: findFolderById(state.value.rootFolder, folderId)
         }
@@ -227,6 +308,14 @@ internal class DrawerViewModel(
 
     private fun openAccount(account: DisplayAccount?) {
         if (account != null) {
+            // The user explicitly selected the unified account. The activity selects it again when the search is
+            // displayed. Selecting it here makes sure that this doesn't get reverted.
+            if (account.id == UnifiedAccountId) {
+                updateState {
+                    it.copy(selectedAccountId = UnifiedAccountId)
+                }
+            }
+
             emitEffect(Effect.OpenAccount(account.id))
             viewModelScope.launch {
                 delay(DRAWER_CLOSE_DELAY)
@@ -254,20 +343,18 @@ internal class DrawerViewModel(
     }
 
     private fun openFolder(folder: DisplayFolder) {
-        // Update the selected folder ID in the state
-        selectFolder(folder.id)
+        // Update the selected type ID in the state
+        selectFolder(folder.folderId)
 
         if (folder is MailDisplayFolder) {
-            if (folder.accountId != null) {
-                emitEffect(
-                    Effect.OpenFolder(
-                        accountId = folder.accountId,
-                        folderId = folder.folder.id,
-                    ),
-                )
-            }
+            emitEffect(
+                Effect.OpenFolder(
+                    accountId = folder.accountId,
+                    folderId = folder.folder.id,
+                ),
+            )
         } else if (folder is UnifiedDisplayFolder) {
-            emitEffect(Effect.OpenUnifiedFolder)
+            emitEffect(Effect.OpenUnifiedFolder(folder.unifiedType.folderType))
         }
 
         viewModelScope.launch {
@@ -284,7 +371,7 @@ internal class DrawerViewModel(
                 it.copy(isLoading = true)
             }
 
-            state.value.selectedAccountId?.let { syncAccount(AccountIdFactory.of(it)).collect() }
+            state.value.selectedAccountId?.let { syncAccount(it).collect() }
 
             updateState {
                 it.copy(isLoading = false)

@@ -9,6 +9,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import net.thunderbird.legacy.logging.Log
 
+private const val TAG = "LanTransferClient"
+
 private val MAGIC = "TBX1".encodeToByteArray()
 private const val DEFAULT_CONNECT_TIMEOUT_MILLIS = 10_000
 private const val DEFAULT_READ_TIMEOUT_MILLIS = 30_000
@@ -55,7 +57,7 @@ internal class LanTransferClient(
             socket.soTimeout = readTimeoutMillis
             socket
         } catch (_: IOException) {
-            Log.d("The device of the LAN transfer could not be reached")
+            Log.d(TAG, "The device of the LAN transfer could not be reached")
             socket.close()
             null
         }
@@ -75,12 +77,12 @@ internal class LanTransferClient(
                     input.readFully(container)
                     LanTransferClientResult.Success(container)
                 } else {
-                    Log.d("The container of the LAN transfer has an unexpected size")
+                    Log.d(TAG, "The container of the LAN transfer has an unexpected size")
                     LanTransferClientResult.Failed
                 }
             }
         } catch (_: IOException) {
-            Log.d("Failed to read the container of the LAN transfer")
+            Log.d(TAG, "Failed to read the container of the LAN transfer")
             LanTransferClientResult.Failed
         }
     }

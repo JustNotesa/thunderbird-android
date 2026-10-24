@@ -495,6 +495,7 @@
     <string name="archive_folder_label">Archive folder</string>
     <string name="spam_folder_label">Spam folder</string>
 
+    <string name="account_setup_visibility_and_syncing">Visibility &amp; syncing</string>
     <string name="account_setup_incoming_subscribed_folders_only_label">Show only subscribed folders</string>
     <string name="account_setup_auto_select_folder">Auto-select folder</string>
 
@@ -829,11 +830,22 @@
     <string name="volume_navigation_summary">Navigate between messages using the volume keys in message view</string>
 
     <string name="show_unified_inbox_title">Show Unified Inbox</string>
+    <string name="unified_folders_layout_title">Unified folders layout</string>
+    <string name="unified_folders_layout_flat">List</string>
+    <string name="unified_folders_layout_tree">Expandable by account</string>
+    <string name="unified_folders_layout_pinned">Pinned above every account</string>
     <string name="show_starred_count_title">Show starred count</string>
     <string name="expand_folders">Expand Folders</string>
 
     <string name="integrated_inbox_title">Unified Inbox</string>
     <string name="integrated_inbox_detail">All messages in unified folders</string>
+
+    <string name="unified_drafts_title">Drafts</string>
+    <string name="unified_sent_title">Sent</string>
+    <string name="unified_archive_title">Archive</string>
+    <string name="unified_spam_title">Spam</string>
+    <string name="unified_trash_title">Trash</string>
+    <string name="unified_folders_subtitle">All accounts</string>
 
     <string name="folder_settings_include_in_integrated_inbox_label">Unify</string>
 

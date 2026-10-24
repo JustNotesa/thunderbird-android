@@ -5,6 +5,8 @@ import java.io.IOException
 import net.thunderbird.legacy.logging.Log
 import okio.Buffer
 
+private const val TAG = "TransferAccountCount"
+
 /** The payload starts with its version and its miscellaneous entry, everything after them is an account. */
 private const val PAYLOAD_HEADER_ENTRIES = 2
 
@@ -21,10 +23,10 @@ internal fun countTransferAccounts(accountsJson: String): Int {
     return try {
         JsonReader.of(Buffer().writeUtf8(accountsJson)).use { jsonReader -> countAccounts(jsonReader) }
     } catch (e: IllegalArgumentException) {
-        Log.d(e, "Transfer payload failed validation")
+        Log.d(TAG, e, "Transfer payload failed validation")
         0
     } catch (e: IOException) {
-        Log.d(e, "Failed to read transfer payload")
+        Log.d(TAG, e, "Failed to read transfer payload")
         0
     }
 }

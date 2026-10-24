@@ -18,6 +18,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.suspendCancellableCoroutine
 import net.thunderbird.legacy.logging.Log
 
+private const val TAG = "AndroidHotspotController"
 private const val ADDRESS_POLL_INTERVAL_MILLIS = 100L
 private const val ADDRESS_POLL_ATTEMPTS = 30
 private const val QUOTE = '"'
@@ -127,7 +128,7 @@ internal class AndroidHotspotController(
                 wifiManager.startLocalOnlyHotspot(callback, Handler(Looper.getMainLooper()))
             }
         } catch (_: SecurityException) {
-            Log.d("Failed to start the hotspot of the transfer without the required permission")
+            Log.d(TAG, "Failed to start the hotspot of the transfer without the required permission")
             null
         }
     }
@@ -179,7 +180,7 @@ internal fun currentInterfaceAddresses(): Set<Inet4Address> {
     val interfaces = try {
         NetworkInterface.getNetworkInterfaces().toList()
     } catch (_: SocketException) {
-        Log.d("Failed to read the network interfaces for the hotspot of the transfer")
+        Log.d(TAG, "Failed to read the network interfaces for the hotspot of the transfer")
         return emptySet()
     }
 

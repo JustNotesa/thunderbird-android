@@ -49,4 +49,10 @@
         <item>Full</item>
         <item>ISO</item>
     </string-array>
+
+    <string-array name="unified_folders_layout_values" translatable="false">
+        <item>Flat</item>
+        <item>Tree</item>
+        <item>Pinned</item>
+    </string-array>
 </resources>

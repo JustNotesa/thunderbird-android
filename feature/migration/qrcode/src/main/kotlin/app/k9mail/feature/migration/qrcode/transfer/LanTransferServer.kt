@@ -15,6 +15,8 @@ import kotlinx.coroutines.job
 import kotlinx.coroutines.withContext
 import net.thunderbird.legacy.logging.Log
 
+private const val TAG = "LanTransferServer"
+
 private val MAGIC = "TBX1".encodeToByteArray()
 private const val MAGIC_LENGTH = 4
 private const val TRANSFER_ID_LENGTH = 16
@@ -109,7 +111,7 @@ internal class LanTransferServer(
         } catch (_: SocketTimeoutException) {
             LanTransferServerResult.Expired
         } catch (_: IOException) {
-            Log.d("Failed to serve a connection of the LAN transfer")
+            Log.d(TAG, "Failed to serve a connection of the LAN transfer")
             LanTransferServerResult.Failed
         }
     }
@@ -131,7 +133,7 @@ internal class LanTransferServer(
 
             isTransferRequested
         } catch (_: IOException) {
-            Log.d("Discarded an incomplete request of the LAN transfer")
+            Log.d(TAG, "Discarded an incomplete request of the LAN transfer")
             false
         }
     }

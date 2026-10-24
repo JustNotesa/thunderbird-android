@@ -10,13 +10,15 @@ import java.util.List;
 import java.util.Set;
 
 import android.content.Context;
-import net.thunderbird.core.android.account.LegacyAccountDto;
+
+import com.fsck.k9.FakeLegacyAccount;
+import net.thunderbird.core.android.account.LegacyAccount;
+import net.thunderbird.core.android.account.LegacyAccountManager;
 import net.thunderbird.core.featureflag.FeatureFlagProvider;
 import net.thunderbird.core.featureflag.FeatureFlagResult.Disabled;
 import app.k9mail.legacy.message.controller.SimpleMessagingListener;
 import com.fsck.k9.K9;
 import com.fsck.k9.K9RobolectricTest;
-import com.fsck.k9.Preferences;
 import com.fsck.k9.backend.BackendManager;
 import com.fsck.k9.backend.api.Backend;
 import com.fsck.k9.backend.api.KeptMessages;
@@ -26,10 +28,8 @@ import com.fsck.k9.mail.AuthType;
 import com.fsck.k9.mail.AuthenticationFailedException;
 import com.fsck.k9.mail.CertificateChainException;
 import com.fsck.k9.mail.CertificateValidationException;
-import com.fsck.k9.mail.ConnectionSecurity;
 import net.thunderbird.core.common.mail.Flag;
 import net.thunderbird.core.common.exception.MessagingException;
-import com.fsck.k9.mail.ServerSettings;
 import com.fsck.k9.mailstore.LocalFolder;
 import com.fsck.k9.mailstore.LocalMessage;
 import com.fsck.k9.mailstore.LocalStore;
@@ -46,10 +46,10 @@ import com.fsck.k9.mailstore.SendState;
 import com.fsck.k9.mailstore.SpecialLocalFoldersCreator;
 import com.fsck.k9.notification.NotificationController;
 import com.fsck.k9.notification.NotificationStrategy;
-import net.thunderbird.core.common.mail.Protocols;
-import net.thunderbird.core.logging.Logger;
+import net.thunderbird.components.core.logging.Logger;;
 import net.thunderbird.components.core.outcome.Outcome;
 import net.thunderbird.feature.account.AccountId;
+import net.thunderbird.feature.account.AccountIdFactory;
 import net.thunderbird.feature.mail.message.list.LocalDeleteOperationDecider;
 import net.thunderbird.feature.mail.folder.api.OutboxFolderManager;
 import net.thunderbird.feature.mail.message.list.LocalMessageUidPrefixProvider;
@@ -101,7 +101,9 @@ public class MessagingControllerTest extends K9RobolectricTest {
     private static final int MAXIMUM_SMALL_MESSAGE_SIZE = 1000;
 
     private MessagingController controller;
-    private LegacyAccountDto account;
+
+    private AccountId accountId;
+    private LegacyAccount account;
     @Mock
     private BackendManager backendManager;
     @Mock
@@ -140,8 +142,7 @@ public class MessagingControllerTest extends K9RobolectricTest {
     private LocalMessage localMessageToSend1;
     private volatile boolean hasFetchedMessage = false;
 
-    private Preferences preferences;
-    private AccountId accountId;
+    private LegacyAccountManager accountManager;
     private FeatureFlagProvider featureFlagProvider;
 
     @Mock
@@ -153,7 +154,6 @@ public class MessagingControllerTest extends K9RobolectricTest {
         MockitoAnnotations.initMocks(this);
         appContext = RuntimeEnvironment.getApplication();
 
-        preferences = Preferences.getPreferences();
         final LocalDeleteOperationDecider noOpLocalDeleteOperationDecider = new StubLocalDeleteOperationDecider();
         final LocalMessageUidPrefixProvider fakeLocalMessageUidPrefixProvider = new FakeLocalMessageUidPrefixProvider();
         featureFlagProvider = key -> Disabled.INSTANCE;
@@ -165,6 +165,9 @@ public class MessagingControllerTest extends K9RobolectricTest {
         );
 
         final OutboxFolderManager fakeOutboxFolderManager = new FakeOutboxFolderManager(FOLDER_ID);
+        accountId = AccountIdFactory.INSTANCE.create();
+        accountManager = mock(LegacyAccountManager.class);
+
 
         controller = new MessagingController(
             appContext,
@@ -172,7 +175,6 @@ public class MessagingControllerTest extends K9RobolectricTest {
             notificationStrategy,
             localStoreProvider,
             backendManager,
-            preferences,
             messageStoreManager,
             saveMessageDataCreator,
             specialLocalFoldersCreator,
@@ -182,7 +184,8 @@ public class MessagingControllerTest extends K9RobolectricTest {
             featureFlagProvider,
             syncLogger,
             notificationManager,
-            fakeOutboxFolderManager
+            fakeOutboxFolderManager,
+            accountManager
         );
 
         configureAccount();
@@ -192,28 +195,27 @@ public class MessagingControllerTest extends K9RobolectricTest {
 
     @After
     public void tearDown() throws Exception {
-        removeAccountsFromPreferences();
         controller.stop();
         autoClose();
     }
 
     @Test
     public void clearFolderSynchronous_shouldOpenFolderForWriting() throws MessagingException {
-        controller.clearFolderSynchronous(account, FOLDER_ID);
+        controller.clearFolderSynchronous(accountId, FOLDER_ID);
 
         verify(localFolder).open();
     }
 
     @Test
     public void clearFolderSynchronous_shouldClearAllMessagesInTheFolder() throws MessagingException {
-        controller.clearFolderSynchronous(account, FOLDER_ID);
+        controller.clearFolderSynchronous(accountId, FOLDER_ID);
 
         verify(localFolder).clearAllMessages();
     }
 
     @Test
     public void refreshRemoteSynchronous_shouldCallBackend() throws MessagingException {
-        controller.refreshFolderListSynchronous(account);
+        controller.refreshFolderListSynchronous(accountId);
 
         verify(backend).refreshFolderList();
     }
@@ -249,7 +251,8 @@ public class MessagingControllerTest extends K9RobolectricTest {
         reqFlags = Collections.singleton(Flag.ANSWERED);
         forbiddenFlags = Collections.singleton(Flag.DELETED);
 
-        account.setRemoteSearchNumResults(50);
+        account = FakeLegacyAccount.create(accountId, null, 50);
+        when(accountManager.findById(accountId)).thenReturn(account);
     }
 
     @Test
@@ -372,7 +375,7 @@ public class MessagingControllerTest extends K9RobolectricTest {
 
         verify(backend, times(3)).search(anyString(), eq("query"), nullable(Set.class), nullable(Set.class), eq(false),
             any(SearchListener.class));
-        verify(listener).remoteSearchCascadeIncomplete(1, 3, "Connection reset");
+        verify(listener).remoteSearchCascadeIncomplete(1, 3, "IOException: Connection reset");
         verify(listener).remoteSearchFinished(1L, 0, 0, null);
     }
 
@@ -388,7 +391,7 @@ public class MessagingControllerTest extends K9RobolectricTest {
 
         verify(backend, times(3)).search(anyString(), eq("query"), nullable(Set.class), nullable(Set.class), eq(false),
             any(SearchListener.class));
-        verify(listener).remoteSearchCascadeIncomplete(10, 10, "Unable to resolve host");
+        verify(listener).remoteSearchCascadeIncomplete(10, 10, "IOException: Unable to resolve host");
         verify(listener).remoteSearchFinished(1L, 0, 0, null);
     }
 
@@ -421,7 +424,8 @@ public class MessagingControllerTest extends K9RobolectricTest {
     public void searchRemoteMessagesCascadingSynchronous_withMoreResultsThanLimit_shouldReportNotLoadedResults()
             throws Exception {
         setupCascadingRemoteSearch(1);
-        account.setRemoteSearchNumResults(2);
+        account = FakeLegacyAccount.create(accountId, null, 2);
+        when(accountManager.findById(accountId)).thenReturn(account);
         List<String> foundMessages = Arrays.asList("uid1", "uid2", "uid3", "uid4", "uid5");
         when(backend.search(eq("folder1"), anyString(), nullable(Set.class), nullable(Set.class), eq(false),
             any(SearchListener.class)))
@@ -580,7 +584,7 @@ public class MessagingControllerTest extends K9RobolectricTest {
             }
             return result;
         });
-        when(messageStoreManager.getMessageStore(account)).thenReturn(messageStore);
+        when(messageStoreManager.getMessageStore(accountId)).thenReturn(messageStore);
         when(backend.isPushCapable()).thenReturn(true);
 
         return messageStore;
@@ -591,7 +595,7 @@ public class MessagingControllerTest extends K9RobolectricTest {
         setupFolderWithServerId("Parent");
         FolderOperationListener folderOperationListener = mock(FolderOperationListener.class);
 
-        controller.createFolderSynchronous(account, FOLDER_ID, "Child", folderOperationListener);
+        controller.createFolderSynchronous(accountId, FOLDER_ID, "Child", folderOperationListener);
 
         verify(backend).createFolder("Parent/Child");
         verify(backend).refreshFolderList();
@@ -602,7 +606,7 @@ public class MessagingControllerTest extends K9RobolectricTest {
     public void createFolderSynchronous_withoutParentFolder_shouldCreateFolderAtTopLevel() throws Exception {
         FolderOperationListener folderOperationListener = mock(FolderOperationListener.class);
 
-        controller.createFolderSynchronous(account, null, "New", folderOperationListener);
+        controller.createFolderSynchronous(accountId, null, "New", folderOperationListener);
 
         verify(backend).createFolder("New");
         verify(folderOperationListener).onFinished(null);
@@ -613,7 +617,7 @@ public class MessagingControllerTest extends K9RobolectricTest {
         FolderOperationListener folderOperationListener = mock(FolderOperationListener.class);
         doThrow(new MessagingException("Refused")).when(backend).createFolder("New");
 
-        controller.createFolderSynchronous(account, null, "New", folderOperationListener);
+        controller.createFolderSynchronous(accountId, null, "New", folderOperationListener);
 
         verify(folderOperationListener).onFinished("Refused");
         verify(backend, never()).refreshFolderList();
@@ -624,7 +628,7 @@ public class MessagingControllerTest extends K9RobolectricTest {
         setupFolderWithServerId("Old");
         FolderOperationListener folderOperationListener = mock(FolderOperationListener.class);
 
-        controller.deleteFolderSynchronous(account, FOLDER_ID, false, folderOperationListener);
+        controller.deleteFolderSynchronous(accountId, FOLDER_ID, false, folderOperationListener);
 
         verify(backend).deleteFolder("Old");
         verify(backend).refreshFolderList();
@@ -637,7 +641,7 @@ public class MessagingControllerTest extends K9RobolectricTest {
         FolderOperationListener folderOperationListener = mock(FolderOperationListener.class);
         doThrow(new MessagingException("Not allowed")).when(backend).deleteFolder("Old");
 
-        controller.deleteFolderSynchronous(account, FOLDER_ID, false, folderOperationListener);
+        controller.deleteFolderSynchronous(accountId, FOLDER_ID, false, folderOperationListener);
 
         verify(folderOperationListener).onFinished("Not allowed");
     }
@@ -647,7 +651,7 @@ public class MessagingControllerTest extends K9RobolectricTest {
         setupFolders("Old", "Old/Sub", "Old/Sub/Deep", "Older");
         FolderOperationListener folderOperationListener = mock(FolderOperationListener.class);
 
-        controller.deleteFolderSynchronous(account, 1L, true, folderOperationListener);
+        controller.deleteFolderSynchronous(accountId, 1L, true, folderOperationListener);
 
         InOrder inOrder = inOrder(backend);
         inOrder.verify(backend).deleteFolder("Old/Sub/Deep");
@@ -662,7 +666,7 @@ public class MessagingControllerTest extends K9RobolectricTest {
         setupFolders("Old", "Old/Sub");
         FolderOperationListener folderOperationListener = mock(FolderOperationListener.class);
 
-        controller.deleteFolderSynchronous(account, 1L, false, folderOperationListener);
+        controller.deleteFolderSynchronous(accountId, 1L, false, folderOperationListener);
 
         verify(backend).deleteFolder("Old");
         verify(backend, never()).deleteFolder("Old/Sub");
@@ -673,7 +677,7 @@ public class MessagingControllerTest extends K9RobolectricTest {
         ListenableMessageStore messageStore = setupFolders("Parent", "Parent/Old", "Parent/Old/Sub");
         FolderOperationListener folderOperationListener = mock(FolderOperationListener.class);
 
-        controller.renameFolderSynchronous(account, 2L, "New", folderOperationListener);
+        controller.renameFolderSynchronous(accountId, 2L, "New", folderOperationListener);
 
         verify(backend).renameFolder("Parent/Old", "Parent/New");
         verify(messageStore).setFolderServerId(2L, "Parent/New", "Parent/New");
@@ -687,7 +691,7 @@ public class MessagingControllerTest extends K9RobolectricTest {
         when(messageStore.getFolderId("New")).thenReturn(2L);
         FolderOperationListener folderOperationListener = mock(FolderOperationListener.class);
 
-        controller.renameFolderSynchronous(account, 1L, "New", folderOperationListener);
+        controller.renameFolderSynchronous(accountId, 1L, "New", folderOperationListener);
 
         verify(backend, never()).renameFolder(anyString(), anyString());
         verify(folderOperationListener).onFinished("A folder with this name already exists there");
@@ -698,7 +702,7 @@ public class MessagingControllerTest extends K9RobolectricTest {
         ListenableMessageStore messageStore = setupFolders("Parent/Folder", "Target");
         FolderOperationListener folderOperationListener = mock(FolderOperationListener.class);
 
-        controller.moveFolderSynchronous(account, 1L, 2L, folderOperationListener);
+        controller.moveFolderSynchronous(accountId, 1L, 2L, folderOperationListener);
 
         verify(backend).renameFolder("Parent/Folder", "Target/Folder");
         verify(messageStore).setFolderServerId(1L, "Target/Folder", "Target/Folder");
@@ -710,7 +714,7 @@ public class MessagingControllerTest extends K9RobolectricTest {
         setupFolders("Parent/Folder");
         FolderOperationListener folderOperationListener = mock(FolderOperationListener.class);
 
-        controller.moveFolderSynchronous(account, 1L, null, folderOperationListener);
+        controller.moveFolderSynchronous(accountId, 1L, null, folderOperationListener);
 
         verify(backend).renameFolder("Parent/Folder", "Folder");
     }
@@ -720,7 +724,7 @@ public class MessagingControllerTest extends K9RobolectricTest {
         setupFolders("Folder", "Folder/Sub");
         FolderOperationListener folderOperationListener = mock(FolderOperationListener.class);
 
-        controller.moveFolderSynchronous(account, 1L, 2L, folderOperationListener);
+        controller.moveFolderSynchronous(accountId, 1L, 2L, folderOperationListener);
 
         verify(backend, never()).renameFolder(anyString(), anyString());
         verify(folderOperationListener).onFinished("A folder can't be moved into itself");
@@ -749,7 +753,7 @@ public class MessagingControllerTest extends K9RobolectricTest {
             }
             return result;
         });
-        when(messageStoreManager.getMessageStore(account)).thenReturn(messageStore);
+        when(messageStoreManager.getMessageStore(accountId)).thenReturn(messageStore);
 
         return messageStore;
     }
@@ -757,14 +761,14 @@ public class MessagingControllerTest extends K9RobolectricTest {
     private void setupFolderWithServerId(String serverId) {
         ListenableMessageStore messageStore = mock(ListenableMessageStore.class);
         when(messageStore.getFolderServerId(FOLDER_ID)).thenReturn(serverId);
-        when(messageStoreManager.getMessageStore(account)).thenReturn(messageStore);
+        when(messageStoreManager.getMessageStore(accountId)).thenReturn(messageStore);
     }
 
     @Test
     public void loadNextMessagesSynchronous_shouldMoveOnToTheNextStep() {
         ListenableMessageStore messageStore = setupFolderForLoadingMessages(25, false);
 
-        controller.loadNextMessagesSynchronous(account, FOLDER_ID);
+        controller.loadNextMessagesSynchronous(accountId, FOLDER_ID);
 
         verify(messageStore).setVisibleLimit(FOLDER_ID, 45);
         verify(messageStore).setMoreMessages(FOLDER_ID, MoreMessages.UNKNOWN);
@@ -774,7 +778,7 @@ public class MessagingControllerTest extends K9RobolectricTest {
     public void loadNextMessagesSynchronous_withAllMessagesLoaded_shouldNotChangeVisibleLimit() {
         ListenableMessageStore messageStore = setupFolderForLoadingMessages(0, false);
 
-        controller.loadNextMessagesSynchronous(account, FOLDER_ID);
+        controller.loadNextMessagesSynchronous(accountId, FOLDER_ID);
 
         verify(messageStore, never()).setVisibleLimit(anyLong(), anyInt());
     }
@@ -783,7 +787,7 @@ public class MessagingControllerTest extends K9RobolectricTest {
     public void loadFirstMessagesSynchronous_shouldOnlyLoadRequestedNumberOfMessages() {
         ListenableMessageStore messageStore = setupFolderForLoadingMessages(100, false);
 
-        controller.loadFirstMessagesSynchronous(account, FOLDER_ID, 12);
+        controller.loadFirstMessagesSynchronous(accountId, FOLDER_ID, 12);
 
         verify(messageStore).setVisibleLimit(FOLDER_ID, 12);
         verify(messageStore).setMoreMessages(FOLDER_ID, MoreMessages.UNKNOWN);
@@ -793,7 +797,7 @@ public class MessagingControllerTest extends K9RobolectricTest {
     public void loadFirstMessagesSynchronous_withFolderThatIsSynchronizedAutomatically_shouldKeepItsSize() {
         ListenableMessageStore messageStore = setupFolderForLoadingMessages(100, true);
 
-        controller.loadFirstMessagesSynchronous(account, FOLDER_ID, 12);
+        controller.loadFirstMessagesSynchronous(accountId, FOLDER_ID, 12);
 
         verify(messageStore, never()).setVisibleLimit(anyLong(), anyInt());
     }
@@ -809,7 +813,7 @@ public class MessagingControllerTest extends K9RobolectricTest {
                 FolderMapper<Object> mapper = invocation.getArgument(1);
                 return mapper.map(folder);
             });
-        when(messageStoreManager.getMessageStore(account)).thenReturn(messageStore);
+        when(messageStoreManager.getMessageStore(accountId)).thenReturn(messageStore);
 
         return messageStore;
     }
@@ -819,7 +823,7 @@ public class MessagingControllerTest extends K9RobolectricTest {
         when(localFolder.exists()).thenReturn(false);
         controller.addListener(listener);
 
-        controller.sendPendingMessagesSynchronous(account);
+        controller.sendPendingMessagesSynchronous(accountId);
 
         verifyNoMoreInteractions(listener);
     }
@@ -828,16 +832,16 @@ public class MessagingControllerTest extends K9RobolectricTest {
     public void sendPendingMessagesSynchronous_shouldSetProgress() throws MessagingException {
         setupAccountWithMessageToSend();
 
-        controller.sendPendingMessagesSynchronous(account);
+        controller.sendPendingMessagesSynchronous(accountId);
 
-        verify(listener).synchronizeMailboxProgress(account, FOLDER_ID, 0, 1);
+        verify(listener).synchronizeMailboxProgress(accountId, FOLDER_ID, 0, 1);
     }
 
     @Test
     public void sendPendingMessagesSynchronous_shouldSendMessageUsingTransport() throws MessagingException {
         setupAccountWithMessageToSend();
 
-        controller.sendPendingMessagesSynchronous(account);
+        controller.sendPendingMessagesSynchronous(accountId);
 
         verify(backend).sendMessage(localMessageToSend1);
     }
@@ -846,7 +850,7 @@ public class MessagingControllerTest extends K9RobolectricTest {
     public void sendPendingMessagesSynchronous_shouldSetAndRemoveSendInProgressFlag() throws MessagingException {
         setupAccountWithMessageToSend();
 
-        controller.sendPendingMessagesSynchronous(account);
+        controller.sendPendingMessagesSynchronous(accountId);
 
         InOrder ordering = inOrder(localMessageToSend1, backend);
         ordering.verify(localMessageToSend1).setFlag(Flag.X_SEND_IN_PROGRESS, true);
@@ -858,7 +862,7 @@ public class MessagingControllerTest extends K9RobolectricTest {
     public void sendPendingMessagesSynchronous_shouldMarkSentMessageAsSeen() throws MessagingException {
         setupAccountWithMessageToSend();
 
-        controller.sendPendingMessagesSynchronous(account);
+        controller.sendPendingMessagesSynchronous(accountId);
 
         verify(localMessageToSend1).setFlag(Flag.SEEN, true);
     }
@@ -867,18 +871,18 @@ public class MessagingControllerTest extends K9RobolectricTest {
     public void sendPendingMessagesSynchronous_whenMessageSentSuccesfully_shouldUpdateProgress() throws MessagingException {
         setupAccountWithMessageToSend();
 
-        controller.sendPendingMessagesSynchronous(account);
+        controller.sendPendingMessagesSynchronous(accountId);
 
-        verify(listener).synchronizeMailboxProgress(account, FOLDER_ID, 1, 1);
+        verify(listener).synchronizeMailboxProgress(accountId, FOLDER_ID, 1, 1);
     }
 
     @Test
     public void sendPendingMessagesSynchronous_shouldUpdateProgress() throws MessagingException {
         setupAccountWithMessageToSend();
 
-        controller.sendPendingMessagesSynchronous(account);
+        controller.sendPendingMessagesSynchronous(accountId);
 
-        verify(listener).synchronizeMailboxProgress(account, FOLDER_ID, 1, 1);
+        verify(listener).synchronizeMailboxProgress(accountId, FOLDER_ID, 1, 1);
     }
 
     @Test
@@ -886,9 +890,9 @@ public class MessagingControllerTest extends K9RobolectricTest {
         setupAccountWithMessageToSend();
         doThrow(new AuthenticationFailedException("Test")).when(backend).sendMessage(localMessageToSend1);
 
-        controller.sendPendingMessagesSynchronous(account);
+        controller.sendPendingMessagesSynchronous(accountId);
 
-        verify(notificationController).showAuthenticationErrorNotification(account, false);
+        verify(notificationController).showAuthenticationErrorNotification(accountId, false);
     }
 
     @Test
@@ -897,13 +901,14 @@ public class MessagingControllerTest extends K9RobolectricTest {
         doThrow(new CertificateValidationException(emptyList(), new CertificateChainException("", null, null)))
             .when(backend).sendMessage(localMessageToSend1);
 
-        controller.sendPendingMessagesSynchronous(account);
+        controller.sendPendingMessagesSynchronous(accountId);
 
-        verify(notificationController).showCertificateErrorNotification(account, false);
+        verify(notificationController).showCertificateErrorNotification(accountId, false);
     }
 
     private void setupAccountWithMessageToSend() throws MessagingException {
-        account.setSentFolderId(SENT_FOLDER_ID);
+        account = FakeLegacyAccount.create(accountId, SENT_FOLDER_ID, 0);
+        when(accountManager.findById(accountId)).thenReturn(account);
         when(localStore.getFolder(SENT_FOLDER_ID)).thenReturn(sentFolder);
         when(sentFolder.getDatabaseId()).thenReturn(SENT_FOLDER_ID);
         when(localFolder.exists()).thenReturn(true);
@@ -925,15 +930,10 @@ public class MessagingControllerTest extends K9RobolectricTest {
     }
 
     private void configureAccount() {
-        account = preferences.newAccount();
-        accountId = account.getId();
-
-        account.setIncomingServerSettings(new ServerSettings(Protocols.IMAP, "host", 993,
-            ConnectionSecurity.SSL_TLS_REQUIRED, AuthType.PLAIN, "username", "password", null));
-        account.setOutgoingServerSettings(new ServerSettings(Protocols.SMTP, "host", 465,
-            ConnectionSecurity.SSL_TLS_REQUIRED, AuthType.PLAIN, "username", "password", null));
-        account.setMaximumAutoDownloadMessageSize(MAXIMUM_SMALL_MESSAGE_SIZE);
-        account.setEmail("user@host.com");
+        accountId = AccountIdFactory.INSTANCE.create();
+        account = FakeLegacyAccount.create(accountId, null, 0);
+        when(accountManager.findById(accountId)).thenReturn(account);
+        when(accountManager.findAll()).thenReturn(Collections.singletonList(account));
     }
 
     private void configureLocalStore() throws MessagingException {
@@ -943,10 +943,6 @@ public class MessagingControllerTest extends K9RobolectricTest {
         when(localFolder.getDatabaseId()).thenReturn(FOLDER_ID);
         when(localFolder.getServerId()).thenReturn(FOLDER_NAME);
         when(localStore.getPersonalNamespaces(false)).thenReturn(Collections.singletonList(localFolder));
-        when(localStoreProvider.getInstance(account)).thenReturn(localStore);
-    }
-
-    private void removeAccountsFromPreferences() {
-        preferences.clearAccounts();
+        when(localStoreProvider.getInstance(accountId)).thenReturn(localStore);
     }
 }

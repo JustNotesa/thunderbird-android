@@ -2,7 +2,7 @@ package com.fsck.k9.message
 
 import assertk.assertThat
 import assertk.assertions.isEqualTo
-import net.thunderbird.core.logging.testing.TestLogger
+import net.thunderbird.components.core.logging.testing.TestLogger
 import net.thunderbird.legacy.logging.Log
 import org.junit.Before
 import org.junit.Test

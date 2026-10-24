@@ -5,6 +5,7 @@ import androidx.fragment.app.FragmentActivity
 import app.k9mail.legacy.message.controller.MessageReference
 import net.thunderbird.core.android.account.LegacyAccount
 import net.thunderbird.core.featureflag.keys.GeneratedFeatureFlagKey
+import net.thunderbird.feature.account.AccountId
 import net.thunderbird.feature.search.legacy.LocalMessageSearch
 
 /**
@@ -56,7 +57,7 @@ interface MessageListFragmentBridgeContract {
     interface MessageListFragmentListener {
         fun setMessageListProgressEnabled(enable: Boolean)
         fun setMessageListProgress(level: Int)
-        fun showThread(account: LegacyAccount, threadRootId: Long)
+        fun showThread(accountId: AccountId, threadRootId: Long)
         fun openMessage(messageReference: MessageReference)
         fun showFolder(account: LegacyAccount, folderId: Long)
 
@@ -67,8 +68,8 @@ interface MessageListFragmentBridgeContract {
         val folderOrigin: FolderOrigin?
         fun returnToFolderOrigin()
         fun setMessageListTitle(title: String, subtitle: String? = null)
-        fun onCompose(account: LegacyAccount?)
-        fun startSearch(query: String, account: LegacyAccount?, folderId: Long?): Boolean
+        fun onCompose(accountId: AccountId?)
+        fun startSearch(query: String, accountId: AccountId?, folderId: Long?): Boolean
         fun startSupportActionMode(callback: ActionMode.Callback): ActionMode?
         fun goBack()
 

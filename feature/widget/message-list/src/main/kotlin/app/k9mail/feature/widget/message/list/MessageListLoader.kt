@@ -3,6 +3,7 @@ package app.k9mail.feature.widget.message.list
 import app.k9mail.legacy.mailstore.MessageListRepository
 import com.fsck.k9.helper.MessageHelper
 import com.fsck.k9.mailstore.MessageColumns
+import com.fsck.k9.search.conditionsForAccount
 import com.fsck.k9.search.getLegacyAccounts
 import net.thunderbird.core.android.account.LegacyAccount
 import net.thunderbird.core.android.account.LegacyAccountManager
@@ -11,6 +12,8 @@ import net.thunderbird.core.preference.display.visualSettings.message.list.Messa
 import net.thunderbird.feature.mail.folder.api.OutboxFolderManager
 import net.thunderbird.feature.search.legacy.sql.SqlWhereClause
 import net.thunderbird.legacy.logging.Log
+
+private const val TAG = "MessageListLoader"
 
 internal class MessageListLoader(
     private val accountManager: LegacyAccountManager,
@@ -25,7 +28,7 @@ internal class MessageListLoader(
         return try {
             getMessageListInfo(config)
         } catch (e: Exception) {
-            Log.e(e, "Error while fetching message list")
+            Log.e(TAG, e, "Error while fetching message list")
 
             // TODO: Return an error object instead of an empty list
             emptyList()
@@ -49,17 +52,17 @@ internal class MessageListLoader(
         val mapper = MessageListItemMapper(messageHelper, account, messageListPreferencesManager, outboxFolderManager)
 
         return if (config.showingThreadedList) {
-            val (selection, selectionArgs) = buildSelection(config)
+            val (selection, selectionArgs) = buildSelection(account, config)
             messageListRepository.getThreadedMessages(accountId, selection, selectionArgs, sortOrder, mapper)
         } else {
-            val (selection, selectionArgs) = buildSelection(config)
+            val (selection, selectionArgs) = buildSelection(account, config)
             messageListRepository.getMessages(accountId, selection, selectionArgs, sortOrder, mapper)
         }
     }
 
-    private fun buildSelection(config: MessageListConfig): Pair<String, Array<String>> {
+    private fun buildSelection(account: LegacyAccount, config: MessageListConfig): Pair<String, Array<String>> {
         val whereClause = SqlWhereClause.Builder()
-            .withConditions(config.search.conditions)
+            .withConditions(config.search.conditionsForAccount(account))
             .build()
 
         return whereClause.selection to whereClause.selectionArgs.toTypedArray()

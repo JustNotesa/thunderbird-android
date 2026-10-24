@@ -10,7 +10,7 @@ import com.fsck.k9.mail.ServerSettings
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlinx.coroutines.test.runTest
-import net.thunderbird.core.logging.testing.TestLogger
+import net.thunderbird.components.core.logging.testing.TestLogger
 import net.thunderbird.legacy.logging.Log
 
 private const val CREATED_AT = 1792300000L

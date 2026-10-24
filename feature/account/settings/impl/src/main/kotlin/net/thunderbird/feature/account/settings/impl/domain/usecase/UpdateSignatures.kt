@@ -28,14 +28,11 @@ internal class UpdateSignatures(
             is UpdateSignaturesCommand.Save -> account.save(command.signature)
             is UpdateSignaturesCommand.Delete -> account.delete(command.signatureId)
             is UpdateSignaturesCommand.SetDefault -> account.setDefault(command.signatureId)
-        }
+        } ?: return Outcome.failure(AccountSettingError.NotFound("Signature not found"))
 
-        return if (updatedAccount != null) {
-            repository.update(updatedAccount)
-            Outcome.success(updatedAccount.toAccountSignatures())
-        } else {
-            Outcome.failure(AccountSettingError.NotFound("Signature not found"))
-        }
+        repository.update(accountId) { updatedAccount }
+
+        return Outcome.success(updatedAccount.toAccountSignatures())
     }
 
     private fun LegacyAccount.save(signature: AccountSignature): LegacyAccount {

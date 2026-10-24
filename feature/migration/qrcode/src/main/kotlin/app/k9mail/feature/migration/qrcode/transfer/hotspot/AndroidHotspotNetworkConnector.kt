@@ -14,6 +14,7 @@ import kotlinx.coroutines.CancellableContinuation
 import kotlinx.coroutines.suspendCancellableCoroutine
 import net.thunderbird.legacy.logging.Log
 
+private const val TAG = "AndroidHotspotNetworkConnector"
 private const val CONNECT_TIMEOUT_MILLIS = 60_000
 
 /**
@@ -60,7 +61,7 @@ internal class AndroidHotspotNetworkConnector(
             }
 
             override fun onUnavailable() {
-                Log.d("The hotspot of the sending device couldn't be joined")
+                Log.d(TAG, "The hotspot of the sending device couldn't be joined")
                 unregister(this)
                 if (continuation.isActive) continuation.resume(HotspotConnectResult.Failed)
             }
@@ -88,7 +89,7 @@ internal class AndroidHotspotNetworkConnector(
             connectivityManager.requestNetwork(request, callback, CONNECT_TIMEOUT_MILLIS)
             true
         } catch (_: SecurityException) {
-            Log.d("Failed to join the hotspot of the transfer without the required permission")
+            Log.d(TAG, "Failed to join the hotspot of the transfer without the required permission")
             false
         }
     }

@@ -16,6 +16,7 @@ import net.thunderbird.legacy.logging.Log
  * so modifying the header breaks decryption.
  */
 internal object TransferContainer {
+    private const val TAG = "TransferContainer"
     private const val VERSION = 1
     private const val FLAGS = 0
     private const val KEY_ALGORITHM = "AES"
@@ -65,7 +66,7 @@ internal object TransferContainer {
             cipher.updateAAD(header.authenticatedData)
             TransferContainerResult.Success(cipher.doFinal(header.ciphertext))
         } catch (e: GeneralSecurityException) {
-            Log.d(e, "Failed to decrypt transfer container")
+            Log.d(TAG, e, "Failed to decrypt transfer container")
             TransferContainerResult.Corrupted
         }
     }
@@ -110,7 +111,7 @@ internal object TransferContainer {
         }
 
         if (!isSupported) {
-            Log.d("Unsupported transfer container format")
+            Log.d(TAG, "Unsupported transfer container format")
         }
 
         return isSupported

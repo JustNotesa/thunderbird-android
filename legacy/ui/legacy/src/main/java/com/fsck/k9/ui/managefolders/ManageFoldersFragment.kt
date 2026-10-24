@@ -40,31 +40,39 @@ import androidx.recyclerview.widget.RecyclerView
 import app.k9mail.legacy.ui.folder.DisplayFolder
 import app.k9mail.legacy.ui.folder.FolderIconProvider
 import app.k9mail.legacy.ui.folder.FolderNameFormatter
-import com.fsck.k9.Preferences
 import com.fsck.k9.controller.MessagingController
 import com.fsck.k9.ui.R
 import com.fsck.k9.ui.base.livedata.observeNotNull
 import com.mikepenz.fastadapter.FastAdapter
 import com.mikepenz.fastadapter.adapters.ItemAdapter
 import java.util.Locale
-import net.thunderbird.core.android.account.LegacyAccountDto
+import net.thunderbird.core.android.account.LegacyAccount
+import net.thunderbird.core.android.account.LegacyAccountManager
+import net.thunderbird.feature.account.AccountId
 import net.thunderbird.feature.account.AccountIdFactory
 import org.koin.android.ext.android.inject
 import org.koin.androidx.viewmodel.ext.android.viewModel
 import org.koin.core.parameter.parametersOf
+
+private val LegacyAccount.displayName: String
+    get() = name ?: email
 
 @Suppress("TooManyFunctions")
 class ManageFoldersFragment : Fragment() {
     private val viewModel: ManageFoldersViewModel by viewModel()
     private val folderNameFormatter: FolderNameFormatter by inject()
     private val messagingController: MessagingController by inject()
-    private val preferences: Preferences by inject()
+    private val accountManager: LegacyAccountManager by inject()
     private val avatarMapper: AvatarDataMapper by inject()
     private val themeProvider: FeatureThemeProvider by inject()
     private val folderIconProvider: FolderIconProvider by inject { parametersOf(requireActivity().theme) }
 
-    private lateinit var account: LegacyAccountDto
+    private lateinit var accountId: AccountId
     private lateinit var itemAdapter: ItemAdapter<FolderListItem>
+
+    private val account: LegacyAccount
+        get() = accountManager.findById(accountId) ?: error("Missing account: $accountId")
+
     private var folders: Map<Long, Folder> = emptyMap()
     private var draggedFolderView: View? = null
     private var displayFolders: List<DisplayFolder> = emptyList()
@@ -76,8 +84,8 @@ class ManageFoldersFragment : Fragment() {
         super.onCreate(savedInstanceState)
 
         val arguments = arguments ?: error("Missing arguments")
-        val accountUuid = arguments.getString(EXTRA_ACCOUNT) ?: error("Missing argument '$EXTRA_ACCOUNT'")
-        account = preferences.getById(AccountIdFactory.of(accountUuid)) ?: error("Missing account: $accountUuid")
+        val accountIdRaw = arguments.getString(EXTRA_ACCOUNT) ?: error("Missing argument '$EXTRA_ACCOUNT'")
+        accountId = AccountIdFactory.of(accountIdRaw)
     }
 
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
@@ -120,7 +128,7 @@ class ManageFoldersFragment : Fragment() {
 
         initializeFolderList()
 
-        viewModel.getFolders(account).observeNotNull(this) { folders ->
+        viewModel.getFolders(accountId).observeNotNull(this) { folders ->
             updateFolderList(folders)
         }
     }
@@ -266,7 +274,7 @@ class ManageFoldersFragment : Fragment() {
 
     private fun moveFolder(folderId: Long, targetFolderId: Long?) {
         val applicationContext = requireContext().applicationContext
-        messagingController.moveFolder(account, folderId, targetFolderId) { error ->
+        messagingController.moveFolder(accountId, folderId, targetFolderId) { error ->
             val message = if (error == null) {
                 applicationContext.getString(R.string.folder_moved)
             } else {
@@ -292,7 +300,7 @@ class ManageFoldersFragment : Fragment() {
      * than one account, it leads to the folders of another one.
      */
     private fun showAccountInToolbar(activity: AppCompatActivity) {
-        val accounts = preferences.getAccounts()
+        val accounts = accountManager.findAll()
         val currentAccount = account
         val toolbar = activity.findViewById<Toolbar>(BaseR.id.toolbar)
         if (accounts.size <= 1) {
@@ -307,8 +315,8 @@ class ManageFoldersFragment : Fragment() {
                 uuid = account.id.toString(),
                 name = account.displayName,
                 email = account.email,
-                color = account.chipColor,
-                avatar = avatarMapper.toDomain(account.avatar),
+                color = account.profile.color,
+                avatar = avatarMapper.toDomain(account.profile.avatar),
             )
         }.toImmutableList()
         val currentAccountUuid = currentAccount.id.toString()
@@ -322,7 +330,7 @@ class ManageFoldersFragment : Fragment() {
                         showAccountList(activity, isVisible = false)
                         val account = accounts.first { it.id.toString() == selectedAccount.uuid }
                         if (account.id != currentAccount.id) {
-                            ManageFoldersActivity.launch(activity, account)
+                            ManageFoldersActivity.launch(activity, account.id)
                             activity.finish()
                         }
                     },
@@ -408,7 +416,7 @@ class ManageFoldersFragment : Fragment() {
 
     private fun openFolderSettings(folderId: Long) {
         val folderSettingsArguments = bundleOf(
-            FolderSettingsFragment.EXTRA_ACCOUNT to account.id.toString(),
+            FolderSettingsFragment.EXTRA_ACCOUNT to accountId.toString(),
             FolderSettingsFragment.EXTRA_FOLDER_ID to folderId,
         )
         findNavController().navigate(R.id.action_manageFoldersScreen_to_folderSettingsScreen, folderSettingsArguments)
@@ -445,14 +453,14 @@ class ManageFoldersFragment : Fragment() {
     }
 
     private fun refreshFolderList() {
-        messagingController.refreshFolderList(account)
+        messagingController.refreshFolderList(accountId)
     }
 
     private fun createFolder() {
         val context = requireContext()
         FolderNameDialog.show(context, R.string.folder_create_action, account.folderPathDelimiter) { name ->
             val applicationContext = context.applicationContext
-            messagingController.createFolder(account, null, name) { error ->
+            messagingController.createFolder(accountId, null, name) { error ->
                 // The folder shows up in the list by itself. A failure has to be said.
                 val message = if (error == null) {
                     applicationContext.getString(R.string.folder_created)

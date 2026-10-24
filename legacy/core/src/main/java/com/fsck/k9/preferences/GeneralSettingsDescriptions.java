@@ -43,6 +43,7 @@ import net.thunderbird.core.preference.NotificationQuickDelete;
 import net.thunderbird.core.preference.SplitViewMode;
 import net.thunderbird.core.preference.SubTheme;
 import net.thunderbird.core.preference.display.coreSettings.DisplayCoreSettingsKt;
+import net.thunderbird.core.preference.display.inboxSettings.UnifiedFoldersLayout;
 import net.thunderbird.core.preference.display.visualSettings.DisplayVisualSettingsKt;
 import net.thunderbird.core.preference.display.visualSettings.message.list.MessageListDateTimeFormat;
 import net.thunderbird.core.preference.interaction.PostMarkAsUnreadNavigation;
@@ -204,6 +205,9 @@ class GeneralSettingsDescriptions {
         s.put("showUnifiedInbox", Settings.versions(
             new V(69, new BooleanSetting(true)),
             new V(101, new BooleanSetting(DISPLAY_SETTINGS_DEFAULT_IS_SHOW_UNIFIED_INBOX))
+        ));
+        s.put("unifiedFoldersLayout", Settings.versions(
+            new V(113, new EnumSetting<>(UnifiedFoldersLayout.class, UnifiedFoldersLayout.Flat))
         ));
         s.put("isShowAccountSelector", Settings.versions(
             new V(102, new BooleanSetting(true))

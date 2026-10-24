@@ -7,6 +7,7 @@ import kotlin.test.Test
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
 import net.thunderbird.feature.mail.folder.FolderType
+import net.thunderbird.account.fake.FakeAccountData.ACCOUNT_ID
 import net.thunderbird.feature.mail.folder.api.Folder
 
 class DisplayTreeFolderTest {
@@ -16,7 +17,7 @@ class DisplayTreeFolderTest {
         val child = createTreeFolder(folderId = 2)
         val testSubject = createTreeFolder(folderId = 1, children = persistentListOf(child))
 
-        val result = testSubject.containsFolder(child.displayFolder?.id)
+        val result = testSubject.containsFolder(child.displayFolder?.folderId)
 
         assertThat(result).isTrue()
     }
@@ -27,7 +28,7 @@ class DisplayTreeFolderTest {
         val child = createTreeFolder(folderId = 2, children = persistentListOf(grandchild))
         val testSubject = createTreeFolder(folderId = 1, children = persistentListOf(child))
 
-        val result = testSubject.containsFolder(grandchild.displayFolder?.id)
+        val result = testSubject.containsFolder(grandchild.displayFolder?.folderId)
 
         assertThat(result).isTrue()
     }
@@ -36,7 +37,7 @@ class DisplayTreeFolderTest {
     fun `containsFolder should not find the folder itself`() {
         val testSubject = createTreeFolder(folderId = 1, children = persistentListOf(createTreeFolder(folderId = 2)))
 
-        val result = testSubject.containsFolder(testSubject.displayFolder?.id)
+        val result = testSubject.containsFolder(testSubject.displayFolder?.folderId)
 
         assertThat(result).isFalse()
     }
@@ -46,7 +47,7 @@ class DisplayTreeFolderTest {
         val other = createTreeFolder(folderId = 3)
         val testSubject = createTreeFolder(folderId = 1, children = persistentListOf(createTreeFolder(folderId = 2)))
 
-        val result = testSubject.containsFolder(other.displayFolder?.id)
+        val result = testSubject.containsFolder(other.displayFolder?.folderId)
 
         assertThat(result).isFalse()
     }
@@ -73,7 +74,7 @@ class DisplayTreeFolderTest {
     ): DisplayTreeFolder {
         return DisplayTreeFolder(
             displayFolder = MailDisplayFolder(
-                accountId = "account",
+                accountId = ACCOUNT_ID,
                 folder = Folder(
                     id = folderId,
                     name = "Folder $folderId",

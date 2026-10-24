@@ -42,7 +42,7 @@ import com.fsck.k9.ui.messageview.MessageViewRecipientFormatter;
 import com.fsck.k9.ui.messageview.RecipientNamesView;
 import com.google.android.material.chip.Chip;
 import com.google.android.material.textview.MaterialTextView;
-import net.thunderbird.core.android.account.LegacyAccountDto;
+import net.thunderbird.core.android.account.LegacyAccount;
 import net.thunderbird.core.common.mail.Flag;
 import net.thunderbird.core.preference.display.visualSettings.message.list.MessageListDateTimeFormat;
 import net.thunderbird.core.preference.display.visualSettings.message.list.MessageListPreferencesManager;
@@ -63,7 +63,7 @@ public class MessageHeader extends LinearLayout implements OnClickListener, OnLo
     private final MessageViewRecipientFormatter recipientFormatter = DI.get(MessageViewRecipientFormatter.class);
     private final MessageListPreferencesManager messageListPreferencesManager =
         DI.get(MessageListPreferencesManager.class);
-    private final ReplyActionStrategy<LegacyAccountDto, Message> replyActionStrategy = DI.get(ReplyActionStrategy.class);
+    private final ReplyActionStrategy<LegacyAccount, Message> replyActionStrategy = DI.get(ReplyActionStrategy.class);
     private final MessageHelper messageHelper = DI.get(MessageHelper.class);
     private final FontSizes fontSizes = K9.getFontSizes();
 
@@ -289,11 +289,12 @@ public class MessageHeader extends LinearLayout implements OnClickListener, OnLo
      *         The name of the folder the message is stored in, or {@code null} to not display it. Clicking it opens
      *         the folder.
      */
-    public void populate(final Message message, final LegacyAccountDto account, boolean showStar,
+    public void populate(final Message message, final LegacyAccount account, boolean showStar,
         boolean showAccountIndicator, @Nullable String folderName) {
-        ColorStateList accountColor = ColorStateList.valueOf(account.getChipColor());
+        int accountColorValue = account.getProfile().getColor();
+        ColorStateList accountColor = ColorStateList.valueOf(accountColorValue);
         if (showAccountIndicator) {
-            subjectText.setAccountLabel(new AccountLabel(account.getDisplayName(), account.getChipColor()));
+            subjectText.setAccountLabel(new AccountLabel(getDisplayName(account), accountColorValue));
         } else {
             subjectText.setAccountLabel(null);
         }
@@ -360,7 +361,12 @@ public class MessageHeader extends LinearLayout implements OnClickListener, OnLo
         setVisibility(View.VISIBLE);
     }
 
-    private void setRecipientNames(Message message, LegacyAccountDto account) {
+    private static String getDisplayName(LegacyAccount account) {
+        String name = account.getName();
+        return name != null ? name : account.getEmail();
+    }
+
+    private void setRecipientNames(Message message, LegacyAccount account) {
         DisplayRecipientsExtractor displayRecipientsExtractor = new DisplayRecipientsExtractor(recipientFormatter,
             recipientNamesView.getMaxNumberOfRecipientNames());
 
@@ -370,7 +376,7 @@ public class MessageHeader extends LinearLayout implements OnClickListener, OnLo
             displayRecipients.getNumberOfRecipients());
     }
 
-    private void setReplyActions(Message message, LegacyAccountDto account) {
+    private void setReplyActions(Message message, LegacyAccount account) {
         ReplyActions replyActions = replyActionStrategy.getReplyActions(account, message);
         this.replyActions = replyActions;
 

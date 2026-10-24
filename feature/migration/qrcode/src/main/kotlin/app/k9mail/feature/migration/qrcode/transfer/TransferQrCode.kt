@@ -8,6 +8,7 @@ import okio.Buffer
 import okio.ByteString.Companion.decodeBase64
 import okio.ByteString.Companion.toByteString
 
+private const val TAG = "TransferQrCode"
 private const val PREFIX = "TBX1:"
 private const val SEPARATOR = "."
 private const val PADDING = '='
@@ -91,10 +92,10 @@ internal data class TransferQrCode(
                     null
                 }
             } catch (e: IllegalArgumentException) {
-                Log.d(e, "Transfer route failed validation")
+                Log.d(TAG, e, "Transfer route failed validation")
                 null
             } catch (e: IOException) {
-                Log.d(e, "Failed to read transfer route")
+                Log.d(TAG, e, "Failed to read transfer route")
                 null
             }
         }
@@ -162,7 +163,7 @@ private fun readRoute(routeText: String): TransferRoute? {
             }
 
             else -> {
-                Log.d("Unsupported transfer route type")
+                Log.d(TAG, "Unsupported transfer route type")
                 null
             }
         }
