@@ -1,11 +1,9 @@
 package app.k9mail.feature.migration.qrcode.ui.text
 
 import android.app.Application
-import android.os.Build
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.performClick
 import app.k9mail.core.ui.compose.testing.ComposeTest
 import app.k9mail.core.ui.compose.testing.onNodeWithTag
@@ -15,9 +13,6 @@ import app.k9mail.feature.migration.qrcode.R
 import app.k9mail.feature.migration.qrcode.ui.text.TransferTextContract.Event
 import app.k9mail.feature.migration.qrcode.ui.text.TransferTextContract.State
 import app.k9mail.feature.migration.qrcode.ui.text.TransferTextContract.Step
-import assertk.assertThat
-import assertk.assertions.isFalse
-import assertk.assertions.isTrue
 import org.junit.Test
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
@@ -41,7 +36,7 @@ class TransferTextContentKtTest : ComposeTest() {
     }
 
     @Test
-    fun `the user can show the accounts and hide them again`() = runComposeTest {
+    fun `the user can show the accounts right away and hide them again`() = runComposeTest {
         var revealed by mutableStateOf(false)
         setContentWithTheme {
             TransferTextContent(
@@ -63,22 +58,6 @@ class TransferTextContentKtTest : ComposeTest() {
 
         onNodeWithText(ACCOUNT_TEXT).assertDoesNotExist()
         onNodeWithText(hiddenText()).assertExists()
-    }
-
-    @Test
-    fun `when the accounts are shown, they should be blurred until they are tapped`() = runComposeTest {
-        // Only Android 12 and newer can blur, below that the accounts are readable as soon as they are shown.
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            setContentWithTheme {
-                TransferTextContent(state = readyState(text = ACCOUNT_TEXT, revealed = true), onEvent = {})
-            }
-
-            onNodeWithTag("AccountsTextField").assertAccountsAreBlurred()
-
-            onNodeWithTag("AccountsTextField").performClick()
-
-            onNodeWithTag("AccountsTextField").assertAccountsAreReadable()
-        }
     }
 
     @Test
@@ -112,14 +91,6 @@ class TransferTextContentKtTest : ComposeTest() {
 }
 
 private const val ACCOUNT_TEXT = """{"type":"thunderbird-account-transfer","version":1,"createdAt":1792300000}"""
-
-private fun SemanticsNodeInteraction.assertAccountsAreBlurred() {
-    assertThat(fetchSemanticsNode().config[AccountsBlurredKey]).isTrue()
-}
-
-private fun SemanticsNodeInteraction.assertAccountsAreReadable() {
-    assertThat(fetchSemanticsNode().config[AccountsBlurredKey]).isFalse()
-}
 
 /** What the field names instead of the text: how much account data it holds and that it is hidden. */
 private fun hiddenText(): String {

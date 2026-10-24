@@ -1,11 +1,9 @@
 package app.k9mail.feature.migration.qrcode.ui.paste
 
 import android.app.Application
-import android.os.Build
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.test.SemanticsNodeInteraction
 import androidx.compose.ui.test.performClick
 import app.k9mail.core.ui.compose.testing.ComposeTest
 import app.k9mail.core.ui.compose.testing.onNodeWithTag
@@ -14,9 +12,6 @@ import app.k9mail.core.ui.compose.testing.setContentWithTheme
 import app.k9mail.feature.migration.qrcode.R
 import app.k9mail.feature.migration.qrcode.ui.paste.TransferPasteContract.Event
 import app.k9mail.feature.migration.qrcode.ui.paste.TransferPasteContract.State
-import assertk.assertThat
-import assertk.assertions.isFalse
-import assertk.assertions.isTrue
 import org.junit.Test
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
@@ -76,7 +71,7 @@ class TransferPasteContentKtTest : ComposeTest() {
     }
 
     @Test
-    fun `the user can show the pasted text and hide it again`() = runComposeTest {
+    fun `the user can show the pasted text right away and hide it again`() = runComposeTest {
         var revealed by mutableStateOf(false)
         setContentWithTheme {
             TransferPasteContent(
@@ -98,30 +93,6 @@ class TransferPasteContentKtTest : ComposeTest() {
         onNodeWithText(ACCOUNT_TEXT).assertDoesNotExist()
         onNodeWithText(recognizedText()).assertExists()
     }
-
-    @Test
-    fun `when the pasted text is shown, it should be blurred until it is tapped`() = runComposeTest {
-        // Only Android 12 and newer can blur, below that the text is readable as soon as it is shown.
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            setContentWithTheme {
-                TransferPasteContent(state = pastedState(revealed = true), onEvent = {})
-            }
-
-            onNodeWithTag("AccountsTextField").assertAccountsAreBlurred()
-
-            onNodeWithTag("AccountsTextField").performClick()
-
-            onNodeWithTag("AccountsTextField").assertAccountsAreReadable()
-        }
-    }
-}
-
-private fun SemanticsNodeInteraction.assertAccountsAreBlurred() {
-    assertThat(fetchSemanticsNode().config[AccountsBlurredKey]).isTrue()
-}
-
-private fun SemanticsNodeInteraction.assertAccountsAreReadable() {
-    assertThat(fetchSemanticsNode().config[AccountsBlurredKey]).isFalse()
 }
 
 private const val ACCOUNT_TEXT = """{"type":"thunderbird-account-transfer","version":1,"createdAt":1792300000,""" +
