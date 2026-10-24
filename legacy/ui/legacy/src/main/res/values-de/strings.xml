@@ -581,9 +581,11 @@
     <string name="dialog_confirm_spam_cancel_button">Nein</string>
     <string name="dialog_attachment_progress_title">Anhang wird heruntergeladen</string>
     <string name="settings_list_backup_category">Backup</string>
+    <string name="settings_list_transfer_category">Konten übertragen</string>
     <string name="settings_list_miscellaneous_category">Verschiedenes</string>
     <string name="settings_export_title">Einstellungen exportieren</string>
-    <string name="settings_copy_accounts_for_password_manager_title">Konten für Passwortmanager kopieren</string>
+    <string name="settings_transfer_send_title">Konten an anderes Gerät senden</string>
+    <string name="settings_transfer_receive_title">Konten von anderem Gerät übernehmen</string>
     <string name="settings_export_button">Export</string>
     <string name="settings_export_share_button">Teilen</string>
     <string name="settings_export_progress_text">Einstellungen werden exportiert…</string>
