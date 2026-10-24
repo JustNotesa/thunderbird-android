@@ -140,6 +140,7 @@ private fun AccountContent(
                 accounts = state.accounts,
                 selectedAccount = selectedAccount,
                 onAccountClick = { onEvent(Event.OnAccountClick(it)) },
+                onAccountAvatarClick = { onEvent(Event.OnAccountAvatarClick(it)) },
                 showStarredCount = state.config.showStarredCount,
                 modifier = Modifier.weight(1f),
             )

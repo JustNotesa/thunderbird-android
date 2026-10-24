@@ -206,6 +206,11 @@ internal class DrawerViewModel(
 
             is Event.OnAccountClick -> showAccountFolders(event.account)
 
+            is Event.OnAccountAvatarClick -> openAccount(
+                event.account,
+                closeDrawer = true,
+            )
+
             is Event.OnFolderClick -> openFolder(event.folder)
 
             is Event.OnAccountViewClick -> {
@@ -306,7 +311,12 @@ internal class DrawerViewModel(
         }
     }
 
-    private fun openAccount(account: DisplayAccount?) {
+    /**
+     * Opens the account. When [closeDrawer] is set, the drawer is always closed, no matter whether the account has an
+     * auto expand folder. This is used when the account's avatar is clicked, as the user expects to end up in the
+     * inbox of the account.
+     */
+    private fun openAccount(account: DisplayAccount?, closeDrawer: Boolean = false) {
         if (account != null) {
             // The user explicitly selected the unified account. The activity selects it again when the search is
             // displayed. Selecting it here makes sure that this doesn't get reverted.
@@ -324,7 +334,7 @@ internal class DrawerViewModel(
                         showAccountSelection = false,
                     )
                 }
-                if (account is MailDisplayAccount && account.hasAutoExpandFolder) {
+                if (closeDrawer || (account is MailDisplayAccount && account.hasAutoExpandFolder)) {
                     emitEffect(Effect.CloseDrawer)
                 }
             }
