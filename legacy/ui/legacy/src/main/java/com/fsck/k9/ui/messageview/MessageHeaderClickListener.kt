@@ -5,8 +5,6 @@ interface MessageHeaderClickListener {
     fun onMenuItemClick(itemId: Int)
     fun onViewAllAttachmentsClick()
 
-    /** The account label at the end of the subject was tapped, which opens the inbox of that account. */
-    fun onAccountLabelClick()
-
-    fun onFolderClick()
+    /** The label at the end of the subject was tapped, which brings the message back into view in the list. */
+    fun onLocationLabelClick()
 }

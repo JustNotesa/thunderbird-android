@@ -354,8 +354,8 @@
     <string name="message_view_no_viewer">Unable to find viewer for <xliff:g id="mimetype">%s</xliff:g>.</string>
     <string name="message_view_download_remainder">Download complete message</string>
     <string name="message_view_sender_label">via %1$s</string>
-    <!-- Accessibility action of the account label at the end of the subject in the message view -->
-    <string name="message_view_open_account_inbox_action">Open inbox of <xliff:g id="account">%s</xliff:g></string>
+    <!-- Accessibility action of the label at the end of the subject in the message view -->
+    <string name="message_view_show_in_list_action">Show in list</string>
 
     <string name="from_same_sender">More from this sender</string>
 

@@ -80,6 +80,12 @@ class MessageListAdapter internal constructor(
     private var messagesMap = emptyMap<Long, MessageListItem>()
     private var accountUuids = emptySet<String>()
 
+    /**
+     * The message that is to be highlighted in the list, e.g. the message the user just came from. The row is
+     * highlighted when it is bound.
+     */
+    private var messageToHighlight: MessageReference? = null
+
     var activeMessage: MessageReference? = null
         set(value) {
             if (value == field) return
@@ -306,6 +312,7 @@ class MessageListAdapter internal constructor(
                         isActive = isActiveMessage(messageListItem),
                         isSelected = isSelected(messageListItem),
                     )
+                    highlightMessageIfNeeded(messageViewHolder, messageListItem)
                 }
             }
 
@@ -330,9 +337,32 @@ class MessageListAdapter internal constructor(
     private fun isActiveMessage(item: MessageListItem): Boolean {
         val activeMessage = this.activeMessage ?: return false
 
-        return item.account.id == activeMessage.accountId &&
-            item.folderId == activeMessage.folderId &&
-            item.messageUid == activeMessage.uid
+        return isSameMessage(activeMessage, item)
+    }
+
+    /**
+     * Highlight the row of this message, so the user can see the message they came from. Nothing happens when the
+     * message is not in the list.
+     */
+    fun highlightMessage(messageReference: MessageReference) {
+        val position = getPosition(messageReference) ?: return
+
+        messageToHighlight = messageReference
+        notifyItemChanged(position)
+    }
+
+    private fun highlightMessageIfNeeded(holder: MessageViewHolder, item: MessageListItem) {
+        val messageToHighlight = messageToHighlight ?: return
+        if (!isSameMessage(messageToHighlight, item)) return
+
+        this.messageToHighlight = null
+        holder.highlight()
+    }
+
+    private fun isSameMessage(messageReference: MessageReference, item: MessageListItem): Boolean {
+        return item.account.id == messageReference.accountId &&
+            item.folderId == messageReference.folderId &&
+            item.messageUid == messageReference.uid
     }
 
     private fun MessageListItem.withFormattedDate(): MessageListItem {

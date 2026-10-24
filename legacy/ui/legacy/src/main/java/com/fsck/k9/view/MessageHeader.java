@@ -4,7 +4,6 @@ package com.fsck.k9.view;
 import java.util.List;
 
 import android.content.Context;
-import android.content.res.ColorStateList;
 import android.text.Layout;
 import android.util.AttributeSet;
 import android.view.MotionEvent;
@@ -40,7 +39,6 @@ import com.fsck.k9.ui.messageview.DisplayRecipientsExtractor;
 import com.fsck.k9.ui.messageview.MessageHeaderClickListener;
 import com.fsck.k9.ui.messageview.MessageViewRecipientFormatter;
 import com.fsck.k9.ui.messageview.RecipientNamesView;
-import com.google.android.material.chip.Chip;
 import com.google.android.material.textview.MaterialTextView;
 import net.thunderbird.core.android.account.LegacyAccount;
 import net.thunderbird.core.common.mail.Flag;
@@ -58,7 +56,7 @@ public class MessageHeader extends LinearLayout implements OnClickListener, OnLo
     private static final int ACCOUNT_LABEL_TOUCH_SLOP_DP = 8;
 
     // The ids of the accessibility actions of the framework are taken; 0x01xxxxxx is the range for our own.
-    private static final int ACTION_ID_OPEN_ACCOUNT_INBOX = 0x01000001;
+    private static final int ACTION_ID_SHOW_IN_LIST = 0x01000001;
 
     private final MessageViewRecipientFormatter recipientFormatter = DI.get(MessageViewRecipientFormatter.class);
     private final MessageListPreferencesManager messageListPreferencesManager =
@@ -68,8 +66,6 @@ public class MessageHeader extends LinearLayout implements OnClickListener, OnLo
     private final FontSizes fontSizes = K9.getFontSizes();
 
     private final SubjectTextBuilder subjectText = new SubjectTextBuilder();
-    private View headerChipsView;
-    private Chip folderNameView;
     private BottomBaselineTextView subjectView;
     private ImageView starView;
     private ImageView contactPictureView;
@@ -102,9 +98,6 @@ public class MessageHeader extends LinearLayout implements OnClickListener, OnLo
     protected void onFinishInflate() {
         super.onFinishInflate();
 
-        headerChipsView = findViewById(R.id.header_chips);
-        folderNameView = findViewById(R.id.folder_name);
-        folderNameView.setOnClickListener(this);
         subjectView = findViewById(R.id.subject);
         starView = findViewById(R.id.flagged);
         contactPictureView = findViewById(R.id.contact_picture);
@@ -113,7 +106,6 @@ public class MessageHeader extends LinearLayout implements OnClickListener, OnLo
         recipientNamesView = findViewById(R.id.recipients);
         dateView = findViewById(R.id.date);
 
-        fontSizes.setViewTextSize(folderNameView, fontSizes.getMessageViewAccountName());
         fontSizes.setViewTextSize(subjectView, fontSizes.getMessageViewSubject());
         fontSizes.setViewTextSize(dateView, fontSizes.getMessageViewDate());
         fontSizes.setViewTextSize(fromView, fontSizes.getMessageViewSender());
@@ -168,8 +160,6 @@ public class MessageHeader extends LinearLayout implements OnClickListener, OnLo
             messageHeaderClickListener.onParticipantsContainerClick();
         } else if (id == R.id.view_all_attachments || id == R.id.attachment_summary_container) {
             messageHeaderClickListener.onViewAllAttachmentsClick();
-        } else if (id == R.id.folder_name) {
-            messageHeaderClickListener.onFolderClick();
         }
     }
 
@@ -226,7 +216,7 @@ public class MessageHeader extends LinearLayout implements OnClickListener, OnLo
 
     private void onSubjectClick() {
         if (isTouchOnAccountLabel()) {
-            messageHeaderClickListener.onAccountLabelClick();
+            messageHeaderClickListener.onLocationLabelClick();
         } else {
             toggleSubjectViewMaxLines();
         }
@@ -251,20 +241,19 @@ public class MessageHeader extends LinearLayout implements OnClickListener, OnLo
             touchSlop);
     }
 
-    private void updateAccountLabelAccessibilityAction() {
-        ViewCompat.removeAccessibilityAction(subjectView, ACTION_ID_OPEN_ACCOUNT_INBOX);
+    private void updateLocationLabelAccessibilityAction() {
+        ViewCompat.removeAccessibilityAction(subjectView, ACTION_ID_SHOW_IN_LIST);
 
-        AccountLabel accountLabel = subjectText.accountLabel();
-        if (accountLabel == null) {
+        LocationLabel locationLabel = subjectText.locationLabel();
+        if (locationLabel == null) {
             return;
         }
 
-        CharSequence label = getContext().getString(R.string.message_view_open_account_inbox_action,
-            accountLabel.getName());
+        CharSequence label = getContext().getString(R.string.message_view_show_in_list_action);
         AccessibilityNodeInfoCompat.AccessibilityActionCompat action =
-            new AccessibilityNodeInfoCompat.AccessibilityActionCompat(ACTION_ID_OPEN_ACCOUNT_INBOX, label);
+            new AccessibilityNodeInfoCompat.AccessibilityActionCompat(ACTION_ID_SHOW_IN_LIST, label);
         ViewCompat.replaceAccessibilityAction(subjectView, action, label, (view, arguments) -> {
-            messageHeaderClickListener.onAccountLabelClick();
+            messageHeaderClickListener.onLocationLabelClick();
             return true;
         });
     }
@@ -286,34 +275,19 @@ public class MessageHeader extends LinearLayout implements OnClickListener, OnLo
 
     /**
      * @param folderName
-     *         The name of the folder the message is stored in, or {@code null} to not display it. Clicking it opens
-     *         the folder.
+     *         The name of the folder the message is stored in, or {@code null} if the user doesn't need to know.
      */
     public void populate(final Message message, final LegacyAccount account, boolean showStar,
         boolean showAccountIndicator, @Nullable String folderName) {
         int accountColorValue = account.getProfile().getColor();
-        ColorStateList accountColor = ColorStateList.valueOf(accountColorValue);
-        if (showAccountIndicator) {
-            subjectText.setAccountLabel(new AccountLabel(getDisplayName(account), accountColorValue));
+        // Where the message is, is shown in one place: the label at the end of the subject.
+        if (showAccountIndicator || folderName != null) {
+            String accountName = showAccountIndicator ? getDisplayName(account) : null;
+            subjectText.setLocationLabel(new LocationLabel(accountName, folderName, accountColorValue));
         } else {
-            subjectText.setAccountLabel(null);
+            subjectText.setLocationLabel(null);
         }
         updateSubjectView();
-
-        if (folderName != null) {
-            folderNameView.setVisibility(View.VISIBLE);
-            folderNameView.setText(folderName);
-            folderNameView.setContentDescription(
-                    getContext().getString(R.string.message_list_content_description_open_folder, folderName));
-            folderNameView.setTextColor(accountColor);
-            folderNameView.setChipIconTint(accountColor);
-            folderNameView.setChipStrokeColor(accountColor);
-        } else {
-            folderNameView.setVisibility(View.GONE);
-        }
-
-        // The account is a label after the subject, so the row of chips is only there for the folder.
-        headerChipsView.setVisibility(folderName != null ? View.VISIBLE : View.GONE);
 
         Address fromAddress = null;
         Address[] fromAddresses = message.getFrom();
@@ -445,7 +419,7 @@ public class MessageHeader extends LinearLayout implements OnClickListener, OnLo
 
     private void updateSubjectView() {
         subjectView.setText(subjectText.build(getContext()));
-        updateAccountLabelAccessibilityAction();
+        updateLocationLabelAccessibilityAction();
     }
 
     public void hideCryptoStatus() {

@@ -42,7 +42,6 @@ import app.k9mail.legacy.message.controller.MessageReference
 import app.k9mail.legacy.ui.folder.FolderNameFormatter
 import com.eygraber.uri.toKmpUri
 import com.fsck.k9.activity.MessageCompose
-import com.fsck.k9.activity.MessageHomeActivity
 import com.fsck.k9.activity.MessageLoaderHelper
 import com.fsck.k9.activity.MessageLoaderHelper.MessageLoaderCallbacks
 import com.fsck.k9.activity.MessageLoaderHelperFactory
@@ -646,16 +645,8 @@ class MessageViewFragment :
             showAttachmentListBottomSheet()
         }
 
-        override fun onAccountLabelClick() {
-            val fragment = this@MessageViewFragment
-
-            if (fragment::account.isInitialized) {
-                MessageHomeActivity.launch(requireContext(), fragment.account.id)
-            }
-        }
-
-        override fun onFolderClick() {
-            fragmentListener.showMessageFolder(messageReference)
+        override fun onLocationLabelClick() {
+            fragmentListener.showMessageInList(messageReference)
         }
     }
 
@@ -1214,6 +1205,9 @@ class MessageViewFragment :
         fun performNavigationAfterMessageRemoval()
         fun performNavigationAfterMarkAsUnread()
         fun showMessageFolder(messageReference: MessageReference)
+
+        /** Go back to the list the message was opened from and show the message there. */
+        fun showMessageInList(messageReference: MessageReference)
     }
 
     private val messageLoaderCallbacks: MessageLoaderCallbacks = object : MessageLoaderCallbacks {

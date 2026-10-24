@@ -11,10 +11,10 @@ import kotlin.math.max
 import kotlin.math.roundToInt
 
 /**
- * The account a message belongs to, drawn as a small pill at the end of the subject line instead of on a row of its
- * own.
+ * Where a message is, drawn as a small pill at the end of the subject line instead of on a row of its own. The pill
+ * holds the name of the account the message was received on and/or the name of the folder it is stored in.
  *
- * The account colour appears as a dot in front of the account name; the name itself is written in the colour of the
+ * The account colour appears as a dot in front of the name; the name itself is written in the colour of the
  * surrounding text, so that it stays a label and does not become a badge.
  */
 internal class AccountLabelSpan(

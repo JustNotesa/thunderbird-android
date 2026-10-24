@@ -19,6 +19,7 @@ import org.junit.Test
 import org.robolectric.annotation.GraphicsMode
 
 private const val ACCOUNT_NAME = "Privat"
+private const val FOLDER_NAME = "Posteingang"
 private const val SUBJECT = "Lieferung verzoegert sich"
 private const val LONG_SUBJECT = "Die Lieferung der bestellten Ware hat sich wieder verzögert, weil der Zug " +
     "aus dem Nachbarland erst gestern wieder den Betrieb aufgenommen hat"
@@ -30,8 +31,8 @@ private const val VIEW_PADDING = 4
 private const val TOUCH_SLOP = 8
 
 /**
- * The account a message belongs to is a label at the end of the subject. A tap on it opens the inbox of that account,
- * a tap on the subject itself shows the rest of the subject.
+ * Where a message is, is shown in one place: a label at the end of the subject. A tap on it brings the message back
+ * into view in the list, a tap on the subject itself shows the rest of the subject.
  */
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 class AccountLabelHitTestTest : RobolectricTest() {
@@ -129,6 +130,20 @@ class AccountLabelHitTestTest : RobolectricTest() {
         assertThat(isTouchOnLabel(layout, text, touchX, touchY)).isTrue()
     }
 
+    @Test
+    fun `a tap on the folder name of the combined label should be on it`() {
+        // Arrange
+        val text = builderWithAccountAndFolder(SUBJECT).build(context)
+        val layout = layoutOf(text)
+
+        // Act: the folder name is at the end of the pill
+        val touchX = spanLeft(layout, text).toInt() + spanWidth(text) - 1
+        val touchY = lineCentre(layout, lineOfLabel(layout, text))
+
+        // Assert
+        assertThat(isTouchOnLabel(layout, text, touchX, touchY)).isTrue()
+    }
+
     /** A tap at this position in the text, which the view reports at the given padding. */
     private fun isTouchOnLabel(layout: Layout, text: CharSequence, textX: Int, textY: Int): Boolean {
         return AccountLabelHitTest.isTouchOnAccountLabel(
@@ -145,7 +160,15 @@ class AccountLabelHitTestTest : RobolectricTest() {
     private fun builderWithLabel(subject: String): SubjectTextBuilder {
         val testSubject = SubjectTextBuilder()
         testSubject.setSubject(subject)
-        testSubject.setAccountLabel(AccountLabel(ACCOUNT_NAME, ACCOUNT_COLOR))
+        testSubject.setLocationLabel(LocationLabel(ACCOUNT_NAME, null, ACCOUNT_COLOR))
+
+        return testSubject
+    }
+
+    private fun builderWithAccountAndFolder(subject: String): SubjectTextBuilder {
+        val testSubject = SubjectTextBuilder()
+        testSubject.setSubject(subject)
+        testSubject.setLocationLabel(LocationLabel(ACCOUNT_NAME, FOLDER_NAME, ACCOUNT_COLOR))
 
         return testSubject
     }

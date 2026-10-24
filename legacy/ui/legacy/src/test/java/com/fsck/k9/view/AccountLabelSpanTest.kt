@@ -23,8 +23,12 @@ import org.robolectric.annotation.GraphicsMode
 import kotlin.math.roundToInt
 
 private const val ACCOUNT_NAME = "Privat"
+private const val FOLDER_NAME = "Posteingang"
 private const val SUBJECT = "Lieferung verzoegert sich"
 private const val ACCOUNT_COLOR = Color.RED
+
+// The separator between the account and the folder, with the spaces that don't break the pill.
+private const val LABEL_SEPARATOR = "\u00A0·\u00A0"
 
 // The label as it is laid out on the screen, in the pixels of the default density.
 private const val GAP_BEFORE = 8
@@ -42,8 +46,8 @@ private const val SUBJECT_TEXT_SIZE_SP = 24f
 private val PILL_SURFACE = MaterialR.attr.colorSurfaceContainerHigh
 
 /**
- * The account a message belongs to is a label at the end of the subject, not a chip on a row of its own: a pill that
- * carries the account colour as a dot and leaves the line of the subject the height it was.
+ * Where a message is, is shown in one place: a label at the end of the subject that carries the account the message
+ * was received on and/or the folder it is stored in.
  */
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 class AccountLabelSpanTest : RobolectricTest() {
@@ -117,7 +121,7 @@ class AccountLabelSpanTest : RobolectricTest() {
     @Test
     fun `the subject should carry the name of the account so that it is read out`() {
         // Arrange
-        val testSubject = builderWithLabel()
+        val testSubject = builderWithAccount()
 
         // Act
         val text = testSubject.build(context)
@@ -130,10 +134,71 @@ class AccountLabelSpanTest : RobolectricTest() {
     }
 
     @Test
+    fun `the label should show the account and the folder`() {
+        // Arrange
+        val testSubject = builderWithAccountAndFolder()
+
+        // Act
+        val text = testSubject.build(context)
+        val spans = spansOf(text)
+
+        // Assert
+        assertThat(text.toString()).isEqualTo("$SUBJECT $ACCOUNT_NAME$LABEL_SEPARATOR$FOLDER_NAME")
+        assertThat(spans).hasSize(1)
+        assertThat(coveredText(text, spans.first()).toString())
+            .isEqualTo("$ACCOUNT_NAME$LABEL_SEPARATOR$FOLDER_NAME")
+    }
+
+    @Test
+    fun `the label should show only the account`() {
+        // Arrange
+        val testSubject = builderWithAccount()
+
+        // Act
+        val text = testSubject.build(context)
+        val spans = spansOf(text)
+
+        // Assert
+        assertThat(text.toString()).isEqualTo("$SUBJECT $ACCOUNT_NAME")
+        assertThat(spans).hasSize(1)
+        assertThat(coveredText(text, spans.first()).toString()).isEqualTo(ACCOUNT_NAME)
+    }
+
+    @Test
+    fun `the label should show only the folder`() {
+        // Arrange
+        val testSubject = builderWithFolder()
+
+        // Act
+        val text = testSubject.build(context)
+        val spans = spansOf(text)
+
+        // Assert
+        assertThat(text.toString()).isEqualTo("$SUBJECT $FOLDER_NAME")
+        assertThat(spans).hasSize(1)
+        assertThat(coveredText(text, spans.first()).toString()).isEqualTo(FOLDER_NAME)
+    }
+
+    @Test
+    fun `there should be no label when there is neither an account nor a folder`() {
+        // Arrange
+        val testSubject = SubjectTextBuilder()
+        testSubject.setSubject(SUBJECT)
+        testSubject.setLocationLabel(LocationLabel(null, null, ACCOUNT_COLOR))
+
+        // Act
+        val text = testSubject.build(context)
+
+        // Assert
+        assertThat(text.toString()).isEqualTo(SUBJECT)
+        assertThat(spansOf(text)).isEmpty()
+    }
+
+    @Test
     fun `the name of the account should show up when it is set before the subject`() {
         // Arrange
         val testSubject = SubjectTextBuilder()
-        testSubject.setAccountLabel(AccountLabel(ACCOUNT_NAME, ACCOUNT_COLOR))
+        testSubject.setLocationLabel(LocationLabel(ACCOUNT_NAME, null, ACCOUNT_COLOR))
 
         // Act
         testSubject.setSubject(SUBJECT)
@@ -159,7 +224,7 @@ class AccountLabelSpanTest : RobolectricTest() {
     @Test
     fun `copying the subject should leave the name of the account out`() {
         // Arrange
-        val testSubject = builderWithLabel()
+        val testSubject = builderWithAccount()
 
         // Act
         val clipboardText = testSubject.clipboardText()
@@ -168,10 +233,26 @@ class AccountLabelSpanTest : RobolectricTest() {
         assertThat(clipboardText).isEqualTo(SUBJECT)
     }
 
-    private fun builderWithLabel(): SubjectTextBuilder {
+    private fun builderWithAccount(): SubjectTextBuilder {
         val testSubject = SubjectTextBuilder()
         testSubject.setSubject(SUBJECT)
-        testSubject.setAccountLabel(AccountLabel(ACCOUNT_NAME, ACCOUNT_COLOR))
+        testSubject.setLocationLabel(LocationLabel(ACCOUNT_NAME, null, ACCOUNT_COLOR))
+
+        return testSubject
+    }
+
+    private fun builderWithFolder(): SubjectTextBuilder {
+        val testSubject = SubjectTextBuilder()
+        testSubject.setSubject(SUBJECT)
+        testSubject.setLocationLabel(LocationLabel(null, FOLDER_NAME, ACCOUNT_COLOR))
+
+        return testSubject
+    }
+
+    private fun builderWithAccountAndFolder(): SubjectTextBuilder {
+        val testSubject = SubjectTextBuilder()
+        testSubject.setSubject(SUBJECT)
+        testSubject.setLocationLabel(LocationLabel(ACCOUNT_NAME, FOLDER_NAME, ACCOUNT_COLOR))
 
         return testSubject
     }

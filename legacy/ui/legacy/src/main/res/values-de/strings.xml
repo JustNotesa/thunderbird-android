@@ -260,8 +260,8 @@
     <string name="message_view_no_viewer">Es wurde kein Anzeigeprogramm für <xliff:g id="mimetype">%s</xliff:g> gefunden.</string>
     <string name="message_view_download_remainder">Gesamte Nachricht herunterladen</string>
     <string name="message_view_sender_label">über %1$s</string>
-    <!-- Accessibility action of the account label at the end of the subject in the message view -->
-    <string name="message_view_open_account_inbox_action">Posteingang von <xliff:g id="account">%s</xliff:g> öffnen</string>
+    <!-- Accessibility action of the label at the end of the subject in the message view -->
+    <string name="message_view_show_in_list_action">In der Liste zeigen</string>
     <string name="from_same_sender">Mehr von diesem Absender</string>
     <string name="message_discarded_toast">Nachricht wurde verworfen</string>
     <string name="message_saved_toast">Nachricht wurde als Entwurf gespeichert</string>

@@ -1,5 +1,6 @@
 package com.fsck.k9.ui.messagelist.item
 
+import android.animation.ValueAnimator
 import android.content.res.ColorStateList
 import android.content.res.Resources
 import android.graphics.Typeface
@@ -78,6 +79,7 @@ class MessageViewHolder(
     val folderNameClickAreaView: View = view.findViewById(R.id.folder_name_click_area)
 
     private val itemBackground = MessageListItemBackground(res, colors.regularBackground)
+    private var highlightAnimator: ValueAnimator? = null
 
     init {
         itemView.background = itemBackground.drawable
@@ -137,6 +139,7 @@ class MessageViewHolder(
             if (appearance.showContactPicture && contactPictureView.isVisible) {
                 setContactPicture(contactPictureView, displayAddress)
             }
+            stopHighlight()
             itemBackground.setColor(selectBackgroundColor(isSelected, isRead, isActive))
             updateWithThreadCount(displayThreadCount)
             val beforePreviewText = if (appearance.senderAboveSubject) subject else displayName
@@ -180,6 +183,19 @@ class MessageViewHolder(
 
             bindFolder(account, folderName)
         }
+    }
+
+    /**
+     * Briefly highlight the row, so the user can see the message they came from.
+     */
+    fun highlight() {
+        stopHighlight()
+        highlightAnimator = itemBackground.pulse(colors.activeBackground)
+    }
+
+    private fun stopHighlight() {
+        highlightAnimator?.cancel()
+        highlightAnimator = null
     }
 
     private fun bindFolder(account: LegacyAccount, folderName: String?) {

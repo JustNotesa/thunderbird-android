@@ -165,6 +165,7 @@ private const val TAG = "BaseMessageListFragment"
 class LegacyMessageListFragment :
     Fragment(),
     MessageListFragmentBridgeContract,
+    MessageListHighlighter,
     ConfirmationDialogFragmentListener,
     MessageListItemActionListener,
     ErrorNotificationsDialogFragmentActionListener {
@@ -2804,6 +2805,14 @@ class LegacyMessageListFragment :
         }
     }
 
+    /**
+     * Bring the message into view and highlight it, so the user can see the message they came from.
+     */
+    override fun highlightMessage(messageReference: MessageReference) {
+        scrollToMessage(messageReference)
+        adapter.highlightMessage(messageReference)
+    }
+
     private val isMarkAllAsReadSupported: Boolean
         get() = isSingleAccountMode && isSingleFolderMode && !isOutbox
 
@@ -3510,4 +3519,12 @@ class LegacyMessageListFragment :
         protected const val STATE_SEARCH_VIEW_QUERY = "searchViewQuery"
         protected const val STATE_SEARCH_VIEW_ICONIFIED = "searchViewIconified"
     }
+}
+
+/**
+ * A message list that can bring one of its messages into view and highlight it, so the user can see the message they
+ * just came from.
+ */
+interface MessageListHighlighter {
+    fun highlightMessage(messageReference: MessageReference)
 }

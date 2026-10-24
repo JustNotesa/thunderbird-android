@@ -22,7 +22,6 @@ import androidx.recyclerview.widget.RecyclerView
 import androidx.recyclerview.widget.RecyclerView.OnScrollListener
 import app.k9mail.core.ui.legacy.designsystem.atom.icon.Icons
 import app.k9mail.legacy.message.controller.MessageReference
-import app.k9mail.legacy.ui.folder.FolderIconProvider
 import app.k9mail.ui.utils.bottomsheet.ToolbarBottomSheetDialog
 import app.k9mail.ui.utils.bottomsheet.ToolbarBottomSheetDialogFragment
 import com.fsck.k9.activity.MessageCompose
@@ -39,7 +38,6 @@ import com.mikepenz.fastadapter.listeners.ClickEventHook
 import net.thunderbird.legacy.logging.Log
 import org.koin.android.ext.android.inject
 import org.koin.androidx.viewmodel.ext.android.viewModel
-import org.koin.core.parameter.parametersOf
 import org.openintents.openpgp.util.OpenPgpIntentStarter
 
 private const val TAG = "MessageDetailsFragment"
@@ -49,7 +47,6 @@ class MessageDetailsFragment : ToolbarBottomSheetDialogFragment() {
     private val addToContactsLauncher: AddToContactsLauncher by inject()
     private val showContactLauncher: ShowContactLauncher by inject()
     private val contactPictureLoader: ContactPictureLoader by inject()
-    private val folderIconProvider: FolderIconProvider by inject { parametersOf(requireContext().theme) }
 
     private lateinit var messageReference: MessageReference
     private val itemAdapter = ItemAdapter<GenericItem>()
@@ -172,8 +169,6 @@ class MessageDetailsFragment : ToolbarBottomSheetDialogFragment() {
             addParticipants(details.to, R.string.message_details_to_section_title, appearance)
             addParticipants(details.cc, R.string.message_details_cc_section_title, appearance)
             addParticipants(details.bcc, R.string.message_details_bcc_section_title, appearance)
-
-            addFolderName(details.folder)
         }
 
         // Use list index as stable identifier. This means changes to the list may only update existing items or add
@@ -212,18 +207,6 @@ class MessageDetailsFragment : ToolbarBottomSheetDialogFragment() {
                     ),
                 )
             }
-        }
-    }
-
-    private fun MutableList<GenericItem>.addFolderName(folder: FolderInfoUi?) {
-        if (folder != null) {
-            val folderNameItem = FolderNameItem(
-                displayName = folder.displayName,
-                iconResourceId = folderIconProvider.getFolderIcon(folder.type),
-            )
-            add(folderNameItem)
-        } else {
-            add(EmptyItem())
         }
     }
 

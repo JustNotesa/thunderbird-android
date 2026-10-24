@@ -1,5 +1,6 @@
 package com.fsck.k9.ui.messagelist.item
 
+import android.animation.ValueAnimator
 import android.content.res.Resources
 import android.graphics.Rect
 import android.graphics.drawable.Drawable
@@ -15,6 +16,7 @@ import com.fsck.k9.ui.R
  */
 internal class MessageListItemBackground(res: Resources, color: Int) {
     private val shape = GradientDrawable()
+    private var color: Int = color
 
     val drawable: Drawable
 
@@ -27,7 +29,28 @@ internal class MessageListItemBackground(res: Resources, color: Int) {
     }
 
     fun setColor(color: Int) {
+        this.color = color
         shape.setColor(color)
+    }
+
+    /**
+     * Fade the background to [highlightColor] and back to the color of the row, so that it stands out for a moment.
+     *
+     * @return the animation, so that it can be stopped when the row is used for another message.
+     */
+    fun pulse(highlightColor: Int, durationMillis: Long = PULSE_DURATION_MILLIS): ValueAnimator {
+        val animator = ValueAnimator.ofArgb(color, highlightColor, color)
+        animator.duration = durationMillis
+        animator.addUpdateListener { animation ->
+            shape.setColor(animation.animatedValue as Int)
+        }
+        animator.start()
+
+        return animator
+    }
+
+    private companion object {
+        const val PULSE_DURATION_MILLIS = 1200L
     }
 }
 

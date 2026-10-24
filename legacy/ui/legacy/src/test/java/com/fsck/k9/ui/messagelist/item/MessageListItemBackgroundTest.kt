@@ -6,18 +6,26 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Rect
 import android.graphics.drawable.Drawable
+import android.os.Looper
 import androidx.test.core.app.ApplicationProvider
 import assertk.assertThat
 import assertk.assertions.isEqualTo
+import assertk.assertions.isGreaterThan
 import assertk.assertions.isSameInstanceAs
 import com.fsck.k9.ui.R
+import java.time.Duration
 import net.thunderbird.core.android.testing.RobolectricTest
 import org.junit.Test
+import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.GraphicsMode
 
 private const val WIDTH = 200
 private const val HEIGHT = 60
 private const val CLEAR = 0
+private const val PULSE_DURATION_MILLIS = 1200L
+
+// The blue channel of the highlight color, which the row has to reach at the height of the animation.
+private const val HIGHLIGHT_BLUE_CHANNEL = 100
 
 /**
  * What the background of a message list row looks like on screen: it holds the state colour of the row, and it is
@@ -92,6 +100,35 @@ class MessageListItemBackgroundTest : RobolectricTest() {
         // Assert
         assertThat(testSubject.drawable).isSameInstanceAs(drawable)
         assertThat(draw(drawable).getPixel(WIDTH / 2, HEIGHT / 2)).isEqualTo(Color.BLUE)
+    }
+
+    @Test
+    fun `the highlight should fade to the highlight color and back`() {
+        // Arrange
+        val testSubject = MessageListItemBackground(context.resources, Color.RED)
+        val colors = mutableListOf<Int>()
+
+        // Act
+        val animator = testSubject.pulse(Color.BLUE, durationMillis = PULSE_DURATION_MILLIS)
+        animator.addUpdateListener { colors += it.animatedValue as Int }
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(PULSE_DURATION_MILLIS * 2))
+
+        // Assert: the row went to the highlight color and back to the color it had
+        assertThat(colors.maxOf { Color.blue(it) }).isGreaterThan(HIGHLIGHT_BLUE_CHANNEL)
+        assertThat(colors.last()).isEqualTo(Color.RED)
+    }
+
+    @Test
+    fun `the highlight should end with the color the row had`() {
+        // Arrange
+        val testSubject = MessageListItemBackground(context.resources, Color.RED)
+
+        // Act
+        testSubject.pulse(Color.BLUE, durationMillis = PULSE_DURATION_MILLIS)
+        shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(PULSE_DURATION_MILLIS * 2))
+
+        // Assert
+        assertThat(draw(testSubject.drawable).getPixel(WIDTH / 2, HEIGHT / 2)).isEqualTo(Color.RED)
     }
 
     /** [drawable] painted on its own, so that the tests can see where and in which color it lands. */

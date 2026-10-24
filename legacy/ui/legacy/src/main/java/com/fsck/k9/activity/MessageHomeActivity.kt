@@ -48,6 +48,7 @@ import com.fsck.k9.ui.messagelist.DefaultFolderProvider
 import com.fsck.k9.ui.messagelist.FolderOrigin
 import com.fsck.k9.ui.messagelist.MessageListFragmentBridgeContract
 import com.fsck.k9.ui.messagelist.MessageListFragmentBridgeContract.MessageListFragmentListener
+import com.fsck.k9.ui.messagelist.MessageListHighlighter
 import com.fsck.k9.ui.messagelist.createManualQuerySearch
 import com.fsck.k9.ui.messagelist.unifiedFolderTitle
 import com.fsck.k9.ui.messageview.MessageViewContainerFragment
@@ -1118,6 +1119,18 @@ open class MessageHomeActivity :
 
     override fun showMessageFolder(messageReference: MessageReference) {
         showFolder(messageReference.accountId, messageReference.folderId, FolderOrigin.MESSAGE)
+    }
+
+    /**
+     * Go back to the list the message was opened from and show the message there, so the user can see where it is.
+     */
+    override fun showMessageInList(messageReference: MessageReference) {
+        if (displayMode != DisplayMode.SPLIT_VIEW) {
+            // This is the way back from a message, the same way the back button and the up button do it.
+            showMessageList()
+        }
+
+        (messageListFragment as? MessageListHighlighter)?.highlightMessage(messageReference)
     }
 
     private fun showFolder(accountId: AccountId, folderId: Long, origin: FolderOrigin) {

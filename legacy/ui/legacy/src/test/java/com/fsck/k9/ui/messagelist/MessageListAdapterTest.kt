@@ -13,6 +13,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.compose.runtime.Composable
 import androidx.core.view.isGone
 import androidx.core.view.isVisible
+import app.k9mail.legacy.message.controller.MessageReference
 import assertk.Assert
 import assertk.assertThat
 import assertk.assertions.isEmpty
@@ -29,6 +30,7 @@ import com.fsck.k9.mail.AuthType
 import com.fsck.k9.mail.ConnectionSecurity
 import com.fsck.k9.mail.ServerSettings
 import com.fsck.k9.ui.R
+import com.fsck.k9.ui.messagelist.item.MessageViewHolder
 import com.google.android.material.textview.MaterialTextView
 import kotlin.time.ExperimentalTime
 import net.thunderbird.core.android.account.Identity
@@ -46,6 +48,7 @@ import net.thunderbird.feature.account.storage.profile.AvatarTypeDto
 import net.thunderbird.feature.account.storage.profile.ProfileDto
 import org.junit.Test
 import org.mockito.kotlin.mock
+import org.mockito.kotlin.never
 import org.mockito.kotlin.verify
 import org.robolectric.Robolectric
 import org.robolectric.Shadows.shadowOf
@@ -518,6 +521,32 @@ class MessageListAdapterTest : RobolectricTest() {
         holder.itemView.findViewById<View>(R.id.search_contents_button).performClick()
 
         verify(listItemListener).onSearchMessageContentsClicked()
+    }
+
+    @Test
+    fun `highlighting a message should highlight its row when it is bound`() {
+        val adapter = createAdapter()
+        val messageListItem = createMessageListItem()
+        adapter.viewItems = listOf(MessageListViewItem.Message(messageListItem))
+        val viewHolder = mock<MessageViewHolder>()
+
+        adapter.highlightMessage(messageListItem.messageReference)
+        adapter.onBindViewHolder(viewHolder, 0)
+
+        verify(viewHolder).highlight()
+    }
+
+    @Test
+    fun `highlighting a message that is not in the list should not highlight a row`() {
+        val adapter = createAdapter()
+        val messageListItem = createMessageListItem()
+        adapter.viewItems = listOf(MessageListViewItem.Message(messageListItem))
+        val viewHolder = mock<MessageViewHolder>()
+
+        adapter.highlightMessage(MessageReference(SOME_ACCOUNT_ID, folderId = 1L, uid = "other"))
+        adapter.onBindViewHolder(viewHolder, 0)
+
+        verify(viewHolder, never()).highlight()
     }
 
     fun createAdapter(

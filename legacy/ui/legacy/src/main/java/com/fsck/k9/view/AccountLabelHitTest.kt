@@ -5,8 +5,9 @@ import android.text.Layout
 import android.text.Spanned
 
 /**
- * Whether a tap on the subject of a message was on the account label at its end. That opens the inbox of the account
- * the message was received on, while a tap anywhere else on the subject shows all of it.
+ * Whether a tap on the subject of a message was on the label at its end that tells the user where the message is.
+ * That brings the message back into view in the list it was opened from, while a tap anywhere else on the subject
+ * shows all of it.
  *
  * The label is a small pill inside the line of the subject it is on, so the whole height of that line counts as the
  * target of the tap, with a little more around it.
