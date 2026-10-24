@@ -12,6 +12,7 @@ internal fun AccountListItemPreview() {
         AccountListItem(
             account = MAIL_DISPLAY_ACCOUNT,
             onClick = { },
+            onAvatarClick = { },
             selected = false,
             showStarredCount = false,
         )
@@ -25,6 +26,7 @@ internal fun AccountListItemSelectedPreview() {
         AccountListItem(
             account = MAIL_DISPLAY_ACCOUNT,
             onClick = { },
+            onAvatarClick = { },
             selected = true,
             showStarredCount = false,
         )
@@ -38,6 +40,7 @@ internal fun AccountListItemWithErrorPreview() {
         AccountListItem(
             account = MAIL_DISPLAY_ACCOUNT.copy(hasError = true),
             onClick = { },
+            onAvatarClick = { },
             selected = false,
             showStarredCount = false,
         )
@@ -51,6 +54,7 @@ internal fun AccountListItemSelectedWithErrorPreview() {
         AccountListItem(
             account = MAIL_DISPLAY_ACCOUNT.copy(hasError = true),
             onClick = { },
+            onAvatarClick = { },
             selected = true,
             showStarredCount = false,
         )

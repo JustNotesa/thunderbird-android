@@ -7,6 +7,7 @@
     <string name="navigation_drawer_dropdown_action_sync_all_accounts">Sync all accounts</string>
     <string name="navigation_drawer_dropdown_action_sync_account">Sync account</string>
     <string name="navigation_drawer_dropdown_action_add_account">Add account</string>
+    <string name="navigation_drawer_dropdown_account_open_inbox_action">Open inbox</string>
     <string name="navigation_drawer_dropdown_unified_inbox_title">Inbox</string>
     <string name="navigation_drawer_dropdown_unified_drafts_title">Drafts</string>
     <string name="navigation_drawer_dropdown_unified_sent_title">Sent</string>

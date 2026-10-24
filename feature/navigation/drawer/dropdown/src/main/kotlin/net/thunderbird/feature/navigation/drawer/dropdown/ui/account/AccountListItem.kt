@@ -1,12 +1,20 @@
 package net.thunderbird.feature.navigation.drawer.dropdown.ui.account
 
 import androidx.compose.animation.Crossfade
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -19,6 +27,7 @@ import net.thunderbird.components.ui.bolt.organism.drawer.NavigationDrawerItem
 import net.thunderbird.components.ui.bolt.theme.BoltTheme
 import net.thunderbird.feature.account.avatar.ui.Avatar
 import net.thunderbird.feature.account.avatar.ui.AvatarSize
+import net.thunderbird.feature.navigation.drawer.dropdown.R
 import net.thunderbird.feature.navigation.drawer.dropdown.domain.entity.DisplayAccount
 import net.thunderbird.feature.navigation.drawer.dropdown.domain.entity.MailDisplayAccount
 import net.thunderbird.feature.navigation.drawer.dropdown.ui.common.getDisplayAccountAvatar
@@ -29,13 +38,11 @@ import net.thunderbird.feature.navigation.drawer.dropdown.ui.common.getDisplayAc
 internal fun AccountListItem(
     account: DisplayAccount,
     onClick: (DisplayAccount) -> Unit,
+    onAvatarClick: (DisplayAccount) -> Unit,
     selected: Boolean,
     showStarredCount: Boolean,
     modifier: Modifier = Modifier,
 ) {
-    val color = getDisplayAccountColor(account)
-    val avatar = getDisplayAccountAvatar(account)
-
     NavigationDrawerItem(
         label = { AccountLabel(account = account) },
         selected = selected,
@@ -44,10 +51,9 @@ internal fun AccountListItem(
             .fillMaxWidth()
             .height(BoltTheme.sizes.large),
         icon = {
-            Avatar(
-                avatar = avatar,
-                color = color,
-                size = AvatarSize.MEDIUM,
+            AccountAvatarButton(
+                account = account,
+                onClick = onAvatarClick,
             )
         },
         badge = {
@@ -71,6 +77,37 @@ internal fun AccountListItem(
             }
         },
     )
+}
+
+/**
+ * Shows the account avatar as a click target of its own. Clicking the avatar opens the inbox of the account, while
+ * clicking anywhere else on the account row shows the folders of the account.
+ */
+@Composable
+private fun AccountAvatarButton(
+    account: DisplayAccount,
+    onClick: (DisplayAccount) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val color = getDisplayAccountColor(account)
+    val avatar = getDisplayAccountAvatar(account)
+    val openInboxLabel = stringResource(R.string.navigation_drawer_dropdown_account_open_inbox_action)
+
+    Box(
+        modifier = modifier
+            .clip(CircleShape)
+            .clickable(
+                onClickLabel = openInboxLabel,
+                role = Role.Button,
+            ) { onClick(account) }
+            .semantics { contentDescription = openInboxLabel },
+    ) {
+        Avatar(
+            avatar = avatar,
+            color = color,
+            size = AvatarSize.MEDIUM,
+        )
+    }
 }
 
 @Composable

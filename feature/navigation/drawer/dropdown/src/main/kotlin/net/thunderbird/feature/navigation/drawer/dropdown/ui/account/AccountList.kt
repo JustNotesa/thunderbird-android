@@ -16,6 +16,7 @@ internal fun AccountList(
     accounts: ImmutableList<DisplayAccount>,
     selectedAccount: DisplayAccount?,
     onAccountClick: (DisplayAccount) -> Unit,
+    onAccountAvatarClick: (DisplayAccount) -> Unit,
     showStarredCount: Boolean,
     modifier: Modifier = Modifier,
 ) {
@@ -34,6 +35,7 @@ internal fun AccountList(
             AccountListItem(
                 account = account,
                 onClick = { onAccountClick(account) },
+                onAvatarClick = { onAccountAvatarClick(account) },
                 selected = selectedAccount == account,
                 showStarredCount = showStarredCount,
             )

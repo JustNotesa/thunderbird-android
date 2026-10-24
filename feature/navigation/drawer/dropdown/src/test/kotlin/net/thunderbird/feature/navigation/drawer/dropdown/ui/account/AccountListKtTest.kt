@@ -19,6 +19,7 @@ internal class AccountListKtTest : ComposeTest() {
                     accounts = persistentListOf(FakeData.MAIL_DISPLAY_ACCOUNT),
                     selectedAccount = null,
                     onAccountClick = {},
+                    onAccountAvatarClick = {},
                     showStarredCount = false,
                 )
             }

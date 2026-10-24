@@ -326,6 +326,70 @@ internal class DrawerViewModelTest {
     }
 
     @Test
+    fun `should open the inbox of the account and close the drawer when the account avatar is clicked`() = runMviTest {
+        val displayAccounts = createDisplayAccountList(2)
+        val getDisplayAccountsFlow = MutableStateFlow(displayAccounts)
+        val testSubject = createTestSubject(
+            initialState = State(showAccountSelection = true),
+            displayAccountsFlow = getDisplayAccountsFlow,
+        )
+        val turbines = turbinesWithInitialStateCheck(
+            testSubject,
+            State(
+                accounts = displayAccounts.toImmutableList(),
+                selectedAccountId = displayAccounts.first().id,
+                showAccountSelection = true,
+            ),
+        )
+
+        advanceUntilIdle()
+
+        testSubject.event(Event.OnAccountAvatarClick(displayAccounts[1]))
+
+        advanceUntilIdle()
+
+        assertThat(turbines.awaitStateItem().showAccountSelection).isEqualTo(false)
+        assertThat(turbines.awaitEffectItem()).isEqualTo(Effect.OpenAccount(displayAccounts[1].id))
+        assertThat(turbines.awaitEffectItem()).isEqualTo(Effect.CloseDrawer)
+
+        turbines.stateTurbine.ensureAllEventsConsumed()
+        turbines.effectTurbine.ensureAllEventsConsumed()
+    }
+
+    @Test
+    fun `should open the unified inbox and close the drawer when the unified account avatar is clicked`() = runMviTest {
+        val displayAccounts = createDisplayAccountList(1)
+        val getDisplayAccountsFlow = MutableStateFlow(displayAccounts)
+        val testSubject = createTestSubject(
+            initialState = State(showAccountSelection = true),
+            displayAccountsFlow = getDisplayAccountsFlow,
+        )
+        val turbines = turbinesWithInitialStateCheck(
+            testSubject,
+            State(
+                accounts = displayAccounts.toImmutableList(),
+                selectedAccountId = displayAccounts.first().id,
+                showAccountSelection = true,
+            ),
+        )
+
+        advanceUntilIdle()
+
+        testSubject.event(Event.OnAccountAvatarClick(createUnifiedDisplayAccount()))
+
+        advanceUntilIdle()
+
+        assertThat(turbines.awaitStateItem().selectedAccountId).isEqualTo(UnifiedAccountId)
+        assertThat(turbines.awaitStateItem().showAccountSelection).isEqualTo(false)
+        assertThat(turbines.awaitEffectItem()).isEqualTo(Effect.OpenAccount(UnifiedAccountId))
+        assertThat(turbines.awaitEffectItem()).isEqualTo(Effect.CloseDrawer)
+        assertThat(testSubject.state.value.selectedAccountId).isEqualTo(UnifiedAccountId)
+
+        turbines.stateTurbine.ensureAllEventsConsumed()
+        turbines.effectTurbine.ensureAllEventsConsumed()
+    }
+
+    @Test
     fun `should collect display folders for selected account`() = runTest {
         val displayAccounts = createDisplayAccountList(3)
         val getDisplayAccountsFlow = MutableStateFlow(displayAccounts)

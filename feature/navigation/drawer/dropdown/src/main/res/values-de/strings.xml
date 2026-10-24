@@ -14,6 +14,7 @@
     <string name="navigation_drawer_dropdown_action_sync_all_accounts">Alle Konten synchronisieren</string>
     <string name="navigation_drawer_dropdown_avount_view_selection_title">Kontenliste</string>
     <string name="navigation_drawer_dropdown_action_add_account">Konto hinzufügen</string>
+    <string name="navigation_drawer_dropdown_account_open_inbox_action">Posteingang öffnen</string>
     <string name="navigation_drawer_dropdown_unified_account_title">Gemeinsames Konto</string>
     <string name="navigation_drawer_dropdown_action_sync_account">Konto synchronisieren</string>
 </resources>

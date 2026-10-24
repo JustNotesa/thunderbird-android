@@ -16,6 +16,7 @@ internal fun AccountListPreview() {
             ),
             selectedAccount = null,
             onAccountClick = { },
+            onAccountAvatarClick = { },
             showStarredCount = false,
         )
     }
@@ -31,6 +32,7 @@ internal fun AccountListWithSelectedPreview() {
             ),
             selectedAccount = MAIL_DISPLAY_ACCOUNT,
             onAccountClick = { },
+            onAccountAvatarClick = { },
             showStarredCount = false,
         )
     }
