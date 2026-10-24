@@ -242,6 +242,7 @@ internal class SettingsImportViewModel(
             when (action) {
                 SettingsImportAction.Overview -> Unit
                 SettingsImportAction.ScanQrCode -> onScanQrCodeButtonClicked()
+                SettingsImportAction.PasteAccounts -> onPasteAccountsButtonClicked()
             }
         }
     }
@@ -279,7 +280,7 @@ internal class SettingsImportViewModel(
     }
 
     fun onDocumentPickCanceled() {
-        if (action == SettingsImportAction.ScanQrCode) {
+        if (action == SettingsImportAction.ScanQrCode || action == SettingsImportAction.PasteAccounts) {
             sendActionEvent(Action.Close(importSuccess = false))
         } else {
             updateUiModel {

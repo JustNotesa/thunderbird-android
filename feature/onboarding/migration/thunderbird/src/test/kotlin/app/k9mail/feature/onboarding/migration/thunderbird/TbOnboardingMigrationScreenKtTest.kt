@@ -20,6 +20,7 @@ class TbOnboardingMigrationScreenKtTest : ComposeTest() {
         setContentWithFeatureFlag {
             TbOnboardingMigrationScreen(
                 onQrCodeScan = { qrCodeScanClickCounter++ },
+                onPasteAccounts = { error("Should not be called") },
                 onThundermailClick = { error("Should not be called") },
                 onAddAccount = { error("Should not be called") },
                 onImport = { error("Should not be called") },
@@ -35,11 +36,33 @@ class TbOnboardingMigrationScreenKtTest : ComposeTest() {
     }
 
     @Test
+    fun `pressing PasteAccountsButton should call onPasteAccounts`() = runComposeTest {
+        var pasteAccountsClickCounter = 0
+        setContentWithFeatureFlag {
+            TbOnboardingMigrationScreen(
+                onQrCodeScan = { error("Should not be called") },
+                onPasteAccounts = { pasteAccountsClickCounter++ },
+                onThundermailClick = { error("Should not be called") },
+                onAddAccount = { error("Should not be called") },
+                onImport = { error("Should not be called") },
+                brandNameProvider = FakeBrandNameProvider,
+            )
+        }
+
+        composeTestRule.onNodeWithTag("PasteAccountsButton")
+            .performScrollTo()
+            .performClick()
+
+        assertThat(pasteAccountsClickCounter).isEqualTo(1)
+    }
+
+    @Test
     fun `pressing AddAccountButton button should call onAddAccount`() = runComposeTest {
         var addAccountClickCounter = 0
         setContentWithFeatureFlag {
             TbOnboardingMigrationScreen(
                 onQrCodeScan = { error("Should not be called") },
+                onPasteAccounts = { error("Should not be called") },
                 onThundermailClick = { error("Should not be called") },
                 onAddAccount = { addAccountClickCounter++ },
                 onImport = { error("Should not be called") },
@@ -60,6 +83,7 @@ class TbOnboardingMigrationScreenKtTest : ComposeTest() {
         setContentWithFeatureFlag {
             TbOnboardingMigrationScreen(
                 onQrCodeScan = { error("Should not be called") },
+                onPasteAccounts = { error("Should not be called") },
                 onThundermailClick = { error("Should not be called") },
                 onAddAccount = { error("Should not be called") },
                 onImport = { importClickCounter++ },

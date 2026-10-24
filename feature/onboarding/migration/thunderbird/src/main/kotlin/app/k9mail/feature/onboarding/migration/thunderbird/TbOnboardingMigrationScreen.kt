@@ -53,6 +53,7 @@ import org.koin.compose.koinInject
 @Composable
 internal fun TbOnboardingMigrationScreen(
     onQrCodeScan: () -> Unit,
+    onPasteAccounts: () -> Unit,
     onThundermailClick: () -> Unit,
     onAddAccount: () -> Unit,
     onImport: () -> Unit,
@@ -91,7 +92,10 @@ internal fun TbOnboardingMigrationScreen(
                     modifier = Modifier.padding(bottom = BoltTheme.spacings.quadruple),
                 )
 
-                AlreadyUsingThunderbirdCard(onQrCodeScan)
+                AlreadyUsingThunderbirdCard(
+                    onQrCodeScan = onQrCodeScan,
+                    onPasteAccounts = onPasteAccounts,
+                )
 
                 Spacer(modifier = Modifier.height(BoltTheme.spacings.triple))
 
@@ -122,7 +126,10 @@ internal fun TbOnboardingMigrationScreen(
 }
 
 @Composable
-private fun AlreadyUsingThunderbirdCard(onQrCodeScan: () -> Unit) {
+private fun AlreadyUsingThunderbirdCard(
+    onQrCodeScan: () -> Unit,
+    onPasteAccounts: () -> Unit,
+) {
     TextCard(title = stringResource(R.string.onboarding_migration_thunderbird_qr_code_import_title)) {
         TextBodyMedium(
             text = stringResource(R.string.onboarding_migration_thunderbird_qr_code_import_text),
@@ -130,8 +137,25 @@ private fun AlreadyUsingThunderbirdCard(onQrCodeScan: () -> Unit) {
                 .padding(bottom = BoltTheme.spacings.double),
         )
 
-        TextBodyMedium(
+        ButtonFilled(
+            text = stringResource(R.string.onboarding_migration_thunderbird_qr_code_import_button_text),
+            onClick = onQrCodeScan,
+            modifier = Modifier.testTag("QrCodeImportButton")
+                .align(Alignment.CenterHorizontally),
+        )
+
+        ButtonOutlined(
+            text = stringResource(R.string.onboarding_migration_thunderbird_paste_accounts_button_text),
+            onClick = onPasteAccounts,
+            modifier = Modifier.testTag("PasteAccountsButton")
+                .align(Alignment.CenterHorizontally)
+                .padding(top = BoltTheme.spacings.half),
+        )
+
+        TextBodySmall(
             text = stringResource(R.string.onboarding_migration_thunderbird_qr_code_import_instructions_intro),
+            modifier = Modifier
+                .padding(top = BoltTheme.spacings.double),
         )
 
         BulletList(
@@ -140,17 +164,13 @@ private fun AlreadyUsingThunderbirdCard(onQrCodeScan: () -> Unit) {
                 stringResource(R.string.onboarding_migration_thunderbird_qr_code_import_instructions_bullet_2_v2),
             ),
             modifier = Modifier
-                .padding(
-                    top = BoltTheme.spacings.half,
-                    bottom = BoltTheme.spacings.double,
-                ),
+                .padding(top = BoltTheme.spacings.half),
         )
 
-        ButtonFilled(
-            text = stringResource(R.string.onboarding_migration_thunderbird_qr_code_import_button_text),
-            onClick = onQrCodeScan,
-            modifier = Modifier.testTag("QrCodeImportButton")
-                .align(Alignment.CenterHorizontally),
+        TextBodySmall(
+            text = stringResource(R.string.onboarding_migration_thunderbird_qr_code_import_instructions_other_phone),
+            modifier = Modifier
+                .padding(top = BoltTheme.spacings.half),
         )
 
         ThunderbirdVersionNote(
@@ -267,8 +287,8 @@ private fun BulletList(
     ) {
         for (item in items) {
             Row {
-                TextBodyMedium(text = " \u2022 ")
-                TextBodyMedium(text = item)
+                TextBodySmall(text = " \u2022 ")
+                TextBodySmall(text = item)
             }
         }
     }
