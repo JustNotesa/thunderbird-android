@@ -16,6 +16,9 @@ dependencies {
     implementation(projects.feature.mail.folder.api)
 
     implementation(libs.androidx.lifecycle.livedata.ktx)
+
+    testImplementation(projects.core.android.account.fake)
+    testImplementation(libs.mockito.kotlin)
 }
 
 codeCoverage {

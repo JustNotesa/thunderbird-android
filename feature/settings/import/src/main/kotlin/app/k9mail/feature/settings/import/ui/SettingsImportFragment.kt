@@ -159,7 +159,7 @@ class SettingsImportFragment : Fragment() {
             }
 
             StatusText.IMPORT_SUCCESS -> {
-                statusText.text = getString(R.string.settings_import_success_generic)
+                statusText.text = getImportSuccessText(model.importedAccountCount)
             }
 
             StatusText.IMPORT_SUCCESS_PASSWORD_REQUIRED -> {
@@ -189,7 +189,21 @@ class SettingsImportFragment : Fragment() {
             StatusText.HIDDEN -> statusText.text = null
         }
 
+        passwordManagerReminder.isVisible = model.isPasswordManagerReminderVisible
+
         setSettingsList(model.settingsList, model.isSettingsListEnabled)
+    }
+
+    private fun getImportSuccessText(importedAccountCount: Int): String {
+        if (importedAccountCount == 0) {
+            return getString(R.string.settings_import_success_generic)
+        }
+
+        return resources.getQuantityString(
+            R.plurals.settings_import_accounts_taken_over,
+            importedAccountCount,
+            importedAccountCount,
+        )
     }
 
     // TODO: Update list instead of replacing it completely
@@ -327,5 +341,6 @@ private class ViewHolder(view: View) {
     val loadingProgressBar: View = view.findViewById(R.id.loadingProgressBar)
     val importProgressBar: View = view.findViewById(R.id.importProgressBar)
     val statusText: MaterialTextView = view.findViewById(R.id.statusText)
+    val passwordManagerReminder: MaterialTextView = view.findViewById(R.id.passwordManagerReminder)
     val settingsImportList: RecyclerView = view.findViewById(R.id.settingsImportList)
 }

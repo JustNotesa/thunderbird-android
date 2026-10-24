@@ -8,8 +8,7 @@ import net.thunderbird.core.common.provider.AppNameProvider
 
 @Composable
 fun WelcomeScreen(
-    onStartClick: () -> Unit,
-    onImportClick: () -> Unit,
+    options: WelcomeOptions,
     appNameProvider: AppNameProvider,
     modifier: Modifier = Modifier,
 ) {
@@ -17,8 +16,7 @@ fun WelcomeScreen(
         modifier = modifier,
     ) { innerPadding ->
         WelcomeContent(
-            onStartClick = onStartClick,
-            onImportClick = onImportClick,
+            options = options,
             appName = appNameProvider.appName,
             modifier = Modifier.padding(innerPadding),
         )

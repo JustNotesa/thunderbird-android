@@ -15,6 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import app.k9mail.feature.migration.qrcode.R
+import app.k9mail.feature.migration.qrcode.ui.common.SecureContentEffect
 import app.k9mail.feature.migration.qrcode.ui.guide.TransferGuideIllustration
 import app.k9mail.feature.migration.qrcode.ui.text.TransferTextContract.Event
 import app.k9mail.feature.migration.qrcode.ui.text.TransferTextContract.State
@@ -72,6 +73,11 @@ private fun ReadyContent(
     contentPadding: PaddingValues,
     onEvent: (Event) -> Unit,
 ) {
+    // The accounts with their passwords are only shown while the user asks for them.
+    if (revealed) {
+        SecureContentEffect()
+    }
+
     Column(
         modifier = Modifier
             .padding(BoltTheme.spacings.double)

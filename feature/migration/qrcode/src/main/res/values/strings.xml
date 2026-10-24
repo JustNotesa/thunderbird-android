@@ -52,7 +52,7 @@
     <string name="migration_qrcode_transfer_paste_instructions">Open the note in the vault of your password manager, copy its content and paste it into this field.</string>
     <string name="migration_qrcode_transfer_paste_help_button">Help: how do I get the note?</string>
     <string name="migration_qrcode_transfer_paste_help_title">No note yet?</string>
-    <string name="migration_qrcode_transfer_paste_help_text">Create it on the device where your accounts are already set up:\n\n• Thunderbird on a computer: in the add-on “Transfer to Thunderbird for Android”, choose “Copy accounts for password manager”.\n• Thunderbird on another phone: Settings → Backup → Copy accounts for password manager.\n\nThis copies your account data to the clipboard. Use it to create a new note in the vault of your password manager.</string>
+    <string name="migration_qrcode_transfer_paste_help_text">Create it on the device where your accounts are already set up:\n\n• Thunderbird on a computer: Settings → Transfer accounts → Via password manager → Continue (needs the add-on “Transfer accounts – Thunderbird for Android”).\n• Thunderbird on another phone: Settings → Transfer accounts → Send accounts to another device → Via your password manager.\n\nThis copies your account data to the clipboard. Use it to create a new note in the vault of your password manager.</string>
     <string name="migration_qrcode_transfer_paste_text_field_label">Accounts</string>
     <string name="migration_qrcode_transfer_paste_clipboard_button_text">Paste from clipboard</string>
     <string name="migration_qrcode_transfer_paste_import_button_text">Import</string>

@@ -15,14 +15,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import app.k9mail.feature.onboarding.welcome.R
 import net.thunderbird.components.ui.bolt.atom.Surface
-import net.thunderbird.components.ui.bolt.atom.button.ButtonFilled
-import net.thunderbird.components.ui.bolt.atom.button.ButtonText
 import net.thunderbird.components.ui.bolt.atom.text.TextBodyLarge
 import net.thunderbird.components.ui.bolt.atom.text.TextBodySmall
 import net.thunderbird.components.ui.bolt.atom.text.TextDisplayMediumAutoResize
@@ -42,8 +39,7 @@ private const val LOGO_SIZE_SMALL_DP = 80
 
 @Composable
 internal fun WelcomeContent(
-    onStartClick: () -> Unit,
-    onImportClick: () -> Unit,
+    options: WelcomeOptions,
     appName: String,
     modifier: Modifier = Modifier,
 ) {
@@ -59,10 +55,7 @@ internal fun WelcomeContent(
                     WelcomeHeaderSection(title = appName)
                 },
                 footer = {
-                    WelcomeFooterSection(
-                        onStartClick = onStartClick,
-                        onImportClick = onImportClick,
-                    )
+                    WelcomeFooterSection(options = options)
                 },
                 content = {
                     item { WelcomeMessageItem() }
@@ -191,8 +184,7 @@ private fun WelcomeMessage(
 
 @Composable
 private fun WelcomeFooterSection(
-    onStartClick: () -> Unit,
-    onImportClick: () -> Unit,
+    options: WelcomeOptions,
     modifier: Modifier = Modifier,
 ) {
     Box(
@@ -201,8 +193,7 @@ private fun WelcomeFooterSection(
             .padding(top = BoltTheme.spacings.quadruple),
     ) {
         WelcomeFooter(
-            onStartClick = onStartClick,
-            onImportClick = onImportClick,
+            options = options,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(top = BoltTheme.spacings.quadruple),
@@ -212,8 +203,7 @@ private fun WelcomeFooterSection(
 
 @Composable
 private fun WelcomeFooter(
-    onStartClick: () -> Unit,
-    onImportClick: () -> Unit,
+    options: WelcomeOptions,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -221,15 +211,7 @@ private fun WelcomeFooter(
         verticalArrangement = Arrangement.spacedBy(BoltTheme.spacings.quarter),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        ButtonFilled(
-            text = stringResource(id = R.string.onboarding_welcome_start_button),
-            onClick = onStartClick,
-            modifier = Modifier.testTag("onboarding_welcome_start_button"),
-        )
-        ButtonText(
-            text = stringResource(id = R.string.onboarding_welcome_import_button),
-            onClick = onImportClick,
-        )
+        WelcomeFooterButtons(options = options)
 
         TextBodySmall(
             text = stringResource(R.string.onboarding_welcome_developed_by),

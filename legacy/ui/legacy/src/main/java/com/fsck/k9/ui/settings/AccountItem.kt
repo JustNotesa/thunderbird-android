@@ -7,6 +7,7 @@ import androidx.core.view.isGone
 import androidx.core.view.isVisible
 import androidx.recyclerview.widget.RecyclerView
 import com.fsck.k9.ui.R
+import com.google.android.material.checkbox.MaterialCheckBox
 import com.google.android.material.textview.MaterialTextView
 import com.mikepenz.fastadapter.FastAdapter
 import com.mikepenz.fastadapter.drag.IDraggable
@@ -17,6 +18,8 @@ import net.thunderbird.core.android.account.LegacyAccount
 internal class AccountItem(
     val account: LegacyAccount,
     override var isDraggable: Boolean,
+    val isSelectionMode: Boolean = false,
+    val selected: Boolean = false,
 ) : AbstractItem<AccountItem.ViewHolder>(), IDraggable {
     override var identifier = 200L + account.accountNumber
 
@@ -30,6 +33,7 @@ internal class AccountItem(
         val name: MaterialTextView = view.findViewById(R.id.name)
         val email: MaterialTextView = view.findViewById(R.id.email)
         val dragHandle: ImageView = view.findViewById(R.id.drag_handle)
+        val checkBox: MaterialCheckBox = view.findViewById(R.id.checkBox)
 
         override fun bindView(item: AccountItem, payloads: List<Any>) {
             val accountName = item.account.name
@@ -43,11 +47,14 @@ internal class AccountItem(
             }
 
             dragHandle.isGone = !item.isDraggable
+            checkBox.isVisible = item.isSelectionMode
+            checkBox.isChecked = item.selected
         }
 
         override fun unbindView(item: AccountItem) {
             name.text = null
             email.text = null
+            checkBox.isChecked = false
         }
     }
 }

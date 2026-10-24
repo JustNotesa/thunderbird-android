@@ -17,6 +17,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import app.k9mail.feature.migration.qrcode.R
+import app.k9mail.feature.migration.qrcode.ui.common.SecureContentEffect
 import app.k9mail.feature.migration.qrcode.ui.send.TransferSendContract.Event
 import app.k9mail.feature.migration.qrcode.ui.send.TransferSendContract.Step
 import net.thunderbird.components.ui.bolt.atom.Surface
@@ -96,6 +97,9 @@ private fun ShowingQrCodeContent(
     contentPadding: PaddingValues,
     onCancel: () -> Unit,
 ) {
+    // The QR code holds the key of the transfer, it shouldn't end up in a screenshot or a screen recording.
+    SecureContentEffect()
+
     Column(
         verticalArrangement = Arrangement.Center,
         modifier = Modifier

@@ -964,6 +964,20 @@
     <string name="folder_list_show_hidden_folders">Ausgeblendete Ordner anzeigen</string>
     <string name="folder_settings_visible_label">Ordner anzeigen</string>
     <string name="settings_list_action_support">Support <xliff:g id="app_name">%s</xliff:g></string>
+
+    <string name="settings_select_accounts_action">Konten auswählen</string>
+    <plurals name="settings_selected_accounts_count">
+        <item quantity="one"><xliff:g id="account_count">%1$d</xliff:g> ausgewählt</item>
+        <item quantity="other"><xliff:g id="account_count">%1$d</xliff:g> ausgewählt</item>
+    </plurals>
+    <plurals name="settings_delete_accounts_title">
+        <item quantity="one"><xliff:g id="account_count">%1$d</xliff:g> Konto löschen?</item>
+        <item quantity="other"><xliff:g id="account_count">%1$d</xliff:g> Konten löschen?</item>
+    </plurals>
+    <string name="settings_delete_accounts_message">Ihre Nachrichten werden von diesem Gerät entfernt. Auf dem Server bleiben sie erhalten.</string>
+    <string name="settings_delete_all_accounts_message">Du löschst alle Konten. Danach startet die Einrichtung neu.</string>
+    <string name="settings_hold_to_delete_button">Zum Löschen gedrückt halten</string>
+    <string name="hold_to_confirm_hint">Halte den Knopf gedrückt, um zu löschen</string>
     <string name="volume_navigation_summary">In der Nachrichtenübersicht mit den Lautstärketasten zwischen den Nachrichten navigieren</string>
     <string name="save_attachment_action">Anhang speichern</string>
     <string name="volume_navigation_title_short">Navigation mit Lautstärketasten</string>

@@ -4,6 +4,7 @@ import app.k9mail.legacy.ui.folder.DisplayFolderRepository
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
@@ -37,11 +38,14 @@ internal class GetDisplayFoldersForAccount(
         if (accountId == UnifiedAccountId) {
             return getUnifiedFoldersFlow(unifiedFoldersLayout)
         } else {
-            return displayFolderRepository.getDisplayFoldersFlow(accountId).map { displayFolders ->
-                displayFolders.map { displayFolder ->
-                    toMailDisplayFolder(accountId, displayFolder)
+            return displayFolderRepository.getDisplayFoldersFlow(accountId)
+                // The account might have been removed in the meantime. In that case there are no folders to display.
+                .catch { emit(emptyList()) }
+                .map { displayFolders ->
+                    displayFolders.map { displayFolder ->
+                        toMailDisplayFolder(accountId, displayFolder)
+                    }
                 }
-            }
         }
     }
 

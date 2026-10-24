@@ -968,6 +968,20 @@
     <string name="settings_list_miscellaneous_category">Miscellaneous</string>
     <string name="settings_list_action_support">Support <xliff:g id="app_name">%s</xliff:g></string>
 
+    <string name="settings_select_accounts_action">Select accounts</string>
+    <plurals name="settings_selected_accounts_count">
+        <item quantity="one"><xliff:g id="account_count">%1$d</xliff:g> selected</item>
+        <item quantity="other"><xliff:g id="account_count">%1$d</xliff:g> selected</item>
+    </plurals>
+    <plurals name="settings_delete_accounts_title">
+        <item quantity="one">Delete <xliff:g id="account_count">%1$d</xliff:g> account?</item>
+        <item quantity="other">Delete <xliff:g id="account_count">%1$d</xliff:g> accounts?</item>
+    </plurals>
+    <string name="settings_delete_accounts_message">Their messages are removed from this device. They stay on the server.</string>
+    <string name="settings_delete_all_accounts_message">You\'re deleting all accounts. The setup starts again afterwards.</string>
+    <string name="settings_hold_to_delete_button">Hold to delete</string>
+    <string name="hold_to_confirm_hint">Press and hold the button to delete</string>
+
     <string name="settings_export_title">Export settings</string>
     <string name="settings_transfer_send_title">Send accounts to another device</string>
     <string name="settings_transfer_receive_title">Take over accounts from another device</string>

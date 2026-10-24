@@ -2,6 +2,10 @@
 <resources xmlns:xliff="urn:oasis:names:tc:xliff:document:1.2">
     <string name="onboarding_welcome_start_button">Los geht’s</string>
     <string name="onboarding_welcome_import_button">K-9-Einstellungen importieren</string>
+    <string name="onboarding_welcome_add_account_button">E-Mail-Konto hinzufügen</string>
+    <string name="onboarding_welcome_scan_qr_code_button">QR-Code von anderem Gerät scannen</string>
+    <string name="onboarding_welcome_thundermail_button">Mit Thundermail anmelden</string>
+    <string name="onboarding_welcome_paste_accounts_button">Aus Passwortmanager einfügen</string>
     <string name="onboarding_welcome_text">Eine quelloffene, datenschutzorientierte und werbefreie E-Mail-App für Android.</string>
     <string name="onboarding_welcome_developed_by">Entwickelt von einem engagierten Team bei Thunderbird Technologies Corporation und einer weltweiten Gemeinschaft von Freiwilligen. Wir sind stolz darauf, Teil der Mozilla-Familie zu sein.</string>
 </resources>

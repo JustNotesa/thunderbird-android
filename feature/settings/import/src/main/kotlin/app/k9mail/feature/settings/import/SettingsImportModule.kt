@@ -19,6 +19,13 @@ val featureSettingsImportModule = module {
         )
     }
 
+    factory<AccountConnectionChecker> {
+        ImportedAccountConnectionChecker(
+            accountManager = get(),
+            validateServerSettings = get(),
+        )
+    }
+
     viewModel {
         SettingsImportViewModel(
             contentResolver = get(),
@@ -27,6 +34,7 @@ val featureSettingsImportModule = module {
             migrationManager = get(),
             importAppFetcher = get(),
             existingAccountMatcher = get(),
+            connectionChecker = get(),
             logger = get(),
         )
     }

@@ -6,10 +6,13 @@ import androidx.core.view.isVisible
 import androidx.recyclerview.widget.RecyclerView
 import app.k9mail.feature.settings.importing.R
 import com.google.android.material.checkbox.MaterialCheckBox
+import com.google.android.material.color.MaterialColors
 import com.google.android.material.textview.MaterialTextView
 import com.mikepenz.fastadapter.FastAdapter
 import com.mikepenz.fastadapter.items.AbstractItem
 import com.mikepenz.fastadapter.listeners.ClickEventHook
+import androidx.appcompat.R as AppCompatR
+import com.google.android.material.R as MaterialR
 
 private const val GENERAL_SETTINGS_ID = 0L
 private const val ACCOUNT_ITEMS_ID_OFFSET = 1L
@@ -84,6 +87,7 @@ internal class GeneralSettingsItem(importStatus: ImportStatus) :
 internal class AccountViewHolder(view: View) : ImportCheckBoxViewHolder(view) {
     val accountDisplayName: MaterialTextView = view.findViewById(R.id.accountDisplayName)
     val accountSecondaryInfo: MaterialTextView = view.findViewById(R.id.accountSecondaryInfo)
+    val accountConnectionStatus: MaterialTextView = view.findViewById(R.id.accountConnectionStatus)
 }
 
 internal class AccountItem(account: SettingsListItem.Account) :
@@ -91,6 +95,7 @@ internal class AccountItem(account: SettingsListItem.Account) :
 
     private val displayName = account.displayName
     private val isAlreadySetUp = account.isAlreadySetUp
+    private val connectionStatus = account.connectionStatus
 
     override val type = R.id.settings_import_list_account_item
     override val layoutRes = R.layout.settings_import_account_list_item
@@ -104,5 +109,50 @@ internal class AccountItem(account: SettingsListItem.Account) :
         if (isAlreadySetUp) {
             holder.accountSecondaryInfo.setText(R.string.settings_import_account_already_set_up)
         }
+        bindConnectionStatus(holder.accountConnectionStatus)
+    }
+
+    private fun bindConnectionStatus(connectionStatusText: MaterialTextView) {
+        val statusStyle = connectionStatusStyle()
+        if (statusStyle == null) {
+            connectionStatusText.isVisible = false
+            return
+        }
+
+        connectionStatusText.isVisible = true
+        connectionStatusText.setText(statusStyle.textResource)
+        connectionStatusText.setTextColor(MaterialColors.getColor(connectionStatusText, statusStyle.colorAttribute))
+    }
+
+    private fun connectionStatusStyle(): ConnectionStatusStyle? {
+        return when (connectionStatus) {
+            ConnectionStatus.CHECKING -> {
+                ConnectionStatusStyle(
+                    R.string.settings_import_connection_checking,
+                    MaterialR.attr.colorOnSurfaceVariant,
+                )
+            }
+
+            ConnectionStatus.CONNECTED -> {
+                ConnectionStatusStyle(
+                    R.string.settings_import_connection_connected,
+                    AppCompatR.attr.colorPrimary,
+                )
+            }
+
+            ConnectionStatus.FAILED -> {
+                ConnectionStatusStyle(
+                    R.string.settings_import_connection_failed,
+                    AppCompatR.attr.colorError,
+                )
+            }
+
+            ConnectionStatus.NOT_CHECKED -> null
+        }
     }
 }
+
+private data class ConnectionStatusStyle(
+    val textResource: Int,
+    val colorAttribute: Int,
+)

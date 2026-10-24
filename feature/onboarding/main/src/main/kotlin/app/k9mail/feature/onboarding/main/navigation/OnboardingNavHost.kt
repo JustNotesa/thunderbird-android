@@ -13,6 +13,7 @@ import app.k9mail.feature.account.setup.navigation.AccountSetupNavHost
 import app.k9mail.feature.account.setup.navigation.AccountSetupRoute
 import app.k9mail.feature.onboarding.migration.api.OnboardingMigrationManager
 import app.k9mail.feature.onboarding.permissions.ui.PermissionsScreen
+import app.k9mail.feature.onboarding.welcome.ui.WelcomeOptions
 import app.k9mail.feature.onboarding.welcome.ui.WelcomeScreen
 import app.k9mail.feature.settings.import.ui.SettingsImportAction
 import app.k9mail.feature.settings.import.ui.SettingsImportScreen
@@ -68,9 +69,24 @@ fun OnboardingNavHost(
         startDestination = NESTED_NAVIGATION_ROUTE_WELCOME,
     ) {
         composable(route = NESTED_NAVIGATION_ROUTE_WELCOME) {
+            val isMigrationIncluded = onboardingMigrationManager.isFeatureIncluded()
+            val onScanQrCodeClick = { navController.navigateToSettingsImportQrCode() }
+            val onPasteAccountsClick = { navController.navigateToSettingsImportPasteAccounts() }
+            val onThundermailClick = { onFinish(OnboardingRoute.ThundermailSignIn) }
             WelcomeScreen(
-                onStartClick = { onFinish(OnboardingRoute.ThundermailAddAccount) },
-                onImportClick = { navController.navigateToSettingsImport() },
+                options = WelcomeOptions(
+                    onAddAccountClick = {
+                        if (isMigrationIncluded) {
+                            navController.navigateToAccountSetup()
+                        } else {
+                            onFinish(OnboardingRoute.ThundermailAddAccount)
+                        }
+                    },
+                    onScanQrCodeClick = if (isMigrationIncluded) onScanQrCodeClick else null,
+                    onPasteAccountsClick = if (isMigrationIncluded) onPasteAccountsClick else null,
+                    onThundermailClick = if (isMigrationIncluded) onThundermailClick else null,
+                    onImportClick = { navController.navigateToSettingsImport() },
+                ),
                 appNameProvider = koinInject(),
             )
         }

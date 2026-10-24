@@ -52,6 +52,8 @@ internal class DrawerViewModel(
 ),
     ViewModel {
 
+    private var hasLoadedAccounts = false
+
     init {
         viewModelScope.launch {
             getDrawerConfig().collectLatest { config ->
@@ -86,6 +88,8 @@ internal class DrawerViewModel(
     }
 
     private fun updateAccounts(accounts: List<DisplayAccount>) {
+        hasLoadedAccounts = true
+
         val selectedAccount = accounts.find { it.id == state.value.selectedAccountId }
             ?: accounts.firstOrNull()
 
@@ -242,11 +246,13 @@ internal class DrawerViewModel(
     }
 
     private fun selectAccount(accountId: AccountId?) {
-        if (accountId != state.value.selectedAccountId && !keepCurrentAccount(accountId)) {
+        val selectedAccountId = resolveSelectedAccountId(accountId)
+
+        if (selectedAccountId != state.value.selectedAccountId && !keepCurrentAccount(accountId)) {
             viewModelScope.launch {
                 updateState {
                     it.copy(
-                        selectedAccountId = accountId,
+                        selectedAccountId = selectedAccountId,
                     )
                 }
                 delay(ACCOUNT_CLOSE_DELAY)
@@ -291,6 +297,19 @@ internal class DrawerViewModel(
 
         return isPinnedLayout && isSwitchToUnifiedAccount &&
             currentState.pinnedFolders.any { it.displayFolder?.folderId == currentState.selectedFolderId }
+    }
+
+    /**
+     * Returns the id of the account that should be selected. Accounts that are not present anymore, e.g. because
+     * they were deleted, are replaced by the first available account. If there are no accounts at all, no account
+     * is selected.
+     */
+    private fun resolveSelectedAccountId(accountId: AccountId?): AccountId? {
+        // The unified account isn't a real account, so it's never replaced by another account.
+        if (!hasLoadedAccounts || accountId == UnifiedAccountId) return accountId
+
+        val accounts = state.value.accounts
+        return accountId?.takeIf { id -> accounts.any { it.id == id } } ?: accounts.firstOrNull()?.id
     }
 
     private fun selectFolder(folderId: String?) {

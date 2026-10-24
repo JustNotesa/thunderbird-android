@@ -10,8 +10,13 @@ import net.thunderbird.components.ui.bolt.common.annotation.PreviewDevices
 internal fun WelcomeContentThunderbirdPreview() {
     PreviewWithTheme(themeType = PreviewThemeType.THUNDERBIRD) {
         WelcomeContent(
-            onStartClick = {},
-            onImportClick = {},
+            options = WelcomeOptions(
+                onAddAccountClick = {},
+                onScanQrCodeClick = {},
+                onPasteAccountsClick = {},
+                onThundermailClick = {},
+                onImportClick = {},
+            ),
             appName = "Thunderbird Beta",
         )
     }
@@ -22,8 +27,10 @@ internal fun WelcomeContentThunderbirdPreview() {
 internal fun WelcomeContentK9MailPreview() {
     PreviewWithTheme(themeType = PreviewThemeType.K9MAIL) {
         WelcomeContent(
-            onStartClick = {},
-            onImportClick = {},
+            options = WelcomeOptions(
+                onAddAccountClick = {},
+                onImportClick = {},
+            ),
             appName = "K-9 Mail",
         )
     }
