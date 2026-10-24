@@ -38,6 +38,14 @@
     <string name="settings_import_oauth_error_browser_not_found">Die App konnte keinen Browser finden, der für den Zugriff auf dein Konto verwendet werden kann.</string>
     <string name="settings_import_general_settings_item">Allgemeine Einstellungen</string>
     <string name="settings_import_account_already_set_up">Bereits eingerichtet</string>
+    <string name="settings_import_connection_checking">Verbindung wird geprüft…</string>
+    <string name="settings_import_connection_connected">Verbunden</string>
+    <string name="settings_import_connection_failed">Keine Verbindung. Prüfe Server und Passwort in den Kontoeinstellungen.</string>
+    <string name="settings_import_delete_note_reminder">Lösche jetzt die Notiz in deinem Passwortmanager.</string>
+    <plurals name="settings_import_accounts_taken_over">
+        <item quantity="one">%d Konto übernommen</item>
+        <item quantity="other">%d Konten übernommen</item>
+    </plurals>
     <string name="settings_import_pick_app_button">Aus App importieren</string>
     <string name="settings_import_pick_app_dialog_title">Aus App importieren</string>
     <string name="settings_import_scan_qr_code_button">QR-Code scannen</string>

@@ -165,11 +165,29 @@
             android:layout_marginEnd="16dp"
             android:layout_marginBottom="8dp"
             android:visibility="gone"
-            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintBottom_toTopOf="@+id/passwordManagerReminder"
             app:layout_constraintEnd_toStartOf="@+id/buttonBarrier"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintVertical_chainStyle="packed"
             tools:text="Importing…"
+            tools:visibility="visible"
+            />
+
+        <com.google.android.material.textview.MaterialTextView
+            android:id="@+id/passwordManagerReminder"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="16dp"
+            android:layout_marginEnd="16dp"
+            android:layout_marginBottom="8dp"
+            android:textAppearance="?attr/textAppearanceBodySmall"
+            android:visibility="gone"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toStartOf="@+id/buttonBarrier"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@id/statusText"
+            tools:text="@string/settings_import_delete_note_reminder"
             tools:visibility="visible"
             />
 

@@ -1,5 +1,6 @@
 package app.k9mail.feature.settings.import.ui
 
+import app.k9mail.feature.settings.import.ConnectionCheckResult
 import app.k9mail.feature.settings.import.ui.SettingsListItem.GeneralSettings
 
 internal class SettingsImportUiModel {
@@ -23,6 +24,8 @@ internal class SettingsImportUiModel {
     var isLoadingProgressVisible = false
     var isImportProgressVisible = false
     var statusText = StatusText.HIDDEN
+    var isPasswordManagerPasteFlow = false
+    var isPasswordManagerReminderVisible = false
 
     val hasImportStarted
         get() = importButton == ButtonState.GONE
@@ -32,6 +35,12 @@ internal class SettingsImportUiModel {
 
     val wasAccountImportSuccessful
         get() = hasImportStarted && settingsList.any { it !is GeneralSettings && it.importStatus.isSuccess }
+
+    /**
+     * The number of accounts that were imported successfully.
+     */
+    val importedAccountCount: Int
+        get() = settingsList.count { it is SettingsListItem.Account && it.importStatus == ImportStatus.IMPORT_SUCCESS }
 
     fun enablePickButtons() {
         isPickDocumentButtonEnabled = true
@@ -89,6 +98,7 @@ internal class SettingsImportUiModel {
         isImportProgressVisible = false
         isSettingsListEnabled = true
         statusText = StatusText.IMPORT_SUCCESS
+        isPasswordManagerReminderVisible = isPasswordManagerPasteFlow
     }
 
     private fun showActionRequiredText(actionText: StatusText) {
@@ -162,6 +172,13 @@ internal class SettingsImportUiModel {
         settingsList[position].enabled = status.isActionRequired
     }
 
+    fun setConnectionStatus(position: Int, connectionStatus: ConnectionStatus) {
+        val settingsListItem = settingsList[position]
+        if (settingsListItem is SettingsListItem.Account) {
+            settingsListItem.connectionStatus = connectionStatus
+        }
+    }
+
     private fun updateImportButtonFromSelection() {
         if (isImportProgressVisible) return
 
@@ -221,10 +238,14 @@ sealed class SettingsListItem {
         val accountIndex: Int,
         var displayName: String,
         val isAlreadySetUp: Boolean = false,
+        var connectionStatus: ConnectionStatus = ConnectionStatus.NOT_CHECKED,
     ) : SettingsListItem() {
         init {
             selected = !isAlreadySetUp
         }
+
+        val needsConnectionCheck: Boolean
+            get() = importStatus == ImportStatus.IMPORT_SUCCESS && connectionStatus == ConnectionStatus.NOT_CHECKED
     }
 }
 
@@ -235,6 +256,13 @@ enum class ImportStatus(val isSuccess: Boolean, val isActionRequired: Boolean) {
     IMPORT_SUCCESS_PASSWORD_REQUIRED(isSuccess = true, isActionRequired = true),
     IMPORT_SUCCESS_AUTHORIZATION_REQUIRED(isSuccess = true, isActionRequired = true),
     IMPORT_FAILURE(isSuccess = false, isActionRequired = false),
+}
+
+enum class ConnectionStatus {
+    NOT_CHECKED,
+    CHECKING,
+    CONNECTED,
+    FAILED,
 }
 
 enum class ButtonState {
@@ -259,4 +287,12 @@ enum class StatusText {
 enum class CloseButtonLabel {
     OK,
     LATER,
+}
+
+internal fun ConnectionCheckResult.toConnectionStatus(): ConnectionStatus {
+    return when (this) {
+        ConnectionCheckResult.Connected -> ConnectionStatus.CONNECTED
+        ConnectionCheckResult.Failed -> ConnectionStatus.FAILED
+        ConnectionCheckResult.NotChecked -> ConnectionStatus.NOT_CHECKED
+    }
 }

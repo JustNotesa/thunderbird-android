@@ -11,6 +11,7 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import app.k9mail.feature.migration.launcher.api.MigrationManager
+import app.k9mail.feature.settings.import.AccountConnectionChecker
 import app.k9mail.feature.settings.import.ExistingAccountMatcher
 import app.k9mail.feature.settings.import.SettingsImportExternalContract.AccountActivator
 import com.fsck.k9.helper.SingleLiveEvent
@@ -44,6 +45,7 @@ internal class SettingsImportViewModel(
     private val migrationManager: MigrationManager,
     private val importAppFetcher: ImportAppFetcher,
     private val existingAccountMatcher: ExistingAccountMatcher,
+    private val connectionChecker: AccountConnectionChecker,
     private val backgroundDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val logger: Logger,
     viewModelScope: CoroutineScope = CoroutineScope(Dispatchers.Main.immediate + SupervisorJob()),
@@ -142,6 +144,8 @@ internal class SettingsImportViewModel(
             isLoadingProgressVisible = savedInstanceState.getBoolean(STATE_LOADING_PROGRESS_VISIBLE)
             isImportProgressVisible = savedInstanceState.getBoolean(STATE_IMPORT_PROGRESS_VISIBLE)
             statusText = savedInstanceState.getEnum(STATE_STATUS_TEXT, StatusText.HIDDEN)
+            isPasswordManagerPasteFlow = savedInstanceState.getBoolean(STATE_PASSWORD_MANAGER_PASTE_FLOW)
+            isPasswordManagerReminderVisible = savedInstanceState.getBoolean(STATE_PASSWORD_MANAGER_REMINDER_VISIBLE)
 
             if (!hasDocumentBeenRead) return@updateUiModel
 
@@ -182,6 +186,7 @@ internal class SettingsImportViewModel(
                     accountIndex = saved.accountIndex,
                     displayName = saved.displayName,
                     isAlreadySetUp = saved.isAlreadySetUp,
+                    connectionStatus = saved.connectionStatus,
                 ).apply {
                     selected = saved.selected
                     importStatus = saved.importStatus
@@ -217,6 +222,8 @@ internal class SettingsImportViewModel(
             outState.putBoolean(STATE_LOADING_PROGRESS_VISIBLE, isLoadingProgressVisible)
             outState.putBoolean(STATE_IMPORT_PROGRESS_VISIBLE, isImportProgressVisible)
             outState.putEnum(STATE_STATUS_TEXT, statusText)
+            outState.putBoolean(STATE_PASSWORD_MANAGER_PASTE_FLOW, isPasswordManagerPasteFlow)
+            outState.putBoolean(STATE_PASSWORD_MANAGER_REMINDER_VISIBLE, isPasswordManagerReminderVisible)
             outState.putString(STATE_CURRENTLY_AUTHORIZING_ACCOUNT_UUID, currentlyAuthorizingAccountUuid)
 
             if (hasDocumentBeenRead) {
@@ -250,6 +257,7 @@ internal class SettingsImportViewModel(
     fun onPickDocumentButtonClicked() {
         updateUiModel {
             disablePickButtons()
+            isPasswordManagerPasteFlow = false
         }
 
         sendActionEvent(Action.PickDocument)
@@ -258,6 +266,7 @@ internal class SettingsImportViewModel(
     fun onScanQrCodeButtonClicked() {
         updateUiModel {
             disablePickButtons()
+            isPasswordManagerPasteFlow = false
         }
 
         sendActionEvent(Action.ScanQrCode)
@@ -266,6 +275,7 @@ internal class SettingsImportViewModel(
     fun onPasteAccountsButtonClicked() {
         updateUiModel {
             disablePickButtons()
+            isPasswordManagerPasteFlow = true
         }
 
         sendActionEvent(Action.PasteAccounts)
@@ -274,6 +284,7 @@ internal class SettingsImportViewModel(
     fun onPickAppButtonClicked() {
         updateUiModel {
             disablePickButtons()
+            isPasswordManagerPasteFlow = false
         }
 
         sendActionEvent(Action.PickApp)
@@ -457,6 +468,8 @@ internal class SettingsImportViewModel(
 
                     updateCloseButtonAndImportStatusText()
                 }
+
+                checkImportedAccountConnections()
             } catch (e: Exception) {
                 logger.error(TAG, e) { "Error importing settings" }
 
@@ -465,6 +478,41 @@ internal class SettingsImportViewModel(
                 }
             }
         }
+    }
+
+    private fun checkImportedAccountConnections() {
+        val accountsToCheck = importedAccountsToCheck()
+        if (accountsToCheck.isEmpty()) return
+
+        updateUiModel {
+            accountsToCheck.forEach { (position, _) ->
+                setConnectionStatus(position, ConnectionStatus.CHECKING)
+            }
+        }
+
+        accountsToCheck.forEach { (position, accountUuid) ->
+            viewModelScope.launch {
+                val checkResult = connectionChecker.check(accountUuid)
+                updateUiModel {
+                    setConnectionStatus(position, checkResult.toConnectionStatus())
+                }
+            }
+        }
+    }
+
+    private fun importedAccountsToCheck(): List<Pair<Int, AccountUuid>> {
+        val accountsToCheck = mutableListOf<Pair<Int, AccountUuid>>()
+
+        uiModel.settingsList.forEachIndexed { position, listItem ->
+            if (listItem is SettingsListItem.Account && listItem.needsConnectionCheck) {
+                val accountUuid = accountsMap[listItem.accountIndex]
+                if (accountUuid != null) {
+                    accountsToCheck += position to accountUuid
+                }
+            }
+        }
+
+        return accountsToCheck
     }
 
     private fun SettingsImportUiModel.setGeneralSettingsImportStatus(
@@ -587,6 +635,7 @@ internal class SettingsImportViewModel(
                     selected = accountItem.selected,
                     isAlreadySetUp = accountItem.isAlreadySetUp,
                     importStatus = accountItem.importStatus,
+                    connectionStatus = accountItem.connectionStatus,
                     incomingServerName = accountState?.incomingServerName,
                     outgoingServerName = accountState?.outgoingServerName,
                     incomingServerPasswordNeeded = accountState?.incomingServerPasswordNeeded ?: false,
@@ -613,6 +662,8 @@ internal class SettingsImportViewModel(
         private const val STATE_LOADING_PROGRESS_VISIBLE = "loadingProgressVisible"
         private const val STATE_IMPORT_PROGRESS_VISIBLE = "importProgressVisible"
         private const val STATE_STATUS_TEXT = "statusText"
+        private const val STATE_PASSWORD_MANAGER_PASTE_FLOW = "passwordManagerPasteFlow"
+        private const val STATE_PASSWORD_MANAGER_REMINDER_VISIBLE = "passwordManagerReminderVisible"
         private const val STATE_CONTAINS_GENERAL_SETTINGS = "containsGeneralSettings"
         private const val STATE_INCLUDE_GENERAL_SETTINGS = "includeGeneralSettings"
         private const val STATE_CONTENT_URI = "contentUri"
@@ -655,6 +706,7 @@ private class SavedAccountState(
     val selected: Boolean,
     val isAlreadySetUp: Boolean,
     val importStatus: ImportStatus,
+    val connectionStatus: ConnectionStatus,
     val incomingServerName: String?,
     val outgoingServerName: String?,
     val incomingServerPasswordNeeded: Boolean,

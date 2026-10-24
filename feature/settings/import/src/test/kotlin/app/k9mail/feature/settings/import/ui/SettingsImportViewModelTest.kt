@@ -3,6 +3,8 @@ package app.k9mail.feature.settings.import.ui
 import android.app.Application
 import android.content.ContentResolver
 import androidx.core.net.toUri
+import app.k9mail.feature.settings.import.AccountConnectionChecker
+import app.k9mail.feature.settings.import.ConnectionCheckResult
 import app.k9mail.feature.settings.import.ExistingAccount
 import app.k9mail.feature.settings.import.ExistingAccountMatcher
 import app.k9mail.feature.settings.import.ExistingAccountProvider
@@ -11,6 +13,7 @@ import assertk.all
 import assertk.assertThat
 import assertk.assertions.hasSize
 import assertk.assertions.index
+import assertk.assertions.isEmpty
 import assertk.assertions.isEqualTo
 import assertk.assertions.isFalse
 import assertk.assertions.isInstanceOf
@@ -23,6 +26,7 @@ import com.fsck.k9.preferences.ImportResults
 import com.fsck.k9.preferences.SettingsImportExportException
 import com.fsck.k9.preferences.SettingsImporter
 import kotlin.test.Test
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.test.TestScope
 import net.thunderbird.core.logging.testing.TestLogger
@@ -44,6 +48,7 @@ class SettingsImportViewModelTest {
     private val migrationManager = FakeMigrationManager(featureIncluded = true)
     private val importAppFetcher = mock<ImportAppFetcher>()
     private val existingAccountProvider = FakeExistingAccountProvider()
+    private val connectionChecker = FakeAccountConnectionChecker()
     private val viewModel = SettingsImportViewModel(
         contentResolver = contentResolver,
         settingsImporter = settingsImporter,
@@ -51,6 +56,7 @@ class SettingsImportViewModelTest {
         migrationManager = migrationManager,
         importAppFetcher = importAppFetcher,
         existingAccountMatcher = ExistingAccountMatcher(existingAccountProvider),
+        connectionChecker = connectionChecker,
         backgroundDispatcher = Dispatchers.Unconfined,
         viewModelScope = testScope,
         logger = TestLogger(),
@@ -376,12 +382,180 @@ class SettingsImportViewModelTest {
 
         assertThat(uiModelLiveData.value!!.statusText).isEqualTo(StatusText.IMPORT_SUCCESS)
     }
+
+    @Test
+    fun `importing two accounts should check the connection of both accounts`() {
+        val accountOne = AccountDescription(name = "Account 1", uuid = "uuid-1")
+        val accountTwo = AccountDescription(name = "Account 2", uuid = "uuid-2")
+        prepareImport(
+            accounts = listOf(accountOne, accountTwo),
+            importedAccounts = listOf(
+                importedAccountPair(accountOne, "imported-uuid-1"),
+                importedAccountPair(accountTwo, "imported-uuid-2"),
+            ),
+        )
+
+        connectionChecker.gate = CompletableDeferred()
+        viewModel.onImportButtonClicked()
+        testScope.testScheduler.advanceUntilIdle()
+
+        // The connection of both accounts is being checked
+        assertThat(viewModel.getUiModel().value!!.settingsList).all {
+            index(0).isInstanceOf<SettingsListItem.Account>()
+                .prop(SettingsListItem.Account::connectionStatus).isEqualTo(ConnectionStatus.CHECKING)
+            index(1).isInstanceOf<SettingsListItem.Account>()
+                .prop(SettingsListItem.Account::connectionStatus).isEqualTo(ConnectionStatus.CHECKING)
+        }
+        assertThat(connectionChecker.checkedAccountUuids)
+            .isEqualTo(listOf("imported-uuid-1", "imported-uuid-2"))
+
+        connectionChecker.results = mapOf("imported-uuid-1" to ConnectionCheckResult.Connected)
+        connectionChecker.defaultResult = ConnectionCheckResult.Failed
+        connectionChecker.gate?.complete(Unit)
+        testScope.testScheduler.advanceUntilIdle()
+
+        assertThat(viewModel.getUiModel().value!!.settingsList).all {
+            index(0).isInstanceOf<SettingsListItem.Account>()
+                .prop(SettingsListItem.Account::connectionStatus).isEqualTo(ConnectionStatus.CONNECTED)
+            index(1).isInstanceOf<SettingsListItem.Account>()
+                .prop(SettingsListItem.Account::connectionStatus).isEqualTo(ConnectionStatus.FAILED)
+        }
+    }
+
+    @Test
+    fun `account that requires a password should not be checked`() {
+        val account = AccountDescription(name = "Account 1", uuid = "uuid-1")
+        prepareImport(
+            accounts = listOf(account),
+            importedAccounts = listOf(
+                importedAccountPair(account, "imported-uuid-1").copy(incomingPasswordNeeded = true),
+            ),
+        )
+
+        viewModel.onImportButtonClicked()
+        testScope.testScheduler.advanceUntilIdle()
+
+        assertThat(connectionChecker.checkedAccountUuids).isEmpty()
+        assertThat(viewModel.getUiModel().value!!.settingsList).all {
+            index(0).isInstanceOf<SettingsListItem.Account>()
+                .prop(SettingsListItem.Account::connectionStatus).isEqualTo(ConnectionStatus.NOT_CHECKED)
+        }
+        assertThat(viewModel.getUiModel().value!!.statusText).isEqualTo(StatusText.IMPORT_SUCCESS_PASSWORD_REQUIRED)
+    }
+
+    @Test
+    fun `status text should contain the number of imported accounts`() {
+        val accountOne = AccountDescription(name = "Account 1", uuid = "uuid-1")
+        val accountTwo = AccountDescription(name = "Account 2", uuid = "uuid-2")
+        prepareImport(
+            accounts = listOf(accountOne, accountTwo),
+            importedAccounts = listOf(
+                importedAccountPair(accountOne, "imported-uuid-1"),
+                importedAccountPair(accountTwo, "imported-uuid-2"),
+            ),
+        )
+
+        viewModel.onImportButtonClicked()
+        testScope.testScheduler.advanceUntilIdle()
+
+        assertThat(viewModel.getUiModel().value!!.statusText).isEqualTo(StatusText.IMPORT_SUCCESS)
+        assertThat(viewModel.getUiModel().value!!.importedAccountCount).isEqualTo(2)
+    }
+
+    @Test
+    fun `reminder to delete the note should be shown after importing accounts from the password manager`() {
+        viewModel.onPasteAccountsButtonClicked()
+        val account = AccountDescription(name = "Account 1", uuid = "uuid-1")
+        prepareImport(
+            accounts = listOf(account),
+            importedAccounts = listOf(importedAccountPair(account, "imported-uuid-1")),
+        )
+
+        viewModel.onImportButtonClicked()
+        testScope.testScheduler.advanceUntilIdle()
+
+        assertThat(viewModel.getUiModel().value!!.statusText).isEqualTo(StatusText.IMPORT_SUCCESS)
+        assertThat(viewModel.getUiModel().value!!.isPasswordManagerReminderVisible).isTrue()
+    }
+
+    @Test
+    fun `reminder to delete the note should not be shown after importing accounts from a file`() {
+        viewModel.onPickDocumentButtonClicked()
+        val account = AccountDescription(name = "Account 1", uuid = "uuid-1")
+        prepareImport(
+            accounts = listOf(account),
+            importedAccounts = listOf(importedAccountPair(account, "imported-uuid-1")),
+        )
+
+        viewModel.onImportButtonClicked()
+        testScope.testScheduler.advanceUntilIdle()
+
+        assertThat(viewModel.getUiModel().value!!.statusText).isEqualTo(StatusText.IMPORT_SUCCESS)
+        assertThat(viewModel.getUiModel().value!!.isPasswordManagerReminderVisible).isFalse()
+    }
+
+    private fun prepareImport(
+        accounts: List<AccountDescription>,
+        importedAccounts: List<AccountDescriptionPair>,
+    ) {
+        viewModel.initialize()
+
+        val contentUri = "content://settings".toUri()
+        val inputStream = "".byteInputStream()
+        contentResolver.stub {
+            on { openInputStream(contentUri) } doReturn inputStream
+        }
+        settingsImporter.stub {
+            on { getImportStreamContents(inputStream) } doReturn ImportContents(
+                globalSettings = false,
+                accounts = accounts,
+            )
+        }
+
+        // Read settings data from the picked file
+        viewModel.onDocumentPicked(contentUri)
+        testScope.testScheduler.advanceUntilIdle()
+
+        settingsImporter.stub {
+            on { importSettings(inputStream, false, accounts.map { it.uuid }) } doReturn ImportResults(
+                globalSettings = false,
+                importedAccounts = importedAccounts,
+                erroneousAccounts = emptyList(),
+            )
+        }
+    }
+
+    private fun importedAccountPair(original: AccountDescription, importedUuid: String): AccountDescriptionPair {
+        return AccountDescriptionPair(
+            original = original,
+            imported = AccountDescription(name = original.name, uuid = importedUuid),
+            authorizationNeeded = false,
+            incomingPasswordNeeded = false,
+            outgoingPasswordNeeded = false,
+            incomingServerName = "irrelevant",
+            outgoingServerName = "irrelevant",
+        )
+    }
 }
 
 private class FakeExistingAccountProvider : ExistingAccountProvider {
     var accounts: List<ExistingAccount> = emptyList()
 
     override fun getExistingAccounts(): List<ExistingAccount> = accounts
+}
+
+private class FakeAccountConnectionChecker : AccountConnectionChecker {
+    var results: Map<String, ConnectionCheckResult> = emptyMap()
+    var defaultResult: ConnectionCheckResult = ConnectionCheckResult.Connected
+    var gate: CompletableDeferred<Unit>? = null
+    val checkedAccountUuids = mutableListOf<String>()
+
+    override suspend fun check(accountUuid: String): ConnectionCheckResult {
+        checkedAccountUuids += accountUuid
+        gate?.await()
+
+        return results[accountUuid] ?: defaultResult
+    }
 }
 
 private val EXISTING_ACCOUNT = AccountDescription(
