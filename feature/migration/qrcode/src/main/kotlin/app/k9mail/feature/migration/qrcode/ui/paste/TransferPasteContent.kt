@@ -20,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import app.k9mail.feature.migration.qrcode.R
+import app.k9mail.feature.migration.qrcode.ui.common.SecureContentEffect
 import app.k9mail.feature.migration.qrcode.ui.guide.TransferGuideIllustration
 import app.k9mail.feature.migration.qrcode.ui.paste.TransferPasteContract.Event
 import app.k9mail.feature.migration.qrcode.ui.paste.TransferPasteContract.PasteError
@@ -44,6 +45,11 @@ internal fun TransferPasteContent(
     onEvent: (Event) -> Unit,
 ) {
     var showHelp by rememberSaveable { mutableStateOf(false) }
+
+    // The pasted accounts with their passwords are only shown while the user asks for them.
+    if (state.revealed && state.text.isNotEmpty()) {
+        SecureContentEffect()
+    }
 
     Surface(modifier = Modifier.fillMaxSize().safeDrawingPadding()) {
         ResponsiveContent(
