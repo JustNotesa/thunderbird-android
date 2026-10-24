@@ -19,11 +19,7 @@ class FakeMigrationManager(var featureIncluded: Boolean) : MigrationManager {
         error("Not implemented")
     }
 
-    override fun createTransferSendIntent(context: Context): Intent? {
-        return null
-    }
-
-    override fun createTransferTextIntent(context: Context): Intent? {
+    override fun createTransferChoiceIntent(context: Context): Intent? {
         return null
     }
 }

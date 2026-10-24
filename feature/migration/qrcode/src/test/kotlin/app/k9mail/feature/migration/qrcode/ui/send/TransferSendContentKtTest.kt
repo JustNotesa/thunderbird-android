@@ -11,6 +11,7 @@ import app.k9mail.feature.migration.qrcode.ui.send.TransferSendContract.Event
 import app.k9mail.feature.migration.qrcode.ui.send.TransferSendContract.Step
 import assertk.assertThat
 import assertk.assertions.containsExactly
+import assertk.assertions.isTrue
 import org.junit.Test
 import org.robolectric.annotation.Config
 
@@ -20,7 +21,11 @@ class TransferSendContentKtTest : ComposeTest() {
     @Test
     fun `when the QR code is shown, the title should be displayed`() = runComposeTest {
         setContentWithTheme {
-            TransferSendContent(step = Step.ShowingQrCode(qrText = QR_TEXT), onEvent = {})
+            TransferSendContent(
+                step = Step.ShowingQrCode(qrText = QR_TEXT),
+                onEvent = {},
+                onUsePasswordManager = {},
+            )
         }
 
         onNodeWithText(getString(R.string.migration_qrcode_transfer_send_title)).assertExists()
@@ -31,7 +36,11 @@ class TransferSendContentKtTest : ComposeTest() {
         val events = mutableListOf<Event>()
 
         setContentWithTheme {
-            TransferSendContent(step = Step.NoWifi, onEvent = { event -> events.add(event) })
+            TransferSendContent(
+                step = Step.NoWifi,
+                onEvent = { event -> events.add(event) },
+                onUsePasswordManager = {},
+            )
         }
 
         onNodeWithTag("RetryButton").assertExists().performClick()
@@ -42,7 +51,7 @@ class TransferSendContentKtTest : ComposeTest() {
     @Test
     fun `when there's no Wi-Fi, the hotspot button should be displayed`() = runComposeTest {
         setContentWithTheme {
-            TransferSendContent(step = Step.NoWifi, onEvent = {})
+            TransferSendContent(step = Step.NoWifi, onEvent = {}, onUsePasswordManager = {})
         }
 
         onNodeWithText(R.string.migration_qrcode_transfer_send_hotspot_button_text).assertExists()
@@ -53,7 +62,11 @@ class TransferSendContentKtTest : ComposeTest() {
         val events = mutableListOf<Event>()
 
         setContentWithTheme {
-            TransferSendContent(step = Step.NoWifi, onEvent = { event -> events.add(event) })
+            TransferSendContent(
+                step = Step.NoWifi,
+                onEvent = { event -> events.add(event) },
+                onUsePasswordManager = {},
+            )
         }
 
         onNodeWithTag("UseHotspotButton").assertExists().performClick()
@@ -64,10 +77,36 @@ class TransferSendContentKtTest : ComposeTest() {
     @Test
     fun `when the hotspot is starting, its text should be displayed`() = runComposeTest {
         setContentWithTheme {
-            TransferSendContent(step = Step.StartingHotspot, onEvent = {})
+            TransferSendContent(step = Step.StartingHotspot, onEvent = {}, onUsePasswordManager = {})
         }
 
         onNodeWithText(R.string.migration_qrcode_transfer_send_hotspot_starting).assertExists()
+    }
+
+    @Test
+    fun `when the transfer failed, the password manager button should be displayed`() = runComposeTest {
+        setContentWithTheme {
+            TransferSendContent(step = Step.Failed, onEvent = {}, onUsePasswordManager = {})
+        }
+
+        onNodeWithText(R.string.migration_qrcode_transfer_send_password_manager_button_text).assertExists()
+    }
+
+    @Test
+    fun `when the transfer failed, clicking the password manager button should call the callback`() = runComposeTest {
+        var passwordManagerUsed = false
+
+        setContentWithTheme {
+            TransferSendContent(
+                step = Step.Failed,
+                onEvent = {},
+                onUsePasswordManager = { passwordManagerUsed = true },
+            )
+        }
+
+        onNodeWithTag("PasswordManagerButton").assertExists().performClick()
+
+        assertThat(passwordManagerUsed).isTrue()
     }
 }
 

@@ -14,6 +14,7 @@ internal fun TbOnboardingMigrationScreenPreview() {
             TbOnboardingMigrationScreen(
                 onThundermailClick = {},
                 onQrCodeScan = {},
+                onPasteAccounts = {},
                 onAddAccount = {},
                 onImport = {},
                 brandNameProvider = object : BrandNameProvider {

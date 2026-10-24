@@ -123,6 +123,24 @@ class SettingsImportViewModelTest {
     }
 
     @Test
+    fun `setting ScanQrCode action should emit ScanQrCode event`() {
+        viewModel.initialize()
+
+        viewModel.setAction(SettingsImportAction.ScanQrCode)
+
+        assertThat(viewModel.getActionEvents().value).isEqualTo(Action.ScanQrCode)
+    }
+
+    @Test
+    fun `setting PasteAccounts action should emit PasteAccounts event`() {
+        viewModel.initialize()
+
+        viewModel.setAction(SettingsImportAction.PasteAccounts)
+
+        assertThat(viewModel.getActionEvents().value).isEqualTo(Action.PasteAccounts)
+    }
+
+    @Test
     fun `canceling picking an app should enable buttons`() {
         importAppFetcher.stub {
             on { isAtLeastOneAppInstalled() } doReturn true

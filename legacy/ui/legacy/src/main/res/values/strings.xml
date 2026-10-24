@@ -952,12 +952,13 @@
     <string name="dialog_attachment_progress_title">Downloading attachment</string>
 
     <string name="settings_list_backup_category">Backup</string>
+    <string name="settings_list_transfer_category">Transfer accounts</string>
     <string name="settings_list_miscellaneous_category">Miscellaneous</string>
     <string name="settings_list_action_support">Support <xliff:g id="app_name">%s</xliff:g></string>
 
     <string name="settings_export_title">Export settings</string>
-    <string name="settings_transfer_to_new_device_title">Transfer to a new device</string>
-    <string name="settings_copy_accounts_for_password_manager_title">Copy accounts for password manager</string>
+    <string name="settings_transfer_send_title">Send accounts to another device</string>
+    <string name="settings_transfer_receive_title">Take over accounts from another device</string>
     <string name="settings_export_button">Export</string>
     <string name="settings_export_share_button">Share</string>
     <string name="settings_export_progress_text">Exporting settings…</string>

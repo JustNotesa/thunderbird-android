@@ -33,6 +33,7 @@ import net.thunderbird.components.ui.bolt.theme.BoltTheme
 internal fun TransferSendContent(
     step: Step,
     onEvent: (Event) -> Unit,
+    onUsePasswordManager: () -> Unit,
 ) {
     Surface(
         modifier = Modifier
@@ -46,6 +47,7 @@ internal fun TransferSendContent(
                 step = step,
                 contentPadding = contentPadding,
                 onEvent = onEvent,
+                onUsePasswordManager = onUsePasswordManager,
             )
         }
     }
@@ -56,6 +58,7 @@ private fun StepContent(
     step: Step,
     contentPadding: PaddingValues,
     onEvent: (Event) -> Unit,
+    onUsePasswordManager: () -> Unit,
 ) {
     when (step) {
         is Step.ShowingQrCode -> ShowingQrCodeContent(
@@ -74,12 +77,14 @@ private fun StepContent(
             step = step,
             contentPadding = contentPadding,
             onEvent = onEvent,
+            onUsePasswordManager = onUsePasswordManager,
         )
 
         else -> MessageStepContent(
             step = step,
             contentPadding = contentPadding,
             onEvent = onEvent,
+            onUsePasswordManager = onUsePasswordManager,
         )
     }
 }

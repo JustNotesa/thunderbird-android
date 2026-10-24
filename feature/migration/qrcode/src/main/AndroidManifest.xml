@@ -30,6 +30,12 @@
             />
 
         <activity
+            android:name=".ui.choice.TransferChoiceActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Material3.Light.NoActionBar"
+            />
+
+        <activity
             android:name=".ui.send.TransferSendActivity"
             android:exported="false"
             android:theme="@style/Theme.Material3.Light.NoActionBar"

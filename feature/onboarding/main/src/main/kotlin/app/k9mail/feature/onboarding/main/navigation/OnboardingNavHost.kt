@@ -23,6 +23,7 @@ private const val NESTED_NAVIGATION_ROUTE_MIGRATION = "migration"
 private const val NESTED_NAVIGATION_ROUTE_ACCOUNT_SETUP = "account_setup"
 private const val NESTED_NAVIGATION_ROUTE_SETTINGS_IMPORT = "settings_import"
 private const val NESTED_NAVIGATION_ROUTE_SETTINGS_IMPORT_QR_CODE = "settings_import_qr_code"
+private const val NESTED_NAVIGATION_ROUTE_SETTINGS_IMPORT_PASTE_ACCOUNTS = "settings_import_paste_accounts"
 const val NESTED_NAVIGATION_ROUTE_PERMISSIONS = "permissions"
 
 private fun NavController.navigateToAccountSetup() {
@@ -35,6 +36,10 @@ private fun NavController.navigateToSettingsImport() {
 
 private fun NavController.navigateToSettingsImportQrCode() {
     navigate(NESTED_NAVIGATION_ROUTE_SETTINGS_IMPORT_QR_CODE)
+}
+
+private fun NavController.navigateToSettingsImportPasteAccounts() {
+    navigate(NESTED_NAVIGATION_ROUTE_SETTINGS_IMPORT_PASTE_ACCOUNTS)
 }
 
 private fun NavController.navigateToPermissions() {
@@ -73,6 +78,7 @@ fun OnboardingNavHost(
         composable(route = NESTED_NAVIGATION_ROUTE_MIGRATION) {
             onboardingMigrationManager.OnboardingMigrationScreen(
                 onQrCodeScan = { navController.navigateToSettingsImportQrCode() },
+                onPasteAccounts = { navController.navigateToSettingsImportPasteAccounts() },
                 onThundermailClick = { onFinish(OnboardingRoute.ThundermailSignIn) },
                 onAddAccount = { navController.navigateToAccountSetup() },
                 onImport = { navController.navigateToSettingsImport() },
@@ -108,6 +114,14 @@ fun OnboardingNavHost(
         composable(route = NESTED_NAVIGATION_ROUTE_SETTINGS_IMPORT_QR_CODE) {
             SettingsImportScreen(
                 action = SettingsImportAction.ScanQrCode,
+                onImportSuccess = ::onImportSuccess,
+                onBack = { navController.popBackStack() },
+            )
+        }
+
+        composable(route = NESTED_NAVIGATION_ROUTE_SETTINGS_IMPORT_PASTE_ACCOUNTS) {
+            SettingsImportScreen(
+                action = SettingsImportAction.PasteAccounts,
                 onImportSuccess = ::onImportSuccess,
                 onBack = { navController.popBackStack() },
             )

@@ -19,6 +19,7 @@ internal fun HotspotStepContent(
     step: Step,
     contentPadding: PaddingValues,
     onEvent: (Event) -> Unit,
+    onUsePasswordManager: () -> Unit,
 ) {
     when (step) {
         Step.NoWifi -> MessageContent(
@@ -38,6 +39,7 @@ internal fun HotspotStepContent(
         Step.HotspotUnsupported -> MessageContent(
             text = stringResource(R.string.migration_qrcode_transfer_send_hotspot_unsupported),
             contentPadding = contentPadding,
+            secondaryAction = passwordManagerAction(onUsePasswordManager),
             onClose = { onEvent(Event.CloseClicked) },
         )
 
@@ -52,6 +54,7 @@ internal fun HotspotStepContent(
             text = stringResource(R.string.migration_qrcode_transfer_send_hotspot_failed),
             contentPadding = contentPadding,
             primaryAction = hotspotRetryAction(onEvent),
+            secondaryAction = passwordManagerAction(onUsePasswordManager),
             onClose = { onEvent(Event.CloseClicked) },
         )
 

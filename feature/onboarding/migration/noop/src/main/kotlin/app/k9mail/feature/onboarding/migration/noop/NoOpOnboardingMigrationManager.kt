@@ -9,6 +9,7 @@ class NoOpOnboardingMigrationManager : OnboardingMigrationManager {
     @Composable
     override fun OnboardingMigrationScreen(
         onQrCodeScan: () -> Unit,
+        onPasteAccounts: () -> Unit,
         onThundermailClick: () -> Unit,
         onAddAccount: () -> Unit,
         onImport: () -> Unit,
