@@ -34,6 +34,7 @@ internal fun MessageStepContent(
     step: Step,
     contentPadding: PaddingValues,
     onEvent: (Event) -> Unit,
+    onUsePasswordManager: () -> Unit,
 ) {
     when (step) {
         Step.Preparing -> MessageContent(
@@ -64,6 +65,7 @@ internal fun MessageStepContent(
             text = stringResource(R.string.migration_qrcode_transfer_send_failed),
             contentPadding = contentPadding,
             primaryAction = retryAction(onEvent),
+            secondaryAction = passwordManagerAction(onUsePasswordManager),
             onClose = { onEvent(Event.CloseClicked) },
         )
 
@@ -146,6 +148,18 @@ internal fun retryAction(onEvent: (Event) -> Unit): MessageAction {
         text = stringResource(R.string.migration_qrcode_transfer_send_retry_button_text),
         tag = "RetryButton",
         onClick = { onEvent(Event.RetryClicked) },
+    )
+}
+
+/**
+ * The other way to transfer the accounts, offered when the transfer over Wi-Fi or the hotspot didn't work.
+ */
+@Composable
+internal fun passwordManagerAction(onUsePasswordManager: () -> Unit): MessageAction {
+    return MessageAction(
+        text = stringResource(R.string.migration_qrcode_transfer_send_password_manager_button_text),
+        tag = "PasswordManagerButton",
+        onClick = onUsePasswordManager,
     )
 }
 

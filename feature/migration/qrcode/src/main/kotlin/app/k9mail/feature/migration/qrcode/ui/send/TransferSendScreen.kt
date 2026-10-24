@@ -20,6 +20,7 @@ import org.koin.compose.viewmodel.koinViewModel
 @Composable
 internal fun TransferSendScreen(
     finish: () -> Unit,
+    onUsePasswordManager: () -> Unit,
     viewModel: TransferSendViewModel = koinViewModel<TransferSendViewModel>(),
 ) {
     val context = LocalContext.current
@@ -48,6 +49,7 @@ internal fun TransferSendScreen(
         TransferSendContent(
             step = state.value.step,
             onEvent = dispatch,
+            onUsePasswordManager = onUsePasswordManager,
         )
     }
 }
