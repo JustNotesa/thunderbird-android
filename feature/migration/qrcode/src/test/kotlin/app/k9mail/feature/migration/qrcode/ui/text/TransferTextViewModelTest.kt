@@ -7,8 +7,8 @@ import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
-import net.thunderbird.components.ui.testing.coroutines.MainDispatcherHelper
 import net.thunderbird.components.core.logging.testing.TestLogger
+import net.thunderbird.components.ui.testing.coroutines.MainDispatcherHelper
 import net.thunderbird.legacy.logging.Log
 
 class TransferTextViewModelTest {

@@ -6,8 +6,8 @@ import assertk.assertions.isTrue
 import kotlin.test.Test
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
-import net.thunderbird.feature.mail.folder.FolderType
 import net.thunderbird.account.fake.FakeAccountData.ACCOUNT_ID
+import net.thunderbird.feature.mail.folder.FolderType
 import net.thunderbird.feature.mail.folder.api.Folder
 
 class DisplayTreeFolderTest {

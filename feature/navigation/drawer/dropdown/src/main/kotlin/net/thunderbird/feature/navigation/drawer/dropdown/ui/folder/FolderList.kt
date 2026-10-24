@@ -33,6 +33,7 @@ private const val PINNED_DIVIDER_KEY = "pinnedDivider"
 private const val ACCOUNT_SECTION_HEADER_KEY = "accountSectionHeader"
 private const val PINNED_FOLDER_KEY_PREFIX = "pinned:"
 
+@Suppress("LongMethod")
 @Composable
 internal fun FolderList(
     rootFolder: DisplayTreeFolder,

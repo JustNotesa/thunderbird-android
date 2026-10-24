@@ -43,8 +43,8 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.withContext
-import net.thunderbird.components.ui.testing.coroutines.MainDispatcherHelper
 import net.thunderbird.components.core.logging.testing.TestLogger
+import net.thunderbird.components.ui.testing.coroutines.MainDispatcherHelper
 import net.thunderbird.legacy.logging.Log
 
 private const val SERVER_LIFETIME = 10_000L
