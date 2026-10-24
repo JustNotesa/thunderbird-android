@@ -10,12 +10,16 @@ dependencies {
     implementation(projects.core.ui.legacy.designsystem)
 
     implementation(projects.core.android.account)
+    implementation(projects.core.logging.api)
     implementation(projects.legacy.mailstore)
     implementation(projects.legacy.message)
     implementation(projects.feature.mail.account.api)
     implementation(projects.feature.mail.folder.api)
 
     implementation(libs.androidx.lifecycle.livedata.ktx)
+
+    testImplementation(projects.core.logging.testing)
+    testImplementation(libs.mockito.kotlin)
 }
 
 codeCoverage {

@@ -5,6 +5,7 @@ import org.koin.dsl.module
 val uiFolderModule = module {
     single<DisplayFolderRepository> {
         DefaultDisplayFolderRepository(
+            logger = get(),
             accountManager = get(),
             messagingController = get(),
             messageStoreManager = get(),

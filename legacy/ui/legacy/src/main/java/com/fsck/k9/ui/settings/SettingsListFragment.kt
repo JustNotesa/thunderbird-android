@@ -29,7 +29,6 @@ import app.k9mail.feature.launcher.FeatureLauncherActivity
 import app.k9mail.feature.launcher.FeatureLauncherTarget
 import app.k9mail.feature.migration.launcher.api.MigrationManager
 import com.fsck.k9.ui.R
-import com.fsck.k9.ui.base.livedata.observeNotNull
 import com.fsck.k9.ui.observe
 import com.fsck.k9.ui.settings.account.AccountSettingsActivity
 import com.fsck.k9.view.DraggableFrameLayout
@@ -116,7 +115,9 @@ class SettingsListFragment : Fragment(), ItemTouchCallback {
     }
 
     private fun observeAccounts() {
-        viewModel.accounts.observeNotNull(this) { accountList ->
+        viewModel.accounts.observe(viewLifecycleOwner) { accountList ->
+            accountList ?: return@observe
+
             accounts = accountList
             if (accountList.isEmpty()) {
                 launchOnboarding()

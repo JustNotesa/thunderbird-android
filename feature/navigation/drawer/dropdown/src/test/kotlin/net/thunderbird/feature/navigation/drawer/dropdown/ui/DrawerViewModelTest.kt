@@ -236,6 +236,43 @@ internal class DrawerViewModelTest {
     }
 
     @Test
+    fun `should select first account when selected account was removed`() = runTest {
+        val displayAccounts = createDisplayAccountList(3)
+        val getDisplayAccountsFlow = MutableStateFlow(displayAccounts)
+        val testSubject = createTestSubject(
+            displayAccountsFlow = getDisplayAccountsFlow,
+        )
+
+        advanceUntilIdle()
+
+        testSubject.event(Event.SelectAccount(displayAccounts[1].id))
+
+        advanceUntilIdle()
+
+        testSubject.event(Event.SelectAccount("removed-account-id"))
+
+        advanceUntilIdle()
+
+        assertThat(testSubject.state.value.selectedAccountId).isEqualTo(displayAccounts.first().id)
+    }
+
+    @Test
+    fun `should select no account when selected account was removed and no accounts are present`() = runTest {
+        val getDisplayAccountsFlow = MutableStateFlow(emptyList<MailDisplayAccount>())
+        val testSubject = createTestSubject(
+            displayAccountsFlow = getDisplayAccountsFlow,
+        )
+
+        advanceUntilIdle()
+
+        testSubject.event(Event.SelectAccount("removed-account-id"))
+
+        advanceUntilIdle()
+
+        assertThat(testSubject.state.value.selectedAccountId).isEqualTo(null)
+    }
+
+    @Test
     fun `should send OpenAccount effect when OnAccountClick event is received`() = runMviTest {
         val displayAccounts = createDisplayAccountList(3)
         val getDisplayAccountsFlow = MutableStateFlow(displayAccounts)

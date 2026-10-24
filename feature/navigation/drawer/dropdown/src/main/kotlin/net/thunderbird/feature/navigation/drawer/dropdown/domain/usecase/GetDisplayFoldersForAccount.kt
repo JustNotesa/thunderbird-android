@@ -2,6 +2,7 @@ package net.thunderbird.feature.navigation.drawer.dropdown.domain.usecase
 
 import app.k9mail.legacy.ui.folder.DisplayFolderRepository
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.map
 import net.thunderbird.feature.navigation.drawer.dropdown.domain.DomainContract.UnifiedFolderRepository
 import net.thunderbird.feature.navigation.drawer.dropdown.domain.DomainContract.UseCase
@@ -21,18 +22,21 @@ internal class GetDisplayFoldersForAccount(
                     listOf(displayUnifiedFolder)
                 }
         } else {
-            return displayFolderRepository.getDisplayFoldersFlow(accountId).map { displayFolders ->
-                displayFolders.map { displayFolder ->
-                    MailDisplayFolder(
-                        accountId = accountId,
-                        folder = displayFolder.folder,
-                        isInTopGroup = displayFolder.isInTopGroup,
-                        unreadMessageCount = displayFolder.unreadMessageCount,
-                        starredMessageCount = displayFolder.starredMessageCount,
-                        pathDelimiter = displayFolder.pathDelimiter,
-                    )
+            return displayFolderRepository.getDisplayFoldersFlow(accountId)
+                // The account might have been removed in the meantime. In that case there are no folders to display.
+                .catch { emit(emptyList()) }
+                .map { displayFolders ->
+                    displayFolders.map { displayFolder ->
+                        MailDisplayFolder(
+                            accountId = accountId,
+                            folder = displayFolder.folder,
+                            isInTopGroup = displayFolder.isInTopGroup,
+                            unreadMessageCount = displayFolder.unreadMessageCount,
+                            starredMessageCount = displayFolder.starredMessageCount,
+                            pathDelimiter = displayFolder.pathDelimiter,
+                        )
+                    }
                 }
-            }
         }
     }
 }

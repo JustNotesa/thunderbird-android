@@ -11,7 +11,10 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import net.thunderbird.core.android.account.AccountRemovedListener
 import net.thunderbird.core.android.account.AccountsChangeListener
@@ -59,6 +62,7 @@ class SettingsViewModelTest {
     @Test
     fun `toggling a selected account removes it from the selection`() {
         val accountId = AccountIdFactory.create()
+
         viewModel.toggleAccountSelection(accountId)
 
         viewModel.toggleAccountSelection(accountId)
@@ -80,6 +84,7 @@ class SettingsViewModelTest {
     @Test
     fun `isAllSelected is false when not all accounts are selected`() {
         val accountId = AccountIdFactory.create()
+
         viewModel.toggleAccountSelection(accountId)
 
         assertThat(viewModel.isAllSelected(2)).isFalse()
@@ -88,6 +93,7 @@ class SettingsViewModelTest {
     @Test
     fun `clearing the selection removes all selected accounts`() {
         val accountId = AccountIdFactory.create()
+
         viewModel.toggleAccountSelection(accountId)
 
         viewModel.clearAccountSelection()
@@ -104,6 +110,29 @@ class SettingsViewModelTest {
 
         assertThat(accountRemover.removedAccountIds).containsExactly(firstAccountId, secondAccountId)
     }
+
+    @Test
+    fun `deleting accounts removes them from the list of accounts`() = runTest {
+        Dispatchers.setMain(UnconfinedTestDispatcher(testScheduler))
+
+        val firstAccount = LegacyAccountDto(AccountIdFactory.create())
+        val secondAccount = LegacyAccountDto(AccountIdFactory.create())
+        val thirdAccount = LegacyAccountDto(AccountIdFactory.create())
+        val viewModel = SettingsViewModel(
+            accountManager = FakeLegacyAccountDtoManager(listOf(firstAccount, secondAccount, thirdAccount)),
+            accountRemover = accountRemover,
+        )
+
+        advanceUntilIdle()
+
+        assertThat(viewModel.accounts.value.orEmpty()).containsExactly(firstAccount, secondAccount, thirdAccount)
+
+        viewModel.deleteAccounts(listOf(firstAccount.id, secondAccount.id))
+
+        advanceUntilIdle()
+
+        assertThat(viewModel.accounts.value.orEmpty()).containsExactly(thirdAccount)
+    }
 }
 
 private class FakeBackgroundAccountRemover : BackgroundAccountRemover {
@@ -114,9 +143,9 @@ private class FakeBackgroundAccountRemover : BackgroundAccountRemover {
     }
 }
 
-private class FakeLegacyAccountDtoManager : LegacyAccountDtoManager {
-    private val accounts = mutableListOf<LegacyAccountDto>()
-
+private class FakeLegacyAccountDtoManager(
+    private val accounts: List<LegacyAccountDto> = emptyList(),
+) : LegacyAccountDtoManager {
     override fun getAccounts(): List<LegacyAccountDto> = accounts
 
     override fun getAccountsFlow(): Flow<List<LegacyAccountDto>> = flowOf(accounts)

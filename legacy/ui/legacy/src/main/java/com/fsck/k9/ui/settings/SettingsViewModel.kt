@@ -1,14 +1,17 @@
 package com.fsck.k9.ui.settings
 
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.asLiveData
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import net.thunderbird.core.android.account.LegacyAccountDto
@@ -21,7 +24,17 @@ internal class SettingsViewModel(
     private val accountRemover: BackgroundAccountRemover,
     private val coroutineDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
-    val accounts = accountManager.getAccountsFlow().asLiveData()
+    private val pendingDeletionAccountIds = MutableStateFlow<Set<AccountId>>(emptySet())
+
+    /**
+     * The accounts to display. Accounts that are being deleted are hidden right away, before they are actually removed.
+     */
+    val accounts: StateFlow<List<LegacyAccountDto>?> = accountManager.getAccountsFlow()
+        .onEach { removeDeletedAccountIds(it) }
+        .combine(pendingDeletionAccountIds) { accounts, pendingDeletionIds ->
+            accounts.filterNot { it.id in pendingDeletionIds }
+        }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     private val accountSelection = AccountSelection()
     private val selectedAccountIds = MutableStateFlow<Set<AccountId>>(emptySet())
@@ -46,6 +59,8 @@ internal class SettingsViewModel(
     fun isAllSelected(totalCount: Int): Boolean = accountSelection.isAllSelected(totalCount)
 
     fun deleteAccounts(accountIds: List<AccountId>) {
+        pendingDeletionAccountIds.value = pendingDeletionAccountIds.value + accountIds
+
         accountIds.forEach { accountId ->
             accountRemover.removeAccountAsync(accountId)
         }
@@ -64,5 +79,14 @@ internal class SettingsViewModel(
 
     private fun publishSelection() {
         selectedAccountIds.value = accountSelection.selectedIds
+    }
+
+    private fun removeDeletedAccountIds(accounts: List<LegacyAccountDto>) {
+        val pendingIds = pendingDeletionAccountIds.value
+        val remainingIds = pendingIds.filter { accountId -> accounts.any { it.id == accountId } }.toSet()
+
+        if (remainingIds != pendingIds) {
+            pendingDeletionAccountIds.value = remainingIds
+        }
     }
 }

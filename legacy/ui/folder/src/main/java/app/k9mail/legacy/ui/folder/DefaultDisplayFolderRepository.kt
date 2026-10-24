@@ -1,5 +1,6 @@
 package app.k9mail.legacy.ui.folder
 
+import android.database.sqlite.SQLiteException
 import app.k9mail.legacy.mailstore.FolderSettingsChangedListener
 import app.k9mail.legacy.mailstore.FolderTypeMapper
 import app.k9mail.legacy.mailstore.MessageStoreManager
@@ -15,10 +16,12 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.buffer
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
 import net.thunderbird.core.android.account.LegacyAccountDto
 import net.thunderbird.core.android.account.LegacyAccountDtoManager
+import net.thunderbird.core.logging.Logger
 import net.thunderbird.feature.account.AccountId
 import net.thunderbird.feature.account.AccountIdFactory
 import net.thunderbird.feature.mail.folder.api.Folder
@@ -26,7 +29,10 @@ import net.thunderbird.feature.mail.folder.FolderType
 import net.thunderbird.feature.mail.folder.api.OutboxFolderManager
 import com.fsck.k9.mail.FolderType as LegacyFolderType
 
+private const val LOG_ID = "[repository][display-folder]"
+
 class DefaultDisplayFolderRepository(
+    private val logger: Logger,
     private val accountManager: LegacyAccountDtoManager,
     private val messagingController: MessagingControllerRegistry,
     private val messageStoreManager: MessageStoreManager,
@@ -47,7 +53,7 @@ class DefaultDisplayFolderRepository(
 
     private fun getDisplayFolders(
         account: LegacyAccountDto,
-        outboxFolderId: Long,
+        outboxFolderId: Long?,
         includeHiddenFolders: Boolean,
     ): List<DisplayFolder> {
         val messageStore = messageStoreManager.getMessageStore(account.id)
@@ -71,20 +77,54 @@ class DefaultDisplayFolderRepository(
         }.sortedWith(sortForDisplay)
     }
 
+    /**
+     * Reads the display folders of an account. When the account is removed, its message store isn't available anymore.
+     * In that case an empty list is returned instead of letting the exception escape.
+     */
+    private fun getDisplayFoldersOrEmpty(
+        account: LegacyAccountDto,
+        outboxFolderId: Long?,
+        includeHiddenFolders: Boolean,
+    ): List<DisplayFolder> {
+        return try {
+            getDisplayFolders(account, outboxFolderId, includeHiddenFolders)
+        } catch (_: IllegalStateException) {
+            logger.error { "$LOG_ID Failed to read the display folders of an account" }
+            emptyList()
+        } catch (_: SQLiteException) {
+            logger.error { "$LOG_ID Failed to read the display folders of an account" }
+            emptyList()
+        }
+    }
+
+    private suspend fun getOutboxFolderId(accountId: AccountId): Long? {
+        return try {
+            outboxFolderManager.getOutboxFolderId(accountId)
+        } catch (_: IllegalStateException) {
+            logger.error { "$LOG_ID Failed to read the outbox folder of an account" }
+            null
+        }
+    }
+
     override fun getDisplayFoldersFlow(
         account: LegacyAccountDto,
         includeHiddenFolders: Boolean,
     ): Flow<List<DisplayFolder>> {
-        val messageStore = messageStoreManager.getMessageStore(account.id)
+        val messageStore = try {
+            messageStoreManager.getMessageStore(account.id)
+        } catch (_: IllegalStateException) {
+            logger.error { "$LOG_ID Failed to read the message store of an account" }
+            return flowOf(emptyList())
+        }
 
         return callbackFlow {
-            val outboxFolderId = outboxFolderManager.getOutboxFolderId(account.id)
-            send(getDisplayFolders(account, outboxFolderId, includeHiddenFolders))
+            val outboxFolderId = getOutboxFolderId(account.id)
+            send(getDisplayFoldersOrEmpty(account, outboxFolderId, includeHiddenFolders))
 
             val folderStatusChangedListener = object : SimpleMessagingListener() {
                 override fun folderStatusChanged(statusChangedAccount: LegacyAccountDto, folderId: Long) {
                     if (statusChangedAccount.id == account.id) {
-                        trySendBlocking(getDisplayFolders(account, outboxFolderId, includeHiddenFolders))
+                        trySendBlocking(getDisplayFoldersOrEmpty(account, outboxFolderId, includeHiddenFolders))
                     }
                 }
             }
@@ -92,7 +132,7 @@ class DefaultDisplayFolderRepository(
 
             val folderSettingsChangedListener = FolderSettingsChangedListener {
                 withContext(ioDispatcher) {
-                    trySendBlocking(getDisplayFolders(account, outboxFolderId, includeHiddenFolders))
+                    trySendBlocking(getDisplayFoldersOrEmpty(account, outboxFolderId, includeHiddenFolders))
                 }
             }
             messageStore.addFolderSettingsChangedListener(folderSettingsChangedListener)
@@ -107,8 +147,13 @@ class DefaultDisplayFolderRepository(
     }
 
     override fun getDisplayFoldersFlow(accountId: String): Flow<List<DisplayFolder>> {
-        val account = accountManager.getById(AccountIdFactory.of(accountId)) ?: error("Account not found: $accountId")
-        return getDisplayFoldersFlow(account, includeHiddenFolders = false)
+        val account = accountManager.getById(AccountIdFactory.of(accountId))
+        return if (account == null) {
+            logger.debug { "$LOG_ID Account not found" }
+            flowOf(emptyList())
+        } else {
+            getDisplayFoldersFlow(account, includeHiddenFolders = false)
+        }
     }
 
     private fun LegacyFolderType.toFolderType(): FolderType =
