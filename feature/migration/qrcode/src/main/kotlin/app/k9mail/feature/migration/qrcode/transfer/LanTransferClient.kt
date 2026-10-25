@@ -10,7 +10,7 @@ import kotlinx.coroutines.withContext
 import net.thunderbird.legacy.logging.Log
 
 private val MAGIC = "TBX1".encodeToByteArray()
-private const val DEFAULT_CONNECT_TIMEOUT_MILLIS = 10_000
+private const val DEFAULT_CONNECT_TIMEOUT_MILLIS = 3_000
 private const val DEFAULT_READ_TIMEOUT_MILLIS = 30_000
 private const val DEFAULT_MAX_CONTAINER_SIZE = 1024 * 1024
 private const val MIN_CONTAINER_SIZE = 1
@@ -25,7 +25,7 @@ internal class LanTransferClient(
 ) : TransferContainerFetcher {
     /**
      * Asks the device described by [route] for the container belonging to [transferId], over a socket created by
-     * [socketFactory].
+     * [socketFactory]. The device can be reached at several addresses, they are tried one after another.
      *
      * @return [LanTransferClientResult.Success] with the container, [LanTransferClientResult.Unreachable] when there is
      * no device to talk to, [LanTransferClientResult.Failed] when the device didn't deliver a container.
@@ -36,7 +36,7 @@ internal class LanTransferClient(
         socketFactory: SocketFactory,
     ): LanTransferClientResult {
         return withContext(Dispatchers.IO) {
-            val socket = connect(host = route.host, port = route.port, socketFactory = socketFactory)
+            val socket = connect(hosts = route.hosts, port = route.port, socketFactory = socketFactory)
 
             if (socket == null) {
                 LanTransferClientResult.Unreachable
@@ -46,7 +46,12 @@ internal class LanTransferClient(
         }
     }
 
-    private fun connect(host: String, port: Int, socketFactory: SocketFactory): Socket? {
+    private fun connect(hosts: List<String>, port: Int, socketFactory: SocketFactory): Socket? {
+        // The first host that answers wins, the others are the addresses of the same device on other networks.
+        return hosts.firstNotNullOfOrNull { openSocket(host = it, port = port, socketFactory = socketFactory) }
+    }
+
+    private fun openSocket(host: String, port: Int, socketFactory: SocketFactory): Socket? {
         // The factory decides the network the transfer runs on, e.g. the hotspot of the sending device.
         val socket = socketFactory.createSocket()
 

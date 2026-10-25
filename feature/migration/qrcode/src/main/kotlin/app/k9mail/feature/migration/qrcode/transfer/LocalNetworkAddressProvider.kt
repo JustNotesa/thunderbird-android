@@ -7,7 +7,7 @@ import android.net.NetworkCapabilities
 import java.net.Inet4Address
 
 /**
- * Local network address of the sending device, used to reach it with the transfer container.
+ * Local network addresses of the device, used to reach the sending device with the transfer container.
  */
 internal fun interface LocalNetworkAddressProvider {
     /**
@@ -16,30 +16,54 @@ internal fun interface LocalNetworkAddressProvider {
      * @return The address, or `null` when the device isn't on a Wi-Fi network that can be reached.
      */
     fun getWifiAddress(): Inet4Address?
+
+    /**
+     * Returns all IPv4 addresses of the device on the local network, the Wi-Fi ones first.
+     */
+    fun getAddresses(): List<Inet4Address> = listOfNotNull(getWifiAddress())
 }
 
 /**
- * Reads the Wi-Fi address of the device from the connectivity of the system.
+ * Reads the local addresses of the device from the connectivity of the system.
  */
 internal class AndroidLocalNetworkAddressProvider(
     private val connectivityManager: ConnectivityManager,
 ) : LocalNetworkAddressProvider {
     override fun getWifiAddress(): Inet4Address? {
+        return wifiAddresses().firstOrNull()
+    }
+
+    override fun getAddresses(): List<Inet4Address> {
+        return (wifiAddresses() + otherAddresses()).distinct()
+    }
+
+    private fun wifiAddresses(): List<Inet4Address> {
+        return addressesOf(networks().filter { isWifiNetwork(it) })
+    }
+
+    private fun otherAddresses(): List<Inet4Address> {
+        return addressesOf(networks().filterNot { isWifiNetwork(it) })
+    }
+
+    private fun networks(): List<Network> {
         // The registered networks are deprecated in favour of network callbacks, but a callback only observes changes
         // of networks that are registered for it, while the transfer needs the address of the Wi-Fi network right now.
         @Suppress("DEPRECATION")
-        val networks = connectivityManager.allNetworks
-
-        return networks.firstNotNullOfOrNull { wifiAddressOf(it) }
+        return connectivityManager.allNetworks.toList()
     }
 
-    private fun wifiAddressOf(network: Network): Inet4Address? {
-        val linkAddresses = connectivityManager.getNetworkCapabilities(network)
-            ?.takeIf { it.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) }
-            ?.let { connectivityManager.getLinkProperties(network) }
-            ?.linkAddresses
+    private fun isWifiNetwork(network: Network): Boolean {
+        return connectivityManager.getNetworkCapabilities(network)
+            ?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true
+    }
 
-        return linkAddresses?.firstNotNullOfOrNull { reachableAddressOf(it) }
+    private fun addressesOf(networks: List<Network>): List<Inet4Address> {
+        return networks.flatMap { network ->
+            connectivityManager.getLinkProperties(network)
+                ?.linkAddresses
+                ?.mapNotNull { reachableAddressOf(it) }
+                .orEmpty()
+        }
     }
 
     private fun reachableAddressOf(linkAddress: LinkAddress): Inet4Address? {

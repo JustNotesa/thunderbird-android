@@ -4,6 +4,8 @@ import app.k9mail.feature.migration.qrcode.transfer.hotspot.HotspotConnectResult
 import app.k9mail.feature.migration.qrcode.transfer.hotspot.HotspotNetworkConnector
 import assertk.assertThat
 import assertk.assertions.isEqualTo
+import java.net.Inet4Address
+import java.net.InetAddress
 import javax.net.SocketFactory
 import kotlin.test.Test
 import kotlinx.coroutines.test.runTest
@@ -206,12 +208,54 @@ class TransferReceiverTest {
         assertThat(secrets.key.toByteString()).isEqualTo(ByteArray(KEY_LENGTH).toByteString())
     }
 
+    @Test
+    fun `hosts in the network of the device are tried first`() {
+        val hosts = listOf("192.168.1.24", "192.168.178.20")
+        val localAddresses = listOf("192.168.178.5")
+
+        val result = orderHostsBySubnet(hosts = hosts, localAddresses = localAddresses)
+
+        assertThat(result).isEqualTo(listOf("192.168.178.20", "192.168.1.24"))
+    }
+
+    @Test
+    fun `hosts without a network of the device keep their order`() {
+        val hosts = listOf("192.168.1.24", "192.168.178.20")
+        val localAddresses = listOf("10.0.0.5")
+
+        val result = orderHostsBySubnet(hosts = hosts, localAddresses = localAddresses)
+
+        assertThat(result).isEqualTo(listOf("192.168.1.24", "192.168.178.20"))
+    }
+
+    @Test
+    fun `a transfer is fetched from the host in the network of the device`() = runTest {
+        var fetchedHosts: List<String> = emptyList()
+        val testSubject = TransferReceiver(
+            fetcher = TransferContainerFetcher { route, _, _ ->
+                fetchedHosts = route.hosts
+                LanTransferClientResult.Success(container)
+            },
+            hotspotConnector = unsupportedConnector,
+            addressProvider = LocalNetworkAddressProvider { address("192.168.178.5") },
+        )
+
+        val result = testSubject.receive(qrCode.copy(route = LAN_ROUTE_WITH_HOSTS))
+
+        assertThat(result).isEqualTo(TransferReceiveResult.Success(accountsJson = ACCOUNTS_JSON))
+        assertThat(fetchedHosts).isEqualTo(listOf("192.168.178.20", "192.168.1.24"))
+    }
+
     private fun fetcherReturning(result: LanTransferClientResult): TransferContainerFetcher {
         return TransferContainerFetcher { _, _, _ -> result }
     }
 
     private fun fetcherReturning(container: ByteArray): TransferContainerFetcher {
         return fetcherReturning(LanTransferClientResult.Success(container))
+    }
+
+    private fun address(value: String): Inet4Address {
+        return InetAddress.getByName(value) as Inet4Address
     }
 
     private fun connectedResult(): HotspotConnectResult.Connected {
@@ -244,6 +288,10 @@ class TransferReceiverTest {
         private const val KEY_LENGTH = 32
         private const val GARBAGE_SIZE = 64
         private val LAN_ROUTE = TransferRoute.Lan(host = HOST, port = PORT)
+        private val LAN_ROUTE_WITH_HOSTS = TransferRoute.Lan(
+            hosts = listOf("192.168.1.24", "192.168.178.20"),
+            port = PORT,
+        )
         private val HOTSPOT_ROUTE = TransferRoute.Hotspot(
             ssid = SSID,
             passphrase = PASSPHRASE,

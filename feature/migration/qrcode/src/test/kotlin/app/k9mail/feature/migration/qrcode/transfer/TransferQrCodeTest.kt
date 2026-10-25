@@ -6,6 +6,7 @@ import assertk.assertions.isNull
 import kotlin.test.Test
 import net.thunderbird.core.logging.testing.TestLogger
 import net.thunderbird.legacy.logging.Log
+import okio.ByteString.Companion.decodeBase64
 import okio.ByteString.Companion.toByteString
 import org.junit.Before
 
@@ -45,6 +46,18 @@ class TransferQrCodeTest {
         val testSubject = TransferQrCode(
             secrets = secrets,
             route = TransferRoute.Lan(host = "192.168.1.23", port = 48213),
+        )
+
+        val result = TransferQrCode.parse(testSubject.format())
+
+        assertThat(result).isEqualTo(testSubject)
+    }
+
+    @Test
+    fun `QR code with LAN route of several hosts can be parsed again`() {
+        val testSubject = TransferQrCode(
+            secrets = secrets,
+            route = TransferRoute.Lan(hosts = listOf("192.168.178.20", "192.168.1.24"), port = 53111),
         )
 
         val result = TransferQrCode.parse(testSubject.format())
@@ -205,9 +218,97 @@ class TransferQrCodeTest {
         assertThat(result).isNull()
     }
 
+    @Test
+    fun `route with several hosts is parsed with all of them`() {
+        val text = withRoute("""{"t":"lan","h":"192.168.178.20","hs":["192.168.178.20","192.168.1.24"],"p":53111}""")
+
+        val result = TransferQrCode.parse(text)
+
+        val route = checkNotNull(result?.route as? TransferRoute.Lan) { "The route is invalid" }
+        assertThat(route.hosts).isEqualTo(listOf("192.168.178.20", "192.168.1.24"))
+        assertThat(route.host).isEqualTo("192.168.178.20")
+    }
+
+    @Test
+    fun `route without hosts is parsed with the primary host only`() {
+        val text = withRoute("""{"t":"lan","h":"192.168.1.23","p":48213}""")
+
+        val result = TransferQrCode.parse(text)
+
+        val route = checkNotNull(result?.route as? TransferRoute.Lan) { "The route is invalid" }
+        assertThat(route.hosts).isEqualTo(listOf("192.168.1.23"))
+    }
+
+    @Test
+    fun `route with invalid hosts is parsed with the valid ones only`() {
+        val text = withRoute("""{"t":"lan","h":"192.168.1.23","hs":["desktop.local","192.168.1.24",7],"p":48213}""")
+
+        val result = TransferQrCode.parse(text)
+
+        val route = checkNotNull(result?.route as? TransferRoute.Lan) { "The route is invalid" }
+        assertThat(route.hosts).isEqualTo(listOf("192.168.1.23", "192.168.1.24"))
+    }
+
+    @Test
+    fun `route with duplicate hosts is parsed with the first one only`() {
+        val text = withRoute("""{"t":"lan","h":"192.168.1.23","hs":["192.168.1.24","192.168.1.23"],"p":48213}""")
+
+        val result = TransferQrCode.parse(text)
+
+        val route = checkNotNull(result?.route as? TransferRoute.Lan) { "The route is invalid" }
+        assertThat(route.hosts).isEqualTo(listOf("192.168.1.23", "192.168.1.24"))
+    }
+
+    @Test
+    fun `route with more than four hosts is parsed with four of them`() {
+        val text = withRoute(
+            """{"t":"lan","h":"10.0.0.1","hs":["10.0.0.1","10.0.0.2","10.0.0.3","10.0.0.4"],"p":48213}""",
+        )
+
+        val result = TransferQrCode.parse(text)
+
+        val route = checkNotNull(result?.route as? TransferRoute.Lan) { "The route is invalid" }
+        assertThat(route.hosts).isEqualTo(listOf("10.0.0.1", "10.0.0.2", "10.0.0.3", "10.0.0.4"))
+    }
+
+    @Test
+    fun `route with several hosts is written with all of them`() {
+        val testSubject = TransferQrCode(
+            secrets = secrets,
+            route = TransferRoute.Lan(hosts = listOf("192.168.178.20", "192.168.1.24"), port = 53111),
+        )
+
+        val routeJson = routeJsonOf(testSubject.format())
+
+        assertThat(routeJson)
+            .isEqualTo("""{"t":"lan","h":"192.168.178.20","hs":["192.168.178.20","192.168.1.24"],"p":53111}""")
+    }
+
+    @Test
+    fun `route with one host is written without the hosts`() {
+        val testSubject = TransferQrCode(
+            secrets = secrets,
+            route = TransferRoute.Lan(host = "192.168.1.23", port = 48213),
+        )
+
+        val routeJson = routeJsonOf(testSubject.format())
+
+        assertThat(routeJson).isEqualTo("""{"t":"lan","h":"192.168.1.23","p":48213}""")
+    }
+
     private fun withRoute(routeJson: String): String {
         val routeText = routeJson.encodeToByteArray().toByteString().base64Url().trimEnd('=')
 
         return "TBX1:$transferIdText.$keyText.$routeText"
+    }
+
+    private fun routeJsonOf(qrText: String): String {
+        val routeText = qrText.split(".")[ROUTE_PART_INDEX]
+
+        return checkNotNull(routeText.decodeBase64()) { "The route is invalid" }.utf8()
+    }
+
+    private companion object {
+        private const val ROUTE_PART_INDEX = 2
     }
 }

@@ -19,6 +19,7 @@ private const val MIN_PART_COUNT = 2
 private const val PART_COUNT = 3
 private const val KEY_TYPE = "t"
 private const val KEY_HOST = "h"
+private const val KEY_HOSTS = "hs"
 private const val KEY_PORT = "p"
 private const val KEY_SSID = "s"
 private const val KEY_PASSPHRASE = "k"
@@ -37,6 +38,7 @@ private const val PASSPHRASE_MIN_LENGTH = 8
 private const val PASSPHRASE_MAX_LENGTH = 63
 private const val COUNT_MIN = 1
 private const val COUNT_MAX = 200
+private const val MAX_HOST_COUNT = 4
 
 /**
  * QR code content of an account transfer: the transfer ID, the AES key and, optionally, the route the encrypted
@@ -102,14 +104,39 @@ internal data class TransferQrCode(
 }
 
 internal sealed interface TransferRoute {
-    data class Lan(val host: String, val port: Int) : TransferRoute
+    /**
+     * A route over the local network. The sending device can be reached at several addresses, e.g. when it is
+     * connected to more than one network. The first host is the primary one, the others are alternatives.
+     */
+    data class Lan(val hosts: List<String>, val port: Int) : TransferRoute {
+        constructor(host: String, port: Int) : this(listOf(host), port)
+
+        val host: String get() = hosts.first()
+    }
 
     data class Hotspot(
         val ssid: String,
         val passphrase: String,
         val host: String,
         val port: Int,
-    ) : TransferRoute
+    ) : TransferRoute {
+        companion object {
+            /** Builds a hotspot route from the values read from a QR code, rejecting missing or invalid values. */
+            fun validated(ssid: String?, passphrase: String?, host: String?, port: Int?): Hotspot {
+                val validSsid = requireNotNull(ssid) { "Transfer route is missing the SSID" }
+                val validPassphrase = requireNotNull(passphrase) { "Transfer route is missing the passphrase" }
+                require(validSsid.length in SSID_MIN_LENGTH..SSID_MAX_LENGTH)
+                require(validPassphrase.length in PASSPHRASE_MIN_LENGTH..PASSPHRASE_MAX_LENGTH)
+
+                return Hotspot(
+                    ssid = validSsid,
+                    passphrase = validPassphrase,
+                    host = checkHost(host),
+                    port = checkPort(port),
+                )
+            }
+        }
+    }
 
     data class Sequence(val count: Int) : TransferRoute
 }
@@ -118,18 +145,27 @@ private fun readRoute(routeText: String): TransferRoute? {
     val routeJson = routeText.decodeBase64()?.utf8() ?: return null
 
     return JsonReader.of(Buffer().writeUtf8(routeJson)).use { jsonReader ->
-        var type: String? = null
-        var host: String? = null
-        var port: Int? = null
-        var ssid: String? = null
-        var passphrase: String? = null
-        var count: Int? = null
+        RouteFields().apply { read(jsonReader) }.toRoute()
+    }
+}
 
+/** The values of a transfer route as read from the QR code, before they are checked. */
+private class RouteFields {
+    private var type: String? = null
+    private var host: String? = null
+    private var additionalHosts = emptyList<String>()
+    private var port: Int? = null
+    private var ssid: String? = null
+    private var passphrase: String? = null
+    private var count: Int? = null
+
+    fun read(jsonReader: JsonReader) {
         jsonReader.beginObject()
         while (jsonReader.hasNext()) {
             when (jsonReader.nextName()) {
                 KEY_TYPE -> type = jsonReader.nextString()
                 KEY_HOST -> host = jsonReader.nextString()
+                KEY_HOSTS -> additionalHosts = readHosts(jsonReader)
                 KEY_PORT -> port = jsonReader.nextInt()
                 KEY_SSID -> ssid = jsonReader.nextString()
                 KEY_PASSPHRASE -> passphrase = jsonReader.nextString()
@@ -138,35 +174,38 @@ private fun readRoute(routeText: String): TransferRoute? {
             }
         }
         jsonReader.endObject()
+    }
 
-        when (type) {
-            ROUTE_LAN -> TransferRoute.Lan(host = checkHost(host), port = checkPort(port))
+    fun toRoute(): TransferRoute? = when (type) {
+        ROUTE_LAN -> {
+            val hosts = listOf(checkHost(host)) + additionalHosts
+            TransferRoute.Lan(hosts = hosts.distinct().take(MAX_HOST_COUNT), port = checkPort(port))
+        }
 
-            ROUTE_HOTSPOT -> {
-                val validSsid = requireNotNull(ssid) { "Transfer route is missing the SSID" }
-                val validPassphrase = requireNotNull(passphrase) { "Transfer route is missing the passphrase" }
-                require(validSsid.length in SSID_MIN_LENGTH..SSID_MAX_LENGTH)
-                require(validPassphrase.length in PASSPHRASE_MIN_LENGTH..PASSPHRASE_MAX_LENGTH)
-                TransferRoute.Hotspot(
-                    ssid = validSsid,
-                    passphrase = validPassphrase,
-                    host = checkHost(host),
-                    port = checkPort(port),
-                )
-            }
+        ROUTE_HOTSPOT -> TransferRoute.Hotspot.validated(ssid, passphrase, host, port)
 
-            ROUTE_SEQUENCE -> {
-                val validCount = requireNotNull(count) { "Transfer route is missing the frame count" }
-                require(validCount in COUNT_MIN..COUNT_MAX)
-                TransferRoute.Sequence(validCount)
-            }
+        ROUTE_SEQUENCE -> {
+            val validCount = requireNotNull(count) { "Transfer route is missing the frame count" }
+            require(validCount in COUNT_MIN..COUNT_MAX)
+            TransferRoute.Sequence(validCount)
+        }
 
-            else -> {
-                Log.d("Unsupported transfer route type")
-                null
-            }
+        else -> {
+            Log.d("Unsupported transfer route type")
+            null
         }
     }
+}
+
+/**
+ * Reads the alternative hosts of a LAN route. Entries that aren't IPv4 addresses are skipped, they don't make the
+ * route invalid.
+ */
+private fun readHosts(jsonReader: JsonReader): List<String> {
+    val value = jsonReader.readJsonValue()
+    val hosts = value as? List<*>
+
+    return hosts?.filterIsInstance<String>()?.filter { isIpv4Address(it) } ?: emptyList()
 }
 
 private fun writeRoute(route: TransferRoute): String {
@@ -177,6 +216,11 @@ private fun writeRoute(route: TransferRoute): String {
             is TransferRoute.Lan -> {
                 jsonWriter.name(KEY_TYPE).value(ROUTE_LAN)
                 jsonWriter.name(KEY_HOST).value(route.host)
+                if (route.hosts.size > 1) {
+                    jsonWriter.name(KEY_HOSTS).beginArray()
+                    route.hosts.forEach { jsonWriter.value(it) }
+                    jsonWriter.endArray()
+                }
                 jsonWriter.name(KEY_PORT).value(route.port.toLong())
             }
 

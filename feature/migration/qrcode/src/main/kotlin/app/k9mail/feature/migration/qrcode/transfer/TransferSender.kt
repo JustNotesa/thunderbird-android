@@ -10,6 +10,8 @@ import kotlinx.coroutines.withContext
 import net.thunderbird.legacy.logging.Log
 
 private const val MILLISECONDS_PER_SECOND = 1000L
+private const val MAX_HOST_COUNT = 4
+private const val WILDCARD_ADDRESS = "0.0.0.0"
 
 /**
  * Sends the accounts of the device, either over the local network both devices are connected to, or over the
@@ -48,7 +50,12 @@ internal class TransferSender(
         if (accounts.isEmpty()) {
             TransferSendResult.NoAccounts
         } else {
-            startTransfer(address = address, accounts = accounts, createRoute = { port -> lanRoute(address, port) })
+            val hosts = lanHosts(primary = address)
+            startTransfer(
+                address = bindAddress(primary = address, hosts = hosts),
+                accounts = accounts,
+                createRoute = { port -> TransferRoute.Lan(hosts = hosts, port = port) },
+            )
         }
     }
 
@@ -135,10 +142,27 @@ internal class TransferSender(
             TransferSession(qrText = qrCode.format(), server = server, onStop = onStop),
         )
     }
-}
 
-private fun lanRoute(address: InetAddress, port: Int): TransferRoute {
-    return TransferRoute.Lan(host = address.hostAddress, port = port)
+    /**
+     * The addresses the other device can reach this device at. The primary one is the Wi-Fi address, the others are
+     * the addresses of the other networks this device is connected to.
+     */
+    private fun lanHosts(primary: InetAddress): List<String> {
+        val hosts = listOf(primary.hostAddress) + privateAddresses()
+
+        return hosts.distinct().take(MAX_HOST_COUNT)
+    }
+
+    private fun privateAddresses(): List<String> {
+        return addressProvider.getAddresses()
+            .filter { it.isSiteLocalAddress }
+            .map { it.hostAddress }
+    }
+
+    private fun bindAddress(primary: InetAddress, hosts: List<String>): InetAddress {
+        // The container has to be served on every address the other device may use to reach this device.
+        return if (hosts.size > 1) InetAddress.getByName(WILDCARD_ADDRESS) else primary
+    }
 }
 
 private fun hotspotRoute(hotspot: HotspotStartResult.Started, port: Int): TransferRoute {

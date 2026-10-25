@@ -111,7 +111,7 @@ val qrCodeModule = module {
     }
 
     factory<TransferContainerFetcher> { LanTransferClient() }
-    factory { TransferReceiver(fetcher = get(), hotspotConnector = get()) }
+    factory { TransferReceiver(fetcher = get(), hotspotConnector = get(), addressProvider = get()) }
 
     factory<LocalNetworkAddressProvider> {
         AndroidLocalNetworkAddressProvider(
