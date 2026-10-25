@@ -7,5 +7,8 @@
     <string name="updater_confirm_notification_text">Tap to install the update</string>
     <string name="updater_updated_notification_title">Thunderbird updated</string>
     <string name="updater_updated_notification_text">Now on version %1$s. Tap to open.</string>
+    <string name="updater_updated_channel_name">App updated</string>
+    <string name="updater_installing_notification_title">Installing the update…</string>
+    <string name="updater_installing_notification_text">Thunderbird closes when done. Tap the next notification to open it again.</string>
     <string name="updater_download_title">Thunderbird update</string>
 </resources>

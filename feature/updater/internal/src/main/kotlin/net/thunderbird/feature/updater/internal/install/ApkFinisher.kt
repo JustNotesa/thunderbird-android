@@ -32,7 +32,8 @@ internal class ApkFinisher(
     private val keptApks: KeptApkStore,
     private val logger: Logger,
     private val state: MutableStateFlow<UpdateInstallState>,
-    private val writeSession: (File) -> Boolean,
+    private val writeSession: (File) -> Int?,
+    private val onSessionCommitted: (Int) -> Unit = {},
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) {
 
@@ -159,12 +160,15 @@ internal class ApkFinisher(
     private fun writeInstallSession(file: File, tag: String, sha256: String) {
         // The APK is kept, so that the installation can be repeated without a new download.
         keptApks.save(tag, sha256)
-        if (writeSession(file)) {
-            state.value = UpdateInstallState.WaitingForConfirmation
-        } else {
+        val sessionId = writeSession(file)
+        if (sessionId == null) {
             logger.error(TAG) { "Writing the APK into the install session failed." }
             state.value = UpdateInstallState.Failed(UpdateInstallFailure.REJECTED)
+            return
         }
+        state.value = UpdateInstallState.WaitingForConfirmation
+        // The session is watched, so that the user is told about the progress of the installation.
+        onSessionCommitted(sessionId)
     }
 
     private fun failureOf(verification: ApkVerification): UpdateInstallFailure {

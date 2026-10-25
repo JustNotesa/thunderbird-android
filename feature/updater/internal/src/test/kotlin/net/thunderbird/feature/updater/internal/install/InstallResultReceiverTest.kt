@@ -48,7 +48,9 @@ class InstallResultReceiverTest {
             pendingDownloadStore = PendingDownloadStore(application),
             apkVerifier = ApkVerifier(),
             logger = TestLogger(),
+            notifier = UpdateNotifier(application),
             coroutineScope = installerScope,
+            sessionRegistrar = FakeInstallSessionRegistrar(),
         )
         notifier = UpdateNotifier(application)
         testSubject = InstallResultReceiver()
