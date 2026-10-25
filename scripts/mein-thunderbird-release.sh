@@ -242,7 +242,11 @@ info "Baue die Beta ($GRADLE_TASK) ..."
 
 # Alte APK entfernen, damit nach dem Build garantiert das neue Stück geprüft wird.
 rm -f "$APK"
-"$NIEDRIG_TOOL" ./gradlew "$GRADLE_TASK" -Ptb.useUploadKey=false "-Pmein.releaseTag=$TAG" --no-daemon
+# 3 GB Heap: der Mac hat 18 GB, ein Build mit dem Projektstandard (10 GB) treibt den Swap ans Limit.
+# stdin von /dev/null, damit Gradle nicht die Eingabe für die Rückfrage weiter unten verbraucht.
+GRADLE_JVM="-Dfile.encoding=UTF-8 -XX:+UseG1GC -Xmx3g"
+"$NIEDRIG_TOOL" ./gradlew "$GRADLE_TASK" -Ptb.useUploadKey=false "-Pmein.releaseTag=$TAG" --no-daemon \
+  "-Dorg.gradle.jvmargs=$GRADLE_JVM" "-Pkotlin.daemon.jvmargs=$GRADLE_JVM" < /dev/null
 
 if [[ ! -f "$APK" ]]; then
   die "Die APK wurde nicht erzeugt: $APK"
