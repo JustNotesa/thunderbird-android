@@ -18,9 +18,9 @@ internal class ApkSessionWriter(private val context: Context) {
     /**
      * Writes [file] into a new install session and commits that session.
      *
-     * @return `true` when the session was committed, `false` when the session had to be abandoned.
+     * @return the id of the committed session, `null` when the session had to be abandoned.
      */
-    fun write(file: File): Boolean {
+    fun write(file: File): Int? {
         val packageInstaller = context.packageManager.packageInstaller
         val sessionId = packageInstaller.createSession(createSessionParams())
         return try {
@@ -28,7 +28,7 @@ internal class ApkSessionWriter(private val context: Context) {
         } catch (_: Exception) {
             // The session exists, but it can't be used anymore, so it has to be abandoned.
             abandonSessionById(packageInstaller, sessionId)
-            false
+            null
         }
     }
 
@@ -36,15 +36,15 @@ internal class ApkSessionWriter(private val context: Context) {
         packageInstaller: PackageInstaller,
         sessionId: Int,
         file: File,
-    ): Boolean {
+    ): Int? {
         val session = packageInstaller.openSession(sessionId)
         return try {
             copyToSession(session, file)
             commitSession(session, sessionId)
-            true
+            sessionId
         } catch (_: Exception) {
             abandonSession(session)
-            false
+            null
         } finally {
             closeSession(session)
         }

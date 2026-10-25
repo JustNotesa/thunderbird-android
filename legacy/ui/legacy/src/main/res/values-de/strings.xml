@@ -1113,7 +1113,10 @@
     <!-- Message shown while the downloaded file is verified -->
     <string name="about_updates_verifying">Die heruntergeladene Datei wird überprüft…</string>
     <!-- Message shown while the user confirms the installation in the system dialog -->
-    <string name="about_updates_waiting_for_confirmation">Bestätige die Installation im Dialog von Android. Android schließt die App beim Installieren – öffne sie danach einfach wieder. Erscheint kein Dialog, tippe auf die Benachrichtigung.</string>
+    <string name="about_updates_waiting_for_confirmation">Bestätige die Installation im Dialog von Android. Android schließt die App beim Installieren – öffne sie danach einfach wieder. Erscheint kein Dialog, tippe auf die Benachrichtigung. Fragt Google Play Protect nach, wähle „App scannen“ und dann „Installieren“.</string>
+    <string name="about_updates_installing">Wird installiert… %1$d%%</string>
+    <string name="about_updates_installing_indeterminate">Wird installiert…</string>
+    <string name="about_updates_installing_hint">Update wird installiert… Thunderbird wird danach geschlossen. Tippe dann auf die Benachrichtigung „Thunderbird wurde aktualisiert“, um es wieder zu öffnen.</string>
     <!-- Button that starts the installation of the downloaded update again -->
     <string name="about_updates_install_again_button">Erneut installieren</string>
     <!-- Button that cancels a pending installation -->

@@ -1,6 +1,9 @@
 package net.thunderbird.feature.updater.internal.install
 
+import android.Manifest
 import android.app.Application
+import android.app.Notification
+import android.app.NotificationManager
 import android.content.pm.PackageInstaller
 import assertk.assertThat
 import assertk.assertions.contains
@@ -30,6 +33,7 @@ import net.thunderbird.components.core.logging.testing.TestLogger
 import net.thunderbird.feature.updater.api.AppUpdate
 import net.thunderbird.feature.updater.api.UpdateInstallFailure
 import net.thunderbird.feature.updater.api.UpdateInstallState
+import net.thunderbird.feature.updater.internal.background.UpdateNotifier
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -48,6 +52,8 @@ private const val UNKNOWN_DOWNLOAD_ID = 99L
 private const val OTHER_DOWNLOAD_ID = 43L
 private const val DOWNLOADED_BYTES = 5L
 private const val POLL_INTERVAL_MILLIS = 500L
+private const val SESSION_ID = 7
+private const val INSTALL_PROGRESS = 0.5f
 private const val TIMEOUT_MILLIS = 30_000L
 private const val WAIT_INTERVAL_MILLIS = 10L
 
@@ -62,6 +68,8 @@ class PackageInstallerAppUpdateInstallerTest {
     private lateinit var downloads: FakeSystemDownloads
     private lateinit var store: PendingDownloadStore
     private lateinit var sessionWrites: MutableList<File>
+    private lateinit var notifier: UpdateNotifier
+    private lateinit var registrar: FakeInstallSessionRegistrar
 
     @Before
     fun setUp() {
@@ -73,7 +81,10 @@ class PackageInstallerAppUpdateInstallerTest {
         store.clear()
         KeptApkStore(application).clear()
         sessionWrites = mutableListOf()
+        notifier = UpdateNotifier(application)
+        registrar = FakeInstallSessionRegistrar()
         shadowOf(application.packageManager).setCanRequestPackageInstalls(true)
+        shadowOf(application).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
     }
 
     @After
@@ -511,11 +522,54 @@ class PackageInstallerAppUpdateInstallerTest {
         assertThat(testSubject.state.value).isEqualTo(UpdateInstallState.WaitingForConfirmation)
     }
 
+    @Test
+    fun `the install session is watched after it was written`() = runTest {
+        // Arrange
+        val testSubject = createInstaller(backgroundScope)
+        downloads.status = SystemDownloadStatus.Successful(createDownloadedFile())
+        testSubject.install(createUpdate())
+
+        // Act
+        testSubject.onDownloadFinished(DOWNLOAD_ID)
+
+        // Assert
+        assertThat(registrar.registered).hasSize(1)
+    }
+
+    @Test
+    fun `a failed installation cancels the notification about the installation`() = runTest {
+        // Arrange
+        val testSubject = createInstaller(backgroundScope)
+        testSubject.onInstallStatus(PackageInstaller.STATUS_PENDING_USER_ACTION)
+        notifier.notifyInstalling(INSTALL_PROGRESS)
+
+        // Act
+        testSubject.onInstallStatus(PackageInstaller.STATUS_FAILURE_ABORTED)
+
+        // Assert
+        assertThat(installingNotification()).isNull()
+    }
+
+    @Test
+    fun `a new installation stops watching the old session`() = runTest {
+        // Arrange
+        val testSubject = createInstaller(backgroundScope)
+        downloads.status = SystemDownloadStatus.Successful(createDownloadedFile())
+        testSubject.install(createUpdate())
+        testSubject.onDownloadFinished(DOWNLOAD_ID)
+
+        // Act
+        testSubject.install(createUpdate())
+
+        // Assert
+        assertThat(registrar.registered).hasSize(1)
+    }
+
     private fun createInstaller(
         coroutineScope: CoroutineScope,
-        writeSession: (File) -> Boolean = { file ->
+        writeSession: (File) -> Int? = { file ->
             sessionWrites.add(file)
-            true
+            SESSION_ID
         },
     ): PackageInstallerAppUpdateInstaller {
         return PackageInstallerAppUpdateInstaller(
@@ -524,10 +578,23 @@ class PackageInstallerAppUpdateInstallerTest {
             pendingDownloadStore = store,
             apkVerifier = ApkVerifier(),
             logger = TestLogger(),
+            notifier = notifier,
             coroutineScope = coroutineScope,
             pollIntervalMillis = POLL_INTERVAL_MILLIS,
             writeSession = writeSession,
+            sessionRegistrar = registrar,
         )
+    }
+
+    private fun installingNotification(): Notification? {
+        return shadowOf(notificationManager()).getNotification(
+            UpdateNotifier.INSTALLING_NOTIFICATION_TAG,
+            UpdateNotifier.INSTALLING_NOTIFICATION_ID,
+        )
+    }
+
+    private fun notificationManager(): NotificationManager {
+        return application.getSystemService(NotificationManager::class.java)
     }
 
     private suspend fun awaitState(

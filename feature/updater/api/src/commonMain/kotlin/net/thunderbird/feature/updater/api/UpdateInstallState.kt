@@ -12,6 +12,14 @@ sealed interface UpdateInstallState {
     /** The APK was handed to Android; the system asks the user to confirm the installation. */
     data object WaitingForConfirmation : UpdateInstallState
 
+    /**
+     * The user confirmed the installation and Android is installing the update. Android closes the app when it is
+     * done, so this is the last state the user sees in this version of the app.
+     *
+     * @param progress progress of the installation from 0 to 1, or -1 if unknown.
+     */
+    data class Installing(val progress: Float) : UpdateInstallState
+
     data class Failed(val reason: UpdateInstallFailure) : UpdateInstallState
 }
 

@@ -24,6 +24,7 @@ import kotlinx.coroutines.withTimeout
 import net.thunderbird.components.core.logging.testing.TestLogger
 import net.thunderbird.feature.updater.api.UpdateInstallFailure
 import net.thunderbird.feature.updater.api.UpdateInstallState
+import net.thunderbird.feature.updater.internal.background.UpdateNotifier
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -36,6 +37,7 @@ private const val TAG = "test-tag"
 private const val TITLE = "Test release"
 private const val APK_CONTENT = "apk content"
 private const val TIMEOUT_MILLIS = 30_000L
+private const val SESSION_ID = 7
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
@@ -120,7 +122,7 @@ class DownloadCompleteReceiverTest {
                 sessionWrites.add(file)
                 writeStarted.countDown()
                 allowWrite.await(TIMEOUT_MILLIS, TimeUnit.MILLISECONDS)
-                true
+                SESSION_ID
             },
         )
         downloads.status = SystemDownloadStatus.Successful(createDownloadedFile())
@@ -163,9 +165,9 @@ class DownloadCompleteReceiverTest {
 
     private fun createInstaller(
         coroutineScope: CoroutineScope,
-        writeSession: (File) -> Boolean = { file ->
+        writeSession: (File) -> Int? = { file ->
             sessionWrites.add(file)
-            true
+            SESSION_ID
         },
     ): PackageInstallerAppUpdateInstaller {
         return PackageInstallerAppUpdateInstaller(
@@ -174,8 +176,10 @@ class DownloadCompleteReceiverTest {
             pendingDownloadStore = store,
             apkVerifier = ApkVerifier(),
             logger = TestLogger(),
+            notifier = UpdateNotifier(RuntimeEnvironment.getApplication()),
             coroutineScope = coroutineScope,
             writeSession = writeSession,
+            sessionRegistrar = FakeInstallSessionRegistrar(),
         )
     }
 

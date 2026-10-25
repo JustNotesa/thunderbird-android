@@ -29,6 +29,7 @@ internal class AppUpdatedReceiver : BroadcastReceiver(), KoinComponent {
             // The update was installed, the notifications about the pending update aren't needed anymore.
             notifier.cancelUpdateAvailable()
             notifier.cancelConfirmInstall()
+            notifier.cancelInstalling()
         }
         // The kept APK of the installed version isn't needed anymore.
         (installer as? PackageInstallerAppUpdateInstaller)?.clearKeptApk()

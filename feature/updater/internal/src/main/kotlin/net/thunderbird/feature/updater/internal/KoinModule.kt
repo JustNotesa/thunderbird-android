@@ -48,6 +48,7 @@ val featureUpdaterModule = module {
             pendingDownloadStore = PendingDownloadStore(androidContext()),
             apkVerifier = ApkVerifier(),
             logger = get(),
+            notifier = get(),
             // The download runs in an app wide scope, so that it isn't stopped when the screen that started the
             // installation is closed.
             coroutineScope = get(named("AppCoroutineScope")),

@@ -74,6 +74,7 @@ internal fun AboutUpdatesSection(
 
             AboutUpdateAvailable(
                 update = availableUpdate,
+                showInstallButton = state.install !is UpdateInstallState.Installing,
                 installEnabled = !installInProgress && state.canInstallPackages,
                 onInstallClick = onInstallClick,
             )
@@ -195,6 +196,7 @@ private fun AboutUpdateCheckStatus(
 @Composable
 private fun AboutUpdateAvailable(
     update: AppUpdate?,
+    showInstallButton: Boolean,
     installEnabled: Boolean,
     onInstallClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -215,12 +217,14 @@ private fun AboutUpdateAvailable(
         TextBodyMedium(text = stringResource(R.string.about_updates_release_notes_label))
         TextBodyMedium(text = formatReleaseNotes(update.releaseNotes))
         TextBodyMedium(text = stringResource(R.string.about_updates_size, size))
-        DisableSelection {
-            ButtonFilled(
-                text = stringResource(R.string.about_updates_install_button),
-                onClick = onInstallClick,
-                enabled = installEnabled,
-            )
+        if (showInstallButton) {
+            DisableSelection {
+                ButtonFilled(
+                    text = stringResource(R.string.about_updates_install_button),
+                    onClick = onInstallClick,
+                    enabled = installEnabled,
+                )
+            }
         }
     }
 }
@@ -245,10 +249,15 @@ private fun AboutUpdateInstallStatus(
             UpdateInstallState.Idle -> Unit
 
             is UpdateInstallState.Downloading -> {
-                AboutUpdateDownloading(
-                    downloading = install,
+                AboutUpdateProgress(
+                    install = install,
                     onCancelClick = onCancelInstallClick,
                 )
+            }
+
+            is UpdateInstallState.Installing -> {
+                AboutUpdateProgress(install = install, onCancelClick = null)
+                TextBodyMedium(text = stringResource(R.string.about_updates_installing_hint))
             }
 
             UpdateInstallState.Verifying -> {
@@ -296,16 +305,26 @@ private fun AboutUpdateInstallStatus(
     }
 }
 
+/**
+ * Shows the progress of a running [UpdateInstallState.Downloading] or [UpdateInstallState.Installing] step.
+ * The cancel button is only shown when [onCancelClick] is not `null`.
+ */
 @Composable
-private fun AboutUpdateDownloading(
-    downloading: UpdateInstallState.Downloading,
-    onCancelClick: () -> Unit,
+private fun AboutUpdateProgress(
+    install: UpdateInstallState,
+    onCancelClick: (() -> Unit)?,
     modifier: Modifier = Modifier,
 ) {
-    val percent = calculateDownloadPercent(
-        downloadedBytes = downloading.downloadedBytes,
-        totalBytes = downloading.totalBytes,
-    )
+    val installing = install is UpdateInstallState.Installing
+    val percent = when (install) {
+        is UpdateInstallState.Downloading -> calculateDownloadPercent(
+            downloadedBytes = install.downloadedBytes,
+            totalBytes = install.totalBytes,
+        )
+        is UpdateInstallState.Installing -> install.progress.takeIf { it >= 0f }
+            ?.let { (it * PERCENT).toInt().coerceIn(0, PERCENT) }
+        else -> null
+    }
 
     Row(
         modifier = modifier,
@@ -321,17 +340,28 @@ private fun AboutUpdateDownloading(
         }
         Spacer(modifier = Modifier.width(BoltTheme.spacings.half))
         val progressText = if (percent == null) {
-            stringResource(R.string.about_updates_downloading_indeterminate)
+            stringResource(
+                if (installing) {
+                    R.string.about_updates_installing_indeterminate
+                } else {
+                    R.string.about_updates_downloading_indeterminate
+                },
+            )
         } else {
-            stringResource(R.string.about_updates_downloading, percent)
+            stringResource(
+                if (installing) R.string.about_updates_installing else R.string.about_updates_downloading,
+                percent,
+            )
         }
         TextBodyMedium(text = progressText)
-        Spacer(modifier = Modifier.width(BoltTheme.spacings.default))
-        DisableSelection {
-            ButtonOutlined(
-                text = stringResource(R.string.about_updates_cancel_button),
-                onClick = onCancelClick,
-            )
+        if (onCancelClick != null) {
+            Spacer(modifier = Modifier.width(BoltTheme.spacings.default))
+            DisableSelection {
+                ButtonOutlined(
+                    text = stringResource(R.string.about_updates_cancel_button),
+                    onClick = onCancelClick,
+                )
+            }
         }
     }
 }

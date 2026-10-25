@@ -29,6 +29,7 @@ import net.thunderbird.feature.updater.api.AppUpdateInstaller
 import net.thunderbird.feature.updater.api.UpdateInstallFailure
 import net.thunderbird.feature.updater.api.UpdateInstallState
 import net.thunderbird.feature.updater.internal.R
+import net.thunderbird.feature.updater.internal.background.UpdateNotifier
 
 private const val TAG = "PackageInstallerAppUpdateInstaller"
 
@@ -53,15 +54,24 @@ internal class PackageInstallerAppUpdateInstaller(
     private val pendingDownloadStore: PendingDownloadStore,
     private val apkVerifier: ApkVerifier,
     private val logger: Logger,
+    private val notifier: UpdateNotifier,
     private val coroutineScope: CoroutineScope,
     private val pollIntervalMillis: Long = DEFAULT_POLL_INTERVAL_MILLIS,
-    private val writeSession: (File) -> Boolean = { ApkSessionWriter(context).write(it) },
+    private val writeSession: (File) -> Int? = { ApkSessionWriter(context).write(it) },
+    private val sessionRegistrar: InstallSessionRegistrar = PackageInstallerSessionRegistrar(context),
 ) : AppUpdateInstaller {
 
     private val keptApks = KeptApkStore(context)
 
     private val _state = MutableStateFlow<UpdateInstallState>(UpdateInstallState.Idle)
     override val state: StateFlow<UpdateInstallState> = _state.asStateFlow()
+
+    private val progressObserver = InstallProgressObserver(
+        registrar = sessionRegistrar,
+        state = _state,
+        notifier = notifier,
+        logger = logger,
+    )
 
     private val finisher = ApkFinisher(
         systemDownloads = systemDownloads,
@@ -71,6 +81,7 @@ internal class PackageInstallerAppUpdateInstaller(
         logger = logger,
         state = _state,
         writeSession = writeSession,
+        onSessionCommitted = { sessionId -> progressObserver.watch(sessionId) },
     )
 
     private val installMutex = Mutex()
@@ -112,6 +123,7 @@ internal class PackageInstallerAppUpdateInstaller(
             pendingDownloadStore.clear()
             pollJob.getAndSet(null)?.cancel()
         }
+        progressObserver.stopWatching()
         _state.value = UpdateInstallState.Idle
     }
 
@@ -136,17 +148,25 @@ internal class PackageInstallerAppUpdateInstaller(
      * @param status one of the `PackageInstaller.STATUS_*` values.
      */
     internal fun onInstallStatus(status: Int) {
-        when (status) {
+        val failure = when (status) {
             // The app was replaced, so there is nothing left to report.
-            PackageInstaller.STATUS_SUCCESS -> Unit
+            PackageInstaller.STATUS_SUCCESS -> null
 
-            PackageInstaller.STATUS_FAILURE_ABORTED ->
-                _state.value = UpdateInstallState.Failed(UpdateInstallFailure.CANCELLED)
+            PackageInstaller.STATUS_PENDING_USER_ACTION -> {
+                _state.value = UpdateInstallState.WaitingForConfirmation
+                null
+            }
 
-            PackageInstaller.STATUS_PENDING_USER_ACTION -> _state.value = UpdateInstallState.WaitingForConfirmation
+            PackageInstaller.STATUS_FAILURE_ABORTED -> UpdateInstallFailure.CANCELLED
 
-            else -> _state.value = UpdateInstallState.Failed(UpdateInstallFailure.REJECTED)
+            else -> UpdateInstallFailure.REJECTED
         }
+        if (failure == null) return
+
+        // The installation failed, so the session isn't watched anymore and the user is told about it.
+        _state.value = UpdateInstallState.Failed(failure)
+        progressObserver.stopWatching()
+        notifier.cancelInstalling()
     }
 
     /**
@@ -171,6 +191,8 @@ internal class PackageInstallerAppUpdateInstaller(
      */
     private suspend fun installUpdate(update: AppUpdate) {
         try {
+            // A new installation replaces the old one, so the old session isn't watched anymore.
+            progressObserver.stopWatching()
             if (!canInstallPackages()) {
                 _state.value = UpdateInstallState.Failed(UpdateInstallFailure.PERMISSION_MISSING)
                 return

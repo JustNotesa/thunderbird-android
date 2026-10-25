@@ -8,6 +8,7 @@ import android.content.Intent
 import assertk.assertThat
 import assertk.assertions.isEqualTo
 import assertk.assertions.isNotNull
+import assertk.assertions.isNull
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import net.thunderbird.feature.updater.api.AppUpdate
@@ -107,6 +108,24 @@ class AppUpdatedReceiverTest {
         ).isNotNull()
     }
 
+    @Test
+    fun `the notification about the installation is cancelled`() {
+        // Arrange
+        val notifier = UpdateNotifier(application)
+        notifier.notifyInstalling(INSTALL_PROGRESS)
+
+        // Act
+        testSubject.onReceive(application, Intent(Intent.ACTION_MY_PACKAGE_REPLACED))
+
+        // Assert
+        assertThat(
+            shadowOf(notificationManager()).getNotification(
+                UpdateNotifier.INSTALLING_NOTIFICATION_TAG,
+                UpdateNotifier.INSTALLING_NOTIFICATION_ID,
+            ),
+        ).isNull()
+    }
+
     private fun notificationManager(): NotificationManager {
         return application.getSystemService(NotificationManager::class.java)
     }
@@ -126,6 +145,7 @@ class AppUpdatedReceiverTest {
 
     private companion object {
         const val RELEASE_TAG = "mein-thunderbird-2026-10-25"
+        const val INSTALL_PROGRESS = 0.5f
     }
 }
 
