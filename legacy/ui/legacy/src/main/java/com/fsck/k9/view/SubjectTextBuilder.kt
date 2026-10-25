@@ -3,7 +3,11 @@ package com.fsck.k9.view
 import android.content.Context
 import android.text.SpannableStringBuilder
 import android.text.Spanned
+import android.text.StaticLayout
+import android.text.TextPaint
+import android.text.TextUtils
 import androidx.annotation.ColorInt
+import kotlin.math.roundToInt
 
 /**
  * The subject of a message as it is shown: the subject itself, followed by a label that tells the user where the
@@ -51,8 +55,107 @@ internal class SubjectTextBuilder {
         return text
     }
 
+    /**
+     * The text of the subject while it is collapsed: the subject and the label, or - when they don't fit into
+     * [maxLines] lines - the subject shortened to fit and a dot in the colour of the account in place of the label.
+     */
+    fun buildCollapsed(context: Context, paint: TextPaint, width: Int, maxLines: Int): CharSequence {
+        val locationLabel = label
+        if (locationLabel == null || locationLabel.displayText().isEmpty()) {
+            return build(context)
+        }
+
+        val fullText = build(context)
+
+        return if (fitsIntoLines(fullText, paint, width, maxLines)) {
+            fullText
+        } else {
+            buildShortForm(context, paint, width, maxLines, locationLabel)
+        }
+    }
+
+    /** Whether the text takes up no more than the given number of lines at the given width. */
+    private fun fitsIntoLines(text: CharSequence, paint: TextPaint, width: Int, maxLines: Int): Boolean {
+        if (width <= 0) {
+            return true
+        }
+
+        val layout = StaticLayout.Builder.obtain(text, 0, text.length, paint, width)
+            .setIncludePad(true)
+            .build()
+
+        return layout.lineCount <= maxLines
+    }
+
+    /**
+     * The subject shortened to the lines it is collapsed to, followed by an ellipsis and a dot in the colour of the
+     * account. The dot stands in for the label, which doesn't fit into those lines.
+     */
+    private fun buildShortForm(
+        context: Context,
+        paint: TextPaint,
+        width: Int,
+        maxLines: Int,
+        locationLabel: LocationLabel,
+    ): CharSequence {
+        val dotSpan = AccountDotSpan(context, locationLabel.accountColor)
+        val dotWidth = dotSpan.getSize(paint, EMPTY_TEXT, 0, 0, null)
+        val spaceWidth = paint.measureText(SPACE).roundToInt()
+        val subjectWidth = width - spaceWidth - dotWidth
+        if (subjectWidth <= 0) {
+            return subject
+        }
+
+        var shortSubject = visibleSubject(paint, subjectWidth, maxLines)
+        var text = shortText(shortSubject, dotSpan)
+
+        // The view lays the text out again, which may break the lines differently. Cut the subject shorter until the
+        // ellipsis and the dot fit on the lines the subject is collapsed to.
+        while (!fitsIntoLines(text, paint, width, maxLines) && shortSubject.isNotEmpty()) {
+            val withoutLastWord = shortSubject.toString().trimEnd()
+            val lastSpace = withoutLastWord.lastIndexOf(' ')
+            shortSubject = if (lastSpace < 0) "" else withoutLastWord.substring(0, lastSpace)
+            text = shortText(shortSubject, dotSpan)
+        }
+
+        return text
+    }
+
+    /** The part of the subject that is visible when it is shortened to the given number of lines. */
+    private fun visibleSubject(paint: TextPaint, width: Int, maxLines: Int): CharSequence {
+        val layout = StaticLayout.Builder.obtain(subject, 0, subject.length, paint, width)
+            .setIncludePad(true)
+            .setMaxLines(maxLines)
+            .setEllipsize(TextUtils.TruncateAt.END)
+            .setEllipsizedWidth(width)
+            .build()
+
+        val lastLine = layout.lineCount - 1
+        // The start of the ellipsis is counted from the start of its line, not from the start of the text.
+        val visibleEnd = if (layout.getEllipsisCount(lastLine) > 0) {
+            layout.getLineStart(lastLine) + layout.getEllipsisStart(lastLine)
+        } else {
+            layout.getLineEnd(lastLine)
+        }
+
+        return subject.subSequence(0, visibleEnd)
+    }
+
+    /** The shortened subject, followed by an ellipsis and the dot that stands in for the label. */
+    private fun shortText(subjectPart: CharSequence, dotSpan: AccountDotSpan): CharSequence {
+        // The ellipsis follows the last visible word directly, without the space the line was broken at.
+        val text = SpannableStringBuilder(subjectPart.trimEnd()).append(ELLIPSIS).append(SPACE).append(SPACE)
+        val dotStart = text.length - 1
+        text.setSpan(dotSpan, dotStart, text.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+
+        return text
+    }
+
     private companion object {
         const val SEPARATOR = " "
+        const val ELLIPSIS = "…"
+        const val SPACE = "\u00A0"
+        const val EMPTY_TEXT = ""
     }
 }
 
