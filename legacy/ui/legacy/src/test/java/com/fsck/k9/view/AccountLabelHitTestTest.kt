@@ -5,6 +5,7 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.text.Layout
 import android.text.Spanned
+import android.text.TextPaint
 import android.view.ContextThemeWrapper
 import android.view.View
 import android.widget.TextView
@@ -29,6 +30,8 @@ private const val VIEW_WIDTH = 400
 private const val VIEW_HEIGHT = 200
 private const val VIEW_PADDING = 4
 private const val TOUCH_SLOP = 8
+private const val MAX_LINES = 3
+private const val SUBJECT_TEXT_SIZE_SP = 24f
 
 /**
  * Where a message is, is shown in one place: a label at the end of the subject. A tap on it brings the message back
@@ -40,6 +43,9 @@ class AccountLabelHitTestTest : RobolectricTest() {
         ApplicationProvider.getApplicationContext<Context>(),
         R.style.Theme_Legacy_Test,
     )
+    private val subjectPaint = TextPaint().apply {
+        textSize = SUBJECT_TEXT_SIZE_SP * context.resources.displayMetrics.scaledDensity
+    }
 
     @Test
     fun `a tap in the middle of the label should be on it`() {
@@ -115,6 +121,21 @@ class AccountLabelHitTestTest : RobolectricTest() {
     }
 
     @Test
+    fun `a subject with a dot instead of the label should have no label to tap on`() {
+        // Arrange: a subject that is too long for the label to fit in, so that a dot takes its place
+        val text = builderWithLabel(LONG_SUBJECT).buildCollapsed(context, subjectPaint, VIEW_WIDTH, MAX_LINES)
+        val layout = layoutOf(text)
+
+        // Act
+        val touchX = VIEW_WIDTH / 2
+        val touchY = lineCentre(layout, 0)
+
+        // Assert
+        assertThat(hasAccountDot(text)).isTrue()
+        assertThat(isTouchOnLabel(layout, text, touchX, touchY)).isFalse()
+    }
+
+    @Test
     fun `the label should be found on the line it is on`() {
         // Arrange: a subject that doesn't fit on one line, so that the label moves to the next one
         val text = builderWithLabel(LONG_SUBJECT).build(context)
@@ -178,6 +199,13 @@ class AccountLabelHitTestTest : RobolectricTest() {
         testSubject.setSubject(SUBJECT)
 
         return testSubject
+    }
+
+    /** Whether the text marks the account with a dot instead of showing the label. */
+    private fun hasAccountDot(text: CharSequence): Boolean {
+        val spanned = text as Spanned
+
+        return spanned.getSpans(0, spanned.length, AccountDotSpan::class.java).isNotEmpty()
     }
 
     /** The text as it is laid out on the screen: a [TextView] of a fixed size that holds it. */

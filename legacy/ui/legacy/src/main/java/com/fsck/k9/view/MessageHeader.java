@@ -5,6 +5,8 @@ import java.util.List;
 
 import android.content.Context;
 import android.text.Layout;
+import android.text.Spanned;
+import android.text.TextUtils;
 import android.util.AttributeSet;
 import android.view.MotionEvent;
 import android.view.View;
@@ -118,6 +120,13 @@ public class MessageHeader extends LinearLayout implements OnClickListener, OnLo
         subjectView.setOnClickListener(this);
         subjectView.setOnLongClickListener(this);
 
+        // The text of the subject depends on the width of the view, which is only known after the first layout.
+        subjectView.addOnLayoutChangeListener((view, left, top, right, bottom, oldLeft, oldTop, oldRight,
+                oldBottom) -> {
+            // Changing the text during a layout pass isn't allowed, so do it right afterwards.
+            view.post(this::updateSubjectText);
+        });
+
         // The click listener doesn't know where the finger was, so the position of the tap is remembered here. It
         // returns false, so the click and long click handling of the subject stays as it is.
         subjectView.setOnTouchListener((view, event) -> {
@@ -212,6 +221,8 @@ public class MessageHeader extends LinearLayout implements OnClickListener, OnLo
         } else {
             subjectView.setMaxLines(DEFAULT_SUBJECT_LINES);
         }
+
+        updateSubjectText();
     }
 
     private void onSubjectClick() {
@@ -418,8 +429,61 @@ public class MessageHeader extends LinearLayout implements OnClickListener, OnLo
     }
 
     private void updateSubjectView() {
-        subjectView.setText(subjectText.build(getContext()));
+        updateSubjectText();
         updateLocationLabelAccessibilityAction();
+    }
+
+    /**
+     * The text of the subject as it is shown: the whole subject while it is expanded, the shortened one while it is
+     * collapsed and the label doesn't fit into the lines it is collapsed to.
+     */
+    private void updateSubjectText() {
+        CharSequence text = buildSubjectText();
+        // The text is only set when it changed, so that setting it doesn't start another round of layouts.
+        if (!TextUtils.equals(text, subjectView.getText())) {
+            subjectView.setText(text);
+        }
+
+        updateSubjectContentDescription();
+    }
+
+    private CharSequence buildSubjectText() {
+        if (subjectView.getMaxLines() == DEFAULT_SUBJECT_LINES) {
+            return subjectText.buildCollapsed(getContext(), subjectView.getPaint(), getSubjectTextWidth(),
+                    DEFAULT_SUBJECT_LINES);
+        }
+
+        return subjectText.build(getContext());
+    }
+
+    /** The width the text of the subject has at its disposal. */
+    private int getSubjectTextWidth() {
+        return subjectView.getWidth() - subjectView.getPaddingLeft() - subjectView.getPaddingRight();
+    }
+
+    /**
+     * A screen reader reads the text of the subject. When the label is replaced by a dot, that text doesn't name the
+     * location of the message anymore, so the content description takes over that job.
+     */
+    private void updateSubjectContentDescription() {
+        LocationLabel locationLabel = subjectText.locationLabel();
+        if (locationLabel == null || !hasAccountDot()) {
+            subjectView.setContentDescription(null);
+            return;
+        }
+
+        subjectView.setContentDescription(subjectText.clipboardText() + ", " + locationLabel.displayText());
+    }
+
+    /** Whether the text of the subject marks the account with a dot instead of showing the label. */
+    private boolean hasAccountDot() {
+        CharSequence text = subjectView.getText();
+        if (!(text instanceof Spanned)) {
+            return false;
+        }
+
+        Spanned spanned = (Spanned) text;
+        return spanned.getSpans(0, spanned.length(), AccountDotSpan.class).length > 0;
     }
 
     public void hideCryptoStatus() {
