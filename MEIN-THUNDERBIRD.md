@@ -27,7 +27,10 @@ Die fertige App liegt danach unter `app-thunderbird/build/outputs/apk/foss/beta/
   eingerichtet oder übertragen werden.
 - **Nicht gleichzeitig mit Mozillas offizieller Beta aus dem Play Store**, weil beide dieselbe Kennung haben.
 - **Updates:** Eine neue Version lässt sich über die alte installieren, solange sie mit demselben Schlüssel signiert
-  ist.
+  ist. Die App prüft selbst einmal am Tag (und beim Öffnen von Einstellungen → Über die App) auf GitHub, ob es ein
+  neueres Release gibt, und installiert es nach Rückfrage. Das geht nur in Builds, die mit
+  `-Pmein.releaseTag=<tag>` gebaut wurden (siehe „Eine neue Version veröffentlichen“); die erste Version mit dieser
+  Funktion muss einmal von Hand installiert werden.
 
 ## Der Signierschlüssel
 
@@ -49,6 +52,31 @@ mkdir -p .signing && cp ~/.mein-thunderbird-signing/tb.beta.signing.properties .
 - **Anmeldung per Google- oder Microsoft-Konto (OAuth)** wird in dieser App sehr wahrscheinlich nicht funktionieren,
   weil diese Anbieter die Anmeldung an Mozillas Schlüssel binden. Konten mit Passwort (z. B. web.de, eigener Server)
   funktionieren normal.
+
+## Eine neue Version veröffentlichen
+
+Im sauberen Arbeitsordner von `mein-thunderbird` (alles committet, `.signing/tb.beta.signing.properties` vorhanden):
+
+```bash
+scripts/mein-thunderbird-release.sh --dry-run release-notes.md   # bauen, prüfen, nichts hochladen
+scripts/mein-thunderbird-release.sh release-notes.md             # nach Rückfrage (y/N) veröffentlichen
+```
+
+`release-notes.md` ist der Text des Releases (Argument, Pflicht). Das Skript
+
+1. verweigert den Lauf, wenn der Branch nicht `mein-thunderbird` oder der Ordner nicht sauber ist,
+2. bestimmt den nächsten Tag `mein-thunderbird-JJJJ-MM-TT`, bei weiteren Versionen am selben Tag `-2`, `-3`, …
+   (aus den Releases und den Tags im Fork),
+3. baut die Beta-Variante mit `-Pmein.releaseTag=<tag>` und prüft die Signatur mit `apksigner verify --print-certs`,
+4. legt die APK als `release-preview/<tag>.apk` neben den Arbeitsordnern ab,
+5. zeigt Tag und Notizen, fragt nach, pusht dann `mein-thunderbird` zum Fork und erstellt das Release als „Latest“.
+
+**Wie die App Releases findet:** Die eingebaute Aktualisierung liest `releases/latest` des Forks. Damit sie eine
+Version erkennt, muss der Tag `mein-thunderbird-JJJJ-MM-TT[-N]` heißen, das Release als **Latest** markiert und keine
+Vorabversion sein, und als Datei die APK `<tag>.apk` enthalten. Ob es neuer ist, entscheidet Datum, dann N. Die App
+prüft die heruntergeladene Datei per SHA-256 (aus GitHubs Digest) und übergibt sie Android zum Installieren. Ein Build
+ohne `-Pmein.releaseTag=<tag>` kennt seine eigene Version nicht; in ihm ist die Aktualisierung abgeschaltet
+(Debug- und lokale Builds).
 
 ## Mozillas Updates übernehmen
 
