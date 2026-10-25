@@ -18,7 +18,7 @@ internal interface QrCodeDomainContract {
         }
 
         fun interface QrCodeSettingsWriter {
-            fun write(accounts: List<Account>): Uri
+            suspend fun write(accounts: List<Account>): Uri
         }
     }
 }

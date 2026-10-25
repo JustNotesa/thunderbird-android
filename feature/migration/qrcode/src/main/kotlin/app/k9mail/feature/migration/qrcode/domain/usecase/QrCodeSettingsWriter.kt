@@ -12,7 +12,7 @@ internal class QrCodeSettingsWriter(
     private val context: Context,
     private val xmlSettingWriter: XmlSettingWriter,
 ) : UseCase.QrCodeSettingsWriter {
-    override fun write(accounts: List<Account>): Uri {
+    override suspend fun write(accounts: List<Account>): Uri {
         val file = getSettingsFile()
         writeSettingsToFile(file, accounts)
 
@@ -20,7 +20,7 @@ internal class QrCodeSettingsWriter(
         return FileProvider.getUriForFile(context, authority, file)
     }
 
-    private fun writeSettingsToFile(file: File, accounts: List<Account>) {
+    private suspend fun writeSettingsToFile(file: File, accounts: List<Account>) {
         file.outputStream().use { outputStream ->
             xmlSettingWriter.writeSettings(outputStream, accounts)
         }

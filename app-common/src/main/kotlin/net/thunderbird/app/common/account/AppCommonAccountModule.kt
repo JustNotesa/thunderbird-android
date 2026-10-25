@@ -2,6 +2,7 @@ package net.thunderbird.app.common.account
 
 import androidx.compose.ui.graphics.vector.ImageVector
 import app.k9mail.feature.account.setup.AccountSetupExternalContract
+import app.k9mail.feature.migration.qrcode.settings.ImportAccountColorProvider
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.toImmutableList
 import net.thunderbird.app.common.account.data.DefaultAccountProfileLocalDataSource
@@ -60,6 +61,12 @@ internal val appCommonAccountModule = module {
         AccountColorPicker(
             repository = get(),
             accountColors = get(named("AccountColors")),
+        )
+    }
+
+    factory<ImportAccountColorProvider> {
+        DefaultImportAccountColorProvider(
+            accountColorPicker = get(),
         )
     }
 

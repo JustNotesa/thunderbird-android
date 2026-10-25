@@ -8,7 +8,7 @@ import app.k9mail.feature.migration.qrcode.domain.entity.AccountData.Account
 internal class FakeQrCodeSettingsWriter : UseCase.QrCodeSettingsWriter {
     var arguments: List<Account>? = null
 
-    override fun write(accounts: List<Account>): Uri {
+    override suspend fun write(accounts: List<Account>): Uri {
         check(arguments == null) { "write() called more than once" }
 
         arguments = accounts
