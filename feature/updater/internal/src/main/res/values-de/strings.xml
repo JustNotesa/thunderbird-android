@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="updater_notification_channel_name">App-Updates</string>
+    <string name="updater_notification_title">Update verfügbar</string>
+    <string name="updater_notification_text">%1$s kann installiert werden. Öffne die App, um zu aktualisieren.</string>
+    <string name="updater_confirm_notification_title">Update bereit zur Installation</string>
+    <string name="updater_confirm_notification_text">Tippen, um das Update zu installieren</string>
+</resources>
