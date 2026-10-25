@@ -20,6 +20,14 @@ android {
         versionName = "26.0"
 
         buildConfigField("String", "CLIENT_INFO_APP_NAME", "\"Thunderbird for Android\"")
+
+        // Release tag of the own "Mein Thunderbird" build; empty (updater off) unless -Pmein.releaseTag=<tag> is set.
+        val meinReleaseTag = providers.gradleProperty("mein.releaseTag").orElse("").get()
+        require(Regex("^[A-Za-z0-9._-]*$").matches(meinReleaseTag)) {
+            "Gradle property mein.releaseTag may only contain letters, digits, '.', '_' and '-'"
+        }
+        buildConfigField("String", "MEIN_RELEASE_TAG", "\"$meinReleaseTag\"")
+        buildConfigField("String", "MEIN_UPDATE_REPOSITORY", "\"JustNotesa/thunderbird-android\"")
     }
 
     androidResources {
@@ -226,6 +234,7 @@ dependencies {
     implementation(projects.core.ui.compose.common)
     implementation(projects.core.ui.legacy.theme2.thunderbird)
     implementation(projects.feature.launcher)
+    implementation(projects.feature.updater.internal)
 
     implementation(projects.legacy.core)
     implementation(projects.legacy.ui.legacy)
