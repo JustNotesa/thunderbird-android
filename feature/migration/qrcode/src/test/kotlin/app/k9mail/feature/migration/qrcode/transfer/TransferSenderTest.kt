@@ -64,6 +64,31 @@ class TransferSenderTest {
     }
 
     @Test
+    fun `a prepared transfer offers all addresses of the device`() = runTest {
+        val addresses = listOf(address("192.168.178.20"), address("192.168.1.24"))
+        val testSubject = createSender(
+            accounts = accounts,
+            address = addresses.first(),
+            addresses = addresses,
+            bindAddress = bindAddress,
+        )
+
+        val result = testSubject.prepare()
+
+        assertThat(result).isInstanceOf<TransferSendResult.Ready>()
+        val session = (result as TransferSendResult.Ready).session
+        try {
+            val qrCode = checkNotNull(TransferQrCode.parse(session.qrText)) { "The QR code is invalid" }
+            val route = checkNotNull(qrCode.route as? TransferRoute.Lan) { "The QR code has no LAN route" }
+
+            assertThat(route.hosts).isEqualTo(listOf("192.168.178.20", "192.168.1.24"))
+            assertThat(route.host).isEqualTo("192.168.178.20")
+        } finally {
+            session.stop()
+        }
+    }
+
+    @Test
     fun `a prepared hotspot transfer is fetched by the receiving device`() = runTest {
         val hotspotController = createStartedHotspot()
         val testSubject = createSender(
@@ -199,12 +224,13 @@ class TransferSenderTest {
     private fun createSender(
         accounts: List<TransferAccount>,
         address: Inet4Address?,
+        addresses: List<Inet4Address> = listOfNotNull(address),
         bindAddress: InetAddress = address ?: InetAddress.getLoopbackAddress(),
         hotspotController: HotspotController = FakeHotspotController(HotspotStartResult.Unsupported),
     ): TransferSender {
         return TransferSender(
             accountSource = TransferAccountSource { accounts },
-            addressProvider = LocalNetworkAddressProvider { address },
+            addressProvider = FakeLocalNetworkAddressProvider(wifiAddress = address, addresses = addresses),
             hotspotController = hotspotController,
             clock = { CREATED_AT },
             createServer = { container, transferId, _ ->
@@ -249,6 +275,10 @@ class TransferSenderTest {
         return checkNotNull(TransferPayload.read(String(plaintext, Charsets.UTF_8))) {
             "The payload of the transfer is invalid"
         }.accountsJson
+    }
+
+    private fun address(value: String): Inet4Address {
+        return InetAddress.getByName(value) as Inet4Address
     }
 
     private fun imapAccount(): TransferAccount {
@@ -391,4 +421,16 @@ class TransferSenderTest {
         private const val HOTSPOT_SSID = "DIRECT-test"
         private const val HOTSPOT_PASSPHRASE = "secret123"
     }
+}
+
+/**
+ * Provides the addresses of the device, the Wi-Fi address first.
+ */
+private class FakeLocalNetworkAddressProvider(
+    private val wifiAddress: Inet4Address?,
+    private val addresses: List<Inet4Address>,
+) : LocalNetworkAddressProvider {
+    override fun getWifiAddress(): Inet4Address? = wifiAddress
+
+    override fun getAddresses(): List<Inet4Address> = addresses
 }

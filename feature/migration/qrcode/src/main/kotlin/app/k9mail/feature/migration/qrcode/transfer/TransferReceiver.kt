@@ -6,6 +6,8 @@ import javax.net.SocketFactory
 import net.thunderbird.legacy.logging.Log
 
 private const val TAG = "TransferReceiver"
+private const val ADDRESS_OCTET_COUNT = 4
+private const val SUBNET_OCTET_COUNT = 3
 
 /**
  * Receives an account transfer: fetches the encrypted container of the transfer from the sending device, decrypts it
@@ -18,6 +20,7 @@ private const val TAG = "TransferReceiver"
 internal class TransferReceiver(
     private val fetcher: TransferContainerFetcher,
     private val hotspotConnector: HotspotNetworkConnector,
+    private val addressProvider: LocalNetworkAddressProvider = LocalNetworkAddressProvider { null },
 ) {
     /**
      * Receives the transfer described by [qrCode].
@@ -65,12 +68,18 @@ internal class TransferReceiver(
 
     private suspend fun fetchOverLan(route: TransferRoute.Lan, transferId: ByteArray): ContainerFetch {
         val result = fetcher.fetch(
-            route = route,
+            route = route.copy(hosts = orderedHosts(route.hosts)),
             transferId = transferId,
             socketFactory = SocketFactory.getDefault(),
         )
 
         return container(result)
+    }
+
+    private fun orderedHosts(hosts: List<String>): List<String> {
+        val localAddresses = addressProvider.getAddresses().map { it.hostAddress }
+
+        return orderHostsBySubnet(hosts = hosts, localAddresses = localAddresses)
     }
 
     private suspend fun fetchOverHotspot(route: TransferRoute.Hotspot, qrCode: TransferQrCode): ContainerFetch {
@@ -119,6 +128,24 @@ internal class TransferReceiver(
             TransferReceiveResult.Success(content.accountsJson)
         }
     }
+}
+
+/**
+ * Orders the hosts of a LAN route so that the addresses in the same network as this device are tried first. The order
+ * of the hosts is kept otherwise.
+ */
+internal fun orderHostsBySubnet(hosts: List<String>, localAddresses: List<String>): List<String> {
+    val subnets = localAddresses.mapNotNull { subnetOf(it) }.toSet()
+    val (inSubnet, others) = hosts.partition { subnetOf(it) in subnets }
+
+    return inSubnet + others
+}
+
+private fun subnetOf(address: String): String? {
+    val octets = address.split('.')
+    val isIpv4 = octets.size == ADDRESS_OCTET_COUNT
+
+    return if (isIpv4) octets.take(SUBNET_OCTET_COUNT).joinToString(".") else null
 }
 
 /** The outcome of asking the sending device for the container of the transfer. */

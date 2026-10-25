@@ -5,8 +5,12 @@ import assertk.assertions.isEqualTo
 import assertk.assertions.isInstanceOf
 import java.io.DataInputStream
 import java.io.DataOutputStream
+import java.io.IOException
 import java.net.InetAddress
+import java.net.InetSocketAddress
 import java.net.ServerSocket
+import java.net.Socket
+import java.net.SocketAddress
 import javax.net.SocketFactory
 import kotlin.concurrent.thread
 import kotlin.test.Test
@@ -111,6 +115,35 @@ class LanTransferTest {
         assertThat(result).isEqualTo(LanTransferClientResult.Failed)
     }
 
+    @Test
+    fun `client tries the next host after a failed connect`() = runBlocking {
+        val testSubject = createServer(lifetimeMillis = SERVER_LIFETIME)
+        val port = testSubject.start()
+        val route = TransferRoute.Lan(hosts = listOf(UNREACHABLE_HOST, host), port = port)
+
+        val serverResult = async(Dispatchers.IO) { testSubject.awaitTransfer() }
+        val clientResult = client.fetch(route, transferId, FailingSocketFactory(setOf(UNREACHABLE_HOST)))
+
+        assertThat(clientResult).isInstanceOf<LanTransferClientResult.Success>()
+        assertThat((clientResult as LanTransferClientResult.Success).container.toByteString())
+            .isEqualTo(container.toByteString())
+        assertThat(serverResult.await()).isEqualTo(LanTransferServerResult.Transferred)
+    }
+
+    @Test
+    fun `client is unreachable when no host answers`() = runBlocking {
+        val route = TransferRoute.Lan(
+            hosts = listOf(UNREACHABLE_HOST, OTHER_UNREACHABLE_HOST),
+            port = closedPort(),
+        )
+
+        val socketFactory = FailingSocketFactory(setOf(UNREACHABLE_HOST, OTHER_UNREACHABLE_HOST))
+
+        val result = client.fetch(route, transferId, socketFactory)
+
+        assertThat(result).isEqualTo(LanTransferClientResult.Unreachable)
+    }
+
     private fun createServer(lifetimeMillis: Long): LanTransferServer {
         return LanTransferServer(
             container = container,
@@ -155,5 +188,40 @@ class LanTransferTest {
         private const val SHORT_LIFETIME = 200L
         private const val SMALL_MAX_CONTAINER_SIZE = 16
         private const val ANNOUNCED_SIZE = 1_024
+        private const val UNREACHABLE_HOST = "192.0.2.1"
+        private const val OTHER_UNREACHABLE_HOST = "192.0.2.2"
+    }
+}
+
+/**
+ * Creates sockets that can't be connected to the given hosts.
+ */
+private class FailingSocketFactory(
+    private val failingHosts: Set<String>,
+) : SocketFactory() {
+    override fun createSocket(): Socket = failingSocket()
+
+    override fun createSocket(host: String, port: Int): Socket = failingSocket()
+
+    override fun createSocket(host: String, port: Int, localHost: InetAddress, localPort: Int): Socket =
+        failingSocket()
+
+    override fun createSocket(host: InetAddress, port: Int): Socket = failingSocket()
+
+    override fun createSocket(host: InetAddress, port: Int, localHost: InetAddress, localPort: Int): Socket =
+        failingSocket()
+
+    private fun failingSocket(): Socket {
+        return object : Socket() {
+            override fun connect(endpoint: SocketAddress, timeout: Int) {
+                val host = (endpoint as? InetSocketAddress)?.hostString
+
+                if (host != null && host in failingHosts) {
+                    throw IOException("The host can't be reached")
+                }
+
+                super.connect(endpoint, timeout)
+            }
+        }
     }
 }
