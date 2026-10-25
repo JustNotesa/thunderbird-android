@@ -91,6 +91,7 @@ class AboutFragment : Fragment() {
                         aboutTitle = aboutTitle,
                         projectTitle = projectTitle,
                         librariesTitle = librariesTitle,
+                        updates = state.value.updates,
                         displayChangeLog = {
                             dispatch(Event.OnChangeLogClick)
                         },
@@ -122,10 +123,33 @@ class AboutFragment : Fragment() {
                                 ),
                             )
                         },
+                        onAutoCheckChange = { enabled ->
+                            dispatch(Event.OnAutoCheckChanged(enabled))
+                        },
+                        onCheckForUpdatesClick = {
+                            dispatch(Event.OnCheckForUpdatesClick)
+                        },
+                        onInstallClick = {
+                            dispatch(Event.OnInstallClick)
+                        },
+                        onOpenInstallPermissionClick = {
+                            dispatch(Event.OnOpenInstallPermissionClick)
+                        },
+                        onInstallFailureDismiss = {
+                            dispatch(Event.OnInstallFailureDismiss)
+                        },
+                        onCancelInstallClick = {
+                            dispatch(Event.OnCancelInstallClick)
+                        },
                     )
                 }
             }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        viewModel.event(Event.OnScreenResumed)
     }
 }
 
@@ -191,17 +215,21 @@ fun AboutScreen(
     appLogoResId: Int,
     libraries: ImmutableList<Library>,
     modifier: Modifier = Modifier,
+    updates: UpdatesState? = null,
     displayChangeLog: () -> Unit = {},
     displayAuthors: () -> Unit = {},
     displayLicense: () -> Unit = {},
     displayWebSite: () -> Unit = {},
     displayForum: () -> Unit = {},
+    onAutoCheckChange: (Boolean) -> Unit = {},
+    onCheckForUpdatesClick: () -> Unit = {},
+    onInstallClick: () -> Unit = {},
+    onOpenInstallPermissionClick: () -> Unit = {},
+    onInstallFailureDismiss: () -> Unit = {},
+    onCancelInstallClick: () -> Unit = {},
 ) {
     val scrollState = rememberScrollState()
-    Surface(
-        modifier = modifier
-            .fillMaxSize(),
-    ) {
+    Surface(modifier = modifier.fillMaxSize()) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -229,6 +257,18 @@ fun AboutScreen(
                 sectionImageId = DesignSystemR.drawable.ic_code,
                 onClick = displayLicense,
             )
+
+            updates?.let { updatesState ->
+                AboutUpdatesSection(
+                    state = updatesState,
+                    onAutoCheckChange = onAutoCheckChange,
+                    onCheckClick = onCheckForUpdatesClick,
+                    onInstallClick = onInstallClick,
+                    onCancelInstallClick = onCancelInstallClick,
+                    onOpenInstallPermissionClick = onOpenInstallPermissionClick,
+                    onInstallFailureDismiss = onInstallFailureDismiss,
+                )
+            }
 
             SectionTitle(title = projectTitle)
 

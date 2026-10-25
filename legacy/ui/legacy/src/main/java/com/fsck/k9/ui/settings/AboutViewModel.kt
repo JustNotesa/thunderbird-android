@@ -1,25 +1,73 @@
 package com.fsck.k9.ui.settings
 
+import androidx.lifecycle.viewModelScope
 import com.fsck.k9.ui.settings.AboutContract.Effect
 import com.fsck.k9.ui.settings.AboutContract.Event
 import com.fsck.k9.ui.settings.AboutContract.State
 import kotlinx.collections.immutable.persistentListOf
+import kotlinx.coroutines.launch
 import net.thunderbird.core.common.provider.AppVersionProvider
 import net.thunderbird.core.ui.contract.mvi.BaseViewModel
+import net.thunderbird.feature.updater.api.AppUpdateChecker
+import net.thunderbird.feature.updater.api.AppUpdateInstaller
+import net.thunderbird.feature.updater.api.AppUpdateSettings
 
 internal class AboutViewModel(
     appVersionProvider: AppVersionProvider,
+    updateChecker: AppUpdateChecker?,
+    updateSettings: AppUpdateSettings?,
+    updateInstaller: AppUpdateInstaller?,
 ) : BaseViewModel<State, Event, Effect>(
     initialState = State(
         version = appVersionProvider.getVersionNumber(),
         libraries = USED_LIBRARIES,
     ),
 ) {
+    private val updatesController: AboutUpdatesController?
+
+    init {
+        updatesController = createUpdatesController(
+            checker = updateChecker,
+            settings = updateSettings,
+            installer = updateInstaller,
+        )
+        updatesController?.start()
+        viewModelScope.launch {
+            updatesController?.state?.collect { updates ->
+                updateState { current -> current.copy(updates = updates) }
+            }
+        }
+    }
+
     override fun event(event: Event) {
         when (event) {
             is Event.OnChangeLogClick -> emitEffect(Effect.OpenChangeLog)
             is Event.OnSectionContentClick -> emitEffect(Effect.OpenUrl(event.url))
             is Event.OnLibraryClick -> emitEffect(Effect.OpenUrl(event.library.url))
+            is Event.OnAutoCheckChanged -> updatesController?.onAutoCheckChanged(event.enabled)
+            Event.OnCheckForUpdatesClick -> updatesController?.onCheckForUpdatesClick()
+            Event.OnInstallClick -> updatesController?.onInstallClick()
+            Event.OnOpenInstallPermissionClick -> updatesController?.onOpenInstallPermissionClick()
+            Event.OnScreenResumed -> updatesController?.onScreenResumed()
+            Event.OnInstallFailureDismiss -> updatesController?.onInstallFailureDismiss()
+            Event.OnCancelInstallClick -> updatesController?.onCancelInstallClick()
+        }
+    }
+
+    private fun createUpdatesController(
+        checker: AppUpdateChecker?,
+        settings: AppUpdateSettings?,
+        installer: AppUpdateInstaller?,
+    ): AboutUpdatesController? {
+        return if (checker?.isEnabled == true && settings != null && installer != null) {
+            AboutUpdatesController(
+                checker = checker,
+                settings = settings,
+                installer = installer,
+                scope = viewModelScope,
+            )
+        } else {
+            null
         }
     }
 }

@@ -22,6 +22,9 @@ class AboutViewModelTest {
             appVersionProvider = mock<AppVersionProvider> {
                 on { getVersionNumber() } doReturn "9.9.9"
             },
+            updateChecker = null,
+            updateSettings = null,
+            updateInstaller = null,
         )
     }
 
