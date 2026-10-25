@@ -7,6 +7,7 @@ import app.k9mail.feature.migration.qrcode.domain.entity.AccountData.IncomingSer
 import app.k9mail.feature.migration.qrcode.domain.entity.AccountData.OutgoingServer
 import app.k9mail.feature.migration.qrcode.domain.entity.AccountData.OutgoingServerGroup
 import java.io.OutputStream
+import java.util.Locale
 import net.thunderbird.core.android.account.DeletePolicy
 import net.thunderbird.core.featureflag.FeatureFlagProvider
 import net.thunderbird.core.featureflag.keys.GeneratedFeatureFlagKey
@@ -21,8 +22,9 @@ import org.xmlpull.v1.XmlSerializer
 internal class XmlSettingWriter(
     private val uuidGenerator: UuidGenerator,
     private val featureFlagProvider: FeatureFlagProvider,
+    private val accountColorProvider: ImportAccountColorProvider,
 ) {
-    fun writeSettings(outputStream: OutputStream, accounts: List<Account>) {
+    suspend fun writeSettings(outputStream: OutputStream, accounts: List<Account>) {
         val serializer = Xml.newSerializer()
         serializer.setOutput(outputStream, "UTF-8")
 
@@ -31,40 +33,40 @@ internal class XmlSettingWriter(
         // Output with indentation
         serializer.setFeature("http://xmlpull.org/v1/doc/features.html#indent-output", true)
 
-        serializer.writeRoot(accounts)
+        serializer.writeRoot(accounts, accountColorProvider.pickColors(accounts.size))
 
         serializer.endDocument()
         serializer.flush()
     }
 
-    private fun XmlSerializer.writeRoot(accounts: List<Account>) {
+    private fun XmlSerializer.writeRoot(accounts: List<Account>, accountColors: List<Int>) {
         startTag(null, ROOT_ELEMENT)
         attribute(null, VERSION_ATTRIBUTE, SETTINGS_VERSION.toString())
         attribute(null, FILE_FORMAT_ATTRIBUTE, FILE_FORMAT_VERSION.toString())
 
-        writeAccounts(accounts)
+        writeAccounts(accounts, accountColors)
 
         endTag(null, ROOT_ELEMENT)
     }
 
-    private fun XmlSerializer.writeAccounts(accounts: List<Account>) {
+    private fun XmlSerializer.writeAccounts(accounts: List<Account>, accountColors: List<Int>) {
         startTag(null, ACCOUNTS_ELEMENT)
 
-        for (account in accounts) {
-            writeAccount(account)
+        for ((account, color) in accounts.zip(accountColors)) {
+            writeAccount(account, color)
         }
 
         endTag(null, ACCOUNTS_ELEMENT)
     }
 
-    private fun XmlSerializer.writeAccount(account: Account) {
+    private fun XmlSerializer.writeAccount(account: Account, color: Int) {
         val accountUuid = uuidGenerator.generateUuid()
 
         startTag(null, ACCOUNT_ELEMENT)
         attribute(null, UUID_ATTRIBUTE, accountUuid)
 
         writeElement(NAME_ELEMENT, account.accountName)
-        writeSettings(account)
+        writeSettings(account, color)
         writeIncomingServer(account.incomingServer)
         writeOutgoingServers(account.outgoingServerGroups)
 
@@ -95,9 +97,10 @@ internal class XmlSettingWriter(
         endTag(null, ACCOUNT_ELEMENT)
     }
 
-    private fun XmlSerializer.writeSettings(account: Account) {
+    private fun XmlSerializer.writeSettings(account: Account, color: Int) {
         startTag(null, SETTINGS_ELEMENT)
         writeKeyValue("deletePolicy", account.deletePolicy.toSettingsFileValue())
+        writeKeyValue("chipColor", color.toSettingsFileValue())
         endTag(null, SETTINGS_ELEMENT)
     }
 
@@ -244,3 +247,10 @@ private fun DeletePolicy.toSettingsFileValue(): String {
         DeletePolicy.MARK_AS_READ -> "MARK_AS_READ"
     }
 }
+
+// The color is written the same way the settings exporter writes it, so the importer reads it back as a color.
+private fun Int.toSettingsFileValue(): String {
+    return String.format(Locale.ROOT, "#%06x", this and COLOR_MASK)
+}
+
+private const val COLOR_MASK = 0x00FFFFFF

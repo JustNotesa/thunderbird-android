@@ -3,8 +3,10 @@ package app.k9mail.feature.migration.qrcode.settings
 import app.k9mail.feature.migration.qrcode.domain.entity.AccountData
 import app.k9mail.feature.migration.qrcode.domain.entity.AccountData.ConnectionSecurity
 import assertk.assertThat
+import assertk.assertions.contains
 import assertk.assertions.isEqualTo
 import kotlin.test.Test
+import kotlinx.coroutines.test.runTest
 import net.thunderbird.core.android.account.DeletePolicy
 import net.thunderbird.core.common.mail.toUserEmailAddress
 import net.thunderbird.core.common.net.toHostname
@@ -21,37 +23,69 @@ class XmlSettingWriterTest {
     private val xmlSettingsWriter = XmlSettingWriter(
         uuidGenerator = { "test-uuid" },
         featureFlagProvider = FakeFeatureFlagProvider(),
+        accountColorProvider = FakeImportAccountColorProvider(listOf(FIRST_ACCOUNT_COLOR)),
     )
 
     @Test
-    fun `XML should match expected output`() {
+    fun `XML should match expected output`() = runTest {
+        // Arrange
         val buffer = Buffer()
         val accounts = listOf(ACCOUNT)
 
+        // Act
         buffer.outputStream().use { outputStream ->
             xmlSettingsWriter.writeSettings(outputStream, accounts)
         }
 
+        // Assert
         val xmlString = buffer.readUtf8().normalizeLineBreaks()
         assertThat(xmlString).isEqualTo(EXPECTED_OUTPUT)
     }
 
     @Test
-    fun `XML should match expected output for POP3`() {
+    fun `XML should match expected output for POP3`() = runTest {
+        // Arrange
         val buffer = Buffer()
         val accounts = listOf(POP3ACCOUNT)
 
+        // Act
         buffer.outputStream().use { outputStream ->
             xmlSettingsWriter.writeSettings(outputStream, accounts)
         }
 
+        // Assert
         val xmlString = buffer.readUtf8().normalizeLineBreaks()
         assertThat(xmlString).isEqualTo(EXPECTED_POP3_OUTPUT)
+    }
+
+    @Test
+    fun `XML should contain a chip color for every account`() = runTest {
+        // Arrange
+        val writer = XmlSettingWriter(
+            uuidGenerator = { "test-uuid" },
+            featureFlagProvider = FakeFeatureFlagProvider(),
+            accountColorProvider = FakeImportAccountColorProvider(listOf(FIRST_ACCOUNT_COLOR, SECOND_ACCOUNT_COLOR)),
+        )
+        val buffer = Buffer()
+        val accounts = listOf(ACCOUNT, POP3ACCOUNT)
+
+        // Act
+        buffer.outputStream().use { outputStream ->
+            writer.writeSettings(outputStream, accounts)
+        }
+
+        // Assert
+        val xmlString = buffer.readUtf8().normalizeLineBreaks()
+        assertThat(xmlString).contains("<value key=\"chipColor\">#00aa00</value>")
+        assertThat(xmlString).contains("<value key=\"chipColor\">#0000ee</value>")
     }
 
     private fun String.normalizeLineBreaks() = replace("\r\n", "\n")
 
     companion object {
+        private const val FIRST_ACCOUNT_COLOR = 0xFF00AA00.toInt()
+        private const val SECOND_ACCOUNT_COLOR = 0xFF0000EE.toInt()
+
         private val ACCOUNT = AccountData.Account(
             accountName = "Account name",
             deletePolicy = DeletePolicy.ON_DELETE,
@@ -127,6 +161,7 @@ class XmlSettingWriterTest {
                   <name>Account name</name>
                   <settings>
                     <value key="deletePolicy">DELETE</value>
+                    <value key="chipColor">#00aa00</value>
                   </settings>
                   <incoming-server type="IMAP">
                     <host>imap.domain.example</host>
@@ -174,6 +209,7 @@ class XmlSettingWriterTest {
                   <name>Account name</name>
                   <settings>
                     <value key="deletePolicy">DELETE</value>
+                    <value key="chipColor">#00aa00</value>
                   </settings>
                   <incoming-server type="POP3">
                     <host>pop.domain.example</host>
@@ -207,4 +243,12 @@ class XmlSettingWriterTest {
 private class FakeFeatureFlagProvider : FeatureFlagProvider {
     // Disabled as the test is primarily concerned with the XML based UI
     override fun provide(key: FeatureFlagKey): FeatureFlagResult = FeatureFlagResult.Enabled
+}
+
+private class FakeImportAccountColorProvider(
+    private val colors: List<Int>,
+) : ImportAccountColorProvider {
+    override suspend fun pickColors(count: Int): List<Int> {
+        return colors
+    }
 }

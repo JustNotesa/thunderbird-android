@@ -106,6 +106,7 @@ val qrCodeModule = module {
         XmlSettingWriter(
             uuidGenerator = get(),
             featureFlagProvider = get(),
+            accountColorProvider = get(),
         )
     }
 
