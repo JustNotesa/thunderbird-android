@@ -99,6 +99,39 @@ class AboutUpdatesSectionUiTest {
         assertThat(cancels).containsExactly(true)
     }
 
+    @Test
+    fun `the installation progress is shown without buttons while the update is installing`() {
+        val composeView = createComposeView(install = UpdateInstallState.Installing(progress = 0.42f))
+
+        val progressNode = findTextNode(composeView, INSTALLING_PROGRESS_TEXT)
+        val hintNode = findTextNode(composeView, INSTALLING_HINT_TEXT)
+        val installButtonNode = findTextNode(composeView, INSTALL_BUTTON_LABEL)
+        val cancelNode = findTextNode(composeView, CANCEL_BUTTON_LABEL)
+
+        assertThat(progressNode).isNotNull()
+        assertThat(hintNode).isNotNull()
+        assertThat(installButtonNode).isNull()
+        assertThat(cancelNode).isNull()
+    }
+
+    @Test
+    fun `an indeterminate installation progress is shown when the progress is unknown`() {
+        val composeView = createComposeView(install = UpdateInstallState.Installing(progress = -1f))
+
+        val progressNode = findTextNode(composeView, INSTALLING_INDETERMINATE_TEXT)
+        val percentNode = findTextNode(composeView, "%")
+
+        assertThat(progressNode).isNotNull()
+        assertThat(percentNode).isNull()
+    }
+
+    private fun findTextNode(composeView: ComposeView, text: String): SemanticsNode? {
+        return findNode(composeView) { node ->
+            node.config.contains(SemanticsProperties.Text) &&
+                node.config[SemanticsProperties.Text].joinToString { it.text }.contains(text)
+        }
+    }
+
     private fun createComposeView(
         install: UpdateInstallState = UpdateInstallState.Idle,
         onAutoCheckChange: (Boolean) -> Unit = {},
@@ -182,6 +215,10 @@ class AboutUpdatesSectionUiTest {
     companion object {
         const val VERSION_TAG = "mein-thunderbird-2026-10-25"
         const val CANCEL_BUTTON_LABEL = "Cancel"
+        const val INSTALL_BUTTON_LABEL = "Download and install"
+        const val INSTALLING_PROGRESS_TEXT = "Installing… 42%"
+        const val INSTALLING_INDETERMINATE_TEXT = "Installing…"
+        const val INSTALLING_HINT_TEXT = "tap the notification “Thunderbird updated”"
         const val WIDTH = 1080
         const val HEIGHT = 1920
     }
