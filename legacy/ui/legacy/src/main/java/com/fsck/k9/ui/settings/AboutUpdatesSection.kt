@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.text.selection.DisableSelection
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -46,41 +48,45 @@ internal fun AboutUpdatesSection(
     val availableUpdate = (state.check as? CheckStatus.Available)?.update
     val installInProgress = state.install !is UpdateInstallState.Idle && state.install !is UpdateInstallState.Failed
 
-    Column(
-        modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(BoltTheme.spacings.default),
-    ) {
-        SectionTitle(title = stringResource(R.string.about_updates_title))
+    SelectionContainer(modifier = modifier) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(BoltTheme.spacings.default),
+        ) {
+            SectionTitle(title = stringResource(R.string.about_updates_title))
 
-        AboutUpdateInfoRow(
-            label = stringResource(R.string.about_updates_installed_version),
-            value = state.currentVersionTag,
-        )
+            AboutUpdateInfoRow(
+                label = stringResource(R.string.about_updates_installed_version),
+                value = state.currentVersionTag,
+            )
 
-        AboutUpdateAutoCheckRow(
-            enabled = state.autoCheckEnabled,
-            onAutoCheckChange = onAutoCheckChange,
-        )
+            DisableSelection {
+                AboutUpdateAutoCheckRow(
+                    enabled = state.autoCheckEnabled,
+                    onAutoCheckChange = onAutoCheckChange,
+                )
+            }
 
-        AboutUpdateCheckStatus(
-            check = state.check,
-            onCheckClick = onCheckClick,
-        )
+            AboutUpdateCheckStatus(
+                check = state.check,
+                onCheckClick = onCheckClick,
+            )
 
-        AboutUpdateAvailable(
-            update = availableUpdate,
-            installEnabled = !installInProgress && state.canInstallPackages,
-            onInstallClick = onInstallClick,
-        )
+            AboutUpdateAvailable(
+                update = availableUpdate,
+                installEnabled = !installInProgress && state.canInstallPackages,
+                onInstallClick = onInstallClick,
+            )
 
-        AboutUpdateInstallStatus(
-            install = state.install,
-            canInstallPackages = state.canInstallPackages,
-            onInstallAgainClick = onInstallClick,
-            onCancelInstallClick = onCancelInstallClick,
-            onOpenInstallPermissionClick = onOpenInstallPermissionClick,
-            onInstallFailureDismiss = onInstallFailureDismiss,
-        )
+            AboutUpdateInstallStatus(
+                install = state.install,
+                canInstallPackages = state.canInstallPackages,
+                onInstallAgainClick = onInstallClick,
+                onCancelInstallClick = onCancelInstallClick,
+                onOpenInstallPermissionClick = onOpenInstallPermissionClick,
+                onInstallFailureDismiss = onInstallFailureDismiss,
+            )
+        }
     }
 }
 
@@ -145,10 +151,12 @@ private fun AboutUpdateCheckStatus(
     ) {
         when (check) {
             CheckStatus.Idle -> {
-                ButtonOutlined(
-                    text = stringResource(R.string.about_updates_check_button),
-                    onClick = onCheckClick,
-                )
+                DisableSelection {
+                    ButtonOutlined(
+                        text = stringResource(R.string.about_updates_check_button),
+                        onClick = onCheckClick,
+                    )
+                }
             }
 
             CheckStatus.Checking -> {
@@ -161,20 +169,24 @@ private fun AboutUpdateCheckStatus(
 
             CheckStatus.UpToDate -> {
                 TextBodyMedium(text = stringResource(R.string.about_updates_up_to_date))
-                ButtonOutlined(
-                    text = stringResource(R.string.about_updates_check_again_button),
-                    onClick = onCheckClick,
-                )
+                DisableSelection {
+                    ButtonOutlined(
+                        text = stringResource(R.string.about_updates_check_again_button),
+                        onClick = onCheckClick,
+                    )
+                }
             }
 
             is CheckStatus.Available -> Unit
 
             is CheckStatus.Failed -> {
                 TextBodyMedium(text = checkFailureMessage(check.reason))
-                ButtonOutlined(
-                    text = stringResource(R.string.about_updates_retry_button),
-                    onClick = onCheckClick,
-                )
+                DisableSelection {
+                    ButtonOutlined(
+                        text = stringResource(R.string.about_updates_retry_button),
+                        onClick = onCheckClick,
+                    )
+                }
             }
         }
     }
@@ -203,11 +215,13 @@ private fun AboutUpdateAvailable(
         TextBodyMedium(text = stringResource(R.string.about_updates_release_notes_label))
         TextBodyMedium(text = formatReleaseNotes(update.releaseNotes))
         TextBodyMedium(text = stringResource(R.string.about_updates_size, size))
-        ButtonFilled(
-            text = stringResource(R.string.about_updates_install_button),
-            onClick = onInstallClick,
-            enabled = installEnabled,
-        )
+        DisableSelection {
+            ButtonFilled(
+                text = stringResource(R.string.about_updates_install_button),
+                onClick = onInstallClick,
+                enabled = installEnabled,
+            )
+        }
     }
 }
 
@@ -231,7 +245,10 @@ private fun AboutUpdateInstallStatus(
             UpdateInstallState.Idle -> Unit
 
             is UpdateInstallState.Downloading -> {
-                AboutUpdateDownloading(downloading = install)
+                AboutUpdateDownloading(
+                    downloading = install,
+                    onCancelClick = onCancelInstallClick,
+                )
             }
 
             UpdateInstallState.Verifying -> {
@@ -241,32 +258,40 @@ private fun AboutUpdateInstallStatus(
             UpdateInstallState.WaitingForConfirmation -> {
                 TextBodyMedium(text = stringResource(R.string.about_updates_waiting_for_confirmation))
                 Row(horizontalArrangement = Arrangement.spacedBy(BoltTheme.spacings.half)) {
-                    ButtonFilled(
-                        text = stringResource(R.string.about_updates_install_again_button),
-                        onClick = onInstallAgainClick,
-                    )
-                    ButtonOutlined(
-                        text = stringResource(R.string.about_updates_cancel_button),
-                        onClick = onCancelInstallClick,
-                    )
+                    DisableSelection {
+                        ButtonFilled(
+                            text = stringResource(R.string.about_updates_install_again_button),
+                            onClick = onInstallAgainClick,
+                        )
+                    }
+                    DisableSelection {
+                        ButtonOutlined(
+                            text = stringResource(R.string.about_updates_cancel_button),
+                            onClick = onCancelInstallClick,
+                        )
+                    }
                 }
             }
 
             is UpdateInstallState.Failed -> {
                 TextBodyMedium(text = installFailureMessage(install.reason))
-                ButtonOutlined(
-                    text = stringResource(R.string.about_updates_dismiss_button),
-                    onClick = onInstallFailureDismiss,
-                )
+                DisableSelection {
+                    ButtonOutlined(
+                        text = stringResource(R.string.about_updates_dismiss_button),
+                        onClick = onInstallFailureDismiss,
+                    )
+                }
             }
         }
 
         if (!canInstallPackages) {
             TextBodyMedium(text = stringResource(R.string.about_updates_install_permission_explanation))
-            ButtonOutlined(
-                text = stringResource(R.string.about_updates_open_settings_button),
-                onClick = onOpenInstallPermissionClick,
-            )
+            DisableSelection {
+                ButtonOutlined(
+                    text = stringResource(R.string.about_updates_open_settings_button),
+                    onClick = onOpenInstallPermissionClick,
+                )
+            }
         }
     }
 }
@@ -274,6 +299,7 @@ private fun AboutUpdateInstallStatus(
 @Composable
 private fun AboutUpdateDownloading(
     downloading: UpdateInstallState.Downloading,
+    onCancelClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val percent = calculateDownloadPercent(
@@ -300,6 +326,13 @@ private fun AboutUpdateDownloading(
             stringResource(R.string.about_updates_downloading, percent)
         }
         TextBodyMedium(text = progressText)
+        Spacer(modifier = Modifier.width(BoltTheme.spacings.default))
+        DisableSelection {
+            ButtonOutlined(
+                text = stringResource(R.string.about_updates_cancel_button),
+                onClick = onCancelClick,
+            )
+        }
     }
 }
 
