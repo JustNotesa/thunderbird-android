@@ -1056,6 +1056,18 @@
     <string name="changelog_type_changed_text">GEÄNDERT</string>
     <string name="notification_show_contact_picture_title">Kontaktbilder in Benachrichtigungen anzeigen</string>
     <string name="notification_show_contact_picture_summary">Profilbild der Absender in Benachrichtigungen über neue Nachrichten anzeigen</string>
+    <string name="nova_sound_new_mail_title">Ton bei neuer Nachricht</string>
+    <string name="nova_sound_sent_title">Ton beim Senden</string>
+    <string name="nova_sound_off">Aus</string>
+    <string name="nova_sound_nova_new_mail">Nova · Neue Mail</string>
+    <string name="nova_sound_nova_notice">Nova · Hinweis</string>
+    <string name="nova_sound_nova_sent">Nova · Gesendet</string>
+    <string name="nova_sound_system">System · <xliff:g id="sound">%1$s</xliff:g></string>
+    <string name="nova_sound_custom">Eigene · <xliff:g id="sound">%1$s</xliff:g></string>
+    <string name="nova_sound_pick_file">Eigene Datei…</string>
+    <string name="nova_sound_done">Fertig</string>
+    <string name="nova_sound_all_accounts"><xliff:g id="sound">%1$s</xliff:g> – gilt für alle Konten</string>
+    <string name="nova_sound_import_failed">Ton konnte nicht übernommen werden.</string>
     <string name="animation_setting_on">Ein</string>
     <string name="animation_setting_off">Aus</string>
     <string name="animation_setting_follow_system">Systemstandard verwenden</string>

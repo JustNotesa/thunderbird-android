@@ -104,6 +104,7 @@ public class MessagingControllerTest extends K9RobolectricTest {
 
     private AccountId accountId;
     private LegacyAccount account;
+    private OutboxStateRepository outboxStateRepository;
     @Mock
     private BackendManager backendManager;
     @Mock
@@ -140,6 +141,8 @@ public class MessagingControllerTest extends K9RobolectricTest {
     private LocalMessage localNewMessage2;
     @Mock
     private LocalMessage localMessageToSend1;
+    @Mock
+    private LocalMessage localMessageToSend2;
     private volatile boolean hasFetchedMessage = false;
 
     private LegacyAccountManager accountManager;
@@ -906,6 +909,46 @@ public class MessagingControllerTest extends K9RobolectricTest {
         verify(notificationController).showCertificateErrorNotification(accountId, false);
     }
 
+    @Test
+    public void sendPendingMessagesSynchronous_whenMessageSentSuccessfully_shouldNotifyMessageSentListenerOnce()
+            throws MessagingException {
+        setupAccountWithTwoMessagesToSend();
+        Runnable messageSentListener = mock(Runnable.class);
+        controller.setMessageSentListener(messageSentListener);
+
+        controller.sendPendingMessagesSynchronous(accountId);
+
+        verify(backend).sendMessage(localMessageToSend1);
+        verify(backend).sendMessage(localMessageToSend2);
+        verify(messageSentListener, times(1)).run();
+    }
+
+    @Test
+    public void sendPendingMessagesSynchronous_withAuthenticationFailure_shouldNotNotifyMessageSentListener()
+            throws MessagingException {
+        setupAccountWithMessageToSend();
+        doThrow(new AuthenticationFailedException("Test")).when(backend).sendMessage(localMessageToSend1);
+        Runnable messageSentListener = mock(Runnable.class);
+        controller.setMessageSentListener(messageSentListener);
+
+        controller.sendPendingMessagesSynchronous(accountId);
+
+        verify(messageSentListener, never()).run();
+    }
+
+    @Test
+    public void sendPendingMessagesSynchronous_withSendFailure_shouldNotNotifyMessageSentListener()
+            throws MessagingException {
+        setupAccountWithMessageToSend();
+        doThrow(new MessagingException("Test")).when(backend).sendMessage(localMessageToSend1);
+        Runnable messageSentListener = mock(Runnable.class);
+        controller.setMessageSentListener(messageSentListener);
+
+        controller.sendPendingMessagesSynchronous(accountId);
+
+        verify(messageSentListener, never()).run();
+    }
+
     private void setupAccountWithMessageToSend() throws MessagingException {
         account = FakeLegacyAccount.create(accountId, SENT_FOLDER_ID, 0);
         when(accountManager.findById(accountId)).thenReturn(account);
@@ -918,11 +961,24 @@ public class MessagingControllerTest extends K9RobolectricTest {
         when(localMessageToSend1.getHeader(K9.IDENTITY_HEADER)).thenReturn(new String[]{});
 
         OutboxState outboxState = new OutboxState(SendState.READY, 0, null, 0);
-        OutboxStateRepository outboxStateRepository = mock(OutboxStateRepository.class);
+        outboxStateRepository = mock(OutboxStateRepository.class);
         when(outboxStateRepository.getOutboxState(42L)).thenReturn(outboxState);
 
         when(localStore.getOutboxStateRepository()).thenReturn(outboxStateRepository);
         controller.addListener(listener);
+    }
+
+    private void setupAccountWithTwoMessagesToSend() throws MessagingException {
+        setupAccountWithMessageToSend();
+
+        when(localMessageToSend2.getUid()).thenReturn("localMessageToSend2");
+        when(localMessageToSend2.getDatabaseId()).thenReturn(43L);
+        when(localMessageToSend2.getHeader(K9.IDENTITY_HEADER)).thenReturn(new String[]{});
+
+        OutboxState outboxState = new OutboxState(SendState.READY, 0, null, 0);
+        when(outboxStateRepository.getOutboxState(43L)).thenReturn(outboxState);
+
+        when(localFolder.getMessages()).thenReturn(Arrays.asList(localMessageToSend1, localMessageToSend2));
     }
 
     private void configureBackendManager() {

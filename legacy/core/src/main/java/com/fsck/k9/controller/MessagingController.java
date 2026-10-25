@@ -161,6 +161,8 @@ public class MessagingController implements MessagingControllerRegistry, Messagi
 
     private volatile boolean stopped = false;
 
+    private volatile Runnable messageSentListener;
+
 
     public static MessagingController getInstance(Context context) {
         return DI.get(MessagingController.class);
@@ -371,6 +373,10 @@ public class MessagingController implements MessagingControllerRegistry, Messagi
 
     public void removeListener(@NonNull MessagingListener listener) {
         listeners.remove(listener);
+    }
+
+    public void setMessageSentListener(Runnable listener) {
+        messageSentListener = listener;
     }
 
     public Set<MessagingListener> getListeners() {
@@ -2222,6 +2228,7 @@ public class MessagingController implements MessagingControllerRegistry, Messagi
     @VisibleForTesting
     protected void sendPendingMessagesSynchronous(final AccountId accountId) {
         Exception lastFailure = null;
+        int sentCount = 0;
         try {
             if (isAuthenticationProblem(accountId, false)) {
                 Log.d(TAG, "Authentication will fail. Skip sending messages.");
@@ -2303,6 +2310,7 @@ public class MessagingController implements MessagingControllerRegistry, Messagi
 
                         Log.i(TAG, "Sending message with UID %s", message.getUid());
                         backend.sendMessage(message);
+                        sentCount++;
 
                         message.setFlag(Flag.X_SEND_IN_PROGRESS, false);
                         message.setFlag(Flag.SEEN, true);
@@ -2349,6 +2357,10 @@ public class MessagingController implements MessagingControllerRegistry, Messagi
                 }
             }
 
+            if (sentCount > 0) {
+                notifyMessageSent();
+            }
+
             if (lastFailure != null) {
                 notificationController.showSendFailedNotification(accountId, lastFailure);
             }
@@ -2358,6 +2370,19 @@ public class MessagingController implements MessagingControllerRegistry, Messagi
             if (lastFailure == null) {
                 notificationController.clearSendFailedNotification(accountId);
             }
+        }
+    }
+
+    private void notifyMessageSent() {
+        Runnable listener = messageSentListener;
+        if (listener == null) {
+            return;
+        }
+
+        try {
+            listener.run();
+        } catch (Exception e) {
+            Log.e(TAG, e, "Failed to notify about sent messages");
         }
     }
 

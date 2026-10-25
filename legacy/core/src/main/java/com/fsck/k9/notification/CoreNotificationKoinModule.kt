@@ -3,6 +3,9 @@ package com.fsck.k9.notification
 import android.app.NotificationManager
 import android.content.Context
 import androidx.core.app.NotificationManagerCompat
+import com.fsck.k9.notification.sound.NovaSoundManager
+import com.fsck.k9.notification.sound.NovaSoundSettings
+import com.fsck.k9.notification.sound.SharedPreferencesNovaSoundSettings
 import java.util.concurrent.Executors
 import kotlin.time.ExperimentalTime
 import org.koin.android.ext.koin.androidApplication
@@ -198,6 +201,19 @@ val coreNotificationModule = module {
     single<AccountNotificationIdRegistry> {
         DefaultAccountNotificationIdRegistry(
             accountManager = get(),
+        )
+    }
+    single<NovaSoundSettings> {
+        SharedPreferencesNovaSoundSettings(get())
+    }
+    single {
+        NovaSoundManager(
+            context = get(),
+            settings = get(),
+            accountManager = get(),
+            notificationChannelManager = get(),
+            backgroundExecutor = Executors.newSingleThreadExecutor(),
+            coroutineScope = get(named("AppCoroutineScope")),
         )
     }
 }
