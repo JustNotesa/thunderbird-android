@@ -1,3 +1,93 @@
+# Mein Thunderbird
+
+**Mein Thunderbird** ist eine eigene Version von Thunderbird für Android: Mozillas App, ergänzt um zusätzliche
+Funktionen. Sie ist mit einem eigenen Schlüssel signiert und erscheint auf dem Handy als **„Thunderbird Beta“**
+(`net.thunderbird.android.beta`). Dieser Fork ist kein offizielles Mozilla-Produkt; der unveränderte Stand von
+Mozilla liegt im Branch `main`, die eigene App im Branch `mein-thunderbird` (siehe [MEIN-THUNDERBIRD.md](./MEIN-THUNDERBIRD.md)).
+
+### Herunterladen
+
+**[Neueste Version herunterladen](https://github.com/JustNotesa/thunderbird-android/releases/latest)**: die
+APK-Datei im Release öffnen und installieren (Android fragt einmal nach „Unbekannte Apps installieren“).
+
+### Was diese Version zusätzlich kann
+
+#### Mail schreiben (Editor)
+- **Formatierter Text:** fett, kursiv, unterstrichen, durchgestrichen, Farben, Links, Listen, Zitate, Einrücken und
+  Ausrichtung, bedient über eine Leiste über der Tastatur.
+- **Schriftgröße und Schriftart** lassen sich in Nachrichten und in Signaturen wählen.
+- **Rückgängig/Wiederholen**, sauberes Einfügen und automatisches Speichern als Entwurf. Beim erneuten Öffnen eines
+  Entwurfs bleibt die Formatierung erhalten.
+- **Bilder im Text:** Bilder lassen sich mitten in die Nachricht einfügen; die Anzeigebreite wird durch Wischen
+  über das Bild eingestellt.
+- **Zitat in Antworten bearbeiten:** Das Zitat einer HTML-Mail kann samt Formatierung direkt geändert werden.
+- **HTML-Code bearbeiten:** Der Nachrichtentext kann als HTML-Code geöffnet werden; die App sagt vorher, ob sich der
+  HTML-Text ohne Verlust als formatierter Text zeigen lässt.
+- **Zoom mit zwei Fingern** im Editor, ein ruhigeres, helleres Aussehen mit feinen Linien zwischen den Feldern.
+
+#### Nachrichten lesen
+- **Zwei-Finger-Zoom** für den Text einer Nachricht.
+- **Ruhigere Nachrichtenliste** mit abgerundeten Zeilen ohne Trennlinien.
+- **Ordner und Konto einer Nachricht** werden als Label hinter dem Betreff gezeigt; ein Tipp führt zum Posteingang
+  bzw. Ordner zurück.
+
+#### Konten einrichten und übertragen
+- **Alle Wege, ein Konto hinzuzufügen,** auf der ersten Startseite (E-Mail-Konto,
+  QR-Code, Thundermail, aus Passwortmanager einfügen).
+- **Konten auf ein neues Gerät übertragen** (Einstellungen → „Konten übertragen“): per verschlüsseltem QR-Code, über
+  das WLAN, über den Hotspot des sendenden Geräts oder als Text für einen Passwortmanager. Vor der Übertragung von
+  Passwörtern wird nachgefragt, Bildschirmfotos der Übertragungsseiten sind nur dort blockiert, wo Geheimnisse
+  sichtbar sind.
+- Nach dem Import zeigt die App, **wie er ausgegangen ist**, und prüft die Verbindungen. Ein schon eingerichtetes Konto
+  wird nicht doppelt angelegt; übernommene Konten bekommen jeweils eine eigene Farbe.
+- **Serverdaten wiederverwenden:** Hat ein Konto derselben Domain schon passende Servereinstellungen, werden sie
+  übernommen.
+- **Mehrere Konten auf einmal löschen.**
+
+#### Suche
+- **Server-Suche in Stufen:** erst lokal, dann über Ordner und Konten hinweg auf dem Server, zuletzt auch in den
+  Nachrichteninhalten; mit sichtbarem Fortschritt und Fehlermeldungen.
+- **Status der Server-Suche:** zeigt, ob gerade verbunden oder auf Antwort gewartet wird und was die Suche aufhält;
+  sie lässt sich anhalten, fortsetzen und pausiert, während eine Nachricht gelesen wird.
+- **Alle Wörter finden:** Treffer müssen jedes Wort der Suchanfrage enthalten; die Suchanfrage lässt sich in der
+  Trefferliste ändern, zuletzt benutzte Suchen werden vorgeschlagen.
+- **Ordner im Ergebnis:** In den Treffern steht der Ordner jeder Nachricht, der Ordner lässt sich aus der Nachricht
+  heraus öffnen; eine aus einem Ordner gestartete Suche kann auf diesen Ordner beschränkt werden.
+- Ordner laden ihre Nachrichten in wachsenden Schritten beim Scrollen und nennen einen Grund, wenn das Laden scheitert.
+
+#### Ordner und Posteingang
+- **Ordnerverwaltung auf dem Handy:** Ordner auf dem Server anlegen, umbenennen, per Ziehen verschieben und löschen
+  (samt Unterordnern); Unterordner erscheinen als Baum, das Konto lässt sich in der Verwaltung wechseln. Scheitert
+  der Server, wird das gemeldet.
+- **Vereinheitlichte Ordner:** Gemeinsamer Posteingang als Standard, dazu gemeinsame Spezialordner (z. B. Gesendet,
+  Entwürfe, Papierkorb) im Ordner-Menü; Spezialordner werden auch am Namen erkannt, wenn der Server sie nicht
+  kennzeichnet.
+- **Seitenmenü:** der gewählte Ordner wird sichtbar gemacht, der Konto-Avatar öffnet dessen Posteingang.
+- **Speicher:** Anzeige, wie viel Platz ein Konto auf dem Gerät und (bei IMAP-Servern) auf dem Server belegt.
+
+#### Signaturen
+- **Mehrere benannte Signaturen pro Konto**, Auswahl beim Schreiben einer Nachricht.
+- **Signaturen formatieren** (Schrift, Größe, Vorschau) und aus der Auswahl per langem Druck bearbeiten; eine
+  HTML-Signatur kann auch nur für die aktuelle Nachricht angepasst werden.
+
+#### Updates
+- **Eingebaute Aktualisierung:** Die App fragt einmal am Tag und beim Öffnen von Einstellungen → Über die App bei
+  GitHub nach einer neueren Version, zeigt eine Benachrichtigung, lädt die APK herunter, prüft sie per SHA-256 und
+  übergibt sie an den Installer von Android. Dafür muss einmal „Unbekannte Apps installieren“ für die App erlaubt
+  werden. Mozillas App hat keine solche Funktion und verlässt sich auf Play Store bzw. F-Droid.
+
+### Bekannte Einschränkungen
+- **Anmeldung mit Google oder Microsoft (OAuth)** funktioniert mit dem eigenen Schlüssel sehr wahrscheinlich nicht,
+  weil diese Anbieter die Anmeldung an Mozillas Schlüssel binden. Konten mit Passwort (z. B. web.de, eigener Server)
+  sind nicht betroffen.
+- **Die erste Version mit eingebauter Aktualisierung muss einmal von Hand installiert werden**; erst von da an
+  findet und lädt die App neue Versionen selbst; die Installation bestätigt man nur noch im Dialog von Android.
+  Voraussetzung ist immer derselbe Signierschlüssel.
+- Die App läuft neben dem offiziellen Thunderbird, kann aber nicht gleichzeitig mit Mozillas Beta aus dem Play Store
+  installiert sein (gleiche App-Kennung). Konten müssen neu eingerichtet oder übertragen werden.
+
+---
+
 # Thunderbird for Android
 
 <a href="https://play.google.com/store/apps/details?id=net.thunderbird.android&referrer=utm_campaign%3Dandroid_metadata%26utm_medium%3Dweb%26utm_source%3Dgithub.com%26utm_content%3Dbadge" target="_blank"><img src="./docs/assets/get-it-on-play.png" alt="Get it on Google Play" height="28"></a>

@@ -158,6 +158,8 @@ include(
     ":feature:navigation:drawer:api",
     ":feature:navigation:drawer:dropdown",
     ":feature:changelog:api",
+    ":feature:updater:api",
+    ":feature:updater:internal",
 )
 
 include(

@@ -1073,4 +1073,65 @@
     <string name="account_settings_signature_preview_empty">Deine Signaturvorschau wird hier angezeigt</string>
     <string name="error_no_contact_provider">Es wurde keine Kontakte-App gefunden. Installiere eine Kontakte-App, um diese Adresse hinzuzufügen.</string>
     <string name="remote_feature_flag_preferences">Remote-Feature-Flags</string>
+
+    <!-- Title of the "Updates" section in the about screen -->
+    <string name="about_updates_title">Updates</string>
+    <!-- Label of the row showing the release tag of the installed version -->
+    <string name="about_updates_installed_version">Installierte Version</string>
+    <!-- Label of the switch that enables checking for updates automatically -->
+    <string name="about_updates_auto_check">Automatisch nach Updates suchen</string>
+    <!-- Button that starts a check for updates -->
+    <string name="about_updates_check_button">Nach Updates suchen</string>
+    <!-- Button that repeats a check for updates -->
+    <string name="about_updates_check_again_button">Erneut suchen</string>
+    <!-- Button that repeats a check for updates after it failed -->
+    <string name="about_updates_retry_button">Erneut versuchen</string>
+    <!-- Message shown while the app looks for a newer release -->
+    <string name="about_updates_checking">Suche nach Updates…</string>
+    <!-- Message shown when the installed version is the newest release -->
+    <string name="about_updates_up_to_date">Deine App ist aktuell.</string>
+    <!-- Message shown when the update server could not be reached -->
+    <string name="about_updates_check_failed_network">Der Update-Server war nicht erreichbar. Prüfe deine Internetverbindung und versuche es erneut.</string>
+    <!-- Message shown when the update server returned an error -->
+    <string name="about_updates_check_failed_server">Der Update-Server hat einen Fehler zurückgegeben. Bitte versuche es später erneut.</string>
+    <!-- Message shown when the information about the new release could not be read -->
+    <string name="about_updates_check_failed_invalid_response">Die Informationen zur neuen Version konnten nicht gelesen werden. Bitte versuche es später erneut.</string>
+    <!-- Message shown when the new release does not contain an installable file -->
+    <string name="about_updates_check_failed_no_apk">Die neue Version enthält keine installierbare Datei.</string>
+    <!-- Headline shown when a newer release is available -->
+    <string name="about_updates_available_headline">Eine neue Version ist verfügbar</string>
+    <!-- Label of the release notes of a newer release -->
+    <string name="about_updates_release_notes_label">Versionshinweise</string>
+    <!-- Size of the download of a newer release -->
+    <string name="about_updates_size">Größe: %1$s</string>
+    <!-- Button that downloads and installs a newer release -->
+    <string name="about_updates_install_button">Herunterladen und installieren</string>
+    <!-- Progress of the download of a newer release -->
+    <string name="about_updates_downloading">Wird heruntergeladen… %1$d%%</string>
+    <!-- Progress of the download of a newer release when the total size isn't known -->
+    <string name="about_updates_downloading_indeterminate">Wird heruntergeladen…</string>
+    <!-- Message shown while the downloaded file is verified -->
+    <string name="about_updates_verifying">Die heruntergeladene Datei wird überprüft…</string>
+    <!-- Message shown while the user confirms the installation in the system dialog -->
+    <string name="about_updates_waiting_for_confirmation">Bestätige die Installation im Systemdialog. Erscheint kein Dialog, tippe auf die Benachrichtigung.</string>
+    <!-- Button that starts the installation of the downloaded update again -->
+    <string name="about_updates_install_again_button">Erneut installieren</string>
+    <!-- Button that cancels a pending installation -->
+    <string name="about_updates_cancel_button">Abbrechen</string>
+    <!-- Message shown when the download of a newer release failed -->
+    <string name="about_updates_install_failed_download">Der Download ist fehlgeschlagen. Prüfe deine Internetverbindung und versuche es erneut.</string>
+    <!-- Message shown when the downloaded file doesn't match the expected checksum -->
+    <string name="about_updates_install_failed_checksum">Die heruntergeladene Datei ist beschädigt und stimmt nicht mit der erwarteten Prüfsumme überein. Sie wurde nicht installiert.</string>
+    <!-- Message shown when the app isn't allowed to install apps -->
+    <string name="about_updates_install_failed_permission_missing">Thunderbird benötigt die Berechtigung, Apps zu installieren. Erlaube sie in den Systemeinstellungen und versuche es erneut.</string>
+    <!-- Message shown when the installation was cancelled -->
+    <string name="about_updates_install_failed_cancelled">Die Installation wurde abgebrochen.</string>
+    <!-- Message shown when Android rejected the update -->
+    <string name="about_updates_install_failed_rejected">Android hat das Update abgelehnt. Das passiert, wenn die App mit einem anderen Schlüssel signiert wurde oder wenn nicht genügend Speicherplatz vorhanden ist.</string>
+    <!-- Explanation shown when the app isn't allowed to install apps -->
+    <string name="about_updates_install_permission_explanation">Um ein Update zu installieren, benötigt Thunderbird die Berechtigung, Apps aus unbekannten Quellen zu installieren.</string>
+    <!-- Button that opens the system settings where the install permission can be granted -->
+    <string name="about_updates_open_settings_button">Einstellungen öffnen</string>
+    <!-- Button that dismisses a message about a failed installation -->
+    <string name="about_updates_dismiss_button">Ausblenden</string>
 </resources>
