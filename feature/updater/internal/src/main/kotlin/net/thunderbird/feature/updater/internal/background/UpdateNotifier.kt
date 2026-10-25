@@ -1,6 +1,7 @@
 package net.thunderbird.feature.updater.internal.background
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.app.Notification
 import android.app.PendingIntent
 import android.content.Context
@@ -16,7 +17,10 @@ import net.thunderbird.feature.updater.internal.R
 
 /**
  * Tells the user with a notification that a new version of the app is ready to be installed.
+ *
+ * Every function that posts a notification checks [canPostNotifications] first; lint doesn't see that check.
  */
+@SuppressLint("MissingPermission")
 internal class UpdateNotifier(private val context: Context) {
     private val notificationManager = NotificationManagerCompat.from(context)
 
@@ -55,6 +59,35 @@ internal class UpdateNotifier(private val context: Context) {
     /** Removes the notification that offers the installation of the update. */
     fun cancelConfirmInstall() {
         notificationManager.cancel(CONFIRM_NOTIFICATION_TAG, CONFIRM_NOTIFICATION_ID)
+    }
+
+    /** Removes the notification that announces an available update. */
+    fun cancelUpdateAvailable() {
+        notificationManager.cancel(UPDATE_NOTIFICATION_TAG, UPDATE_NOTIFICATION_ID)
+    }
+
+    /**
+     * Notifies the user that the app was updated to a new version.
+     *
+     * Android closes the app while it installs an update of itself, so the user would think that nothing happened.
+     *
+     * @param releaseTag the release tag of the installed version.
+     * @return `true` when the notification was posted, `false` when the user didn't allow notifications.
+     */
+    fun notifyAppUpdated(releaseTag: String): Boolean {
+        if (!canPostNotifications()) return false
+
+        notificationManager.createNotificationChannel(createChannel())
+        val builder = NotificationCompat.Builder(context, CHANNEL_ID)
+            .setSmallIcon(R.drawable.updater_ic_notification)
+            .setContentTitle(context.getString(R.string.updater_updated_notification_title))
+            .setContentText(context.getString(R.string.updater_updated_notification_text, releaseTag))
+            .setAutoCancel(true)
+
+        createContentIntent()?.let { builder.setContentIntent(it) }
+
+        notificationManager.notify(UPDATED_NOTIFICATION_TAG, UPDATED_NOTIFICATION_ID, builder.build())
+        return true
     }
 
     private fun canPostNotifications(): Boolean {
@@ -119,6 +152,8 @@ internal class UpdateNotifier(private val context: Context) {
         const val UPDATE_NOTIFICATION_ID = 0x5550
         const val CONFIRM_NOTIFICATION_TAG = "app_update_confirm"
         const val CONFIRM_NOTIFICATION_ID = 0x5551
+        const val UPDATED_NOTIFICATION_TAG = "app_updated"
+        const val UPDATED_NOTIFICATION_ID = 0x5552
 
         private const val CHANNEL_ID = "app_updates"
         private const val CONTENT_INTENT_REQUEST_CODE = 1

@@ -93,6 +93,49 @@ class UpdateNotifierTest {
         ).isNull()
     }
 
+    @Test
+    fun `the update notification is cancelled`() {
+        // Arrange
+        shadowOf(application).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
+        testSubject.notifyUpdateAvailable(createUpdate())
+
+        // Act
+        testSubject.cancelUpdateAvailable()
+
+        // Assert
+        assertThat(
+            notification(UpdateNotifier.UPDATE_NOTIFICATION_TAG, UpdateNotifier.UPDATE_NOTIFICATION_ID),
+        ).isNull()
+    }
+
+    @Test
+    fun `the updated notification is posted with its own id`() {
+        // Arrange
+        shadowOf(application).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
+
+        // Act
+        val posted = testSubject.notifyAppUpdated(RELEASE_TAG)
+
+        // Assert
+        assertThat(posted).isTrue()
+        assertThat(
+            notification(UpdateNotifier.UPDATED_NOTIFICATION_TAG, UpdateNotifier.UPDATED_NOTIFICATION_ID),
+        ).isNotNull()
+    }
+
+    @Test
+    fun `the updated notification is not posted without the permission`() {
+        // Arrange
+        shadowOf(application).denyPermissions(Manifest.permission.POST_NOTIFICATIONS)
+
+        // Act
+        val posted = testSubject.notifyAppUpdated(RELEASE_TAG)
+
+        // Assert
+        assertThat(posted).isFalse()
+        assertThat(notificationCount()).isEqualTo(0)
+    }
+
     private fun notification(tag: String, id: Int) =
         shadowOf(notificationManager()).getNotification(tag, id)
 
@@ -115,6 +158,7 @@ class UpdateNotifierTest {
 
     private companion object {
         const val TAG = "test-tag"
+        const val RELEASE_TAG = "mein-thunderbird-2026-10-25"
         const val CONFIRMATION_ACTION = "com.android.packageinstaller.CONFIRM_INSTALL"
     }
 }

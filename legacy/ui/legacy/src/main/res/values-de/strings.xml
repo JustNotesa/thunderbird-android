@@ -1113,7 +1113,7 @@
     <!-- Message shown while the downloaded file is verified -->
     <string name="about_updates_verifying">Die heruntergeladene Datei wird überprüft…</string>
     <!-- Message shown while the user confirms the installation in the system dialog -->
-    <string name="about_updates_waiting_for_confirmation">Bestätige die Installation im Systemdialog. Erscheint kein Dialog, tippe auf die Benachrichtigung.</string>
+    <string name="about_updates_waiting_for_confirmation">Bestätige die Installation im Dialog von Android. Android schließt die App beim Installieren – öffne sie danach einfach wieder. Erscheint kein Dialog, tippe auf die Benachrichtigung.</string>
     <!-- Button that starts the installation of the downloaded update again -->
     <string name="about_updates_install_again_button">Erneut installieren</string>
     <!-- Button that cancels a pending installation -->

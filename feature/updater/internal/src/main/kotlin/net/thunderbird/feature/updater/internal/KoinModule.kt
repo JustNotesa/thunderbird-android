@@ -1,6 +1,5 @@
 package net.thunderbird.feature.updater.internal
 
-import java.io.File
 import java.util.concurrent.TimeUnit
 import net.thunderbird.feature.updater.api.AppUpdateChecker
 import net.thunderbird.feature.updater.api.AppUpdateInstaller
@@ -9,8 +8,10 @@ import net.thunderbird.feature.updater.internal.background.AppUpdateScheduler
 import net.thunderbird.feature.updater.internal.background.UpdateNotifier
 import net.thunderbird.feature.updater.internal.check.DefaultAppUpdateChecker
 import net.thunderbird.feature.updater.internal.check.GithubReleaseClient
-import net.thunderbird.feature.updater.internal.install.ApkDownloader
+import net.thunderbird.feature.updater.internal.install.ApkVerifier
+import net.thunderbird.feature.updater.internal.install.DownloadManagerSystemDownloads
 import net.thunderbird.feature.updater.internal.install.PackageInstallerAppUpdateInstaller
+import net.thunderbird.feature.updater.internal.install.PendingDownloadStore
 import net.thunderbird.feature.updater.internal.settings.PreferencesAppUpdateSettings
 import okhttp3.OkHttpClient
 import org.koin.android.ext.koin.androidContext
@@ -19,7 +20,6 @@ import org.koin.dsl.bind
 import org.koin.dsl.module
 
 private const val TIMEOUT_SECONDS = 30L
-private const val UPDATE_DOWNLOAD_DIR = "app-updates"
 
 // Own client under a qualifier so the updater never replaces or depends on another module's OkHttpClient binding.
 private val updaterHttpClient = named("UpdaterOkHttpClient")
@@ -44,10 +44,9 @@ val featureUpdaterModule = module {
     single<AppUpdateInstaller> {
         PackageInstallerAppUpdateInstaller(
             context = androidContext(),
-            downloader = ApkDownloader(
-                httpClient = get(updaterHttpClient),
-                downloadDir = File(androidContext().cacheDir, UPDATE_DOWNLOAD_DIR),
-            ),
+            systemDownloads = DownloadManagerSystemDownloads(androidContext()),
+            pendingDownloadStore = PendingDownloadStore(androidContext()),
+            apkVerifier = ApkVerifier(),
             logger = get(),
             // The download runs in an app wide scope, so that it isn't stopped when the screen that started the
             // installation is closed.

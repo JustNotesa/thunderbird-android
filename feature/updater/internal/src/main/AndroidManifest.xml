@@ -7,6 +7,23 @@
         <receiver
             android:name="net.thunderbird.feature.updater.internal.install.InstallResultReceiver"
             android:exported="false" />
+
+        <!-- Only the download manager of the system can send the broadcast about a finished download. -->
+        <receiver
+            android:name="net.thunderbird.feature.updater.internal.install.DownloadCompleteReceiver"
+            android:exported="true"
+            android:permission="android.permission.SEND_DOWNLOAD_COMPLETED_INTENTS">
+            <intent-filter>
+                <action android:name="android.intent.action.DOWNLOAD_COMPLETE" />
+            </intent-filter>
+        </receiver>
+        <receiver
+            android:name="net.thunderbird.feature.updater.internal.background.AppUpdatedReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
     </application>
 
 </manifest>

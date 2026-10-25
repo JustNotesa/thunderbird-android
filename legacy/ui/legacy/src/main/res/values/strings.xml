@@ -1399,7 +1399,7 @@ You can keep this message and use it as a backup for your secret key. If you wan
     <!-- Message shown while the downloaded file is verified -->
     <string name="about_updates_verifying">Verifying the downloaded file…</string>
     <!-- Message shown while the user confirms the installation in the system dialog -->
-    <string name="about_updates_waiting_for_confirmation">Confirm the installation in the system dialog. If no dialog appears, tap the notification.</string>
+    <string name="about_updates_waiting_for_confirmation">Confirm the installation in the system dialog. Android closes the app while installing – just open it again afterwards. If no dialog appears, tap the notification.</string>
     <!-- Button that starts the installation of the downloaded update again -->
     <string name="about_updates_install_again_button">Install again</string>
     <!-- Button that cancels a pending installation -->
