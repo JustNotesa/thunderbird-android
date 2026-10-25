@@ -9,6 +9,7 @@ import net.thunderbird.core.preference.GeneralSettings
 import net.thunderbird.core.preference.GeneralSettingsManager
 import net.thunderbird.core.preference.display.DisplaySettings
 import net.thunderbird.core.preference.display.inboxSettings.DisplayInboxSettings
+import net.thunderbird.core.preference.update
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -70,15 +71,22 @@ class UnifiedInboxConfiguratorTest {
     }
 
     @Test
-    fun `configureUnifiedInbox should disable unified inbox when there is only one account`() {
+    fun `configureUnifiedInbox should keep unified inbox enabled when there is only one account`() {
         // Given
+        generalSettingsManager.update { settings ->
+            settings.copy(
+                display = settings.display.copy(
+                    inboxSettings = settings.display.inboxSettings.copy(isShowUnifiedInbox = true),
+                ),
+            )
+        }
         `when`(accountManager.findAll()).thenReturn(listOf(mock()))
 
         // When
         configurator.configureUnifiedInbox()
 
         // Then
-        assertThat(generalSettingsManager.getConfig().display.inboxSettings.isShowUnifiedInbox).isEqualTo(false)
+        assertThat(generalSettingsManager.getConfig().display.inboxSettings.isShowUnifiedInbox).isEqualTo(true)
     }
 
     @Test

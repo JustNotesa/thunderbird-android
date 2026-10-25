@@ -6,19 +6,18 @@ import net.thunderbird.core.preference.update
 
 /**
  * Configures the unified inbox based on the number of accounts:
- * - If there is exactly 1 account → unified inbox is disabled.
  * - If there are exactly 2 accounts → unified inbox is enabled.
  * - For all other cases → no change is made.
+ *
+ * The unified inbox is shown by default, so it is not disabled when there is only 1 account.
  */
 class UnifiedInboxConfigurator(
     private val accountManager: LegacyAccountManager,
     private val generalSettingsManager: GeneralSettingsManager,
 ) {
     fun configureUnifiedInbox() {
-        when (accountManager.findAll().size) {
-            1 -> updateUnifiedInbox(false)
-            2 -> updateUnifiedInbox(true)
-            else -> Unit
+        if (accountManager.findAll().size == 2) {
+            updateUnifiedInbox(true)
         }
     }
     private fun updateUnifiedInbox(isShowUnifiedInbox: Boolean) {

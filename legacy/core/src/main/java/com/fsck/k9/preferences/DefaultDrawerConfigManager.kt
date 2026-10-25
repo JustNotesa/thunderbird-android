@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.stateIn
+import net.thunderbird.core.preference.display.inboxSettings.DISPLAY_SETTINGS_DEFAULT_IS_SHOW_UNIFIED_INBOX
 import net.thunderbird.core.preference.display.inboxSettings.DisplayInboxSettingsPreferenceManager
 import net.thunderbird.core.preference.display.inboxSettings.UnifiedFoldersLayout
 import net.thunderbird.core.preference.display.visualSettings.DisplayVisualSettingsPreferenceManager
@@ -35,7 +36,7 @@ internal class DefaultDrawerConfigManager(
             started = SharingStarted.WhileSubscribed(),
             initialValue = DrawerConfig(
                 showStarredCount = false,
-                showUnifiedFolders = false,
+                showUnifiedFolders = DISPLAY_SETTINGS_DEFAULT_IS_SHOW_UNIFIED_INBOX,
                 expandAllFolder = false,
                 unifiedFoldersLayout = UnifiedFoldersLayout.Flat,
             ),
