@@ -10,8 +10,6 @@ import assertk.assertThat
 import assertk.assertions.isEqualTo
 import assertk.assertions.isNotNull
 import assertk.assertions.isNull
-import java.io.File
-import java.nio.file.Files
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -21,7 +19,6 @@ import net.thunderbird.feature.updater.api.UpdateInstallFailure
 import net.thunderbird.feature.updater.api.UpdateInstallState
 import net.thunderbird.feature.updater.internal.R
 import net.thunderbird.feature.updater.internal.background.UpdateNotifier
-import okhttp3.OkHttpClient
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -36,7 +33,6 @@ import org.robolectric.annotation.Config
 class InstallResultReceiverTest {
     private val application: Application = RuntimeEnvironment.getApplication()
 
-    private lateinit var downloadDir: File
     private lateinit var installerScope: CoroutineScope
     private lateinit var installer: PackageInstallerAppUpdateInstaller
     private lateinit var notifier: UpdateNotifier
@@ -45,11 +41,12 @@ class InstallResultReceiverTest {
     @Before
     fun setUp() {
         shadowOf(application).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
-        downloadDir = Files.createTempDirectory("install-result-receiver-test").toFile()
         installerScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         installer = PackageInstallerAppUpdateInstaller(
             context = application,
-            downloader = ApkDownloader(OkHttpClient(), downloadDir),
+            systemDownloads = FakeSystemDownloads(),
+            pendingDownloadStore = PendingDownloadStore(application),
+            apkVerifier = ApkVerifier(),
             logger = TestLogger(),
             coroutineScope = installerScope,
         )
@@ -60,7 +57,6 @@ class InstallResultReceiverTest {
     @After
     fun tearDown() {
         installerScope.cancel()
-        downloadDir.deleteRecursively()
     }
 
     @Test

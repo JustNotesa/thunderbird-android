@@ -8,50 +8,82 @@ import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import java.io.File
+import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.withContext
 import net.thunderbird.components.core.logging.Logger
 import net.thunderbird.feature.updater.api.AppUpdate
 import net.thunderbird.feature.updater.api.AppUpdateInstaller
 import net.thunderbird.feature.updater.api.UpdateInstallFailure
 import net.thunderbird.feature.updater.api.UpdateInstallState
+import net.thunderbird.feature.updater.internal.R
 
 private const val TAG = "PackageInstallerAppUpdateInstaller"
 
-private const val UNKNOWN_TOTAL_BYTES = -1L
+private const val DEFAULT_POLL_INTERVAL_MILLIS = 500L
 
 /**
  * Installs app updates with Android's package installer.
  *
- * The APK is downloaded by [ApkDownloader], then written into a [PackageInstaller] session and handed over to the
- * system, which asks the user to confirm the installation.
+ * The APK is downloaded by the download manager of the system, so that the download keeps running when the app is
+ * closed. When the download is finished, the APK is copied into the private directory of the app, verified against
+ * the checksum of the release and written into a [PackageInstaller] session, which the system hands over to the user
+ * to confirm the installation.
  *
- * The download runs in [coroutineScope], an app wide scope, so that it survives the caller: when the screen that
- * started the installation is closed, the download keeps running and the state keeps being updated.
+ * The verified APK is kept, so that the installation can be repeated without downloading the APK again.
+ *
+ * The download is watched in [coroutineScope], an app wide scope, so that it survives the caller: when the screen
+ * that started the installation is closed, the download keeps running and the state keeps being updated.
  */
 internal class PackageInstallerAppUpdateInstaller(
     private val context: Context,
-    private val downloader: ApkDownloader,
+    private val systemDownloads: SystemDownloads,
+    private val pendingDownloadStore: PendingDownloadStore,
+    private val apkVerifier: ApkVerifier,
     private val logger: Logger,
     private val coroutineScope: CoroutineScope,
+    private val pollIntervalMillis: Long = DEFAULT_POLL_INTERVAL_MILLIS,
+    private val writeSession: (File) -> Boolean = { ApkSessionWriter(context).write(it) },
 ) : AppUpdateInstaller {
 
-    private val sessionWriter = ApkSessionWriter(context)
+    private val keptApks = KeptApkStore(context)
 
     private val _state = MutableStateFlow<UpdateInstallState>(UpdateInstallState.Idle)
     override val state: StateFlow<UpdateInstallState> = _state.asStateFlow()
 
+    private val finisher = ApkFinisher(
+        systemDownloads = systemDownloads,
+        pendingDownloadStore = pendingDownloadStore,
+        apkVerifier = apkVerifier,
+        keptApks = keptApks,
+        logger = logger,
+        state = _state,
+        writeSession = writeSession,
+    )
+
     private val installMutex = Mutex()
-    private var installJob: Job? = null
+    private val installJob = AtomicReference<Job?>(null)
+    private val pollMutex = Mutex()
+    private val pollJob = AtomicReference<Job?>(null)
+
+    init {
+        // The download of an update that was started before the app was closed is continued.
+        coroutineScope.launch {
+            resumeDownload(pendingDownloadStore.load())
+        }
+    }
 
     override fun canInstallPackages(): Boolean {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -74,18 +106,28 @@ internal class PackageInstallerAppUpdateInstaller(
     }
 
     override fun resetState() {
+        if (_state.value is UpdateInstallState.Downloading) {
+            // The user cancelled the update, so the download isn't needed anymore.
+            pendingDownloadStore.load()?.let { pending -> systemDownloads.remove(pending.downloadId) }
+            pendingDownloadStore.clear()
+            pollJob.getAndSet(null)?.cancel()
+        }
         _state.value = UpdateInstallState.Idle
     }
 
     override suspend fun install(update: AppUpdate) {
-        if (!canInstallPackages()) {
-            _state.value = UpdateInstallState.Failed(UpdateInstallFailure.PERMISSION_MISSING)
-            return
+        // The work is done in the app wide scope, so that it isn't stopped when the screen that started the
+        // installation is closed. It is done on the IO dispatcher, because hashing the APK is slow.
+        val job = installMutex.withLock {
+            val running = installJob.get()
+            if (running != null && running.isActive) {
+                running
+            } else {
+                coroutineScope.launch(Dispatchers.IO) { installUpdate(update) }
+                    .also { started -> installJob.set(started) }
+            }
         }
-
-        // The work runs in the app wide scope, the caller only waits for it. A cancelled caller doesn't stop the
-        // download, the installation continues in the background.
-        currentInstallJob(update).join()
+        job.join()
     }
 
     /**
@@ -108,27 +150,54 @@ internal class PackageInstallerAppUpdateInstaller(
     }
 
     /**
-     * Returns the job of the running installation. A running installation is reused, so that the APK isn't
-     * downloaded twice.
+     * Handles the download with the id [downloadId] that is finished.
+     *
+     * The download is handled at most once. The ids of other downloads are ignored. When the download is handled
+     * already, this call waits for the work that handles it.
      */
-    private suspend fun currentInstallJob(update: AppUpdate): Job {
-        return installMutex.withLock {
-            val runningJob = installJob
-            if (runningJob != null && runningJob.isActive) {
-                runningJob
-            } else {
-                coroutineScope.launch { runInstall(update) }.also { installJob = it }
-            }
-        }
+    internal suspend fun onDownloadFinished(downloadId: Long) {
+        finisher.finish(downloadId)
     }
 
-    private suspend fun runInstall(update: AppUpdate) {
+    /**
+     * Removes the APK that was kept for an installation that was already done.
+     */
+    internal fun clearKeptApk() {
+        keptApks.clear()
+    }
+
+    /**
+     * Downloads the APK of the update, or installs the APK that was downloaded before.
+     */
+    private suspend fun installUpdate(update: AppUpdate) {
         try {
-            _state.value = UpdateInstallState.Downloading(0L, UNKNOWN_TOTAL_BYTES)
-            downloadAndInstall(update)
+            if (!canInstallPackages()) {
+                _state.value = UpdateInstallState.Failed(UpdateInstallFailure.PERMISSION_MISSING)
+                return
+            }
+            val sha256 = update.apkSha256
+            if (sha256 == null) {
+                // Without a checksum the APK can't be verified, so it isn't downloaded at all.
+                _state.value = UpdateInstallState.Failed(UpdateInstallFailure.CHECKSUM)
+                return
+            }
+            val keptFile = keptApks.verifiedFile(apkVerifier, update.tag, sha256)
+            val pending = pendingDownloadStore.load()?.takeIf { it.tag == update.tag }
+            when {
+                // The APK was downloaded before, so it doesn't have to be downloaded again.
+                keptFile != null -> finisher.installKeptApk(keptFile, update.tag, sha256)
+
+                // The download of this update is still running, so it isn't downloaded again.
+                pending != null -> resumeDownload(pending)
+
+                // The APK has to be downloaded.
+                else -> startDownload(update, sha256)
+            }
+            // A cancellation that came while the work couldn't be stopped must not leave the state behind.
+            currentCoroutineContext().ensureActive()
         } catch (cancellation: CancellationException) {
-            // The installation was cancelled, the state must not stay in Downloading or Verifying.
-            _state.value = UpdateInstallState.Failed(UpdateInstallFailure.DOWNLOAD)
+            // The installation was cancelled, the state must not stay in the middle of the installation.
+            finisher.failUnfinished()
             throw cancellation
         } catch (_: Exception) {
             logger.error(TAG) { "Installing the app update failed." }
@@ -136,26 +205,91 @@ internal class PackageInstallerAppUpdateInstaller(
         }
     }
 
-    private suspend fun downloadAndInstall(update: AppUpdate) {
-        val result = downloader.download(update) { downloaded, total ->
-            _state.value = UpdateInstallState.Downloading(downloaded, total)
+    /**
+     * Starts the download of the APK of the update.
+     */
+    private suspend fun startDownload(update: AppUpdate, sha256: String) {
+        // A new download replaces the download of an older update.
+        pendingDownloadStore.load()?.let { old -> systemDownloads.remove(old.downloadId) }
+        pendingDownloadStore.clear()
+        // The APK of an older update isn't needed anymore.
+        keptApks.clear()
+        val downloadId = systemDownloads.enqueue(
+            SystemDownloadRequest(
+                url = update.apkUrl,
+                fileName = keptApks.fileName(update.tag),
+                title = context.getString(R.string.updater_download_title),
+                description = update.title,
+            ),
+        )
+        if (downloadId == null) {
+            _state.value = UpdateInstallState.Failed(UpdateInstallFailure.DOWNLOAD)
+            return
         }
-        when (result) {
-            is DownloadResult.Success -> installApk(result.file)
-            DownloadResult.Failed -> _state.value = UpdateInstallState.Failed(UpdateInstallFailure.DOWNLOAD)
-            DownloadResult.ChecksumMismatch -> _state.value = UpdateInstallState.Failed(UpdateInstallFailure.CHECKSUM)
+        pendingDownloadStore.save(
+            PendingDownload(
+                downloadId = downloadId,
+                tag = update.tag,
+                sha256 = sha256,
+                sizeBytes = update.apkSizeBytes,
+                title = update.title,
+            ),
+        )
+        _state.value = UpdateInstallState.Downloading(0L, update.apkSizeBytes)
+        startPolling(downloadId)
+    }
+
+    /**
+     * Watches the download with the id [downloadId] until it is finished.
+     */
+    private suspend fun startPolling(downloadId: Long) {
+        pollMutex.withLock {
+            // Only one download is watched at a time.
+            pollJob.get()?.cancel()
+            val job = coroutineScope.launch {
+                do {
+                    delay(pollIntervalMillis)
+                    // The download may have been finished, cancelled or replaced while the poll was waiting.
+                    val watched = _state.value is UpdateInstallState.Downloading &&
+                        pendingDownloadStore.load()?.downloadId == downloadId
+                    if (watched) {
+                        when (val status = systemDownloads.query(downloadId)) {
+                            is SystemDownloadStatus.Running -> _state.update { current ->
+                                // A finished download must not be reported as running again.
+                                if (current is UpdateInstallState.Downloading) {
+                                    UpdateInstallState.Downloading(status.downloadedBytes, status.totalBytes)
+                                } else {
+                                    current
+                                }
+                            }
+
+                            is SystemDownloadStatus.Successful -> onDownloadFinished(downloadId)
+
+                            else -> finisher.failPending(UpdateInstallFailure.DOWNLOAD, downloadId)
+                        }
+                    }
+                } while (watched)
+            }
+            pollJob.set(job)
         }
     }
 
-    private suspend fun installApk(file: File) {
-        // The checksum of the APK was already verified by the downloader.
-        _state.value = UpdateInstallState.Verifying
-        val committed = withContext(Dispatchers.IO) { sessionWriter.write(file) }
-        if (committed) {
-            _state.value = UpdateInstallState.WaitingForConfirmation
-        } else {
-            logger.error(TAG) { "Writing the APK into the install session failed." }
-            _state.value = UpdateInstallState.Failed(UpdateInstallFailure.REJECTED)
+    /**
+     * Continues the download of the pending download [pending], for example after the app was closed.
+     */
+    private suspend fun resumeDownload(pending: PendingDownload?) {
+        if (pending == null) {
+            return
+        }
+        when (val status = systemDownloads.query(pending.downloadId)) {
+            is SystemDownloadStatus.Running -> {
+                _state.value = UpdateInstallState.Downloading(status.downloadedBytes, status.totalBytes)
+                startPolling(pending.downloadId)
+            }
+
+            is SystemDownloadStatus.Successful -> onDownloadFinished(pending.downloadId)
+
+            else -> finisher.failPending(UpdateInstallFailure.DOWNLOAD, pending.downloadId)
         }
     }
 }

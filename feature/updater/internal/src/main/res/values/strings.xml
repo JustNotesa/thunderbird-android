@@ -5,4 +5,7 @@
     <string name="updater_notification_text">%1$s is ready to install. Open the app to update.</string>
     <string name="updater_confirm_notification_title">Update ready to install</string>
     <string name="updater_confirm_notification_text">Tap to install the update</string>
+    <string name="updater_updated_notification_title">Thunderbird updated</string>
+    <string name="updater_updated_notification_text">Now on version %1$s. Tap to open.</string>
+    <string name="updater_download_title">Thunderbird update</string>
 </resources>
