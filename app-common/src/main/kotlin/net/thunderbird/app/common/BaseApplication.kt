@@ -13,6 +13,7 @@ import com.fsck.k9.MessagingListenerProvider
 import com.fsck.k9.controller.MessagingController
 import com.fsck.k9.job.WorkManagerConfigurationProvider
 import com.fsck.k9.notification.NotificationChannelManager
+import com.fsck.k9.notification.sound.NovaSoundManager
 import com.fsck.k9.ui.base.AppLanguageManager
 import com.fsck.k9.ui.base.extensions.currentLocale
 import java.util.Locale
@@ -41,6 +42,7 @@ abstract class BaseApplication : Application(), WorkManagerConfiguration.Provide
     private val themeManager: ThemeManager by inject()
     private val appLanguageManager: AppLanguageManager by inject()
     private val notificationChannelManager: NotificationChannelManager by inject()
+    private val novaSoundManager: NovaSoundManager by inject()
     private val messageListWidgetManager: MessageListWidgetManager by inject()
     private val workManagerConfigurationProvider: WorkManagerConfigurationProvider by inject()
     protected val logger: Logger by inject()
@@ -66,6 +68,7 @@ abstract class BaseApplication : Application(), WorkManagerConfiguration.Provide
         Core.init(this)
         initializeAppLanguage()
         updateNotificationChannelsOnAppLanguageChanges()
+        novaSoundManager.start()
         themeManager.init()
         messageListWidgetManager.init()
 

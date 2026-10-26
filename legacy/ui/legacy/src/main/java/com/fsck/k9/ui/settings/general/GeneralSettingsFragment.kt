@@ -6,9 +6,11 @@ import android.view.Menu
 import android.view.MenuInflater
 import android.view.MenuItem
 import android.view.View
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.result.contract.ActivityResultContracts.CreateDocument
 import androidx.core.view.MenuProvider
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
 import androidx.preference.Preference
 import androidx.preference.PreferenceCategory
 import androidx.preference.PreferenceScreen
@@ -17,6 +19,7 @@ import app.k9mail.feature.launcher.FeatureLauncherActivity
 import app.k9mail.feature.launcher.FeatureLauncherTarget
 import app.k9mail.feature.telemetry.api.TelemetryManager
 import com.fsck.k9.job.K9JobManager
+import com.fsck.k9.notification.sound.NovaSoundManager
 import com.fsck.k9.ui.BuildConfig
 import com.fsck.k9.ui.R
 import com.fsck.k9.ui.base.extensions.withArguments
@@ -39,10 +42,12 @@ class GeneralSettingsFragment : PreferenceFragmentCompat() {
     private val telemetryManager: TelemetryManager by inject()
     private val featureFlagProvider: FeatureFlagProvider by inject()
     private val jobManager: K9JobManager by inject()
+    private val novaSoundManager: NovaSoundManager by inject()
 
     private var rootKey: String? = null
     private var currentUiState: GeneralSettingsUiState? = null
     private var snackbar: Snackbar? = null
+    private var novaSoundDialog: NovaSoundDialog? = null
 
     private val exportLogsResultContract = registerForActivityResult(CreateDocument("text/plain")) { contentUri ->
         if (contentUri != null) {
@@ -77,6 +82,12 @@ class GeneralSettingsFragment : PreferenceFragmentCompat() {
             }
         }
 
+    private val pickSoundFile = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            novaSoundDialog?.importPickedFile(uri)
+        }
+    }
+
     override fun onCreatePreferencesFix(savedInstanceState: Bundle?, rootKey: String?) {
         preferenceManager.preferenceDataStore = dataStore
         this.rootKey = rootKey
@@ -87,6 +98,8 @@ class GeneralSettingsFragment : PreferenceFragmentCompat() {
                 context?.let { NotificationActionsSettingsActivity.start(it) }
                 true
             }
+        initializeNovaSoundPreferences()
+
         findPreference<Preference>("remote_feature_flag")?.onPreferenceClickListener =
             Preference.OnPreferenceClickListener {
                 FeatureLauncherActivity.launch(
@@ -139,6 +152,7 @@ class GeneralSettingsFragment : PreferenceFragmentCompat() {
     override fun onDestroyView() {
         super.onDestroyView()
         dismissSnackbar()
+        novaSoundDialog = null
     }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
@@ -181,6 +195,33 @@ class GeneralSettingsFragment : PreferenceFragmentCompat() {
             viewLifecycleOwner,
             Lifecycle.State.RESUMED,
         )
+
+        val newMailPreference = findPreference<Preference>("nova_sound_new_mail")
+        val sentPreference = findPreference<Preference>("nova_sound_sent")
+        if (newMailPreference != null && sentPreference != null) {
+            novaSoundDialog = NovaSoundDialog(
+                context = requireContext(),
+                soundManager = novaSoundManager,
+                scope = viewLifecycleOwner.lifecycleScope,
+                onPickFile = { pickSoundFile.launch(arrayOf("audio/*")) },
+                onImportFailed = { showSnackbar(R.string.nova_sound_import_failed) },
+            )
+            novaSoundDialog?.updateSummary(newMailPreference, NovaSoundTarget.NEW_MAIL)
+            novaSoundDialog?.updateSummary(sentPreference, NovaSoundTarget.SENT)
+        }
+    }
+
+    private fun initializeNovaSoundPreferences() {
+        findPreference<Preference>("nova_sound_new_mail")?.onPreferenceClickListener =
+            Preference.OnPreferenceClickListener { preference ->
+                novaSoundDialog?.show(NovaSoundTarget.NEW_MAIL, preference)
+                true
+            }
+        findPreference<Preference>("nova_sound_sent")?.onPreferenceClickListener =
+            Preference.OnPreferenceClickListener { preference ->
+                novaSoundDialog?.show(NovaSoundTarget.SENT, preference)
+                true
+            }
     }
 
     private fun initializeDataCollection() {

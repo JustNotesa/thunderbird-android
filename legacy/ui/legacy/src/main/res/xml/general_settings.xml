@@ -465,6 +465,18 @@
         search:ignore="true"
         >
 
+        <Preference
+            android:key="nova_sound_new_mail"
+            android:persistent="false"
+            android:title="@string/nova_sound_new_mail_title"
+            />
+
+        <Preference
+            android:key="nova_sound_sent"
+            android:persistent="false"
+            android:title="@string/nova_sound_sent_title"
+            />
+
         <CheckBoxPreference
             android:key="quiet_time_enabled"
             android:summary="@string/quiet_time_description"

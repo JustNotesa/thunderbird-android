@@ -12,6 +12,7 @@ import com.fsck.k9.mailstore.SaveMessageDataCreator
 import com.fsck.k9.mailstore.SpecialLocalFoldersCreator
 import com.fsck.k9.notification.NotificationController
 import com.fsck.k9.notification.NotificationStrategy
+import com.fsck.k9.notification.sound.NovaSoundManager
 import net.thunderbird.core.android.account.LegacyAccountManager
 import net.thunderbird.core.featureflag.FeatureFlagProvider
 import net.thunderbird.components.core.logging.Logger
@@ -26,6 +27,7 @@ import org.koin.dsl.module
 
 val controllerModule = module {
     single {
+        val scope = this
         MessagingController(
             get<Context>(),
             get<NotificationController>(),
@@ -43,7 +45,11 @@ val controllerModule = module {
             get<NotificationManager>(),
             get<OutboxFolderManager>(),
             get<LegacyAccountManager>(),
-        )
+        ).apply {
+            setMessageSentListener {
+                scope.get<NovaSoundManager>().playSent()
+            }
+        }
     } binds arrayOf(MessagingControllerRegistry::class)
 
     single {
