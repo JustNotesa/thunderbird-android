@@ -93,6 +93,12 @@ abstract class BaseActivity(
     }
 
     /**
+     * When true, setLayout() pads the app bar for the navigation bar and the content for the status bar, because the
+     * app bar sits at the bottom.
+     */
+    protected open val isAppBarAtBottom: Boolean get() = false
+
+    /**
      * Sets the activity's content view to the specified layout resource and configures
      * the AppBarLayout and Toolbar for edge-to-edge display.
      *
@@ -101,6 +107,9 @@ abstract class BaseActivity(
      * - An AppBarLayout with ID `R.id.app_bar_layout` for the top app bar.
      * - A Toolbar with ID `R.id.toolbar` to be set as the support action bar.
      * - A ViewGroup with ID `R.id.content_container` to hold the main content of the activity or fragment.
+     *
+     * When [isAppBarAtBottom] is `true` the app bar is at the bottom of the screen, so the insets are applied to the
+     * opposite sides.
      *
      * @param layoutResId The resource ID of the layout to be set as the content view.
      * @throws IllegalStateException if the required AppBarLayout or Toolbar is not found.
@@ -125,17 +134,35 @@ abstract class BaseActivity(
             )
             val imeInsets = windowInsets.getInsets(ime())
 
-            appBarLayout.updatePadding(
-                top = insets.top,
-                left = insets.left,
-                right = insets.right,
-            )
+            if (isAppBarAtBottom) {
+                appBarLayout.updatePadding(
+                    top = 0,
+                    left = insets.left,
+                    right = insets.right,
+                    bottom = max(insets.bottom, imeInsets.bottom),
+                )
 
-            contentContainer.updatePadding(
-                left = insets.left,
-                right = insets.right,
-                bottom = max(insets.bottom, imeInsets.bottom),
-            )
+                contentContainer.updatePadding(
+                    top = insets.top,
+                    left = insets.left,
+                    right = insets.right,
+                    bottom = 0,
+                )
+            } else {
+                appBarLayout.updatePadding(
+                    top = insets.top,
+                    left = insets.left,
+                    right = insets.right,
+                    bottom = 0,
+                )
+
+                contentContainer.updatePadding(
+                    top = 0,
+                    left = insets.left,
+                    right = insets.right,
+                    bottom = max(insets.bottom, imeInsets.bottom),
+                )
+            }
 
             hideActionModeStatusGuard()
 

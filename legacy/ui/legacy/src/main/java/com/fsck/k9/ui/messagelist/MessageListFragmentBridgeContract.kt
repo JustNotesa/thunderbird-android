@@ -52,8 +52,14 @@ interface MessageListFragmentBridgeContract {
     fun finishActionMode()
     fun setActiveMessage(messageReference: MessageReference?)
     fun onFullyActive()
+
+    /**
+     * Height in pixels of the toolbar that overlays the bottom of the list, or 0 when the toolbar is at the top.
+     */
+    fun setBottomBarHeight(height: Int) = Unit
     // endregion [ methods used on MessageHomeActivity ]
 
+    @Suppress("TooManyFunctions")
     interface MessageListFragmentListener {
         fun setMessageListProgressEnabled(enable: Boolean)
         fun setMessageListProgress(level: Int)
@@ -72,6 +78,11 @@ interface MessageListFragmentBridgeContract {
         fun startSearch(query: String, accountId: AccountId?, folderId: Long?): Boolean
         fun startSupportActionMode(callback: ActionMode.Callback): ActionMode?
         fun goBack()
+
+        /**
+         * Called when the message list scrolled vertically by [dy] pixels (positive = towards the end of the list).
+         */
+        fun onMessageListScrolled(dy: Int) = Unit
 
         companion object Companion {
             const val MAX_PROGRESS = 10000

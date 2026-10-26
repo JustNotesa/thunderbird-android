@@ -6,6 +6,7 @@ enum class DisplayInboxSettingKey(val value: String) {
 
     MessageListSenderAboveSubject("messageListSenderAboveSubject"),
     ShowComposeButtonOnMessageList("showComposeButtonOnMessageList"),
+    MessageListBottomAppBar("messageListBottomAppBar"),
     ShowMessageListStars("messageListStars"),
     ShowStarCount("showStarredCount"),
     ShowUnifiedInbox("showUnifiedInbox"),

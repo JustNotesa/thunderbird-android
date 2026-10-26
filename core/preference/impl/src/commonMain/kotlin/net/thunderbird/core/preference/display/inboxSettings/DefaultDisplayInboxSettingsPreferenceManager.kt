@@ -58,6 +58,10 @@ class DefaultDisplayInboxSettingsPreferenceManager(
             DisplayInboxSettingKey.ShowComposeButtonOnMessageList.value,
             DISPLAY_SETTINGS_DEFAULT_IS_SHOW_COMPOSE_BUTTON_ON_MESSAGE_LIST,
         ),
+        isMessageListBottomAppBar = storage.getBoolean(
+            DisplayInboxSettingKey.MessageListBottomAppBar.value,
+            DISPLAY_SETTINGS_DEFAULT_IS_MESSAGE_LIST_BOTTOM_APP_BAR,
+        ),
         isThreadedViewEnabled = storage.getBoolean(
             DisplayInboxSettingKey.ThreadViewEnabled.value,
             DISPLAY_SETTINGS_DEFAULT_IS_THREAD_VIEW_ENABLED,
@@ -96,6 +100,10 @@ class DefaultDisplayInboxSettingsPreferenceManager(
                 storageEditor.putBoolean(
                     DisplayInboxSettingKey.ShowComposeButtonOnMessageList.value,
                     config.isShowComposeButtonOnMessageList,
+                )
+                storageEditor.putBoolean(
+                    DisplayInboxSettingKey.MessageListBottomAppBar.value,
+                    config.isMessageListBottomAppBar,
                 )
                 storageEditor.putBoolean(
                     DisplayInboxSettingKey.ThreadViewEnabled.value,

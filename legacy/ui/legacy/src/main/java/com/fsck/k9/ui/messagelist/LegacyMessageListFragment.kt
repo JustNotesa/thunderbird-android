@@ -224,6 +224,7 @@ class LegacyMessageListFragment :
     private var itemTouchHelper: ItemTouchHelper? = null
     private var swipeRefreshLayout: SwipeRefreshLayout? = null
     private var floatingActionButton: FloatingActionButton? = null
+    private var bottomBarHeight = 0
 
     private lateinit var adapter: MessageListAdapter
 
@@ -545,6 +546,7 @@ class LegacyMessageListFragment :
         initializeSearchStatus()
         initializeFloatingActionButton(view)
         initializeRecyclerView(view)
+        applyBottomBarHeight(view)
         initializeRecentChangesSnackbar()
 
         // This needs to be done before loading the message list below
@@ -812,6 +814,10 @@ class LegacyMessageListFragment :
                     if (dy > 0) {
                         loadMoreMessagesIfEndIsNear()
                     }
+
+                    if (dy != 0) {
+                        fragmentListener.onMessageListScrolled(dy)
+                    }
                 }
             },
         )
@@ -859,6 +865,25 @@ class LegacyMessageListFragment :
 
         this.recyclerView = recyclerView
         this.itemTouchHelper = itemTouchHelper
+    }
+
+    private fun applyBottomBarHeight(view: View) {
+        val coordinator = view.findViewById<CoordinatorLayout?>(R.id.message_list_coordinator) ?: return
+
+        // The FAB and Snackbars are laid out above the bar, the list is allowed to scroll underneath it.
+        coordinator.clipToPadding = false
+        coordinator.updatePadding(bottom = bottomBarHeight)
+
+        view.findViewById<SwipeRefreshLayout>(R.id.swiperefresh).updateLayoutParams<ViewGroup.MarginLayoutParams> {
+            bottomMargin = -bottomBarHeight
+        }
+
+        val basePadding = if (isShowFloatingActionButton) {
+            resources.getDimensionPixelSize(R.dimen.floatingActionButtonSpacing)
+        } else {
+            0
+        }
+        view.findViewById<RecyclerView>(R.id.message_list).updatePadding(bottom = basePadding + bottomBarHeight)
     }
 
     private fun requireCoordinatorLayout(): CoordinatorLayout {
@@ -982,6 +1007,13 @@ class LegacyMessageListFragment :
         if (!localSearch.isManualSearch) {
             setWindowProgress()
         }
+    }
+
+    override fun setBottomBarHeight(height: Int) {
+        if (bottomBarHeight == height) return
+
+        bottomBarHeight = height
+        view?.let { applyBottomBarHeight(it) }
     }
 
     private fun setWindowProgress() {

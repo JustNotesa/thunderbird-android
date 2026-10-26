@@ -57,6 +57,7 @@ class GeneralSettingsDataStore(
             "messagelist_colorize_missing_contact_pictures" -> messageListSettings.isColorizeMissingContactPictures
             "messagelist_background_as_unread_indicator" -> messageListSettings.isUseBackgroundAsUnreadIndicator
             "show_compose_button" -> inboxSettings.isShowComposeButtonOnMessageList
+            "messagelist_bottom_app_bar" -> inboxSettings.isMessageListBottomAppBar
             "threaded_view" -> inboxSettings.isThreadedViewEnabled
             "messageview_fixedwidth_font" -> visualSettings.isUseMessageViewFixedWidthFont
             "messageview_autofit_width" -> visualSettings.isAutoFitWidth
@@ -102,6 +103,7 @@ class GeneralSettingsDataStore(
             )
 
             "show_compose_button" -> setIsShowComposeButtonOnMessageList(isShowComposeButtonOnMessageList = value)
+            "messagelist_bottom_app_bar" -> setIsMessageListBottomAppBar(isMessageListBottomAppBar = value)
             "threaded_view" -> setIsThreadedViewEnabled(isThreadedViewEnabled = value)
             "messageview_fixedwidth_font" -> setIsUseMessageViewFixedWidthFont(isUseMessageViewFixedWidthFont = value)
             "messageview_autofit_width" -> setIsAutoFitWidth(isAutoFitWidth = value)
@@ -583,6 +585,19 @@ class GeneralSettingsDataStore(
                 display = settings.display.copy(
                     inboxSettings = settings.display.inboxSettings.copy(
                         isShowComposeButtonOnMessageList = isShowComposeButtonOnMessageList,
+                    ),
+                ),
+            )
+        }
+    }
+
+    private fun setIsMessageListBottomAppBar(isMessageListBottomAppBar: Boolean) {
+        skipSaveSettings = true
+        generalSettingsManager.update { settings ->
+            settings.copy(
+                display = settings.display.copy(
+                    inboxSettings = settings.display.inboxSettings.copy(
+                        isMessageListBottomAppBar = isMessageListBottomAppBar,
                     ),
                 ),
             )

@@ -342,6 +342,12 @@
                 android:title="@string/general_settings_show_compose_button_title"
                 />
 
+            <CheckBoxPreference
+                android:key="messagelist_bottom_app_bar"
+                android:summary="@string/general_settings_bottom_app_bar_summary"
+                android:title="@string/general_settings_bottom_app_bar_title"
+                />
+
             <ListPreference
                 android:dialogTitle="@string/global_settings_splitview_mode_label"
                 android:entries="@array/splitview_mode_entries"

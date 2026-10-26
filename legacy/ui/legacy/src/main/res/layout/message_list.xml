@@ -26,29 +26,15 @@
 
      Until we move this screen to use a modern navigation system, or rewrite it using Jetpack Compose,
      we need to use this workaround.
+
+     The app bar is declared after the content so it is drawn above it when MessageHomeActivity moves it to the
+     bottom; RelativeLayout still measures it first because the content depends on it.
     -->
     <RelativeLayout
         android:id="@+id/coordinator_layout"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         >
-
-        <com.google.android.material.appbar.AppBarLayout
-            android:id="@+id/app_bar_layout"
-            style="@style/Widget.App.AppBarLayout"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_alignParentTop="true"
-            >
-
-            <include
-                android:id="@+id/toolbar"
-                layout="@layout/message_list_toolbar"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                />
-
-        </com.google.android.material.appbar.AppBarLayout>
 
         <FrameLayout
             android:id="@+id/content_container"
@@ -91,6 +77,23 @@
             </com.fsck.k9.view.ViewSwitcher>
 
         </FrameLayout>
+
+        <com.google.android.material.appbar.AppBarLayout
+            android:id="@+id/app_bar_layout"
+            style="@style/Widget.App.AppBarLayout"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_alignParentTop="true"
+            >
+
+            <include
+                android:id="@+id/toolbar"
+                layout="@layout/message_list_toolbar"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                />
+
+        </com.google.android.material.appbar.AppBarLayout>
 
     </RelativeLayout>
 
