@@ -194,7 +194,10 @@ class NotificationChannelManager(
         val account = accountManager.findById(accountId) ?: return
 
         val oldChannelId = getChannelIdFor(account.id, ChannelType.MESSAGES, account.messagesNotificationChannelVersion)
-        val oldNotificationChannel = notificationManager.getNotificationChannel(oldChannelId)
+        val oldNotificationChannel = notificationManager.getNotificationChannel(oldChannelId) ?: run {
+            Log.v(TAG, "No NotificationChannel %s yet; it will be created from the account settings.", oldChannelId)
+            return
+        }
 
         if (!oldNotificationChannel.matches(account)) {
             val newChannelVersion = account.messagesNotificationChannelVersion + 1
