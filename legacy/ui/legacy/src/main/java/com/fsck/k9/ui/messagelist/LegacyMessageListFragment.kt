@@ -198,6 +198,9 @@ class LegacyMessageListFragment :
     private val handler = MessageListHandler(this)
     private val activityListener = MessageListActivityListener()
     private val actionModeCallback = ActionModeCallback()
+    private val pendingSwipeDeletion = PendingSwipeDeletion { messages, threaded ->
+        deleteMessagesNow(messages, threaded)
+    }
 
     private val contactRepository: ContactRepository by inject()
     private val avatarMonogramCreator: AvatarMonogramCreator by inject()
@@ -314,6 +317,8 @@ class LegacyMessageListFragment :
     private var error: Error? = null
 
     private var messageListSwipeCallback: MessageListSwipeCallback? = null
+    private var lastMessageListInfo: MessageListInfo? = null
+    private var swipeDeletionSnackbar: Snackbar? = null
     private val interactionSettings: InteractionSettings
         get() = generalSettingsManager.getConfig().interaction
     private val messageListSettings: DisplayMessageListSettings
@@ -1106,6 +1111,8 @@ class LegacyMessageListFragment :
     }
 
     override fun onDestroyView() {
+        commitPendingSwipeDeletion()
+
         handler.removeCallbacks(stopRemoteSearchRunnable)
         handler.removeCallbacks(loadedMessagesDisplayedRunnable)
         isWaitingForLoadedMessages = false
@@ -1210,6 +1217,8 @@ class LegacyMessageListFragment :
 
     override fun onPause() {
         super.onPause()
+
+        commitPendingSwipeDeletion()
 
         recyclerView?.removeCallbacks(automaticRemoteSearchRunnable)
         isAutomaticRemoteSearchScheduled = false
@@ -1370,11 +1379,68 @@ class LegacyMessageListFragment :
     }
 
     private fun onDeleteConfirmed(messages: List<MessageReference>) {
-        if (showingThreadedList) {
+        deleteMessagesNow(messages, showingThreadedList)
+    }
+
+    private fun deleteMessagesNow(messages: List<MessageReference>, threaded: Boolean) {
+        if (threaded) {
             messagingController.deleteThreads(messages)
         } else {
             messagingController.deleteMessages(messages)
         }
+    }
+
+    /**
+     * Delete the message of a swiped list item, but only after the user didn't undo the deletion.
+     *
+     * The message is hidden right away. It's really deleted when the snackbar goes away without the user
+     * choosing to undo the deletion.
+     */
+    private fun deleteWithUndo(item: MessageListItem) {
+        // Only one undo snackbar is shown at a time.
+        swipeDeletionSnackbar?.dismiss()
+
+        val id = pendingSwipeDeletion.start(listOf(item.messageReference), showingThreadedList)
+
+        // Hide the message right away. It only disappears for good when the deletion is committed.
+        lastMessageListInfo?.let { setMessageList(it) }
+
+        val count = item.threadCount.coerceAtLeast(1)
+        val snackbar = Snackbar
+            .make(
+                requireCoordinatorLayout(),
+                resources.getQuantityString(R.plurals.message_list_swipe_delete_snackbar, count, count),
+                Snackbar.LENGTH_LONG,
+            )
+            .setAction(R.string.message_list_swipe_delete_undo) { undoSwipeDeletion(id) }
+            .addCallback(
+                object : BaseCallback<Snackbar>() {
+                    override fun onDismissed(transientBottomBar: Snackbar?, event: Int) {
+                        if (event != DISMISS_EVENT_ACTION) {
+                            pendingSwipeDeletion.commit(id)
+                        }
+                    }
+                },
+            )
+
+        snackbar.show()
+        swipeDeletionSnackbar = snackbar
+    }
+
+    private fun undoSwipeDeletion(id: Long) {
+        if (pendingSwipeDeletion.undo(id)) {
+            // Bring the message back.
+            lastMessageListInfo?.let { setMessageList(it) }
+        }
+    }
+
+    /**
+     * Delete a message that is waiting for the user to decide whether to undo the deletion.
+     */
+    private fun commitPendingSwipeDeletion() {
+        pendingSwipeDeletion.commitPending()
+        swipeDeletionSnackbar?.dismiss()
+        swipeDeletionSnackbar = null
     }
 
     private fun onExpunge() {
@@ -2502,6 +2568,8 @@ class LegacyMessageListFragment :
     }
 
     private fun setMessageList(messageListInfo: MessageListInfo) {
+        lastMessageListInfo = messageListInfo
+
         val messageListItems = messageListInfo.messageListItems
         if (isThreadDisplay && messageListItems.isEmpty()) {
             goBack()
@@ -2532,7 +2600,8 @@ class LegacyMessageListFragment :
                 add(MessageListViewItem.InAppNotificationBannerList)
             }
             searchStatus?.let { add(MessageListViewItem.SearchStatus(it, searchScope)) }
-            addAll(messageListItems.map { MessageListViewItem.Message(it) })
+            addAll(messageListItems.filterNot { pendingSwipeDeletion.isPending(it.messageReference) }
+                .map { MessageListViewItem.Message(it) })
             // Keep the current footer (e.g. remote search progress) across list rebuilds.
             // updateFooterText() below recomputes it when no remote search is running.
             adapter.viewItems.filterIsInstance<MessageListViewItem.Footer>().firstOrNull()?.let { add(it) }
@@ -2902,7 +2971,11 @@ class LegacyMessageListFragment :
                 }
 
                 SwipeAction.Delete -> {
-                    onDelete(listOf(item.messageReference), item.threadCount)
+                    if (interactionSettings.isConfirmDelete) {
+                        onDelete(listOf(item.messageReference), item.threadCount)
+                    } else {
+                        deleteWithUndo(item)
+                    }
                 }
 
                 SwipeAction.Spam -> {

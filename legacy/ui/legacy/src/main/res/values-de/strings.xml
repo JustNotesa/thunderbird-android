@@ -992,6 +992,13 @@
     <string name="debug_enable_sync_debug_logging_title">Synchronisation des Fehlerprotokolls aktivieren</string>
     <string name="debug_enable_sync_debug_logging_summary">Diagnoseinformationen zur Synchronisation für 24 Stunden protokollieren</string>
     <string name="archiving_not_available_for_this_account">Archivierung ist für dieses Konto nicht verfügbar.</string>
+    <!-- Shown after messages were deleted by swiping them away -->
+    <plurals name="message_list_swipe_delete_snackbar">
+        <item quantity="one">Nachricht gelöscht</item>
+        <item quantity="other">%d Nachrichten gelöscht</item>
+    </plurals>
+    <!-- Undoes the deletion of messages that were deleted by swiping them away -->
+    <string name="message_list_swipe_delete_undo">Rückgängig</string>
     <string name="debug_open_secret_debug_screen">Geheime Fehleranalyse-Ansicht öffnen</string>
     <string name="debug_invalidate_access_token">Test: Zugriffstoken ungültig machen</string>
     <string name="debug_invalidate_access_token_local">Test: Zugriffstoken ungültig machen (lokal)</string>
