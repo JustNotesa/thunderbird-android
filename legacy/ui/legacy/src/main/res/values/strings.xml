@@ -1344,13 +1344,28 @@ You can keep this message and use it as a backup for your secret key. If you wan
     <!-- Description of the "Usage and technical data" setting used in the "data collection" section of the general settings screen -->
     <string name="settings_ui_telemetry_description">Shares performance, usage, hardware and customization data about this app with Mozilla to help us make Thunderbird better</string>
     <string name="archiving_not_available_for_this_account">Archiving is not available for this account.</string>
-    <!-- Shown after messages were deleted by swiping them away -->
-    <plurals name="message_list_swipe_delete_snackbar">
+    <!-- Shown after messages were removed from the message list by deleting them -->
+    <plurals name="message_list_undo_deleted">
         <item quantity="one">Message deleted</item>
         <item quantity="other">%d messages deleted</item>
     </plurals>
-    <!-- Undoes the deletion of messages that were deleted by swiping them away -->
-    <string name="message_list_swipe_delete_undo">Undo</string>
+    <!-- Shown after messages were removed from the message list by archiving them -->
+    <plurals name="message_list_undo_archived">
+        <item quantity="one">Message archived</item>
+        <item quantity="other">%d messages archived</item>
+    </plurals>
+    <!-- Shown after messages were removed from the message list by moving them to another folder -->
+    <plurals name="message_list_undo_moved">
+        <item quantity="one">Message moved</item>
+        <item quantity="other">%d messages moved</item>
+    </plurals>
+    <!-- Shown after messages were removed from the message list by marking them as spam -->
+    <plurals name="message_list_undo_spam">
+        <item quantity="one">Message marked as spam</item>
+        <item quantity="other">%d messages marked as spam</item>
+    </plurals>
+    <!-- Undoes the removal of messages from the message list -->
+    <string name="message_list_undo_action">Undo</string>
     <!-- Debug/testing menu items -->
     <string name="debug_invalidate_access_token">Test: Invalidate access token</string>
     <string name="debug_invalidate_access_token_done">Access token invalidated. Next request will refresh.</string>
