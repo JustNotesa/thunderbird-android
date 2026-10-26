@@ -150,6 +150,7 @@ import net.thunderbird.feature.account.AccountId
 import net.thunderbird.feature.account.UnifiedAccountId
 import net.thunderbird.feature.account.avatar.AvatarMonogramCreator
 import net.thunderbird.feature.changelog.internal.RecentChangesViewModel
+import net.thunderbird.feature.mail.folder.FolderType
 import net.thunderbird.feature.mail.folder.api.OutboxFolderManager
 import net.thunderbird.feature.mail.message.list.domain.model.SortCriteria
 import net.thunderbird.feature.mail.message.list.domain.model.SortType
@@ -675,7 +676,7 @@ class MessageListFragment :
 
         val title = when {
             unifiedFolderType != null -> getString(unifiedFolderTitle(unifiedFolderType))
-            isUnifiedFoldersView -> getString(R.string.integrated_inbox_title)
+            isUnifiedFoldersView -> getString(unifiedFolderTitle(FolderType.INBOX))
             isNewMessagesView -> getString(R.string.new_messages_title)
             isManualSearch -> getString(R.string.search_results)
             isThreadDisplay -> threadTitle ?: ""
@@ -686,7 +687,8 @@ class MessageListFragment :
         val currentAccount = account
         val subtitle = when {
             unifiedFolderType != null -> getString(R.string.unified_folders_subtitle)
-            currentAccount == null || isUnifiedFoldersView || accountManager.findAll().size == 1 -> null
+            isUnifiedFoldersView -> getString(R.string.unified_folders_subtitle)
+            currentAccount == null || accountManager.findAll().size == 1 -> null
             else -> currentAccount.profile.name
         }
 

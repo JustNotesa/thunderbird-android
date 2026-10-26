@@ -114,6 +114,7 @@ import net.thunderbird.feature.account.AccountId
 import net.thunderbird.feature.account.AccountIdFactory
 import net.thunderbird.feature.account.avatar.AvatarMonogramCreator
 import net.thunderbird.feature.changelog.internal.RecentChangesViewModel
+import net.thunderbird.feature.mail.folder.FolderType
 import net.thunderbird.feature.mail.folder.api.OutboxFolderManager
 import net.thunderbird.feature.mail.message.list.domain.DomainContract
 import net.thunderbird.feature.mail.message.list.ui.dialog.SetupArchiveFolderDialogFragmentFactory
@@ -1001,7 +1002,7 @@ class LegacyMessageListFragment :
 
         val title = when {
             unifiedFolderType != null -> getString(unifiedFolderTitle(unifiedFolderType))
-            isUnifiedFoldersView -> getString(R.string.integrated_inbox_title)
+            isUnifiedFoldersView -> getString(unifiedFolderTitle(FolderType.INBOX))
             isNewMessagesView -> getString(R.string.new_messages_title)
             // The search results display the search field with their query instead of a title.
             isManualSearch -> ""
@@ -1013,8 +1014,8 @@ class LegacyMessageListFragment :
         val currentAccount = account
         val subtitle = when {
             unifiedFolderType != null -> getString(R.string.unified_folders_subtitle)
-            currentAccount == null || isUnifiedFoldersView || isManualSearch ||
-                accountManager.findAll().size == 1 -> null
+            isUnifiedFoldersView -> getString(R.string.unified_folders_subtitle)
+            currentAccount == null || isManualSearch || accountManager.findAll().size == 1 -> null
             else -> currentAccount.profile.name
         }
 
