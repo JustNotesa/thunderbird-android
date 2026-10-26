@@ -3,6 +3,9 @@
 
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
+    <!-- Lets Android install updates of the app itself without asking the user again (Android 12 and newer). -->
+    <uses-permission android:name="android.permission.UPDATE_PACKAGES_WITHOUT_USER_ACTION" />
+
     <application>
         <receiver
             android:name="net.thunderbird.feature.updater.internal.install.InstallResultReceiver"

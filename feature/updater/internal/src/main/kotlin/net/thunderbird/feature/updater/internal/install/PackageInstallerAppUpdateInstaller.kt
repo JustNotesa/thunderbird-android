@@ -40,8 +40,8 @@ private const val DEFAULT_POLL_INTERVAL_MILLIS = 500L
  *
  * The APK is downloaded by the download manager of the system, so that the download keeps running when the app is
  * closed. When the download is finished, the APK is copied into the private directory of the app, verified against
- * the checksum of the release and written into a [PackageInstaller] session, which the system hands over to the user
- * to confirm the installation.
+ * the checksum of the release and written into a [PackageInstaller] session, which the system installs, asking the
+ * user only when Android requires it.
  *
  * The verified APK is kept, so that the installation can be repeated without downloading the APK again.
  *
