@@ -8,12 +8,8 @@ import android.text.style.StyleSpan
 import android.util.AttributeSet
 import androidx.core.content.res.TypedArrayUtils
 import androidx.preference.ListPreference
-import app.k9mail.legacy.ui.folder.FolderNameFormatter
 import com.fsck.k9.ui.R
 import net.thunderbird.feature.mail.folder.api.RemoteFolder
-import org.koin.core.component.KoinComponent
-import org.koin.core.component.inject
-import org.koin.core.parameter.parametersOf
 
 /**
  * A [ListPreference] that allows selecting one of an account's folders.
@@ -30,8 +26,7 @@ constructor(
         android.R.attr.dialogPreferenceStyle,
     ),
     defStyleRes: Int = 0,
-) : ListPreference(context, attrs, defStyleAttr, defStyleRes), KoinComponent {
-    private val folderNameFormatter: FolderNameFormatter by inject { parametersOf(context) }
+) : ListPreference(context, attrs, defStyleAttr, defStyleRes) {
     private val noFolderSelectedName = context.getString(R.string.account_settings_no_folder_selected).italicize()
     private lateinit var automaticFolderOption: CharSequence
 
@@ -42,14 +37,14 @@ constructor(
     }
 
     fun setFolders(folders: List<RemoteFolder>) {
-        entries = (listOf(noFolderSelectedName) + getFolderDisplayNames(folders)).toTypedArray()
+        entries = (listOf(noFolderSelectedName) + getFolderServerIds(folders)).toTypedArray()
         entryValues = (listOf(NO_FOLDER_SELECTED_VALUE) + getFolderValues(folders)).toTypedArray()
         isEnabled = true
     }
 
     fun setFolders(folders: List<RemoteFolder>, automaticFolder: RemoteFolder?) {
         val automaticFolderName = if (automaticFolder != null) {
-            folderNameFormatter.displayName(automaticFolder)
+            automaticFolder.serverId
         } else {
             context.getString(R.string.account_settings_no_folder_selected)
         }
@@ -60,7 +55,7 @@ constructor(
             automaticFolderName,
         ).italicize()
 
-        entries = (listOf(automaticFolderOption) + noFolderSelectedName + getFolderDisplayNames(folders)).toTypedArray()
+        entries = (listOf(automaticFolderOption) + noFolderSelectedName + getFolderServerIds(folders)).toTypedArray()
         entryValues =
             (listOf(automaticFolderValue) + NO_FOLDER_SELECTED_VALUE + getFolderValues(folders)).toTypedArray()
 
@@ -79,7 +74,7 @@ constructor(
         }
     }
 
-    private fun getFolderDisplayNames(folders: List<RemoteFolder>) = folders.map { folderNameFormatter.displayName(it) }
+    private fun getFolderServerIds(folders: List<RemoteFolder>) = folders.map { it.serverId }
 
     private fun getFolderValues(folders: List<RemoteFolder>) = folders.map { MANUAL_PREFIX + it.id.toString() }
 
