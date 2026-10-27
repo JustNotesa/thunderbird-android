@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -1074,6 +1075,86 @@ public class MessagingControllerTest extends K9RobolectricTest {
         controller.downloadMissingPreviewsSynchronous(accountId, FOLDER_ID, Collections.singletonList("messageUid"));
 
         verify(backend, never()).downloadMessage(any(SyncConfig.class), eq(FOLDER_NAME), eq("messageUid"));
+    }
+
+    @Test
+    public void downloadFolderForOfflineUseSynchronous_withMessageThatIsNotDownloaded_shouldDownloadMessage()
+            throws MessagingException {
+        setupFolderForDownloadingMessages(0);
+        LocalMessage localMessage = mock(LocalMessage.class);
+        when(localMessage.getUid()).thenReturn("messageUid");
+        when(localFolder.getMessages()).thenReturn(Collections.singletonList(localMessage));
+
+        boolean result = controller.downloadFolderForOfflineUseSynchronous(accountId, FOLDER_ID, () -> true);
+
+        assertTrue(result);
+        // The last parameter is the continuation of the suspend function. Mockito doesn't match it.
+        verify(backend).downloadCompleteMessage(eq(FOLDER_NAME), eq("messageUid"), null);
+    }
+
+    @Test
+    public void downloadFolderForOfflineUseSynchronous_withMessageThatIsDownloaded_shouldNotDownloadMessage()
+            throws MessagingException {
+        setupFolderForDownloadingMessages(0);
+        LocalMessage localMessage = mock(LocalMessage.class);
+        when(localMessage.getUid()).thenReturn("messageUid");
+        when(localMessage.isSet(Flag.X_DOWNLOADED_FULL)).thenReturn(true);
+        when(localFolder.getMessages()).thenReturn(Collections.singletonList(localMessage));
+
+        boolean result = controller.downloadFolderForOfflineUseSynchronous(accountId, FOLDER_ID, () -> true);
+
+        assertTrue(result);
+        verify(backend, never()).downloadCompleteMessage(anyString(), anyString(), null);
+    }
+
+    @Test
+    public void downloadFolderForOfflineUseSynchronous_withConditionThatSaysStop_shouldNotDownloadMessage()
+            throws MessagingException {
+        setupFolderForDownloadingMessages(0);
+        LocalMessage localMessage = mock(LocalMessage.class);
+        when(localMessage.getUid()).thenReturn("messageUid");
+        when(localFolder.getMessages()).thenReturn(Collections.singletonList(localMessage));
+
+        boolean result = controller.downloadFolderForOfflineUseSynchronous(accountId, FOLDER_ID, () -> false);
+
+        assertFalse(result);
+        verify(backend, never()).downloadCompleteMessage(anyString(), anyString(), null);
+    }
+
+    @Test
+    public void downloadFolderForOfflineUseSynchronous_withVisibleLimit_shouldLoadAllMessages()
+            throws MessagingException {
+        ListenableMessageStore messageStore = setupFolderForDownloadingMessages(100);
+
+        controller.downloadFolderForOfflineUseSynchronous(accountId, FOLDER_ID, () -> true);
+
+        verify(messageStore).setVisibleLimit(FOLDER_ID, 0);
+        verify(messageStore).setMoreMessages(FOLDER_ID, MoreMessages.UNKNOWN);
+    }
+
+    @Test
+    public void downloadFolderForOfflineUseSynchronous_shouldDownloadNewestMessageFirst() throws MessagingException {
+        setupFolderForDownloadingMessages(0);
+        LocalMessage olderMessage = mock(LocalMessage.class);
+        when(olderMessage.getUid()).thenReturn("olderMessageUid");
+        when(olderMessage.getInternalDate()).thenReturn(new Date(1000));
+        LocalMessage newerMessage = mock(LocalMessage.class);
+        when(newerMessage.getUid()).thenReturn("newerMessageUid");
+        when(newerMessage.getInternalDate()).thenReturn(new Date(2000));
+        when(localFolder.getMessages()).thenReturn(Arrays.asList(olderMessage, newerMessage));
+
+        controller.downloadFolderForOfflineUseSynchronous(accountId, FOLDER_ID, () -> true);
+
+        InOrder inOrder = inOrder(backend);
+        inOrder.verify(backend).downloadCompleteMessage(eq(FOLDER_NAME), eq("newerMessageUid"), null);
+        inOrder.verify(backend).downloadCompleteMessage(eq(FOLDER_NAME), eq("olderMessageUid"), null);
+    }
+
+    private ListenableMessageStore setupFolderForDownloadingMessages(int visibleLimit) throws MessagingException {
+        ListenableMessageStore messageStore = setupFolderForLoadingMessages(visibleLimit, false);
+        when(localFolder.getMessages()).thenReturn(Collections.emptyList());
+
+        return messageStore;
     }
 
     private void setupAccountWithMessageToSend() throws MessagingException {

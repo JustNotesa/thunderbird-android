@@ -4,6 +4,8 @@ package com.fsck.k9.controller;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.Date;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -132,11 +134,22 @@ public class MessagingController implements MessagingControllerRegistry, Messagi
     public static final Set<Flag> SYNC_FLAGS = EnumSet.of(Flag.SEEN, Flag.FLAGGED, Flag.ANSWERED, Flag.FORWARDED);
 
     private static final int MAX_CONSECUTIVE_CASCADE_SEARCH_FAILURES = 3;
+    private static final int MAX_CONSECUTIVE_DOWNLOAD_FAILURES = 3;
     private static final int MAX_PARALLEL_SEARCH_ACCOUNTS = 4;
     private static final int DEFAULT_SEARCH_CONNECTIONS = 2;
     private static final long NO_START_FOLDER_ID = -1L;
 
     private static final long FOLDER_LIST_STALENESS_THRESHOLD = 30 * 60 * 1000L;
+
+    // Written out instead of Comparator.comparing(), which needs Android 7
+    private static final Comparator<LocalMessage> NEWEST_MESSAGE_FIRST = (first, second) -> {
+        Date firstDate = getMessageDate(first);
+        Date secondDate = getMessageDate(second);
+        if (firstDate == null || secondDate == null) {
+            return firstDate == null ? (secondDate == null ? 0 : 1) : -1;
+        }
+        return secondDate.compareTo(firstDate);
+    };
 
     private static final String TAG = "MessagingController";
 
@@ -1618,6 +1631,112 @@ public class MessagingController implements MessagingControllerRegistry, Messagi
         messageStore.setVisibleLimit(folderId, visibleLimit);
         // Whether there are more messages on the server has to be found out again with the new limit
         messageStore.setMoreMessages(folderId, MoreMessages.UNKNOWN);
+    }
+
+    /**
+     * Make every message of a folder available on the device, including attachments.
+     *
+     * First the folder is synchronized with all messages on the server (it displays all of them from now on), then
+     * every message that isn't completely on the device is downloaded, the newest first.
+     *
+     * @param condition
+     *         Asked before every message. Downloading stops when it returns {@code false}.
+     * @return {@code true} if every message of the folder is now completely on the device, {@code false} if downloading
+     *         was stopped before or a message couldn't be downloaded.
+     */
+    public boolean downloadFolderForOfflineUseSynchronous(AccountId accountId, long folderId,
+            ContinueCondition condition) {
+        MessageStore messageStore = messageStoreManager.getMessageStore(accountId);
+        Integer visibleLimit = messageStore.getFolder(folderId, FolderDetailsAccessor::getVisibleLimit);
+        if (visibleLimit == null) {
+            Log.w(TAG, "downloadFolderForOfflineUse(%s, %d): Folder not found", accountId, folderId);
+            return false;
+        }
+
+        if (visibleLimit != MessageLoadingSteps.ALL_MESSAGES) {
+            setVisibleLimit(messageStore, folderId, MessageLoadingSteps.ALL_MESSAGES);
+        }
+
+        synchronizeMailboxSynchronous(accountId, folderId, false, null, new NotificationState());
+
+        return downloadMessagesOfFolder(accountId, folderId, condition);
+    }
+
+    private boolean downloadMessagesOfFolder(AccountId accountId, long folderId, ContinueCondition condition) {
+        LocalFolder localFolder;
+        List<LocalMessage> messages;
+        try {
+            localFolder = localStoreProvider.getInstance(accountId).getFolder(folderId);
+            if (!localFolder.exists()) {
+                Log.w(TAG, "downloadFolderForOfflineUse(%s, %d): Folder not found", accountId, folderId);
+                return false;
+            }
+
+            localFolder.open();
+            messages = localFolder.getMessages();
+        } catch (MessagingException e) {
+            Log.w(TAG, e, "downloadFolderForOfflineUse(%s, %d): Couldn't read folder", accountId, folderId);
+            return false;
+        }
+
+        String folderServerId = localFolder.getServerId();
+        if (folderServerId == null) {
+            // A folder that only exists on the device doesn't have messages on the server.
+            return true;
+        }
+
+        return downloadMessages(accountId, folderId, folderServerId, getMessagesToDownload(messages), condition);
+    }
+
+    private List<LocalMessage> getMessagesToDownload(List<LocalMessage> messages) {
+        List<LocalMessage> messagesToDownload = new ArrayList<>();
+        for (LocalMessage message : messages) {
+            if (!message.isSet(Flag.X_DOWNLOADED_FULL) && !message.isSet(Flag.DELETED) && !isLocalMessage(message)) {
+                messagesToDownload.add(message);
+            }
+        }
+
+        Collections.sort(messagesToDownload, NEWEST_MESSAGE_FIRST);
+
+        return messagesToDownload;
+    }
+
+    private boolean downloadMessages(AccountId accountId, long folderId, String folderServerId,
+            List<LocalMessage> messages, ContinueCondition condition) {
+        Backend backend = getBackend(accountId);
+        int consecutiveFailures = 0;
+        boolean downloadFailed = false;
+
+        for (LocalMessage message : messages) {
+            if (Thread.currentThread().isInterrupted() || !condition.shouldContinue()) {
+                return false;
+            }
+
+            try {
+                MessagingControllerWrapperKt.downloadCompleteMessageBlocking(
+                        backend, Dispatchers.getIO(), folderServerId, message.getUid());
+                consecutiveFailures = 0;
+            } catch (Exception e) {
+                consecutiveFailures++;
+                downloadFailed = true;
+                Log.w(TAG, "Couldn't download message. Folder ID: %d", folderId);
+                if (consecutiveFailures >= MAX_CONSECUTIVE_DOWNLOAD_FAILURES) {
+                    return false;
+                }
+            }
+        }
+
+        return !downloadFailed;
+    }
+
+    private boolean isLocalMessage(LocalMessage message) {
+        String uid = message.getUid();
+        return uid != null && uid.startsWith(localMessageUidPrefixProvider.get());
+    }
+
+    private static Date getMessageDate(LocalMessage message) {
+        Date date = message.getInternalDate();
+        return date != null ? date : message.getSentDate();
     }
 
     private void refreshFolderListIfStale(AccountId accountId) {
