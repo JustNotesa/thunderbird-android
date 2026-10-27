@@ -14,6 +14,13 @@ internal interface ImapConnection {
     val isUtf8AcceptCapable: Boolean
     val isIdleCapable: Boolean
 
+    /**
+     * The capabilities the server announced after logging in.
+     * Opens the connection if it isn't open yet.
+     */
+    @get:Throws(IOException::class, MessagingException::class)
+    val capabilities: Set<String>
+
     @Throws(IOException::class, MessagingException::class)
     fun open()
 

@@ -93,6 +93,12 @@ interface Backend {
         return search(folderServerId, query, requiredFlags, forbiddenFlags, performFullTextSearch)
     }
 
+    /**
+     * The capabilities the server announced the last time the app connected to it. Doesn't connect to the server.
+     * Empty if they are not known (yet) or the backend doesn't have such capabilities.
+     */
+    fun getKnownServerCapabilities(): Set<String> = emptySet()
+
     @Throws(MessagingException::class)
     fun fetchPart(folderServerId: String, messageServerId: String, part: Part, bodyFactory: BodyFactory)
 

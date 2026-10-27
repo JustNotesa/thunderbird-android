@@ -143,6 +143,23 @@ internal open class RealImapStore(
         }
     }
 
+    @Throws(MessagingException::class)
+    override fun getServerCapabilities(): Set<String> {
+        val connection = getConnection()
+
+        return try {
+            connection.capabilities
+        } catch (e: IOException) {
+            connection.close()
+            throw MessagingException("Unable to get server capabilities.", e)
+        } catch (e: MessagingException) {
+            connection.close()
+            throw e
+        } finally {
+            releaseConnection(connection)
+        }
+    }
+
     private fun limitToSubscribedFolders(
         folders: List<FolderListItem>,
         subscribedFolders: List<FolderListItem>,

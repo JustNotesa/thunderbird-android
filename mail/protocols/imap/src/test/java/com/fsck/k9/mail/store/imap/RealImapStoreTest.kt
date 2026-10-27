@@ -157,6 +157,18 @@ class RealImapStoreTest {
     }
 
     @Test
+    fun `getServerCapabilities() should return capabilities of connection`() {
+        val imapConnection = createMockConnection().stub {
+            on { capabilities } doReturn setOf("IMAP4REV1", "UIDPLUS")
+        }
+        imapStore.enqueueImapConnection(imapConnection)
+
+        val result = imapStore.getServerCapabilities()
+
+        assertThat(result).isEqualTo(setOf("IMAP4REV1", "UIDPLUS"))
+    }
+
+    @Test
     fun `getFolder() should not corrupt UTF8 folder names`() {
         val imapStore = createTestImapStore(isSubscribedFoldersOnly = false)
         val imapConnection = createMockConnection().stub {
