@@ -13,6 +13,7 @@ import androidx.work.WorkerParameters
 import app.k9mail.core.ui.compose.common.window.FoldableStateObserver
 import app.k9mail.feature.account.common.domain.entity.InteractionMode
 import com.fsck.k9.job.MailSyncWorker
+import com.fsck.k9.job.OfflineDownloadWorker
 import com.fsck.k9.job.SyncDebugWorker
 import com.fsck.k9.mail.Part
 import com.fsck.k9.mailstore.AttachmentResolver
@@ -71,6 +72,7 @@ class DependencyInjectionTest {
                 definition<FoldableStateObserver>(Activity::class),
                 definition<K9WebViewClient>(AttachmentResolver::class, MessageWebView.OnPageFinishedListener::class),
                 definition<MailSyncWorker>(WorkerParameters::class),
+                definition<OfflineDownloadWorker>(WorkerParameters::class),
                 definition<SyncDebugWorker>(WorkerParameters::class),
                 definition<OpenPgpApiManager>(LifecycleOwner::class),
                 definition<SetupArchiveFolderDialogContract.ViewModel>(SetupArchiveFolderDialogContract.State::class),
