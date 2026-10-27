@@ -187,7 +187,7 @@
     <string name="offline_settings_keep_free_1gb">1 GB</string>
     <string name="offline_settings_keep_free_2gb">2 GB</string>
     <string name="offline_settings_keep_free_5gb">5 GB</string>
-    <string name="offline_settings_note">While this is on, the account settings \'Fetch messages up to\' and \'Sync messages from\' only apply to synchronization on mobile data.</string>
+    <string name="offline_settings_note">This download ignores the account settings \'Fetch messages up to\' and \'Sync messages from\'. They still apply to the normal synchronization.</string>
     <string name="offline_settings_status_title">Status</string>
     <string name="offline_status_off">Off</string>
     <string name="offline_status_waiting">Waiting for Wi-Fi</string>

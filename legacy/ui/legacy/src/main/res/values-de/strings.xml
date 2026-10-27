@@ -1060,7 +1060,7 @@
     <string name="offline_settings_keep_free_1gb">1 GB</string>
     <string name="offline_settings_keep_free_2gb">2 GB</string>
     <string name="offline_settings_keep_free_5gb">5 GB</string>
-    <string name="offline_settings_note">Solange dies aktiviert ist, gelten die Kontoeinstellungen „Nachrichten abrufen bis zu“ und „Nachrichten synchronisieren von“ nur für die Synchronisierung über mobile Daten.</string>
+    <string name="offline_settings_note">Dieser Download beachtet die Kontoeinstellungen „Nachrichten abrufen bis zu“ und „Nachrichten synchronisieren von“ nicht. Für die normale Synchronisierung gelten sie weiterhin.</string>
     <string name="offline_settings_status_title">Status</string>
     <string name="offline_status_off">Aus</string>
     <string name="offline_status_waiting">Warten auf WLAN</string>
