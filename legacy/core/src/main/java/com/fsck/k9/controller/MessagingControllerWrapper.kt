@@ -8,6 +8,7 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.runBlocking
 import net.thunderbird.core.common.exception.MessagingException
 import net.thunderbird.core.common.mail.Flag
+import net.thunderbird.core.common.mail.ServerSearchCriteria
 import net.thunderbird.feature.account.AccountId
 
 /**
@@ -85,6 +86,22 @@ class MessagingControllerWrapper(
         requiredFlags,
         forbiddenFlags,
         searchMessageContents,
+        startFolderOnly,
+        searchedFolders,
+        listener,
+    )
+
+    fun searchRemoteMessagesCascading(
+        id: AccountId?,
+        startFolderId: Long?,
+        criteria: ServerSearchCriteria,
+        startFolderOnly: Boolean,
+        searchedFolders: Set<String>,
+        listener: MessagingListener,
+    ): Future<*>? = messagingController.searchRemoteMessagesCascading(
+        id?.toString(),
+        startFolderId,
+        criteria,
         startFolderOnly,
         searchedFolders,
         listener,

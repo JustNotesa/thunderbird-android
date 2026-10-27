@@ -96,6 +96,7 @@ import net.thunderbird.core.android.account.LegacyAccountManager;
 import net.thunderbird.core.common.exception.MessagingException;
 import net.thunderbird.core.common.exception.ThrowableExtensions;
 import net.thunderbird.core.common.mail.Flag;
+import net.thunderbird.core.common.mail.ServerSearchCriteria;
 import net.thunderbird.core.featureflag.FeatureFlagProvider;
 import net.thunderbird.core.featureflag.keys.GeneratedFeatureFlagKey;
 import net.thunderbird.components.core.logging.Logger;
@@ -666,8 +667,11 @@ public class MessagingController implements MessagingControllerRegistry, Messagi
     public Future<?> searchRemoteMessagesCascading(@Nullable String startAccountUuid, @Nullable Long startFolderId,
             String query, Set<Flag> requiredFlags, Set<Flag> forbiddenFlags, boolean searchMessageContents,
             MessagingListener listener) {
-        return searchRemoteMessagesCascading(startAccountUuid, startFolderId, query, requiredFlags, forbiddenFlags,
-                searchMessageContents, false, Collections.emptySet(), listener);
+        ServerSearchCriteria criteria = createSearchCriteria(query, requiredFlags, forbiddenFlags,
+                searchMessageContents);
+
+        return searchRemoteMessagesCascading(startAccountUuid, startFolderId, criteria, false, Collections.emptySet(),
+                listener);
     }
 
     /**
@@ -680,21 +684,61 @@ public class MessagingController implements MessagingControllerRegistry, Messagi
     public Future<?> searchRemoteMessagesCascading(@Nullable String startAccountUuid, @Nullable Long startFolderId,
             String query, Set<Flag> requiredFlags, Set<Flag> forbiddenFlags, boolean searchMessageContents,
             boolean startFolderOnly, Set<String> searchedFolders, MessagingListener listener) {
-        Log.i(TAG, "searchRemoteMessagesCascading (acct = %s, startFolderId = %d, contents = %b, startFolderOnly = %b, "
-                + "searched = %d)", startAccountUuid, startFolderId, searchMessageContents, startFolderOnly,
-                searchedFolders.size());
+        ServerSearchCriteria criteria = createSearchCriteria(query, requiredFlags, forbiddenFlags,
+                searchMessageContents);
 
-        return threadPool.submit(() -> searchRemoteMessagesCascadingSynchronous(startAccountUuid, startFolderId, query,
-                requiredFlags, forbiddenFlags, searchMessageContents, startFolderOnly, searchedFolders,
-                listener));
+        return searchRemoteMessagesCascading(startAccountUuid, startFolderId, criteria, startFolderOnly,
+                searchedFolders, listener);
+    }
+
+    /**
+     * Search all folders of all accounts on the server.
+     *
+     * @param criteria
+     *         The criteria the messages have to match. They are sent to the server.
+     * @param startFolderOnly
+     *         {@code true} to search nothing but the folder the search was started from.
+     * @param searchedFolders
+     *         The folder keys, as returned by {@link #searchedFolderKey(String, long)}, of the folders a search that
+     *         was stopped has already searched. They are skipped, so the search continues where it was stopped.
+     */
+    public Future<?> searchRemoteMessagesCascading(@Nullable String startAccountUuid, @Nullable Long startFolderId,
+            ServerSearchCriteria criteria, boolean startFolderOnly, Set<String> searchedFolders,
+            MessagingListener listener) {
+        Log.i(TAG, "searchRemoteMessagesCascading (acct = %s, startFolderId = %d, startFolderOnly = %b, "
+                + "searched = %d)", startAccountUuid, startFolderId, startFolderOnly, searchedFolders.size());
+
+        return threadPool.submit(() -> searchRemoteMessagesCascadingSynchronous(startAccountUuid, startFolderId,
+                criteria, startFolderOnly, searchedFolders, listener));
     }
 
     @VisibleForTesting
     void searchRemoteMessagesCascadingSynchronous(@Nullable String startAccountUuid, @Nullable Long startFolderId,
             String query, Set<Flag> requiredFlags, Set<Flag> forbiddenFlags, boolean searchMessageContents,
             MessagingListener listener) {
-        searchRemoteMessagesCascadingSynchronous(startAccountUuid, startFolderId, query, requiredFlags,
-                forbiddenFlags, searchMessageContents, false, Collections.emptySet(), listener);
+        ServerSearchCriteria criteria = createSearchCriteria(query, requiredFlags, forbiddenFlags,
+                searchMessageContents);
+
+        searchRemoteMessagesCascadingSynchronous(startAccountUuid, startFolderId, criteria, false,
+                Collections.emptySet(), listener);
+    }
+
+    @VisibleForTesting
+    void searchRemoteMessagesCascadingSynchronous(@Nullable String startAccountUuid, @Nullable Long startFolderId,
+            String query, Set<Flag> requiredFlags, Set<Flag> forbiddenFlags, boolean searchMessageContents,
+            boolean startFolderOnly, Set<String> searchedFolders, MessagingListener listener) {
+        ServerSearchCriteria criteria = createSearchCriteria(query, requiredFlags, forbiddenFlags,
+                searchMessageContents);
+
+        searchRemoteMessagesCascadingSynchronous(startAccountUuid, startFolderId, criteria, startFolderOnly,
+                searchedFolders, listener);
+    }
+
+    @VisibleForTesting
+    void searchRemoteMessagesCascadingSynchronous(@Nullable String startAccountUuid, @Nullable Long startFolderId,
+            ServerSearchCriteria criteria, MessagingListener listener) {
+        searchRemoteMessagesCascadingSynchronous(startAccountUuid, startFolderId, criteria, false,
+                Collections.emptySet(), listener);
     }
 
     /**
@@ -706,8 +750,8 @@ public class MessagingController implements MessagingControllerRegistry, Messagi
 
     @VisibleForTesting
     void searchRemoteMessagesCascadingSynchronous(@Nullable String startAccountUuid, @Nullable Long startFolderId,
-            String query, Set<Flag> requiredFlags, Set<Flag> forbiddenFlags, boolean searchMessageContents,
-            boolean startFolderOnly, Set<String> searchedFolders, MessagingListener listener) {
+            ServerSearchCriteria criteria, boolean startFolderOnly, Set<String> searchedFolders,
+            MessagingListener listener) {
         long listenerFolderId = startFolderId != null ? startFolderId : NO_START_FOLDER_ID;
         MessagingListener searchListener = listener == null ? null : new SynchronizedSearchListener(listener);
         if (searchListener != null) {
@@ -737,7 +781,7 @@ public class MessagingController implements MessagingControllerRegistry, Messagi
                 accountSearches.add(createAccountSearch(entry.getKey(), entry.getValue()));
             }
 
-            searchAccounts(accountSearches, state, query, requiredFlags, forbiddenFlags, searchMessageContents);
+            searchAccounts(accountSearches, state, criteria);
 
             if (searchListener != null && !Thread.currentThread().isInterrupted()) {
                 if (state.failedFolders.get() > 0) {
@@ -765,10 +809,24 @@ public class MessagingController implements MessagingControllerRegistry, Messagi
     }
 
     /**
+     * Create the criteria of a search that only knows a query and flags.
+     */
+    private static ServerSearchCriteria createSearchCriteria(String query, Set<Flag> requiredFlags,
+            Set<Flag> forbiddenFlags, boolean searchMessageContents) {
+        ServerSearchCriteria.TextScope textScope = searchMessageContents
+                ? ServerSearchCriteria.TextScope.EVERYWHERE
+                : ServerSearchCriteria.TextScope.HEADERS;
+
+        return new ServerSearchCriteria(query, textScope, null, null, null, null, null, null, null, null, false,
+                requiredFlags != null ? requiredFlags : Collections.<Flag>emptySet(),
+                forbiddenFlags != null ? forbiddenFlags : Collections.<Flag>emptySet());
+    }
+
+    /**
      * Search the folders of all accounts. The accounts are searched at the same time.
      */
-    private void searchAccounts(List<AccountSearch> accountSearches, CascadeSearchState state, String query,
-            Set<Flag> requiredFlags, Set<Flag> forbiddenFlags, boolean searchMessageContents) {
+    private void searchAccounts(List<AccountSearch> accountSearches, CascadeSearchState state,
+            ServerSearchCriteria criteria) {
         if (accountSearches.isEmpty()) {
             return;
         }
@@ -780,8 +838,7 @@ public class MessagingController implements MessagingControllerRegistry, Messagi
 
         try {
             for (AccountSearch accountSearch : accountSearches) {
-                futures.add(executor.submit(() -> searchAccountOnServer(accountSearch, state, query, requiredFlags,
-                        forbiddenFlags, searchMessageContents)));
+                futures.add(executor.submit(() -> searchAccountOnServer(accountSearch, state, criteria)));
             }
 
             for (int index = 0; index < futures.size(); index++) {
@@ -815,16 +872,16 @@ public class MessagingController implements MessagingControllerRegistry, Messagi
     /**
      * Search the folders of one account. The folders are searched by up to two connections at the same time.
      */
-    private void searchAccountOnServer(AccountSearch accountSearch, CascadeSearchState state, String query,
-            Set<Flag> requiredFlags, Set<Flag> forbiddenFlags, boolean searchMessageContents) {
+    private void searchAccountOnServer(AccountSearch accountSearch, CascadeSearchState state,
+            ServerSearchCriteria criteria) {
         List<Future<?>> workerFutures = new ArrayList<>();
         for (int worker = 1; worker < accountSearch.connectionCount; worker++) {
             int workerIndex = worker;
             workerFutures.add(threadPool.submit(() -> searchAccountFoldersOnWorkerThread(accountSearch, workerIndex,
-                    state, query, requiredFlags, forbiddenFlags, searchMessageContents)));
+                    state, criteria)));
         }
 
-        searchFoldersOfAccount(accountSearch, 0, state, query, requiredFlags, forbiddenFlags, searchMessageContents);
+        searchFoldersOfAccount(accountSearch, 0, state, criteria);
         joinFutures(workerFutures);
 
         if (accountSearch.unreachable.get()) {
@@ -841,7 +898,7 @@ public class MessagingController implements MessagingControllerRegistry, Messagi
      * search was started from is searched first.
      */
     private void searchAccountFoldersOnWorkerThread(AccountSearch accountSearch, int worker, CascadeSearchState state,
-            String query, Set<Flag> requiredFlags, Set<Flag> forbiddenFlags, boolean searchMessageContents) {
+            ServerSearchCriteria criteria) {
         try {
             accountSearch.firstFolderSearched.await();
         } catch (InterruptedException e) {
@@ -854,15 +911,14 @@ public class MessagingController implements MessagingControllerRegistry, Messagi
             return;
         }
 
-        searchFoldersOfAccount(accountSearch, worker, state, query, requiredFlags, forbiddenFlags,
-                searchMessageContents);
+        searchFoldersOfAccount(accountSearch, worker, state, criteria);
     }
 
     /**
      * Search the folders of one account until there is none left. Every folder is searched by one connection only.
      */
-    private void searchFoldersOfAccount(AccountSearch accountSearch, int worker, CascadeSearchState state, String query,
-            Set<Flag> requiredFlags, Set<Flag> forbiddenFlags, boolean searchMessageContents) {
+    private void searchFoldersOfAccount(AccountSearch accountSearch, int worker, CascadeSearchState state,
+            ServerSearchCriteria criteria) {
         boolean searchedFolder = false;
 
         try {
@@ -883,8 +939,8 @@ public class MessagingController implements MessagingControllerRegistry, Messagi
                 }
 
                 try {
-                    int notLoadedResultCount = searchSingleFolderOnServer(target.accountId, target.folderId, query,
-                            requiredFlags, forbiddenFlags, searchMessageContents, state.listener);
+                    int notLoadedResultCount = searchSingleFolderOnServer(target.accountId, target.folderId, criteria,
+                            state.listener);
                     state.notLoadedResults.addAndGet(notLoadedResultCount);
                     accountSearch.consecutiveFailures.set(0);
                     searchedFolder = true;
@@ -983,10 +1039,20 @@ public class MessagingController implements MessagingControllerRegistry, Messagi
     }
 
     /**
+     * Create a copy of the criteria that looks for the text in a different place.
+     */
+    private static ServerSearchCriteria withTextScope(ServerSearchCriteria criteria,
+            ServerSearchCriteria.TextScope textScope) {
+        return new ServerSearchCriteria(criteria.getText(), textScope, criteria.getFrom(), criteria.getTo(),
+                criteria.getSubject(), criteria.getReceivedSince(), criteria.getReceivedBefore(),
+                criteria.getReceivedWithinDays(), criteria.getLargerThanBytes(), criteria.getSmallerThanBytes(),
+                criteria.getHasAttachment(), criteria.getRequiredFlags(), criteria.getForbiddenFlags());
+    }
+
+    /**
      * @return The number of search results that were not loaded because of the account's server search limit.
      */
-    private int searchSingleFolderOnServer(AccountId accountId, long folderId, String query,
-            Set<Flag> requiredFlags, Set<Flag> forbiddenFlags, boolean searchMessageContents,
+    private int searchSingleFolderOnServer(AccountId accountId, long folderId, ServerSearchCriteria criteria,
             MessagingListener listener) throws MessagingException {
         LegacyAccount account = accountManager.findById(accountId);
         if (account == null) {
@@ -1003,13 +1069,15 @@ public class MessagingController implements MessagingControllerRegistry, Messagi
         String folderServerId = localFolder.getServerId();
 
         Backend backend = getBackend(accountId);
-        boolean performFullTextSearch = searchMessageContents || account.isRemoteSearchFullText();
-        List<String> foundMessageServerIds = backend.search(folderServerId, query, requiredFlags, forbiddenFlags,
-                performFullTextSearch, step -> {
-                    if (listener != null) {
-                        listener.remoteSearchStep(step);
-                    }
-                });
+        ServerSearchCriteria searchCriteria = criteria;
+        if (account.isRemoteSearchFullText() && criteria.getTextScope() == ServerSearchCriteria.TextScope.HEADERS) {
+            searchCriteria = withTextScope(criteria, ServerSearchCriteria.TextScope.EVERYWHERE);
+        }
+        List<String> foundMessageServerIds = backend.search(folderServerId, searchCriteria, step -> {
+            if (listener != null) {
+                listener.remoteSearchStep(step);
+            }
+        });
 
         List<String> newMessageServerIds = localFolder.extractNewMessages(foundMessageServerIds);
         List<String> notLoadedMessageServerIds = Collections.emptyList();
