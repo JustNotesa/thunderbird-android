@@ -611,6 +611,7 @@ public class MessagingController implements MessagingControllerRegistry, Messagi
         throws MessagingException {
 
         Backend backend = getBackend(accountId);
+        SyncConfig syncConfig = createSyncConfig(accountId);
         String folderServerId = localFolder.getServerId();
         String folderName = localFolder.getName();
         int total = messageServerIds.size();
@@ -625,7 +626,9 @@ public class MessagingController implements MessagingControllerRegistry, Messagi
             LocalMessage localMessage = localFolder.getMessage(messageServerId);
 
             if (localMessage == null) {
-                backend.downloadMessageStructure(folderServerId, messageServerId);
+                // Download the message like a normal synchronization does. Small messages are downloaded completely,
+                // large ones partially, but both include the text parts needed to create a preview.
+                backend.downloadMessage(syncConfig, folderServerId, messageServerId);
 
                 LocalMessage downloadedMessage = localFolder.getMessage(messageServerId);
                 if (listener != null && downloadedMessage != null) {

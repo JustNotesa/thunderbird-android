@@ -24,6 +24,7 @@ import com.fsck.k9.backend.api.Backend;
 import com.fsck.k9.backend.api.KeptMessages;
 import com.fsck.k9.backend.api.SearchListener;
 import com.fsck.k9.backend.api.SearchStep;
+import com.fsck.k9.backend.api.SyncConfig;
 import com.fsck.k9.mail.AuthType;
 import com.fsck.k9.mail.AuthenticationFailedException;
 import com.fsck.k9.mail.CertificateChainException;
@@ -250,7 +251,7 @@ public class MessagingControllerTest extends K9RobolectricTest {
         doAnswer((Answer<Void>) invocation -> {
             hasFetchedMessage = true;
             return null;
-        }).when(backend).downloadMessageStructure(eq(FOLDER_NAME), eq("newMessageUid2"));
+        }).when(backend).downloadMessage(any(SyncConfig.class), eq(FOLDER_NAME), eq("newMessageUid2"));
         reqFlags = Collections.singleton(Flag.ANSWERED);
         forbiddenFlags = Collections.singleton(Flag.DELETED);
 
@@ -309,7 +310,7 @@ public class MessagingControllerTest extends K9RobolectricTest {
 
         controller.searchRemoteMessagesSynchronous(accountId, FOLDER_ID, "query", reqFlags, forbiddenFlags, listener);
 
-        verify(backend).downloadMessageStructure(eq(FOLDER_NAME), eq("newMessageUid2"));
+        verify(backend).downloadMessage(any(SyncConfig.class), eq(FOLDER_NAME), eq("newMessageUid2"));
     }
 
     @Test
@@ -318,7 +319,17 @@ public class MessagingControllerTest extends K9RobolectricTest {
 
         controller.searchRemoteMessagesSynchronous(accountId, FOLDER_ID, "query", reqFlags, forbiddenFlags, listener);
 
-        verify(backend, never()).downloadMessageStructure(eq(FOLDER_NAME), eq("newMessageUid1"));
+        verify(backend, never()).downloadMessage(any(SyncConfig.class), eq(FOLDER_NAME), eq("newMessageUid1"));
+    }
+
+    @Test
+    public void searchRemoteMessagesSynchronous_searchResultsAreDownloadedWithTheirText() throws Exception {
+        setupRemoteSearch();
+
+        controller.searchRemoteMessagesSynchronous(accountId, FOLDER_ID, "query", reqFlags, forbiddenFlags, listener);
+
+        verify(backend).downloadMessage(any(SyncConfig.class), eq(FOLDER_NAME), eq("newMessageUid2"));
+        verify(backend, never()).downloadMessageStructure(eq(FOLDER_NAME), eq("newMessageUid2"));
     }
 
     @Test
@@ -437,9 +448,9 @@ public class MessagingControllerTest extends K9RobolectricTest {
 
         controller.searchRemoteMessagesCascadingSynchronous(accountId.toString(), 1L, "query", null, null, false, listener);
 
-        verify(backend).downloadMessageStructure("folder1", "uid1");
-        verify(backend).downloadMessageStructure("folder1", "uid2");
-        verify(backend, never()).downloadMessageStructure("folder1", "uid3");
+        verify(backend).downloadMessage(any(SyncConfig.class), eq("folder1"), eq("uid1"));
+        verify(backend).downloadMessage(any(SyncConfig.class), eq("folder1"), eq("uid2"));
+        verify(backend, never()).downloadMessage(any(SyncConfig.class), eq("folder1"), eq("uid3"));
         verify(listener).remoteSearchFolderResults(accountId.toString(), 1L, Arrays.asList("uid1", "uid2"));
         verify(listener).remoteSearchResultsLimited(3);
     }
