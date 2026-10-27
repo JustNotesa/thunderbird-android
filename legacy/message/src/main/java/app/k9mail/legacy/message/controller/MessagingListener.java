@@ -44,6 +44,13 @@ public interface MessagingListener {
     void remoteSearchMessageDownloaded(String folderName, String subject);
     void remoteSearchCascadeIncomplete(int failedFolderCount, int folderCount, String reason);
     void remoteSearchFolderResults(String accountUuid, long folderId, List<String> messageServerIds);
+    /**
+     * A folder was searched (or could not be searched) and doesn't have to be searched again when the search
+     * continues.
+     */
+    void remoteSearchFolderSearched(String accountUuid, long folderId);
+    /** All folders of this account were searched (or the account was given up). */
+    void remoteSearchAccountFinished(String accountUuid);
     void remoteSearchResultsLimited(int notLoadedCount);
     void remoteSearchFinished(long folderId, int numResults, int maxResults, List<String> extraResults);
     void remoteSearchFailed(String folderServerId, String err);

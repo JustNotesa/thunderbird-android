@@ -68,7 +68,7 @@ class MessagingControllerWrapper(
         forbiddenFlags: Set<Flag>?,
         searchMessageContents: Boolean,
         startFolderOnly: Boolean,
-        searchedFolderCount: Int,
+        searchedFolders: Set<String>,
         listener: MessagingListener,
     ): Future<*>? = messagingController.searchRemoteMessagesCascading(
         id?.toString(),
@@ -78,7 +78,7 @@ class MessagingControllerWrapper(
         forbiddenFlags,
         searchMessageContents,
         startFolderOnly,
-        searchedFolderCount,
+        searchedFolders,
         listener,
     )
 

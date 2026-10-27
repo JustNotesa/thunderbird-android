@@ -471,9 +471,11 @@ public class MessagingControllerTest extends K9RobolectricTest {
         InOrder inOrder = inOrder(backend);
         inOrder.verify(backend).search(eq("folder3"), anyString(), nullable(Set.class), nullable(Set.class), eq(false),
             any(SearchListener.class));
-        inOrder.verify(backend).search(eq("folder1"), anyString(), nullable(Set.class), nullable(Set.class), eq(false),
+
+        // The other folders are searched at the same time, so their order is not defined.
+        verify(backend).search(eq("folder1"), anyString(), nullable(Set.class), nullable(Set.class), eq(false),
             any(SearchListener.class));
-        inOrder.verify(backend).search(eq("folder2"), anyString(), nullable(Set.class), nullable(Set.class), eq(false),
+        verify(backend).search(eq("folder2"), anyString(), nullable(Set.class), nullable(Set.class), eq(false),
             any(SearchListener.class));
     }
 
@@ -481,9 +483,12 @@ public class MessagingControllerTest extends K9RobolectricTest {
     public void searchRemoteMessagesCascadingSynchronous_continuingStoppedSearch_shouldSkipSearchedFolders()
             throws Exception {
         setupCascadingRemoteSearch(3);
+        Set<String> searchedFolders = new HashSet<>();
+        searchedFolders.add(MessagingController.searchedFolderKey(accountId.toString(), 1L));
+        searchedFolders.add(MessagingController.searchedFolderKey(accountId.toString(), 2L));
 
         controller.searchRemoteMessagesCascadingSynchronous(accountId.toString(), 1L, "query", null, null, false,
-            false, 2, listener);
+            false, searchedFolders, listener);
 
         verify(backend, never()).search(eq("folder1"), anyString(), nullable(Set.class), nullable(Set.class),
             eq(false), any(SearchListener.class));
@@ -496,12 +501,49 @@ public class MessagingControllerTest extends K9RobolectricTest {
     }
 
     @Test
+    public void searchRemoteMessagesCascadingSynchronous_shouldReportEveryFolderAsSearched() throws Exception {
+        setupCascadingRemoteSearch(3);
+
+        controller.searchRemoteMessagesCascadingSynchronous(accountId.toString(), 1L, "query", null, null, false,
+            listener);
+
+        verify(listener, times(3)).remoteSearchFolderSearched(anyString(), anyLong());
+        verify(listener).remoteSearchFolderSearched(accountId.toString(), 1L);
+        verify(listener).remoteSearchFolderSearched(accountId.toString(), 2L);
+        verify(listener).remoteSearchFolderSearched(accountId.toString(), 3L);
+    }
+
+    @Test
+    public void searchRemoteMessagesCascadingSynchronous_shouldReportAccountAsFinished() throws Exception {
+        setupCascadingRemoteSearch(2);
+
+        controller.searchRemoteMessagesCascadingSynchronous(accountId.toString(), 1L, "query", null, null, false,
+            listener);
+
+        verify(listener, times(1)).remoteSearchAccountFinished(anyString());
+        verify(listener).remoteSearchAccountFinished(accountId.toString());
+    }
+
+    @Test
+    public void searchRemoteMessagesCascadingSynchronous_withMultipleAccounts_shouldReportEachAccountAsFinished()
+            throws Exception {
+        setupCascadingRemoteSearch(2);
+        AccountId secondAccountId = setupSecondAccount();
+
+        controller.searchRemoteMessagesCascadingSynchronous(null, null, "query", null, null, false, listener);
+
+        verify(listener, times(2)).remoteSearchAccountFinished(anyString());
+        verify(listener).remoteSearchAccountFinished(accountId.toString());
+        verify(listener).remoteSearchAccountFinished(secondAccountId.toString());
+    }
+
+    @Test
     public void searchRemoteMessagesCascadingSynchronous_withStartFolderOnly_shouldNotSearchOtherFolders()
             throws Exception {
         setupCascadingRemoteSearch(3);
 
         controller.searchRemoteMessagesCascadingSynchronous(accountId.toString(), 2L, "query", null, null, false,
-            true, 0, listener);
+            true, Collections.emptySet(), listener);
 
         verify(backend).search(eq("folder2"), eq("query"), nullable(Set.class), nullable(Set.class), eq(false),
             any(SearchListener.class));
@@ -591,6 +633,47 @@ public class MessagingControllerTest extends K9RobolectricTest {
         when(backend.isPushCapable()).thenReturn(true);
 
         return messageStore;
+    }
+
+    /**
+     * Set up a second account with a single folder that can be searched on the server.
+     */
+    private AccountId setupSecondAccount() throws Exception {
+        AccountId secondAccountId = AccountIdFactory.INSTANCE.create();
+        LegacyAccount secondAccount = FakeLegacyAccount.create(secondAccountId, null, 0);
+        when(accountManager.findAll()).thenReturn(Arrays.asList(account, secondAccount));
+        when(accountManager.findById(secondAccountId)).thenReturn(secondAccount);
+
+        Backend secondBackend = mock(Backend.class);
+        when(secondBackend.isPushCapable()).thenReturn(true);
+        when(backendManager.getBackend(secondAccountId)).thenReturn(secondBackend);
+
+        LocalFolder secondFolder = mock(LocalFolder.class);
+        when(secondFolder.exists()).thenReturn(true);
+        when(secondFolder.getServerId()).thenReturn("secondFolder");
+        when(secondFolder.extractNewMessages(ArgumentMatchers.<String>anyList()))
+            .thenReturn(Collections.<String>emptyList());
+
+        LocalStore secondLocalStore = mock(LocalStore.class);
+        when(secondLocalStore.getFolder(1L)).thenReturn(secondFolder);
+        when(localStoreProvider.getInstance(secondAccountId)).thenReturn(secondLocalStore);
+
+        FolderDetailsAccessor secondFolderDetails = mock(FolderDetailsAccessor.class);
+        when(secondFolderDetails.getId()).thenReturn(1L);
+        when(secondFolderDetails.getName()).thenReturn("Second Folder");
+        when(secondFolderDetails.getServerId()).thenReturn("secondFolder");
+
+        ListenableMessageStore secondMessageStore = mock(ListenableMessageStore.class);
+        when(secondMessageStore.getFolders(eq(true), ArgumentMatchers.<FolderMapper<Object>>any())).thenAnswer(
+            invocation -> {
+                FolderMapper<Object> mapper = invocation.getArgument(1);
+                List<Object> result = new ArrayList<>();
+                result.add(mapper.map(secondFolderDetails));
+                return result;
+            });
+        when(messageStoreManager.getMessageStore(secondAccountId)).thenReturn(secondMessageStore);
+
+        return secondAccountId;
     }
 
     @Test
