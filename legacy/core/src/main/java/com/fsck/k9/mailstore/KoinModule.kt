@@ -89,7 +89,7 @@ val legacyMailStoreModule = module {
     single { MessageStoreManager(messageStoreFactory = get()) }
     single { MessageRepository(messageStoreManager = get()) }
     factory { MessagePreviewCreator.newInstance() }
-    factory { MessageFulltextCreator.newInstance() }
+    factory { MessageFulltextCreator(textPartFinder = get(), attachmentTextExtractor = get()) }
     factory { AttachmentCounter.newInstance() }
     factory {
         SaveMessageDataCreator(
