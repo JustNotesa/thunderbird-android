@@ -1,0 +1,497 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The filters of a search, displayed below the search field of the search results.
+     The chips show the filters that are set. Tapping a chip opens the editor of that filter below the bar. -->
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingHorizontal="16dp"
+    android:paddingVertical="8dp"
+    android:visibility="gone"
+    tools:visibility="visible"
+    android:focusable="true"
+    android:focusableInTouchMode="true"
+    android:defaultFocusHighlightEnabled="false"
+    >
+
+    <HorizontalScrollView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:scrollbars="none"
+        >
+
+        <com.google.android.material.chip.ChipGroup
+            android:id="@+id/search_filter_chips"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            app:chipSpacingHorizontal="8dp"
+            app:singleLine="true"
+            >
+
+            <!-- Where the text of the search field is looked for -->
+            <com.google.android.material.chip.Chip
+                android:id="@+id/search_filter_scope"
+                style="@style/Widget.Material3.Chip.Filter"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                tools:text="In: Subject &amp; people"
+                />
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/search_filter_from"
+                style="@style/Widget.Material3.Chip.Filter"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:checkable="false"
+                app:closeIconVisible="false"
+                tools:text="From: anna"
+                />
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/search_filter_period"
+                style="@style/Widget.Material3.Chip.Filter"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:checkable="false"
+                app:closeIconVisible="false"
+                tools:text="Period: 30 days"
+                />
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/search_filter_unread"
+                style="@style/Widget.Material3.Chip.Filter"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/search_filter_unread"
+                />
+
+            <com.google.android.material.chip.Chip
+                android:id="@+id/search_filter_more"
+                style="@style/Widget.Material3.Chip.Filter"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/search_filter_more"
+                />
+
+        </com.google.android.material.chip.ChipGroup>
+    </HorizontalScrollView>
+
+    <!-- The editor of the chip that was tapped. Only one of them is displayed at a time. -->
+    <LinearLayout
+        android:id="@+id/search_filter_panel"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:visibility="gone"
+        tools:visibility="visible"
+        >
+
+        <!-- Where the text of the search field is looked for -->
+        <LinearLayout
+            android:id="@+id/search_filter_scope_panel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone"
+            tools:visibility="visible"
+            >
+
+            <com.google.android.material.chip.ChipGroup
+                android:id="@+id/search_filter_scope_choices"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:chipSpacingHorizontal="8dp"
+                app:selectionRequired="true"
+                app:singleSelection="true"
+                >
+
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/search_filter_scope_headers"
+                    style="@style/Widget.Material3.Chip.Filter"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/search_filter_scope_headers_choice"
+                    />
+
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/search_filter_scope_body"
+                    style="@style/Widget.Material3.Chip.Filter"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/search_filter_scope_body_choice"
+                    />
+
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/search_filter_scope_everywhere"
+                    style="@style/Widget.Material3.Chip.Filter"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/search_filter_scope_everywhere_choice"
+                    />
+
+            </com.google.android.material.chip.ChipGroup>
+
+            <com.google.android.material.textview.MaterialTextView
+                android:id="@+id/search_filter_scope_hint"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="@string/search_filter_scope_hint"
+                android:textAppearance="?attr/textAppearanceBodySmall"
+                android:textColor="?attr/colorOnSurfaceVariant"
+                />
+
+        </LinearLayout>
+
+        <!-- The sender of the messages -->
+        <LinearLayout
+            android:id="@+id/search_filter_from_panel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone"
+            tools:visibility="visible"
+            >
+
+            <com.google.android.material.textfield.TextInputLayout
+                android:id="@+id/search_filter_from_layout"
+                style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="@string/search_filter_from"
+                >
+
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/search_filter_from_edit"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:imeOptions="actionDone"
+                    android:inputType="text|textNoSuggestions"
+                    android:maxLines="1"
+                    />
+
+            </com.google.android.material.textfield.TextInputLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="end"
+                android:orientation="horizontal"
+                >
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/search_filter_from_remove"
+                    style="@style/Widget.Material3.Button.TextButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/search_filter_remove"
+                    />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/search_filter_from_done"
+                    style="@style/Widget.Material3.Button.TextButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/search_filter_done"
+                    />
+
+            </LinearLayout>
+
+        </LinearLayout>
+
+        <!-- The time the messages were received in -->
+        <LinearLayout
+            android:id="@+id/search_filter_period_panel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone"
+            tools:visibility="visible"
+            >
+
+            <com.google.android.material.chip.ChipGroup
+                android:id="@+id/search_filter_period_choices"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:chipSpacingHorizontal="8dp"
+                app:selectionRequired="false"
+                app:singleSelection="true"
+                >
+
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/search_filter_period_today"
+                    style="@style/Widget.Material3.Chip.Filter"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/search_filter_period_today"
+                    />
+
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/search_filter_period_7_days"
+                    style="@style/Widget.Material3.Chip.Filter"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/search_filter_period_7_days"
+                    />
+
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/search_filter_period_30_days"
+                    style="@style/Widget.Material3.Chip.Filter"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/search_filter_period_30_days"
+                    />
+
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/search_filter_period_this_year"
+                    style="@style/Widget.Material3.Chip.Filter"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/search_filter_period_this_year"
+                    />
+
+            </com.google.android.material.chip.ChipGroup>
+
+        </LinearLayout>
+
+        <!-- The filters that don't have a chip of their own -->
+        <LinearLayout
+            android:id="@+id/search_filter_more_panel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone"
+            tools:visibility="visible"
+            >
+
+            <com.google.android.material.chip.ChipGroup
+                android:id="@+id/search_filter_more_choices"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                app:chipSpacingHorizontal="8dp"
+                >
+
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/search_filter_more_to"
+                    style="@style/Widget.Material3.Chip.Filter"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/search_filter_to"
+                    />
+
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/search_filter_more_subject"
+                    style="@style/Widget.Material3.Chip.Filter"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/search_filter_subject"
+                    />
+
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/search_filter_more_starred"
+                    style="@style/Widget.Material3.Chip.Filter"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/search_filter_starred"
+                    />
+
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/search_filter_more_answered"
+                    style="@style/Widget.Material3.Chip.Filter"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/search_filter_answered"
+                    />
+
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/search_filter_more_attachment"
+                    style="@style/Widget.Material3.Chip.Filter"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/search_filter_has_attachment"
+                    />
+
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/search_filter_more_larger_than"
+                    style="@style/Widget.Material3.Chip.Filter"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/search_filter_larger_than"
+                    />
+
+            </com.google.android.material.chip.ChipGroup>
+
+            <!-- The size of the messages -->
+            <com.google.android.material.chip.ChipGroup
+                android:id="@+id/search_filter_size_choices"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:visibility="gone"
+                app:chipSpacingHorizontal="8dp"
+                app:selectionRequired="false"
+                app:singleSelection="true"
+                tools:visibility="visible"
+                >
+
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/search_filter_size_1"
+                    style="@style/Widget.Material3.Chip.Filter"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/search_filter_size_1"
+                    />
+
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/search_filter_size_5"
+                    style="@style/Widget.Material3.Chip.Filter"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/search_filter_size_5"
+                    />
+
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/search_filter_size_10"
+                    style="@style/Widget.Material3.Chip.Filter"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/search_filter_size_10"
+                    />
+
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/search_filter_size_25"
+                    style="@style/Widget.Material3.Chip.Filter"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/search_filter_size_25"
+                    />
+
+            </com.google.android.material.chip.ChipGroup>
+
+            <!-- The recipients of the messages -->
+            <LinearLayout
+                android:id="@+id/search_filter_to_panel"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone"
+                tools:visibility="visible"
+                >
+
+                <com.google.android.material.textfield.TextInputLayout
+                    android:id="@+id/search_filter_to_layout"
+                    style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="@string/search_filter_to"
+                    >
+
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/search_filter_to_edit"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:imeOptions="actionDone"
+                        android:inputType="text|textNoSuggestions"
+                        android:maxLines="1"
+                        />
+
+                </com.google.android.material.textfield.TextInputLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="end"
+                    android:orientation="horizontal"
+                    >
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/search_filter_to_remove"
+                        style="@style/Widget.Material3.Button.TextButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/search_filter_remove"
+                        />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/search_filter_to_done"
+                        style="@style/Widget.Material3.Button.TextButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/search_filter_done"
+                        />
+
+                </LinearLayout>
+
+            </LinearLayout>
+
+            <!-- The subject of the messages -->
+            <LinearLayout
+                android:id="@+id/search_filter_subject_panel"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone"
+                tools:visibility="visible"
+                >
+
+                <com.google.android.material.textfield.TextInputLayout
+                    android:id="@+id/search_filter_subject_layout"
+                    style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:hint="@string/search_filter_subject"
+                    >
+
+                    <com.google.android.material.textfield.TextInputEditText
+                        android:id="@+id/search_filter_subject_edit"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:imeOptions="actionDone"
+                        android:inputType="text|textNoSuggestions"
+                        android:maxLines="1"
+                        />
+
+                </com.google.android.material.textfield.TextInputLayout>
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="end"
+                    android:orientation="horizontal"
+                    >
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/search_filter_subject_remove"
+                        style="@style/Widget.Material3.Button.TextButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/search_filter_remove"
+                        />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/search_filter_subject_done"
+                        style="@style/Widget.Material3.Button.TextButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/search_filter_done"
+                        />
+
+                </LinearLayout>
+
+            </LinearLayout>
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/search_filter_remove_all"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/search_filter_remove_all"
+                />
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+</LinearLayout>

@@ -25,6 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.ComposeView
 import androidx.coordinatorlayout.widget.CoordinatorLayout
+import androidx.core.os.BundleCompat
 import androidx.core.os.bundleOf
 import androidx.core.view.MenuHost
 import androidx.core.view.MenuProvider
@@ -80,11 +81,17 @@ import com.fsck.k9.ui.messagelist.MessageListFragmentBridgeContract.MessageListF
 import com.fsck.k9.ui.messagelist.MessageListFragmentBridgeContract.MessageListFragmentListener.Companion.MAX_PROGRESS
 import com.fsck.k9.ui.messagelist.debug.AuthDebugActions
 import com.fsck.k9.ui.messagelist.item.MessageViewHolder
+import com.fsck.k9.ui.messagelist.search.SearchFilterBar
+import com.fsck.k9.ui.messagelist.search.SearchFilters
+import com.fsck.k9.ui.messagelist.search.matches
+import com.fsck.k9.ui.messagelist.search.toServerSearchCriteria
 import com.fsck.k9.ui.messageview.LastSelectedFolderStore
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.android.material.snackbar.BaseTransientBottomBar.BaseCallback
 import com.google.android.material.snackbar.Snackbar
 import com.google.android.material.textview.MaterialTextView
+import java.util.Calendar
+import java.util.TimeZone
 import java.util.concurrent.Future
 import kotlin.time.ExperimentalTime
 import kotlinx.collections.immutable.persistentSetOf
@@ -102,6 +109,7 @@ import net.thunderbird.core.android.network.ConnectivityManager
 import net.thunderbird.core.common.action.SwipeAction
 import net.thunderbird.core.common.exception.MessagingException
 import net.thunderbird.core.common.mail.Flag
+import net.thunderbird.core.common.mail.ServerSearchCriteria
 import net.thunderbird.core.featureflag.FeatureFlagProvider
 import net.thunderbird.core.featureflag.FeatureFlagResult
 import net.thunderbird.core.featureflag.keys.GeneratedFeatureFlagKey
@@ -276,6 +284,13 @@ class LegacyMessageListFragment :
     private var loadingMessagesFailureReason: String? = null
     private var searchStatus: ServerSearchStatus? = null
     private var searchScope: SearchScope? = null
+
+    /**
+     * The filters the user has set for the search.
+     */
+    private var searchFilters = SearchFilters()
+    private var searchFilterBar: SearchFilterBar? = null
+
     private var searchStep: SearchStep? = null
     private var searchStepStartTime = 0L
     private val searchStepRunnable = Runnable { showSearchStep() }
@@ -311,6 +326,11 @@ class LegacyMessageListFragment :
     private var isSingleFolderMode = false
     private var isRemoteSearch = false
     private var initialMessageListLoad = true
+
+    /**
+     * The messages that were loaded last. They are displayed again when the user changes the filters.
+     */
+    private var lastMessageListInfo: MessageListInfo? = null
 
     private val isUnifiedFoldersView: Boolean
         get() = localSearch.isUnified
@@ -428,6 +448,11 @@ class LegacyMessageListFragment :
         isRemoteSearch = savedInstanceState.getBoolean(STATE_REMOTE_SEARCH_PERFORMED)
         initialSearchViewQuery = savedInstanceState.getString(STATE_SEARCH_VIEW_QUERY)
         initialSearchViewIconified = savedInstanceState.getBoolean(STATE_SEARCH_VIEW_ICONIFIED, true)
+        searchFilters = BundleCompat.getSerializable(
+            savedInstanceState,
+            STATE_SEARCH_FILTERS,
+            SearchFilters::class.java,
+        ) ?: SearchFilters()
         val messageReferenceString = savedInstanceState.getString(STATE_ACTIVE_MESSAGE)
         activeMessage = MessageReference.parse(messageReferenceString)
     }
@@ -556,6 +581,7 @@ class LegacyMessageListFragment :
         initializeSwipeRefreshLayout(view)
         initializeBackToSearchResults(view)
         initializeSearchStatus()
+        initializeSearchFilterBar(view)
         initializeFloatingActionButton(view)
         initializeRecyclerView(view)
         initializeRecentChangesSnackbar()
@@ -564,6 +590,21 @@ class LegacyMessageListFragment :
         initializeSortSettings()
 
         loadMessageList()
+    }
+
+    /**
+     * The filters are only useful when the search can be run on the server.
+     */
+    private fun initializeSearchFilterBar(view: View) {
+        val filterBarView = view.findViewById<View>(R.id.search_filter_bar)
+        if (!isRemoteSearchSupported) {
+            filterBarView.isGone = true
+            return
+        }
+
+        filterBarView.isVisible = true
+        searchFilterBar = SearchFilterBar(filterBarView) { filters -> onSearchFiltersChanged(filters) }
+        searchFilterBar?.bind(searchFilters)
     }
 
     private fun initializeBackToSearchResults(view: View) {
@@ -628,7 +669,7 @@ class LegacyMessageListFragment :
                 title = getString(statusText, folderIndex, folderCount),
                 progress = ServerSearchStatus.Progress(folderIndex, folderCount, folderLabel),
                 detail = (searchStatus as? ServerSearchStatus.Running)?.detail,
-                isMessageContentsSearchOffered = !isSearchingMessageContents,
+                isMessageContentsSearchOffered = !isSearchingMessageContents && isMessageContentsSearchAllowed,
             ),
         )
     }
@@ -686,7 +727,8 @@ class LegacyMessageListFragment :
         // A search that has failed altogether needs its space to say why. It can be started again by pulling down.
         val isMessageContentsSearchOffered = isRemoteSearchRestartAllowed &&
             !hasSearchedMessageContents &&
-            !hasRemoteSearchFailed
+            !hasRemoteSearchFailed &&
+            isMessageContentsSearchAllowed
 
         val status = if (problem != null) {
             ServerSearchStatus.Ended(
@@ -725,6 +767,23 @@ class LegacyMessageListFragment :
         legacyViewModel.remoteSearchResults.clear()
         hasSearchedMessageContents = false
         onRemoteSearchRequested()
+    }
+
+    /**
+     * The user has changed the filters of the search. The messages that are already loaded are displayed again, now
+     * with the filters applied, and the search on the server is started with the new filters.
+     */
+    private fun onSearchFiltersChanged(filters: SearchFilters) {
+        searchFilters = filters
+        searchFilterBar?.bind(filters)
+
+        lastMessageListInfo?.let { setMessageList(it) }
+
+        // Results from other folders are no longer wanted, or the search has to find them first.
+        legacyViewModel.remoteSearchResults.clear()
+        hasSearchedMessageContents = false
+
+        onRemoteSearchRequested(searchMessageContents = filters.textScope != SearchFilters.TextScope.HEADERS)
     }
 
     override fun onSearchMessageContentsClicked() {
@@ -1157,6 +1216,7 @@ class LegacyMessageListFragment :
             STATE_ACTIVE_MESSAGES,
             activeMessages?.map(MessageReference::toIdentityString)?.toTypedArray(),
         )
+        outState.putSerializable(STATE_SEARCH_FILTERS, searchFilters)
         if (activeMessage != null) {
             outState.putString(STATE_ACTIVE_MESSAGE, activeMessage!!.toIdentityString())
         }
@@ -1304,10 +1364,7 @@ class LegacyMessageListFragment :
         remoteSearchFuture = messagingController.searchRemoteMessagesCascading(
             account?.id,
             currentFolder?.databaseId,
-            queryString,
-            null,
-            null,
-            searchMessageContents,
+            createSearchCriteria(queryString, searchMessageContents),
             isLimitedToFolder,
             remoteSearchSearchedFolders.toSet(),
             RemoteSearchListener().also { remoteSearchListener = it },
@@ -1316,10 +1373,26 @@ class LegacyMessageListFragment :
         showSearchStatus(
             ServerSearchStatus.Running(
                 title = getString(R.string.remote_search_sending_query),
-                isMessageContentsSearchOffered = !searchMessageContents,
+                isMessageContentsSearchOffered = !searchMessageContents && isMessageContentsSearchAllowed,
             ),
         )
         invalidateMenu()
+    }
+
+    /**
+     * The criteria the search on the server uses.
+     *
+     * @param searchMessageContents Whether the contents of the messages are searched, too.
+     */
+    private fun createSearchCriteria(queryString: String, searchMessageContents: Boolean): ServerSearchCriteria {
+        val criteria = searchFilters.toServerSearchCriteria(queryString, Calendar.getInstance())
+
+        // The message contents are only searched when the text of the search field is looked for in the headers.
+        return if (searchMessageContents && criteria.textScope == ServerSearchCriteria.TextScope.HEADERS) {
+            criteria.copy(textScope = ServerSearchCriteria.TextScope.EVERYWHERE)
+        } else {
+            criteria
+        }
     }
 
     /**
@@ -2516,6 +2589,13 @@ class LegacyMessageListFragment :
         get() = !isRemoteSearch && isRemoteSearchSupported
 
     /**
+     * The message contents can only be searched when the text of the search field is looked for in the headers.
+     * Otherwise the contents are searched already.
+     */
+    private val isMessageContentsSearchAllowed: Boolean
+        get() = searchFilters.textScope == SearchFilters.TextScope.HEADERS
+
+    /**
      * A remote search that has finished or was aborted can be started again, e.g. via pull-to-refresh.
      */
     private val isRemoteSearchRestartAllowed: Boolean
@@ -2527,6 +2607,8 @@ class LegacyMessageListFragment :
     }
 
     private fun setMessageList(messageListInfo: MessageListInfo) {
+        lastMessageListInfo = messageListInfo
+
         val messageListItems = messageListInfo.messageListItems
         if (isThreadDisplay && messageListItems.isEmpty()) {
             goBack()
@@ -2557,7 +2639,7 @@ class LegacyMessageListFragment :
                 add(MessageListViewItem.InAppNotificationBannerList)
             }
             searchStatus?.let { add(MessageListViewItem.SearchStatus(it, searchScope)) }
-            addAll(messageListItems.map { MessageListViewItem.Message(it) })
+            addAll(displayedMessageListItems(messageListItems).map { MessageListViewItem.Message(it) })
             // Keep the current footer (e.g. remote search progress) across list rebuilds.
             // updateFooterText() below recomputes it when no remote search is running.
             adapter.viewItems.filterIsInstance<MessageListViewItem.Footer>().firstOrNull()?.let { add(it) }
@@ -2597,6 +2679,17 @@ class LegacyMessageListFragment :
         } else {
             loadMoreMessagesIfScreenIsNotFilled()
         }
+    }
+
+    /**
+     * Only the messages that match the filters the user has set are displayed.
+     */
+    private fun displayedMessageListItems(messageListItems: List<MessageListItem>): List<MessageListItem> {
+        if (!isManualSearch || searchFilters.isEmpty) return messageListItems
+
+        val nowMillis = System.currentTimeMillis()
+        val timeZone = TimeZone.getDefault()
+        return messageListItems.filter { searchFilters.matches(it, nowMillis, timeZone) }
     }
 
     /**
@@ -3600,6 +3693,7 @@ class LegacyMessageListFragment :
         protected const val STATE_REMOTE_SEARCH_PERFORMED = "remoteSearchPerformed"
         protected const val STATE_SEARCH_VIEW_QUERY = "searchViewQuery"
         protected const val STATE_SEARCH_VIEW_ICONIFIED = "searchViewIconified"
+        protected const val STATE_SEARCH_FILTERS = "searchFilters"
     }
 }
 
