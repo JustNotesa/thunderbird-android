@@ -299,6 +299,11 @@ class LegacyMessageListFragment :
     private var rememberedSelected: Set<Long>? = null
     private var lastMessageClick = 0L
 
+    /**
+     * Messages whose text was already requested, so scrolling back and forth doesn't request them again.
+     */
+    private val requestedPreviewDownloads = mutableSetOf<MessageReference>()
+
     final override lateinit var localSearch: LocalMessageSearch
         private set
     var isSingleAccountMode = false
@@ -819,6 +824,12 @@ class LegacyMessageListFragment :
                 override fun onScrolled(recyclerView: RecyclerView, dx: Int, dy: Int) {
                     if (dy > 0) {
                         loadMoreMessagesIfEndIsNear()
+                    }
+                }
+
+                override fun onScrollStateChanged(recyclerView: RecyclerView, newState: Int) {
+                    if (newState == RecyclerView.SCROLL_STATE_IDLE) {
+                        downloadMissingPreviewsOfVisibleMessages()
                     }
                 }
             },
@@ -2557,6 +2568,11 @@ class LegacyMessageListFragment :
             adapter.restoreSelected(it)
         }
 
+        // The messages that are visible are only known after the list has been laid out.
+        recyclerView?.doOnPreDraw {
+            downloadMissingPreviewsOfVisibleMessages()
+        }
+
         messageListItems
             .map { it.account }
             .toSet()
@@ -2635,6 +2651,34 @@ class LegacyMessageListFragment :
             }
         }
         recyclerView.invalidate()
+    }
+
+    /**
+     * Downloads the text of the messages the list displays without a preview, because only their headers are on the
+     * device. The list updates itself once the text of a message has been saved.
+     */
+    private fun downloadMissingPreviewsOfVisibleMessages() {
+        val recyclerView = recyclerView ?: return
+        if (!connectivityManager.isNetworkAvailable()) return
+
+        val layoutManager = recyclerView.layoutManager as? LinearLayoutManager ?: return
+        val firstVisiblePosition = layoutManager.findFirstVisibleItemPosition()
+        val lastVisiblePosition = layoutManager.findLastVisibleItemPosition()
+        if (firstVisiblePosition == RecyclerView.NO_POSITION || lastVisiblePosition == RecyclerView.NO_POSITION) return
+
+        val viewItems = adapter.viewItems
+        val messages = (firstVisiblePosition..lastVisiblePosition)
+            .mapNotNull { position -> viewItems.getOrNull(position) as? MessageListViewItem.Message }
+            .map { it.item }
+            .filter { it.previewText.isEmpty() && !it.isMessageEncrypted }
+            .filter { it.messageReference !in requestedPreviewDownloads }
+
+        requestedPreviewDownloads += messages.map { it.messageReference }
+
+        messages.groupBy { it.account.id to it.folderId }.forEach { (accountAndFolder, items) ->
+            val (accountId, folderId) = accountAndFolder
+            messagingController.downloadMissingPreviews(accountId, folderId, items.map { it.messageUid })
+        }
     }
 
     private fun loadMoreMessages() {

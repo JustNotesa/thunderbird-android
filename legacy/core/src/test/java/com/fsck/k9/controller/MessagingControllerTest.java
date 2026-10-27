@@ -1043,6 +1043,39 @@ public class MessagingControllerTest extends K9RobolectricTest {
         verify(messageSentListener, never()).run();
     }
 
+    @Test
+    public void downloadMissingPreviewsSynchronous_withMessageThatOnlyHasHeaders_shouldDownloadMessage()
+            throws MessagingException {
+        LocalMessage localMessage = mock(LocalMessage.class);
+        when(localFolder.getMessage("messageUid")).thenReturn(localMessage);
+
+        controller.downloadMissingPreviewsSynchronous(accountId, FOLDER_ID, Collections.singletonList("messageUid"));
+
+        verify(backend).downloadMessage(any(SyncConfig.class), eq(FOLDER_NAME), eq("messageUid"));
+    }
+
+    @Test
+    public void downloadMissingPreviewsSynchronous_withPartiallyDownloadedMessage_shouldNotDownloadMessage()
+            throws MessagingException {
+        LocalMessage localMessage = mock(LocalMessage.class);
+        when(localMessage.isSet(Flag.X_DOWNLOADED_PARTIAL)).thenReturn(true);
+        when(localFolder.getMessage("messageUid")).thenReturn(localMessage);
+
+        controller.downloadMissingPreviewsSynchronous(accountId, FOLDER_ID, Collections.singletonList("messageUid"));
+
+        verify(backend, never()).downloadMessage(any(SyncConfig.class), eq(FOLDER_NAME), eq("messageUid"));
+    }
+
+    @Test
+    public void downloadMissingPreviewsSynchronous_withMessageNotOnTheDevice_shouldNotDownloadMessage()
+            throws MessagingException {
+        when(localFolder.getMessage("messageUid")).thenReturn(null);
+
+        controller.downloadMissingPreviewsSynchronous(accountId, FOLDER_ID, Collections.singletonList("messageUid"));
+
+        verify(backend, never()).downloadMessage(any(SyncConfig.class), eq(FOLDER_NAME), eq("messageUid"));
+    }
+
     private void setupAccountWithMessageToSend() throws MessagingException {
         account = FakeLegacyAccount.create(accountId, SENT_FOLDER_ID, 0);
         when(accountManager.findById(accountId)).thenReturn(account);

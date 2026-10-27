@@ -2297,6 +2297,65 @@ public class MessagingController implements MessagingControllerRegistry, Messagi
         );
     }
 
+    /**
+     * Downloads the text of messages the message list displays without a preview, because only their headers are on
+     * the device. Messages that were already downloaded, even partially, are skipped. Small messages are downloaded
+     * completely, large ones up to the account's download limit, like the synchronization does.
+     */
+    public void downloadMissingPreviews(AccountId accountId, long folderId, List<String> messageServerIds) {
+        putBackground("downloadMissingPreviews", null, () ->
+            downloadMissingPreviewsSynchronous(accountId, folderId, messageServerIds)
+        );
+    }
+
+    @VisibleForTesting
+    void downloadMissingPreviewsSynchronous(AccountId accountId, long folderId, List<String> messageServerIds) {
+        try {
+            Backend backend = getBackend(accountId);
+            LocalFolder localFolder = localStoreProvider.getInstance(accountId).getFolder(folderId);
+            if (!localFolder.exists()) {
+                return;
+            }
+
+            localFolder.open();
+
+            String folderServerId = localFolder.getServerId();
+            if (folderServerId == null) {
+                return;
+            }
+
+            SyncConfig syncConfig = createSyncConfig(accountId);
+
+            for (String messageServerId : messageServerIds) {
+                if (Thread.currentThread().isInterrupted()) {
+                    break;
+                }
+
+                downloadMissingPreview(backend, syncConfig, localFolder, folderServerId, folderId, messageServerId);
+            }
+        } catch (Exception e) {
+            Log.e(TAG, e, "Couldn't download missing previews. Account: %s, folder ID: %d", accountId, folderId);
+        }
+    }
+
+    private void downloadMissingPreview(Backend backend, SyncConfig syncConfig, LocalFolder localFolder,
+        String folderServerId, long folderId, String messageServerId) {
+        try {
+            LocalMessage message = localFolder.getMessage(messageServerId);
+            if (message == null) {
+                return;
+            }
+
+            if (message.isSet(Flag.X_DOWNLOADED_FULL) || message.isSet(Flag.X_DOWNLOADED_PARTIAL)) {
+                return;
+            }
+
+            backend.downloadMessage(syncConfig, folderServerId, messageServerId);
+        } catch (Exception e) {
+            Log.w(TAG, "Couldn't download message. Folder ID: %d", folderId);
+        }
+    }
+
     //TODO: Fix the callback mess. See GH-782
     public void loadMessageRemote(AccountId accountId, long folderId, String uid, MessagingListener listener) {
         put("loadMessageRemote", listener, () ->

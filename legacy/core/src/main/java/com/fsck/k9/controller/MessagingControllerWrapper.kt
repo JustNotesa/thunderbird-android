@@ -40,6 +40,14 @@ class MessagingControllerWrapper(
         messagingController.loadSearchResults(accountId, folderId, messageServerIds, listener)
     }
 
+    fun downloadMissingPreviews(
+        accountId: AccountId,
+        folderId: Long,
+        messageServerIds: List<String>,
+    ) {
+        messagingController.downloadMissingPreviews(accountId, folderId, messageServerIds)
+    }
+
     fun clearNewMessages(accountId: AccountId) {
         messagingController.clearNewMessages(accountId)
     }
