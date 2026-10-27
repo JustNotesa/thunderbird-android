@@ -297,7 +297,9 @@ private fun OfflineStatusDetails(
 
     Column(modifier = modifier) {
         status.lastRunStart?.let { lastRunStart ->
-            val duration = status.lastRunDurationMillis?.let { DateUtils.formatElapsedTime(it / DateUtils.SECOND_IN_MILLIS) }
+            val duration = status.lastRunDurationMillis?.let { durationMillis ->
+                DateUtils.formatElapsedTime(durationMillis / DateUtils.SECOND_IN_MILLIS)
+            }
             val lastRunText = if (duration != null) {
                 stringResource(R.string.offline_status_last_run, relativeTime(lastRunStart), duration)
             } else {
