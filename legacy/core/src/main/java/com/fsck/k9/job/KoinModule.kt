@@ -18,6 +18,7 @@ val jobModule = module {
             workManager = get(),
             accountManager = get(),
             mailSyncWorkerManager = get(),
+            offlineDownloadWorkerManager = get(),
             syncDebugFileLogManager = get(),
         )
     }
@@ -41,6 +42,25 @@ val jobModule = module {
     }
     factory {
         FileLogLimitWorkManager(workManager = get())
+    }
+    single { OfflineDownloadStatusStore(get()) }
+    factory {
+        OfflineDownloadWorkerManager(
+            workManager = get(),
+            generalSettingsManager = get(),
+            statusStore = get(),
+        )
+    }
+    factory { (parameters: WorkerParameters) ->
+        OfflineDownloadWorker(
+            messagingController = get(),
+            accountManager = get(),
+            messageStoreManager = get(),
+            generalSettingsManager = get(),
+            statusStore = get(),
+            context = get(),
+            parameters = parameters,
+        )
     }
     factory { (parameters: WorkerParameters) ->
         SyncDebugWorker(

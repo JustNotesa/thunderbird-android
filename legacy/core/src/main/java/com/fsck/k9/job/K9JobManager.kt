@@ -13,6 +13,7 @@ class K9JobManager(
     private val workManager: WorkManager,
     private val accountManager: LegacyAccountManager,
     private val mailSyncWorkerManager: MailSyncWorkerManager,
+    private val offlineDownloadWorkerManager: OfflineDownloadWorkerManager,
     private val syncDebugFileLogManager: FileLogLimitWorkManager,
 ) {
     fun scheduleDebugLogLimit(contentUriString: String): Flow<WorkInfo?> {
@@ -26,6 +27,7 @@ class K9JobManager(
     fun scheduleAllMailJobs() {
         Log.v(TAG, "scheduling all jobs")
         scheduleMailSync()
+        scheduleOfflineDownload()
     }
 
     fun scheduleMailSync(account: LegacyAccount) {
@@ -44,5 +46,9 @@ class K9JobManager(
     private fun cancelAllMailSyncJobs() {
         Log.v(TAG, "canceling mail sync job")
         workManager.cancelAllWorkByTag(MailSyncWorkerManager.MAIL_SYNC_TAG)
+    }
+
+    private fun scheduleOfflineDownload() {
+        offlineDownloadWorkerManager.schedule()
     }
 }
