@@ -11,10 +11,8 @@ import assertk.assertThat
 import assertk.assertions.contains
 import assertk.assertions.isEqualTo
 import net.thunderbird.components.core.logging.testing.TestLogger
-import net.thunderbird.core.common.appConfig.PlatformConfigProvider
-import net.thunderbird.core.preference.GeneralSettings
-import net.thunderbird.core.preference.GeneralSettingsManager
 import net.thunderbird.core.preference.network.NetworkSettings
+import net.thunderbird.core.preference.network.NetworkSettingsPreferenceManager
 import net.thunderbird.legacy.logging.Log
 import org.junit.Before
 import org.junit.Test
@@ -33,7 +31,7 @@ import org.robolectric.RuntimeEnvironment
 class OfflineDownloadWorkerManagerTest {
     private val context = RuntimeEnvironment.getApplication()
     private val workManager = mock<WorkManager>()
-    private val generalSettingsManager = mock<GeneralSettingsManager>()
+    private val networkSettingsManager = mock<NetworkSettingsPreferenceManager>()
     private val statusStore = OfflineDownloadStatusStore(context)
 
     @Before
@@ -88,7 +86,7 @@ class OfflineDownloadWorkerManagerTest {
         val periodicRequest = argumentCaptor<PeriodicWorkRequest>()
         verify(workManager).enqueueUniquePeriodicWork(
             eq(OfflineDownloadWorkerManager.PERIODIC_WORK_NAME),
-            eq(ExistingPeriodicWorkPolicy.UPDATE),
+            eq(ExistingPeriodicWorkPolicy.KEEP),
             periodicRequest.capture(),
         )
         assertThat(periodicRequest.firstValue.workSpec.constraints.requiredNetworkType)
@@ -119,18 +117,12 @@ class OfflineDownloadWorkerManagerTest {
     private fun createTestSubject(): OfflineDownloadWorkerManager {
         return OfflineDownloadWorkerManager(
             workManager = workManager,
-            generalSettingsManager = generalSettingsManager,
+            networkSettingsManager = networkSettingsManager,
             statusStore = statusStore,
         )
     }
 
     private fun givenOfflineDownload(enabled: Boolean) {
-        val settings = GeneralSettings(
-            platformConfigProvider = object : PlatformConfigProvider {
-                override val isDebug: Boolean = false
-            },
-            network = NetworkSettings(offlineDownload = enabled),
-        )
-        whenever(generalSettingsManager.getConfig()).thenReturn(settings)
+        whenever(networkSettingsManager.getConfig()).thenReturn(NetworkSettings(offlineDownload = enabled))
     }
 }

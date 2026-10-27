@@ -47,7 +47,7 @@ val jobModule = module {
     factory {
         OfflineDownloadWorkerManager(
             workManager = get(),
-            generalSettingsManager = get(),
+            networkSettingsManager = get(),
             statusStore = get(),
         )
     }
@@ -56,7 +56,7 @@ val jobModule = module {
             messagingController = get(),
             accountManager = get(),
             messageStoreManager = get(),
-            generalSettingsManager = get(),
+            networkSettingsManager = get(),
             statusStore = get(),
             context = get(),
             parameters = parameters,

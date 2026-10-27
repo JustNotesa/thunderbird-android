@@ -11,7 +11,7 @@ import androidx.work.PeriodicWorkRequest
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import java.util.concurrent.TimeUnit
-import net.thunderbird.core.preference.GeneralSettingsManager
+import net.thunderbird.core.preference.network.NetworkSettingsPreferenceManager
 import net.thunderbird.core.preference.network.NetworkSettings
 import net.thunderbird.legacy.logging.Log
 
@@ -22,16 +22,22 @@ private const val TAG = "OfflineDownloadWorkerManager"
  */
 class OfflineDownloadWorkerManager(
     private val workManager: WorkManager,
-    private val generalSettingsManager: GeneralSettingsManager,
+    private val networkSettingsManager: NetworkSettingsPreferenceManager,
     private val statusStore: OfflineDownloadStatusStore,
 ) {
     /**
      * Schedules the offline download job.
      *
-     * This has to be called after the offline download settings have been changed.
+     * This has to be called after the offline download settings have been changed. Pass the new settings then,
+     * because saving them takes a moment.
+     *
+     * @param isSettingsChange `true` when the settings were changed. Only then the jobs are replaced, so their
+     *   conditions follow the settings. Otherwise a download that is running keeps running, e.g. when the app starts.
      */
-    fun schedule() {
-        val settings = generalSettingsManager.getConfig().network
+    fun schedule(
+        settings: NetworkSettings = networkSettingsManager.getConfig(),
+        isSettingsChange: Boolean = false,
+    ) {
         if (!settings.offlineDownload) {
             cancelWork()
             return
@@ -40,12 +46,12 @@ class OfflineDownloadWorkerManager(
         val constraints = createConstraints(settings)
         workManager.enqueueUniquePeriodicWork(
             PERIODIC_WORK_NAME,
-            ExistingPeriodicWorkPolicy.UPDATE,
+            if (isSettingsChange) ExistingPeriodicWorkPolicy.UPDATE else ExistingPeriodicWorkPolicy.KEEP,
             createPeriodicWorkRequest(constraints),
         )
         workManager.enqueueUniqueWork(
             ONE_TIME_WORK_NAME,
-            ExistingWorkPolicy.KEEP,
+            if (isSettingsChange) ExistingWorkPolicy.REPLACE else ExistingWorkPolicy.KEEP,
             createOneTimeWorkRequest(constraints),
         )
 

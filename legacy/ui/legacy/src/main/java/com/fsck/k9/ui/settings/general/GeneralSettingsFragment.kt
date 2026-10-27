@@ -25,6 +25,7 @@ import com.fsck.k9.ui.R
 import com.fsck.k9.ui.base.extensions.withArguments
 import com.fsck.k9.ui.observe
 import com.fsck.k9.ui.settings.notificationactions.NotificationActionsSettingsActivity
+import com.fsck.k9.ui.settings.offline.OfflineSettingsActivity
 import com.fsck.k9.ui.settings.remove
 import com.google.android.material.snackbar.Snackbar
 import com.takisoft.preferencex.PreferenceFragmentCompat
@@ -96,6 +97,12 @@ class GeneralSettingsFragment : PreferenceFragmentCompat() {
         findPreference<Preference>("notification_actions_settings")?.onPreferenceClickListener =
             Preference.OnPreferenceClickListener {
                 context?.let { NotificationActionsSettingsActivity.start(it) }
+                true
+            }
+
+        findPreference<Preference>("offline_settings")?.onPreferenceClickListener =
+            Preference.OnPreferenceClickListener {
+                context?.let { OfflineSettingsActivity.start(it) }
                 true
             }
         initializeNovaSoundPreferences()

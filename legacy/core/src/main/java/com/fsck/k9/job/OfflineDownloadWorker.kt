@@ -10,7 +10,7 @@ import com.fsck.k9.controller.ContinueCondition
 import com.fsck.k9.controller.MessagingController
 import com.fsck.k9.mail.FolderType
 import net.thunderbird.core.android.account.LegacyAccountManager
-import net.thunderbird.core.preference.GeneralSettingsManager
+import net.thunderbird.core.preference.network.NetworkSettingsPreferenceManager
 import net.thunderbird.core.preference.network.NetworkSettings
 import net.thunderbird.feature.account.AccountId
 import net.thunderbird.legacy.logging.Log
@@ -30,7 +30,7 @@ class OfflineDownloadWorker(
     private val messagingController: MessagingController,
     private val accountManager: LegacyAccountManager,
     private val messageStoreManager: MessageStoreManager,
-    private val generalSettingsManager: GeneralSettingsManager,
+    private val networkSettingsManager: NetworkSettingsPreferenceManager,
     private val statusStore: OfflineDownloadStatusStore,
     context: Context,
     parameters: WorkerParameters,
@@ -38,7 +38,7 @@ class OfflineDownloadWorker(
 
     @Suppress("TooGenericExceptionCaught")
     override fun doWork(): Result {
-        val settings = generalSettingsManager.getConfig().network
+        val settings = networkSettingsManager.getConfig()
         if (!settings.offlineDownload) {
             statusStore.update { it.copy(state = OfflineDownloadState.OFF) }
         }

@@ -170,6 +170,41 @@
     <string name="notification_actions_cutoff_state">Actions above this line are shown in the notification</string>
     <string name="notification_actions_shown_state">Shown in the notification</string>
     <string name="notification_actions_hidden_state">Not shown in the notification</string>
+
+    <string name="offline_settings_title">Available offline</string>
+    <string name="offline_settings_summary">Download all messages in the background so they can be read without a connection</string>
+    <string name="offline_settings_description">Downloads all messages of all accounts, including attachments, so they can be read and searched without a connection. Only on Wi-Fi and when the phone isn\'t busy.</string>
+    <string name="offline_settings_download_all">Download all messages on Wi-Fi</string>
+    <string name="offline_settings_only_while_charging">Only while charging</string>
+    <string name="offline_settings_storage_limit_title">Storage the messages may use</string>
+    <string name="offline_settings_storage_limit_none">No limit</string>
+    <string name="offline_settings_storage_limit_1gb">1 GB</string>
+    <string name="offline_settings_storage_limit_2gb">2 GB</string>
+    <string name="offline_settings_storage_limit_5gb">5 GB</string>
+    <string name="offline_settings_storage_limit_10gb">10 GB</string>
+    <string name="offline_settings_keep_free_title">Keep free on the phone</string>
+    <string name="offline_settings_keep_free_500mb">500 MB</string>
+    <string name="offline_settings_keep_free_1gb">1 GB</string>
+    <string name="offline_settings_keep_free_2gb">2 GB</string>
+    <string name="offline_settings_keep_free_5gb">5 GB</string>
+    <string name="offline_settings_note">While this is on, the account settings \'Fetch messages up to\' and \'Sync messages from\' only apply to synchronization on mobile data.</string>
+    <string name="offline_settings_status_title">Status</string>
+    <string name="offline_status_off">Off</string>
+    <string name="offline_status_waiting">Waiting for Wi-Fi</string>
+    <string name="offline_status_downloading">Downloading</string>
+    <string name="offline_status_paused_storage_limit">Paused – storage limit reached</string>
+    <string name="offline_status_paused_low_storage">Paused – phone storage almost full</string>
+    <string name="offline_status_up_to_date">Up to date</string>
+    <string name="offline_status_problem">Problem</string>
+    <plurals name="offline_status_folder_progress">
+        <item quantity="one"><xliff:g id="complete_count">%1$d</xliff:g> of <xliff:g id="total_count">%2$d</xliff:g> folder</item>
+        <item quantity="other"><xliff:g id="complete_count">%1$d</xliff:g> of <xliff:g id="total_count">%2$d</xliff:g> folders</item>
+    </plurals>
+    <string name="offline_status_last_run">Last run: <xliff:g id="time">%1$s</xliff:g>, took <xliff:g id="duration">%2$s</xliff:g></string>
+    <string name="offline_status_last_run_without_duration">Last run: <xliff:g id="time">%1$s</xliff:g></string>
+    <string name="offline_status_complete_time">Local copy complete as of <xliff:g id="time">%1$s</xliff:g></string>
+    <string name="offline_status_not_complete">Not complete yet</string>
+    <string name="offline_status_used_storage">Messages use <xliff:g id="size">%1$s</xliff:g> on this phone</string>
     <string name="accessibility_move_up">Move up</string>
     <string name="accessibility_move_down">Move down</string>
     <string name="accessibility_move_item_up">Move <xliff:g id="item">%1$s</xliff:g> up</string>

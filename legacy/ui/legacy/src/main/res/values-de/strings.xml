@@ -1043,6 +1043,41 @@
     <string name="notification_actions_cutoff_state">Aktionen oberhalb dieser Zeile werden in der Benachrichtigung angezeigt</string>
     <string name="notification_actions_shown_state">In der Benachrichtigung angezeigt</string>
     <string name="notification_actions_hidden_state">In der Benachrichtigung nicht angezeigt</string>
+
+    <string name="offline_settings_title">Offline verfügbar</string>
+    <string name="offline_settings_summary">Alle Nachrichten im Hintergrund herunterladen, damit sie ohne Verbindung gelesen werden können</string>
+    <string name="offline_settings_description">Lädt alle Nachrichten aller Konten einschließlich Anhängen herunter, damit sie ohne Verbindung gelesen und durchsucht werden können. Nur im WLAN und wenn das Telefon nicht ausgelastet ist.</string>
+    <string name="offline_settings_download_all">Alle Nachrichten im WLAN herunterladen</string>
+    <string name="offline_settings_only_while_charging">Nur während des Ladens</string>
+    <string name="offline_settings_storage_limit_title">Speicherplatz, den die Nachrichten verwenden dürfen</string>
+    <string name="offline_settings_storage_limit_none">Kein Limit</string>
+    <string name="offline_settings_storage_limit_1gb">1 GB</string>
+    <string name="offline_settings_storage_limit_2gb">2 GB</string>
+    <string name="offline_settings_storage_limit_5gb">5 GB</string>
+    <string name="offline_settings_storage_limit_10gb">10 GB</string>
+    <string name="offline_settings_keep_free_title">Auf dem Telefon freihalten</string>
+    <string name="offline_settings_keep_free_500mb">500 MB</string>
+    <string name="offline_settings_keep_free_1gb">1 GB</string>
+    <string name="offline_settings_keep_free_2gb">2 GB</string>
+    <string name="offline_settings_keep_free_5gb">5 GB</string>
+    <string name="offline_settings_note">Solange dies aktiviert ist, gelten die Kontoeinstellungen „Nachrichten abrufen bis zu“ und „Nachrichten synchronisieren von“ nur für die Synchronisierung über mobile Daten.</string>
+    <string name="offline_settings_status_title">Status</string>
+    <string name="offline_status_off">Aus</string>
+    <string name="offline_status_waiting">Warten auf WLAN</string>
+    <string name="offline_status_downloading">Wird heruntergeladen</string>
+    <string name="offline_status_paused_storage_limit">Pausiert – Speicherlimit erreicht</string>
+    <string name="offline_status_paused_low_storage">Pausiert – Telefonspeicher fast voll</string>
+    <string name="offline_status_up_to_date">Aktuell</string>
+    <string name="offline_status_problem">Problem</string>
+    <plurals name="offline_status_folder_progress">
+        <item quantity="one"><xliff:g id="complete_count">%1$d</xliff:g> von <xliff:g id="total_count">%2$d</xliff:g> Ordner</item>
+        <item quantity="other"><xliff:g id="complete_count">%1$d</xliff:g> von <xliff:g id="total_count">%2$d</xliff:g> Ordnern</item>
+    </plurals>
+    <string name="offline_status_last_run">Letzter Lauf: <xliff:g id="time">%1$s</xliff:g>, dauerte <xliff:g id="duration">%2$s</xliff:g></string>
+    <string name="offline_status_last_run_without_duration">Letzter Lauf: <xliff:g id="time">%1$s</xliff:g></string>
+    <string name="offline_status_complete_time">Lokale Kopie vollständig seit <xliff:g id="time">%1$s</xliff:g></string>
+    <string name="offline_status_not_complete">Noch nicht vollständig</string>
+    <string name="offline_status_used_storage">Nachrichten belegen <xliff:g id="size">%1$s</xliff:g> auf diesem Telefon</string>
     <string name="accessibility_move_up">Nach oben verschieben</string>
     <string name="accessibility_move_down">Nach unten verschieben</string>
     <string name="accessibility_move_item_up"><xliff:g id="item">%1$s</xliff:g> nach oben verschieben</string>
