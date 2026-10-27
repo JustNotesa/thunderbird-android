@@ -8,6 +8,7 @@ import com.fsck.k9.mail.MessageRetrievalListener
 import com.fsck.k9.mail.Part
 import java.util.Date
 import net.thunderbird.core.common.mail.Flag
+import net.thunderbird.core.common.mail.ServerSearchCriteria
 
 internal open class TestImapFolder(
     override val serverId: String,
@@ -102,6 +103,10 @@ internal open class TestImapFolder(
         forbiddenFlags: Set<Flag>?,
         performFullTextSearch: Boolean,
     ): List<ImapMessage> {
+        throw UnsupportedOperationException("not implemented")
+    }
+
+    override fun search(criteria: ServerSearchCriteria): List<ImapMessage> {
         throw UnsupportedOperationException("not implemented")
     }
 

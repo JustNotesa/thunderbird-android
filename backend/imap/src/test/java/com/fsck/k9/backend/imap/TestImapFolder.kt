@@ -13,6 +13,7 @@ import com.fsck.k9.mail.store.imap.OpenMode
 import com.fsck.k9.mail.store.imap.createImapMessage
 import java.util.Date
 import net.thunderbird.core.common.mail.Flag
+import net.thunderbird.core.common.mail.ServerSearchCriteria
 
 open class TestImapFolder(override val serverId: String) : ImapFolder {
     override var mode: OpenMode? = null
@@ -145,6 +146,10 @@ open class TestImapFolder(override val serverId: String) : ImapFolder {
         forbiddenFlags: Set<Flag>?,
         performFullTextSearch: Boolean,
     ): List<ImapMessage> {
+        throw UnsupportedOperationException("not implemented")
+    }
+
+    override fun search(criteria: ServerSearchCriteria): List<ImapMessage> {
         throw UnsupportedOperationException("not implemented")
     }
 

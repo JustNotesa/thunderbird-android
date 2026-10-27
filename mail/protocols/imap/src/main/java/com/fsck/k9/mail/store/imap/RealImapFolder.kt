@@ -25,6 +25,7 @@ import kotlin.math.max
 import kotlin.math.min
 import net.thunderbird.core.common.exception.MessagingException
 import net.thunderbird.core.common.mail.Flag
+import net.thunderbird.core.common.mail.ServerSearchCriteria
 import net.thunderbird.legacy.logging.Log
 import net.thunderbird.protocols.imap.folder.attributeName
 
@@ -1352,16 +1353,40 @@ internal class RealImapFolder(
                 .forbiddenFlags(forbiddenFlags)
                 .build()
 
-            try {
-                val imapResponses = executeSimpleCommand(searchCommand)
-                val searchResponse = SearchResponse.parse(imapResponses)
-
-                return getMessages(searchResponse, null)
-            } catch (ioe: IOException) {
-                throw ioExceptionHandler(connection, ioe)
-            }
+            return executeSearchCommand(searchCommand)
         } finally {
             inSearch = false
+        }
+    }
+
+    /**
+     * Search the remote ImapFolder for the messages the given criteria describe.
+     */
+    @Throws(MessagingException::class)
+    override fun search(criteria: ServerSearchCriteria): List<ImapMessage> {
+        try {
+            checkOpen()
+
+            inSearch = true
+
+            val searchCommand = UidSearchCommandBuilder()
+                .criteria(criteria)
+                .build()
+
+            return executeSearchCommand(searchCommand)
+        } finally {
+            inSearch = false
+        }
+    }
+
+    private fun executeSearchCommand(searchCommand: String): List<ImapMessage> {
+        try {
+            val imapResponses = executeSimpleCommand(searchCommand)
+            val searchResponse = SearchResponse.parse(imapResponses)
+
+            return getMessages(searchResponse, null)
+        } catch (ioe: IOException) {
+            throw ioExceptionHandler(connection, ioe)
         }
     }
 

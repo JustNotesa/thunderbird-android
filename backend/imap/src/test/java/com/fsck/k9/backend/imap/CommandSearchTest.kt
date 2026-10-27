@@ -6,6 +6,7 @@ import com.fsck.k9.backend.api.SearchStep
 import com.fsck.k9.mail.store.imap.ImapMessage
 import com.fsck.k9.mail.store.imap.OpenMode
 import net.thunderbird.core.common.mail.Flag
+import net.thunderbird.core.common.mail.ServerSearchCriteria
 import org.junit.Test
 
 class CommandSearchTest {
@@ -47,6 +48,16 @@ class CommandSearchTest {
 
         assertThat(events).containsExactly("open", "search", "close")
     }
+
+    @Test
+    fun `search with criteria should return the uids in reverse order`() {
+        val uids = testSubject.search(
+            folderServerId = "folder",
+            criteria = ServerSearchCriteria(text = "query"),
+        )
+
+        assertThat(uids).containsExactly("3", "2", "1")
+    }
 }
 
 private class RecordingImapFolder(serverId: String, private val events: MutableList<String>) :
@@ -64,6 +75,11 @@ private class RecordingImapFolder(serverId: String, private val events: MutableL
     ): List<ImapMessage> {
         events.add("search")
         return emptyList()
+    }
+
+    override fun search(criteria: ServerSearchCriteria): List<ImapMessage> {
+        events.add("search")
+        return listOf(ImapMessage("1"), ImapMessage("2"), ImapMessage("3"))
     }
 
     override fun close() {

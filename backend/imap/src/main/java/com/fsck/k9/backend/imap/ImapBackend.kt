@@ -21,6 +21,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import net.thunderbird.core.common.exception.MessagingException
 import net.thunderbird.core.common.mail.Flag
+import net.thunderbird.core.common.mail.ServerSearchCriteria
 import net.thunderbird.feature.mail.folder.api.FolderPathDelimiter
 
 internal const val SERVER_CAPABILITIES_EXTRA = "imapServerCapabilities"
@@ -186,6 +187,23 @@ class ImapBackend(
             requiredFlags = requiredFlags,
             forbiddenFlags = forbiddenFlags,
             performFullTextSearch = performFullTextSearch,
+            listener = listener,
+        )
+    }
+
+    override fun search(
+        folderServerId: String,
+        criteria: ServerSearchCriteria,
+        listener: SearchListener,
+    ): List<String> {
+        // Asking the server costs a round trip per folder, so the search only does it when nothing is known yet.
+        if (backendStorage.getExtraString(SERVER_CAPABILITIES_EXTRA) == null) {
+            rememberServerCapabilities()
+        }
+
+        return commandSearch.search(
+            folderServerId = folderServerId,
+            criteria = criteria,
             listener = listener,
         )
     }

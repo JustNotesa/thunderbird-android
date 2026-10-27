@@ -10,6 +10,7 @@ import java.io.IOException
 import java.util.Date
 import net.thunderbird.core.common.exception.MessagingException
 import net.thunderbird.core.common.mail.Flag
+import net.thunderbird.core.common.mail.ServerSearchCriteria
 
 interface ImapFolder {
     val serverId: String
@@ -72,6 +73,9 @@ interface ImapFolder {
         forbiddenFlags: Set<Flag>?,
         performFullTextSearch: Boolean,
     ): List<ImapMessage>
+
+    @Throws(MessagingException::class)
+    fun search(criteria: ServerSearchCriteria): List<ImapMessage>
 
     @Throws(MessagingException::class)
     fun appendMessages(messages: List<Message>): Map<String, String>?
