@@ -257,6 +257,12 @@ class LegacyMessageListFragment :
     private var remoteSearchListener: RemoteSearchListener? = null
     private var remoteSearchFolderIndex = 0
     private val remoteSearchSearchedFolders = mutableSetOf<String>()
+
+    /**
+     * The accounts the server search is working on at the moment, with the folder each of them is searching.
+     * Several accounts are searched at the same time.
+     */
+    private val runningSearchAccounts = LinkedHashMap<String, String>()
     private var stoppedRemoteSearch: StoppedRemoteSearch? = null
     private var isLoadingMoreMessagesRequested = false
     private var isWaitingForLoadedMessages = false
@@ -1258,6 +1264,7 @@ class LegacyMessageListFragment :
         isRemoteSearchStopped = false
         remoteSearchProblem = null
         remoteSearchProblemReason = null
+        runningSearchAccounts.clear()
         remoteSearchSearchedFolders.clear()
         remoteSearchSearchedFolders.addAll(searchedFolders)
         remoteSearchFolderIndex = searchedFolders.size
@@ -2734,6 +2741,7 @@ class LegacyMessageListFragment :
 
     override fun remoteSearchFinished() {
         remoteSearchFuture = null
+        runningSearchAccounts.clear()
     }
 
     override fun setActiveMessage(messageReference: MessageReference?) {
@@ -3027,6 +3035,10 @@ class LegacyMessageListFragment :
             listener?.remoteSearchFolderSearched(accountUuid, folderId)
         }
 
+        override fun remoteSearchAccountFinished(accountUuid: String) {
+            listener?.remoteSearchAccountFinished(accountUuid)
+        }
+
         override fun remoteSearchResultsLimited(notLoadedCount: Int) {
             listener?.remoteSearchResultsLimited(notLoadedCount)
         }
@@ -3108,7 +3120,9 @@ class LegacyMessageListFragment :
 
                 val isCurrentAccount = accountUuid == account?.id?.toString()
                 val folderLabel = if (isCurrentAccount) folderName else "$accountName / $folderName"
-                showSearchProgress(folderIndex, folderCount, folderLabel)
+                runningSearchAccounts[accountUuid] = folderLabel
+                val folderLabels = runningSearchAccounts.values.joinToString(separator = " · ")
+                showSearchProgress(folderIndex, folderCount, folderLabels)
             }
         }
 
@@ -3147,6 +3161,12 @@ class LegacyMessageListFragment :
             handler.post {
                 // Remember the folder, so a search that is stopped doesn't search it again.
                 remoteSearchSearchedFolders.add(MessagingController.searchedFolderKey(accountUuid, folderId))
+            }
+        }
+
+        override fun remoteSearchAccountFinished(accountUuid: String) {
+            handler.post {
+                runningSearchAccounts.remove(accountUuid)
             }
         }
 
