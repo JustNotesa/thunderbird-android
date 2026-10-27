@@ -4,6 +4,7 @@ import androidx.lifecycle.viewModelScope
 import app.k9mail.feature.migration.qrcode.domain.QrCodeDomainContract.UseCase
 import app.k9mail.feature.migration.qrcode.domain.entity.AccountData.Account
 import app.k9mail.feature.migration.qrcode.transfer.TransferPayload
+import app.k9mail.feature.migration.qrcode.transfer.withOAuthStates
 import app.k9mail.feature.migration.qrcode.ui.paste.TransferPasteContract.Effect
 import app.k9mail.feature.migration.qrcode.ui.paste.TransferPasteContract.Event
 import app.k9mail.feature.migration.qrcode.ui.paste.TransferPasteContract.PasteError
@@ -86,7 +87,7 @@ internal class TransferPasteViewModel(
             return
         }
 
-        writeAccounts(accountData.accounts)
+        writeAccounts(accountData.withOAuthStates(content.oAuthStates).accounts)
     }
 
     private fun writeAccounts(accounts: List<Account>) {

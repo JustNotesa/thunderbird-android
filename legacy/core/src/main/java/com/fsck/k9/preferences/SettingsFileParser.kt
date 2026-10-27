@@ -183,6 +183,7 @@ private class XmlSettingsParser(
         var settings: SettingsMap? = null
         var identities: List<Identity>? = null
         var folders: List<Folder>? = null
+        var oAuthState: String? = null
 
         readElement { eventType ->
             if (eventType == XmlPullParser.START_TAG) {
@@ -205,6 +206,9 @@ private class XmlSettingsParser(
                     SettingsExporter.FOLDERS_ELEMENT -> {
                         folders = readFolders()
                     }
+                    SettingsExporter.OAUTH_STATE_ELEMENT -> {
+                        oAuthState = readText()
+                    }
                     else -> {
                         skipElement()
                     }
@@ -217,7 +221,7 @@ private class XmlSettingsParser(
             name = uuid
         }
 
-        return Account(uuid, name, incoming, outgoing, settings, identities, folders)
+        return Account(uuid, name, incoming, outgoing, settings, identities, folders, oAuthState)
     }
 
     private fun readUuid(): String? {

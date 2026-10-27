@@ -96,6 +96,11 @@ constructor(
         writeIdentities(editor, accountId, account.identities)
         writeFolders(editor, accountId, account.folders)
 
+        // The OAuth sign-in state contains a refresh token. Never log it.
+        account.oAuthState?.let { oAuthState ->
+            editor.putString("$accountId.oAuthState", oAuthState)
+        }
+
         updateAccountUuids(editor, accountId.toString())
 
         if (!editor.commit()) {

@@ -166,6 +166,9 @@ class SettingsImporter internal constructor(
 
         val accountMapping = accountSettingsWriter.write(currentAccount)
 
+        // When the import carried the OAuth sign-in state, the account is already authorized on this device.
+        val oAuthStateMissing = currentAccount.oAuthState == null
+
         val incoming = currentAccount.incoming
         val incomingServerName = incoming.settings[HOST] as? String
         val incomingAuthenticationType = incoming.settings[AUTHENTICATION_TYPE] as String
@@ -175,7 +178,7 @@ class SettingsImporter internal constructor(
                 incomingAuthenticationType != "XOAUTH2" &&
                 incomingPassword.isNullOrEmpty()
 
-        var authorizationNeeded = incomingAuthenticationType == "XOAUTH2"
+        var authorizationNeeded = incomingAuthenticationType == "XOAUTH2" && oAuthStateMissing
 
         val outgoing = currentAccount.outgoing
         val outgoingServerName = outgoing.settings[HOST] as? String
@@ -188,7 +191,7 @@ class SettingsImporter internal constructor(
                 outgoingUsername.isNotEmpty() &&
                 outgoingPassword.isNullOrEmpty()
 
-        authorizationNeeded = authorizationNeeded || outgoingAuthenticationType == "XOAUTH2"
+        authorizationNeeded = authorizationNeeded || (outgoingAuthenticationType == "XOAUTH2" && oAuthStateMissing)
 
         return AccountDescriptionPair(
             accountMapping.first,

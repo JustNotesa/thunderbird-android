@@ -9,6 +9,7 @@ import app.k9mail.feature.migration.qrcode.transfer.TransferQrCode
 import app.k9mail.feature.migration.qrcode.transfer.TransferReceiveResult
 import app.k9mail.feature.migration.qrcode.transfer.TransferReceiver
 import app.k9mail.feature.migration.qrcode.transfer.TransferRoute
+import app.k9mail.feature.migration.qrcode.transfer.withOAuthStates
 import app.k9mail.feature.migration.qrcode.ui.QrCodeScannerContract.DisplayText
 import app.k9mail.feature.migration.qrcode.ui.QrCodeScannerContract.Effect
 import app.k9mail.feature.migration.qrcode.ui.QrCodeScannerContract.Event
@@ -178,7 +179,11 @@ internal class QrCodeScannerViewModel(
             isReceivingTransfer = false
 
             if (result is TransferReceiveResult.Success) {
-                handleReceivedAccounts(accountsJson = result.accountsJson, payloadHash = payloadHash)
+                handleReceivedAccounts(
+                    accountsJson = result.accountsJson,
+                    oAuthStates = result.oAuthStates,
+                    payloadHash = payloadHash,
+                )
             } else {
                 showTransferFailure(result = result, payloadHash = payloadHash)
             }
@@ -195,11 +200,15 @@ internal class QrCodeScannerViewModel(
         }
     }
 
-    private fun handleReceivedAccounts(accountsJson: String, payloadHash: ByteString) {
+    private fun handleReceivedAccounts(
+        accountsJson: String,
+        oAuthStates: List<String?>,
+        payloadHash: ByteString,
+    ) {
         val accountData = qrCodePayloadReader.read(accountsJson)
         if (accountData != null) {
             supportedPayloadHashes.add(payloadHash)
-            handleSupportedPayload(accountData)
+            handleSupportedPayload(accountData.withOAuthStates(oAuthStates))
         } else {
             // The transfer held data this version of the app doesn't understand.
             updateState {

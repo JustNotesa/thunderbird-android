@@ -24,7 +24,8 @@ internal class TransferReceiver(
     /**
      * Receives the transfer described by [qrCode].
      *
-     * @return [TransferReceiveResult.Success] with the accounts JSON of the transfer.
+     * @return [TransferReceiveResult.Success] with the accounts JSON of the transfer and the sign-in states of its
+     * OAuth accounts.
      */
     suspend fun receive(qrCode: TransferQrCode): TransferReceiveResult {
         var plaintext: ByteArray? = null
@@ -124,7 +125,7 @@ internal class TransferReceiver(
         return if (content == null) {
             TransferReceiveResult.UnsupportedFormat
         } else {
-            TransferReceiveResult.Success(content.accountsJson)
+            TransferReceiveResult.Success(accountsJson = content.accountsJson, oAuthStates = content.oAuthStates)
         }
     }
 }
@@ -155,7 +156,10 @@ private sealed interface ContainerFetch {
 }
 
 internal sealed interface TransferReceiveResult {
-    data class Success(val accountsJson: String) : TransferReceiveResult
+    data class Success(
+        val accountsJson: String,
+        val oAuthStates: List<String?> = emptyList(),
+    ) : TransferReceiveResult
 
     data object Unreachable : TransferReceiveResult
 

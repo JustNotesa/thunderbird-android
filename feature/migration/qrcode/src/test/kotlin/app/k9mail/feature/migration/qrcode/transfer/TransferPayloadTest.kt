@@ -5,6 +5,7 @@ import app.k9mail.feature.migration.qrcode.payload.QrCodePayloadAdapter
 import app.k9mail.feature.migration.qrcode.payload.QrCodePayloadParser
 import assertk.assertFailure
 import assertk.assertThat
+import assertk.assertions.isEmpty
 import assertk.assertions.isEqualTo
 import assertk.assertions.isInstanceOf
 import assertk.assertions.isNotNull
@@ -64,6 +65,46 @@ class TransferPayloadTest {
     }
 
     @Test
+    fun `sign-in states of a written payload are read unchanged`() {
+        val written = testSubject.write(
+            accountsJson = ACCOUNTS_PAYLOAD,
+            createdAt = CREATED_AT,
+            oAuthStates = listOf(OAUTH_STATE, null),
+        )
+
+        val content = testSubject.read(written)
+
+        assertThat(checkNotNull(content).oAuthStates).isEqualTo(listOf(OAUTH_STATE, null))
+    }
+
+    @Test
+    fun `payload without sign-in states is read without them`() {
+        val written = testSubject.write(accountsJson = ACCOUNTS_PAYLOAD, createdAt = CREATED_AT)
+
+        val content = testSubject.read(written)
+
+        assertThat(checkNotNull(content).oAuthStates).isEmpty()
+    }
+
+    @Test
+    fun `payload with sign-in states that aren't a list is read without them`() {
+        val json = payloadJson(extraFields = """"extensions":{"oauthStates":"auth-state"},""")
+
+        val content = testSubject.read(json)
+
+        assertThat(checkNotNull(content).oAuthStates).isEmpty()
+    }
+
+    @Test
+    fun `payload with a sign-in state that isn't a string is read without them`() {
+        val json = payloadJson(extraFields = """"extensions":{"oauthStates":["auth-state",42]},""")
+
+        val content = testSubject.read(json)
+
+        assertThat(checkNotNull(content).oAuthStates).isEmpty()
+    }
+
+    @Test
     fun `payload with unsupported type is not read`() {
         val json = payloadJson(type = "thunderbird-account-transfer-v2")
 
@@ -119,6 +160,7 @@ class TransferPayloadTest {
 
     private companion object {
         private const val CREATED_AT = 1792300000L
+        private const val OAUTH_STATE = """{"tokenType":"Bearer","accessToken":"access-token"}"""
         private const val ACCOUNTS_PAYLOAD = """[1,[1,1],""" +
             """[0,"imap.domain.example",993,3,2,"username","","imap-password"],""" +
             """[[[0,"smtp.domain.example",587,2,1,"username","smtp-password"],""" +

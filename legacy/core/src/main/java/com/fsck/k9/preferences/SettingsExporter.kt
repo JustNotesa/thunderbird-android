@@ -549,6 +549,7 @@ class SettingsExporter(
         const val NAME_ELEMENT = "name"
         const val EMAIL_ELEMENT = "email"
         const val DESCRIPTION_ELEMENT = "description"
+        const val OAUTH_STATE_ELEMENT = "oauth-state"
 
         private val FOLDER_NAME_KEYS = setOf(
             "autoExpandFolderName",

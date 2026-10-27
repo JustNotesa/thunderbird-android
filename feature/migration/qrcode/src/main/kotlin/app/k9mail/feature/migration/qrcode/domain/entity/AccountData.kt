@@ -15,6 +15,10 @@ internal data class AccountData(
         val deletePolicy: DeletePolicy,
         val incomingServer: IncomingServer,
         val outgoingServerGroups: List<OutgoingServerGroup>,
+        /**
+         * OAuth sign-in state of the account. It holds a refresh token, so it must never be logged.
+         */
+        val oAuthState: String? = null,
     )
 
     data class IncomingServer(
