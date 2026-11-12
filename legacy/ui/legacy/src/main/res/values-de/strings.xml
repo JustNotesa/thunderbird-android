@@ -716,6 +716,9 @@
     <string name="account_settings_remote_search_num_results_entries_1000">1000</string>
     <string name="account_settings_remote_search_num_label">Server-Suchlimit</string>
     <string name="remote_search_sending_query">Sende Anfrage an den Server</string>
+    <string name="remote_search_attachments_status_progress">Anhänge: Ordner %1$d von %2$d</string>
+    <string name="remote_search_attachments_action">In Anhängen suchen</string>
+    <string name="remote_search_attachments_finished">Suche in Anhängen beendet</string>
     <plurals name="remote_search_downloading">
         <item quantity="one">%d Resultat wird abgerufen</item>
         <item quantity="other">%d Resultate werden abgerufen</item>

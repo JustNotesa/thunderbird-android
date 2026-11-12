@@ -154,6 +154,10 @@ class MessageListAdapter internal constructor(
         listItemListener.onSearchMessageContentsClicked()
     }
 
+    private val searchAttachmentsClickListener = OnClickListener {
+        listItemListener.onSearchAttachmentsClicked()
+    }
+
     private val starClickListener = OnClickListener { view: View ->
         val parentView = view.parent as View
         val messageListItem = getItemFromView(parentView) ?: return@OnClickListener
@@ -246,6 +250,7 @@ class MessageListAdapter internal constructor(
                     layoutInflater = layoutInflater,
                     parent = parent,
                     onSearchMessageContentsClickListener = searchMessageContentsClickListener,
+                    onSearchAttachmentsClickListener = searchAttachmentsClickListener,
                     onScopeSelected = listItemListener::onSearchScopeSelected,
                 )
 
@@ -476,6 +481,7 @@ interface MessageListItemActionListener {
     fun onToggleMessageFlag(item: MessageListItem)
     fun onMessageFolderClicked(messageListItem: MessageListItem) = Unit
     fun onSearchMessageContentsClicked() = Unit
+    fun onSearchAttachmentsClicked() = Unit
     fun onSearchScopeSelected(scope: SearchScope) = Unit
     fun onFooterClicked()
     fun filterInAppNotificationEvents(notification: InAppNotification): Boolean

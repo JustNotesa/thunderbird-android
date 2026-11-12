@@ -809,6 +809,216 @@ public class MessagingController implements MessagingControllerRegistry, Messagi
     }
 
     /**
+     * Search the server for messages with attachments and download them completely.
+     *
+     * The messages that are found are downloaded with their attachments, so the words of the search can be found in
+     * them on the device.
+     *
+     * @param startFolderOnly
+     *         {@code true} to search nothing but the folder the search was started from.
+     */
+    public Future<?> searchAttachmentsOnServer(@Nullable String startAccountUuid, @Nullable Long startFolderId,
+            ServerSearchCriteria criteria, boolean startFolderOnly, MessagingListener listener) {
+        Log.i(TAG, "searchAttachmentsOnServer (acct = %s, startFolderId = %d, startFolderOnly = %b)", startAccountUuid,
+                startFolderId, startFolderOnly);
+
+        return threadPool.submit(() -> searchAttachmentsOnServerSynchronous(startAccountUuid, startFolderId, criteria,
+                startFolderOnly, listener));
+    }
+
+    @VisibleForTesting
+    void searchAttachmentsOnServerSynchronous(@Nullable String startAccountUuid, @Nullable Long startFolderId,
+            ServerSearchCriteria criteria, boolean startFolderOnly, MessagingListener listener) {
+        long listenerFolderId = startFolderId != null ? startFolderId : NO_START_FOLDER_ID;
+        MessagingListener searchListener = listener == null ? null : new SynchronizedSearchListener(listener);
+        if (searchListener != null) {
+            searchListener.remoteSearchStarted(listenerFolderId);
+        }
+
+        try {
+            List<CascadeSearchTarget> targets = buildCascadeSearchTargets(startAccountUuid, startFolderId);
+            if (startFolderOnly) {
+                targets = keepStartFolder(targets, startAccountUuid, startFolderId);
+            }
+
+            AttachmentSearchState state = new AttachmentSearchState(targets.size());
+            searchAccountsForAttachments(targets, withAttachmentCriteria(criteria), state, searchListener);
+
+            if (searchListener != null && !Thread.currentThread().isInterrupted() && state.failedCount > 0) {
+                searchListener.remoteSearchCascadeIncomplete(state.failedCount, state.folderCount, state.failureReason);
+            }
+        } catch (Exception e) {
+            if (Thread.currentThread().isInterrupted()) {
+                Log.i(TAG, e, "Caught exception on aborted attachment search; safe to ignore.");
+            } else {
+                Log.e(TAG, e, "Could not complete attachment search");
+                if (searchListener != null) {
+                    searchListener.remoteSearchFailed(null, e.getMessage());
+                }
+            }
+        } finally {
+            if (searchListener != null) {
+                searchListener.remoteSearchFinished(listenerFolderId, 0, 0, null);
+            }
+        }
+    }
+
+    /**
+     * Search the folders of all accounts for messages with attachments. The accounts are searched one after the other.
+     */
+    private void searchAccountsForAttachments(List<CascadeSearchTarget> targets, ServerSearchCriteria criteria,
+            AttachmentSearchState state, MessagingListener listener) {
+        Map<String, List<CascadeSearchTarget>> targetsByAccount = new LinkedHashMap<>();
+        for (CascadeSearchTarget target : targets) {
+            targetsByAccount.computeIfAbsent(target.accountId.toString(), key -> new ArrayList<>()).add(target);
+        }
+
+        for (Map.Entry<String, List<CascadeSearchTarget>> entry : targetsByAccount.entrySet()) {
+            if (Thread.currentThread().isInterrupted()) {
+                return;
+            }
+
+            searchAccountForAttachments(entry.getKey(), entry.getValue(), criteria, state, listener);
+        }
+    }
+
+    /**
+     * Search the folders of one account for messages with attachments.
+     */
+    private void searchAccountForAttachments(String accountUuid, List<CascadeSearchTarget> targets,
+            ServerSearchCriteria criteria, AttachmentSearchState state, MessagingListener listener) {
+        for (int index = 0; index < targets.size(); index++) {
+            if (Thread.currentThread().isInterrupted()) {
+                return;
+            }
+
+            CascadeSearchTarget target = targets.get(index);
+            state.folderIndex++;
+            if (listener != null) {
+                listener.remoteSearchCascadeProgress(accountUuid, target.accountName, target.folderName,
+                        state.folderIndex, state.folderCount);
+            }
+
+            int failureCount;
+            try {
+                failureCount = searchFolderForAttachments(target, criteria, state, listener);
+            } catch (Exception e) {
+                if (Thread.currentThread().isInterrupted()) {
+                    return;
+                }
+
+                Log.e(TAG, e, "Attachment search failed for folder %d of account %s", target.folderId, accountUuid);
+                failureCount = 1;
+                state.failureReason = ThrowableExtensions.getRootCauseMessage(e);
+            }
+
+            state.failedCount += failureCount;
+            if (failureCount > 0) {
+                state.consecutiveFailures += failureCount;
+            } else {
+                state.consecutiveFailures = 0;
+            }
+
+            if (state.consecutiveFailures >= MAX_CONSECUTIVE_CASCADE_SEARCH_FAILURES) {
+                // The folders that are left couldn't be searched either.
+                state.failedCount += targets.size() - index - 1;
+                Log.w(TAG, "Giving up attachment search for account %s", accountUuid);
+                return;
+            }
+        }
+    }
+
+    /**
+     * Find the messages with attachments in a folder and download them completely, so the words of the search can be
+     * found in their attachments on the device.
+     *
+     * @return The number of messages that couldn't be downloaded.
+     */
+    private int searchFolderForAttachments(CascadeSearchTarget target, ServerSearchCriteria criteria,
+            AttachmentSearchState state, MessagingListener listener) throws MessagingException {
+        if (accountManager.findById(target.accountId) == null) {
+            throw new MessagingException("Account not found");
+        }
+
+        LocalStore localStore = localStoreProvider.getInstance(target.accountId);
+        LocalFolder localFolder = localStore.getFolder(target.folderId);
+        if (!localFolder.exists()) {
+            throw new MessagingException("Folder not found");
+        }
+
+        localFolder.open();
+        String folderServerId = localFolder.getServerId();
+
+        Backend backend = getBackend(target.accountId);
+        List<String> foundMessageServerIds = backend.search(folderServerId, criteria, step -> {
+            if (listener != null) {
+                listener.remoteSearchStep(step);
+            }
+        });
+
+        keepMessages(target.accountId, target.folderId, foundMessageServerIds);
+        return downloadMessagesWithAttachments(backend, localFolder, folderServerId, foundMessageServerIds, target,
+                state, listener);
+    }
+
+    /**
+     * Download the messages that aren't completely on the device yet. The backend returns the messages in reverse
+     * order, so the newest ones are downloaded first.
+     *
+     * @return The number of messages that couldn't be downloaded.
+     */
+    private int downloadMessagesWithAttachments(Backend backend, LocalFolder localFolder, String folderServerId,
+            List<String> messageServerIds, CascadeSearchTarget target, AttachmentSearchState state,
+            MessagingListener listener) {
+        int total = messageServerIds.size();
+        int completed = 0;
+        int failures = 0;
+
+        for (String messageServerId : messageServerIds) {
+            if (Thread.currentThread().isInterrupted()) {
+                return failures;
+            }
+
+            try {
+                if (!isDownloadedCompletely(localFolder, messageServerId)) {
+                    MessagingControllerWrapperKt.downloadCompleteMessageBlocking(backend, Dispatchers.getIO(),
+                            folderServerId, messageServerId);
+                }
+
+                completed++;
+                if (listener != null) {
+                    listener.remoteSearchDownloadProgress(target.folderName, completed, total);
+                }
+            } catch (Exception e) {
+                failures++;
+                state.failureReason = ThrowableExtensions.getRootCauseMessage(e);
+                Log.w(TAG, e, "Couldn't download message of folder %d", target.folderId);
+            }
+        }
+
+        return failures;
+    }
+
+    /**
+     * Whether the message is completely on the device, including its attachments.
+     */
+    private boolean isDownloadedCompletely(LocalFolder localFolder, String messageServerId) throws MessagingException {
+        LocalMessage localMessage = localFolder.getMessage(messageServerId);
+        return localMessage != null && localMessage.isSet(Flag.X_DOWNLOADED_FULL);
+    }
+
+    /**
+     * Create a copy of the criteria that looks for messages with attachments. The words of the search are looked for
+     * on the device, in the text of the attachments.
+     */
+    private static ServerSearchCriteria withAttachmentCriteria(ServerSearchCriteria criteria) {
+        return new ServerSearchCriteria(null, ServerSearchCriteria.TextScope.HEADERS, criteria.getFrom(),
+                criteria.getTo(), criteria.getSubject(), criteria.getReceivedSince(), criteria.getReceivedBefore(),
+                criteria.getReceivedWithinDays(), criteria.getLargerThanBytes(), criteria.getSmallerThanBytes(), true,
+                criteria.getRequiredFlags(), criteria.getForbiddenFlags());
+    }
+
+    /**
      * Create the criteria of a search that only knows a query and flags.
      */
     private static ServerSearchCriteria createSearchCriteria(String query, Set<Flag> requiredFlags,
@@ -1190,6 +1400,21 @@ public class MessagingController implements MessagingControllerRegistry, Messagi
             this.folderId = folderId;
             this.folderName = folderName;
             this.serverId = serverId;
+        }
+    }
+
+    /**
+     * The state of a search for messages with attachments.
+     */
+    private static class AttachmentSearchState {
+        final int folderCount;
+        int folderIndex;
+        int failedCount;
+        int consecutiveFailures;
+        String failureReason;
+
+        AttachmentSearchState(int folderCount) {
+            this.folderCount = folderCount;
         }
     }
 

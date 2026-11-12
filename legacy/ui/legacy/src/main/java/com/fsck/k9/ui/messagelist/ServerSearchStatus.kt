@@ -27,11 +27,16 @@ sealed interface ServerSearchStatus {
         val folderLabel: String,
     )
 
+    /**
+     * @param isMessageContentsSearchOffered Whether the user can search the contents of the messages right away.
+     * @param isAttachmentSearchOffered Whether the user can search the attachments of the messages.
+     */
     data class Ended(
         override val title: String,
         val result: Result,
         val message: String? = null,
         val isMessageContentsSearchOffered: Boolean = false,
+        val isAttachmentSearchOffered: Boolean = false,
     ) : ServerSearchStatus
 
     enum class Result {

@@ -78,6 +78,7 @@ import org.robolectric.shadows.ShadowLog;
 import static java.util.Collections.emptyList;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -607,6 +608,65 @@ public class MessagingControllerTest extends K9RobolectricTest {
         verify(backend).search(eq("folder1"), criteriaCaptor.capture(), any(SearchListener.class));
         assertEquals("query", criteriaCaptor.getValue().getText());
         assertEquals(ServerSearchCriteria.TextScope.HEADERS, criteriaCaptor.getValue().getTextScope());
+    }
+
+    @Test
+    public void searchAttachmentsOnServerSynchronous_withMessageThatIsNotOnTheDevice_shouldDownloadMessageCompletely()
+            throws Exception {
+        setupCascadingRemoteSearch(1);
+        when(backend.search(eq("folder1"), any(ServerSearchCriteria.class), any(SearchListener.class)))
+            .thenReturn(Collections.singletonList("uid1"));
+        when(localStore.getFolder(1L).getMessage("uid1")).thenReturn(null);
+
+        controller.searchAttachmentsOnServerSynchronous(accountId.toString(), 1L, createCriteria("query"), false,
+            listener);
+
+        // The last parameter is the continuation of the suspend function. Mockito doesn't match it.
+        verify(backend).downloadCompleteMessage(eq("folder1"), eq("uid1"), null);
+    }
+
+    @Test
+    public void searchAttachmentsOnServerSynchronous_withMessageThatIsDownloadedCompletely_shouldNotDownloadMessage()
+            throws Exception {
+        setupCascadingRemoteSearch(1);
+        when(backend.search(eq("folder1"), any(ServerSearchCriteria.class), any(SearchListener.class)))
+            .thenReturn(Collections.singletonList("uid1"));
+        LocalMessage localMessage = mock(LocalMessage.class);
+        when(localMessage.isSet(Flag.X_DOWNLOADED_FULL)).thenReturn(true);
+        when(localStore.getFolder(1L).getMessage("uid1")).thenReturn(localMessage);
+
+        controller.searchAttachmentsOnServerSynchronous(accountId.toString(), 1L, createCriteria("query"), false,
+            listener);
+
+        verify(backend, never()).downloadCompleteMessage(anyString(), anyString(), null);
+    }
+
+    @Test
+    public void searchAttachmentsOnServerSynchronous_shouldLookForMessagesWithAttachments() throws Exception {
+        setupCascadingRemoteSearch(1);
+
+        controller.searchAttachmentsOnServerSynchronous(accountId.toString(), 1L, createCriteria("query"), false,
+            listener);
+
+        ArgumentCaptor<ServerSearchCriteria> criteriaCaptor = ArgumentCaptor.forClass(ServerSearchCriteria.class);
+        verify(backend).search(eq("folder1"), criteriaCaptor.capture(), any(SearchListener.class));
+        assertTrue(criteriaCaptor.getValue().getHasAttachment());
+        assertNull(criteriaCaptor.getValue().getText());
+        assertEquals(ServerSearchCriteria.TextScope.HEADERS, criteriaCaptor.getValue().getTextScope());
+    }
+
+    @Test
+    public void searchAttachmentsOnServerSynchronous_shouldKeepFoundMessagesOnTheDevice() throws Exception {
+        ListenableMessageStore messageStore = setupCascadingRemoteSearch(1);
+        when(backend.search(eq("folder1"), any(ServerSearchCriteria.class), any(SearchListener.class)))
+            .thenReturn(Arrays.asList("uid1", "uid2"));
+
+        controller.searchAttachmentsOnServerSynchronous(accountId.toString(), 1L, createCriteria("query"), false,
+            listener);
+
+        ArgumentCaptor<String> keptMessages = ArgumentCaptor.forClass(String.class);
+        verify(messageStore).setFolderExtraString(eq(1L), eq(KeptMessages.FOLDER_EXTRA), keptMessages.capture());
+        assertEquals(new HashSet<>(Arrays.asList("uid1", "uid2")), KeptMessages.parse(keptMessages.getValue()));
     }
 
     @Test

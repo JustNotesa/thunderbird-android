@@ -261,6 +261,7 @@ class LegacyMessageListFragment :
     private var remoteSearchNotLoadedCount = 0
     private var isSearchingMessageContents = false
     private var hasSearchedMessageContents = false
+    private var isAttachmentSearch = false
     private var isRemoteSearchStopped = false
     private var remoteSearchListener: RemoteSearchListener? = null
     private var remoteSearchFolderIndex = 0
@@ -657,10 +658,10 @@ class LegacyMessageListFragment :
      * Display which folder the remote search is working on and how many folders there are in total.
      */
     private fun showSearchProgress(folderIndex: Int, folderCount: Int, folderLabel: String) {
-        val statusText = if (isSearchingMessageContents) {
-            R.string.remote_search_contents_status_progress
-        } else {
-            R.string.remote_search_status_progress
+        val statusText = when {
+            isAttachmentSearch -> R.string.remote_search_attachments_status_progress
+            isSearchingMessageContents -> R.string.remote_search_contents_status_progress
+            else -> R.string.remote_search_status_progress
         }
         endSearchStep()
         remoteSearchFolderIndex = folderIndex
@@ -729,6 +730,8 @@ class LegacyMessageListFragment :
             !hasSearchedMessageContents &&
             !hasRemoteSearchFailed &&
             isMessageContentsSearchAllowed
+        // The attachments of the messages can be searched on the device, after they have been downloaded.
+        val isAttachmentSearchOffered = isRemoteSearchSupported && !isAttachmentSearch
 
         val status = if (problem != null) {
             ServerSearchStatus.Ended(
@@ -736,6 +739,7 @@ class LegacyMessageListFragment :
                 result = ServerSearchStatus.Result.PROBLEM,
                 message = remoteSearchProblemReason,
                 isMessageContentsSearchOffered = isMessageContentsSearchOffered,
+                isAttachmentSearchOffered = isAttachmentSearchOffered,
             )
         } else if (isRemoteSearchStopped) {
             ServerSearchStatus.Ended(
@@ -743,17 +747,19 @@ class LegacyMessageListFragment :
                 result = ServerSearchStatus.Result.STOPPED,
                 message = context.getString(R.string.remote_search_stopped_details),
                 isMessageContentsSearchOffered = isMessageContentsSearchOffered,
+                isAttachmentSearchOffered = isAttachmentSearchOffered,
             )
         } else {
-            val title = if (hasSearchedMessageContents) {
-                R.string.remote_search_contents_finished
-            } else {
-                R.string.remote_search_finished
+            val title = when {
+                isAttachmentSearch -> R.string.remote_search_attachments_finished
+                hasSearchedMessageContents -> R.string.remote_search_contents_finished
+                else -> R.string.remote_search_finished
             }
             ServerSearchStatus.Ended(
                 title = context.getString(title),
                 result = ServerSearchStatus.Result.COMPLETE,
                 isMessageContentsSearchOffered = isMessageContentsSearchOffered,
+                isAttachmentSearchOffered = isAttachmentSearchOffered,
             )
         }
         showSearchStatus(status)
@@ -789,6 +795,14 @@ class LegacyMessageListFragment :
     override fun onSearchMessageContentsClicked() {
         if (connectivityManager.isNetworkAvailable()) {
             onRemoteSearchRequested(searchMessageContents = true)
+        } else {
+            Toast.makeText(activity, getText(R.string.remote_search_unavailable_no_network), Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    override fun onSearchAttachmentsClicked() {
+        if (connectivityManager.isNetworkAvailable()) {
+            onAttachmentSearchRequested()
         } else {
             Toast.makeText(activity, getText(R.string.remote_search_unavailable_no_network), Toast.LENGTH_SHORT).show()
         }
@@ -1331,6 +1345,7 @@ class LegacyMessageListFragment :
 
         isRemoteSearch = true
         isSearchingMessageContents = searchMessageContents
+        isAttachmentSearch = false
         hasRemoteSearchFailed = false
         isRemoteSearchStopped = false
         remoteSearchProblem = null
@@ -1374,6 +1389,65 @@ class LegacyMessageListFragment :
             ServerSearchStatus.Running(
                 title = getString(R.string.remote_search_sending_query),
                 isMessageContentsSearchOffered = !searchMessageContents && isMessageContentsSearchAllowed,
+            ),
+        )
+        invalidateMenu()
+    }
+
+    /**
+     * Search the attachments of the messages for the words of the search.
+     *
+     * The messages that have attachments are downloaded completely, so the words of the search can be found in their
+     * attachments on the device.
+     */
+    private fun onAttachmentSearchRequested() {
+        val queryString = manualSearchQuery ?: return
+
+        // A search that is still running is replaced by the search of the attachments.
+        remoteSearchListener = null
+        remoteSearchFuture?.cancel(true)
+        stoppedRemoteSearch = null
+
+        isRemoteSearch = true
+        isSearchingMessageContents = false
+        isAttachmentSearch = true
+        hasRemoteSearchFailed = false
+        isRemoteSearchStopped = false
+        remoteSearchProblem = null
+        remoteSearchProblemReason = null
+        runningSearchAccounts.clear()
+        remoteSearchSearchedFolders.clear()
+        remoteSearchFolderIndex = 0
+        remoteSearchFoundCount = 0
+        remoteSearchNotLoadedCount = 0
+        swipeRefreshLayout?.isEnabled = false
+
+        // Widen the visible search to all folders and accounts, so the messages that are found show up in this list.
+        // Unless the user only wants to search the folder the search was started from.
+        val startAccount = account
+        val startFolder = currentFolder
+        val isLimitedToFolder = searchScope == SearchScope.FOLDER && startAccount != null && startFolder != null
+        localSearch = createManualQuerySearch(queryString).apply {
+            if (isLimitedToFolder) {
+                addAccountId(startAccount!!.id)
+                addAllowedFolder(startFolder!!.databaseId)
+            }
+        }
+        loadMessageList(forceUpdate = true)
+
+        // The words of the search are looked for on the device, so the server only looks for messages with
+        // attachments.
+        remoteSearchFuture = messagingController.searchAttachmentsOnServer(
+            account?.id,
+            currentFolder?.databaseId,
+            searchFilters.toServerSearchCriteria(queryString, Calendar.getInstance()),
+            isLimitedToFolder,
+            RemoteSearchListener().also { remoteSearchListener = it },
+        )
+
+        showSearchStatus(
+            ServerSearchStatus.Running(
+                title = getString(R.string.remote_search_sending_query),
             ),
         )
         invalidateMenu()
@@ -2423,7 +2497,8 @@ class LegacyMessageListFragment :
     private fun stopRemoteSearch(canContinue: Boolean) {
         if (!isRemoteSearch || remoteSearchFuture == null) return
 
-        if (canContinue) {
+        if (canContinue && !isAttachmentSearch) {
+            // A search of the attachments is not continued automatically.
             stoppedRemoteSearch = StoppedRemoteSearch(
                 searchMessageContents = isSearchingMessageContents,
                 searchedFolders = remoteSearchSearchedFolders.toSet(),
@@ -3349,6 +3424,10 @@ class LegacyMessageListFragment :
                     isSearchingMessageContents = false
                     // Offer the search again if it didn't cover all folders
                     hasSearchedMessageContents = remoteSearchProblem == null
+                }
+                if (isAttachmentSearch) {
+                    // The messages that were downloaded are now part of the local search.
+                    loadMessageList(forceUpdate = true)
                 }
                 showSearchOutcome()
                 swipeRefreshLayout?.isEnabled = isPullToRefreshAllowed

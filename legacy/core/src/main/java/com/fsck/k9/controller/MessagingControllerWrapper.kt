@@ -107,6 +107,20 @@ class MessagingControllerWrapper(
         listener,
     )
 
+    fun searchAttachmentsOnServer(
+        id: AccountId?,
+        startFolderId: Long?,
+        criteria: ServerSearchCriteria,
+        startFolderOnly: Boolean,
+        listener: MessagingListener,
+    ): Future<*>? = messagingController.searchAttachmentsOnServer(
+        id?.toString(),
+        startFolderId,
+        criteria,
+        startFolderOnly,
+        listener,
+    )
+
     fun expunge(id: AccountId, folderId: Long) {
         messagingController.expunge(id, folderId)
     }
