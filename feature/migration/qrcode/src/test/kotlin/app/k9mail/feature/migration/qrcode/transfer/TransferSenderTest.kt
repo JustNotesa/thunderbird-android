@@ -54,10 +54,11 @@ class TransferSenderTest {
                 fetcher = LanTransferClient(),
                 hotspotConnector = UnsupportedHotspotNetworkConnector,
             ).receive(qrCode)
-            val accountsJson = (received as TransferReceiveResult.Success).accountsJson
+            val transfer = received as TransferReceiveResult.Success
 
             assertThat(serverResult.await()).isEqualTo(LanTransferServerResult.Transferred)
-            assertThat(parser.parse(accountsJson)).isEqualTo(expectedAccounts())
+            assertThat(parser.parse(transfer.accountsJson)).isEqualTo(expectedAccounts())
+            assertThat(transfer.oAuthStates).isEqualTo(listOf(null, OAUTH_STATE))
         } finally {
             session.stop()
         }
@@ -336,6 +337,7 @@ class TransferSenderTest {
             identities = listOf(
                 TransferIdentity(emailAddress = "pop@domain.example", displayName = ""),
             ),
+            oAuthState = OAUTH_STATE,
         )
     }
 
@@ -414,6 +416,7 @@ class TransferSenderTest {
     private companion object {
         private const val ACCOUNT_NAME = "Personal"
         private const val USERNAME = "username"
+        private const val OAUTH_STATE = """{"tokenType":"Bearer","accessToken":"access-token"}"""
         private const val CREATED_AT = 1792300000L
         private const val NO_PORT = 0
         private const val SERVER_LIFETIME = 10_000L

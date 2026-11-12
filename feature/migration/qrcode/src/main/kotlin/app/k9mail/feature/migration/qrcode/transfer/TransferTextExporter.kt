@@ -29,7 +29,11 @@ internal class TransferTextExporter(
             TransferTextResult.NoAccounts
         } else {
             TransferTextResult.Success(
-                TransferPayload.write(accountsJson = DesktopPayloadWriter.write(accounts), createdAt = clock()),
+                TransferPayload.write(
+                    accountsJson = DesktopPayloadWriter.write(accounts),
+                    createdAt = clock(),
+                    oAuthStates = accounts.map { it.oAuthState },
+                ),
             )
         }
     }

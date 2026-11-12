@@ -15,6 +15,7 @@ import net.thunderbird.legacy.logging.Log
 
 private const val CREATED_AT = 1792300000L
 private const val USERNAME = "username"
+private const val OAUTH_STATE = """{"tokenType":"Bearer","accessToken":"access-token"}"""
 
 class TransferTextExporterTest {
 
@@ -39,6 +40,20 @@ class TransferTextExporterTest {
     }
 
     @Test
+    fun `the exported text holds the sign-in state of an OAuth account`() = runTest {
+        val accounts = listOf(imapAccount(oAuthState = OAUTH_STATE))
+        val testSubject = createExporter(accounts = accounts)
+
+        val result = testSubject.exportText()
+
+        assertThat(result).isInstanceOf<TransferTextResult.Success>()
+        val text = (result as TransferTextResult.Success).text
+        val content = TransferPayload.read(text)
+        assertThat(content).isNotNull()
+        assertThat(content?.oAuthStates).isEqualTo(listOf(OAUTH_STATE))
+    }
+
+    @Test
     fun `a device without accounts exports nothing`() = runTest {
         val testSubject = createExporter(accounts = emptyList())
 
@@ -54,7 +69,7 @@ class TransferTextExporterTest {
         )
     }
 
-    private fun imapAccount(): TransferAccount {
+    private fun imapAccount(oAuthState: String? = null): TransferAccount {
         return TransferAccount(
             accountName = "Personal",
             incoming = ServerSettings(
@@ -80,6 +95,7 @@ class TransferTextExporterTest {
             identities = listOf(
                 TransferIdentity(emailAddress = "user@domain.example", displayName = "Firstname Lastname"),
             ),
+            oAuthState = oAuthState,
         )
     }
 }

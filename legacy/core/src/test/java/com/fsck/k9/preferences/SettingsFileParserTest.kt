@@ -76,6 +76,31 @@ class SettingsFileParserTest : RobolectricTest() {
     }
 
     @Test
+    fun `parseSettings() should return OAuth state`() {
+        val accountUuid = UUID.randomUUID().toString()
+        val oAuthState = """{"access_token":"token","refresh_token":"refresh_token"}"""
+        val inputStream =
+            """
+            <k9settings format="1" version="1">
+              <accounts>
+                <account uuid="$accountUuid">
+                  <name>Account</name>
+                  <oauth-state>$oAuthState</oauth-state>
+                </account>
+              </accounts>
+            </k9settings>
+            """.trimIndent().byteInputStream()
+
+        val results = parser.parseSettings(inputStream)
+
+        assertThat(results.accounts)
+            .isNotNull()
+            .index(0)
+            .prop(Account::oAuthState)
+            .isEqualTo(oAuthState)
+    }
+
+    @Test
     fun `parseSettings() should parse incoming server authentication type`() {
         val accountUuid = UUID.randomUUID().toString()
         val inputStream =

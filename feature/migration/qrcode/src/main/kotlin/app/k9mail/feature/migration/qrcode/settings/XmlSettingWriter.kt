@@ -66,6 +66,9 @@ internal class XmlSettingWriter(
         attribute(null, UUID_ATTRIBUTE, accountUuid)
 
         writeElement(NAME_ELEMENT, account.accountName)
+        account.oAuthState?.let { oAuthState ->
+            writeElement(OAUTH_STATE_ELEMENT, oAuthState)
+        }
         writeSettings(account, color)
         writeIncomingServer(account.incomingServer)
         writeOutgoingServers(account.outgoingServerGroups)
@@ -227,6 +230,7 @@ internal class XmlSettingWriter(
         private const val IDENTITIES_ELEMENT = "identities"
         private const val IDENTITY_ELEMENT = "identity"
         private const val NAME_ELEMENT = "name"
+        private const val OAUTH_STATE_ELEMENT = "oauth-state"
         private const val EMAIL_ELEMENT = "email"
         private const val FOLDERS_ELEMENT = "folders"
         private const val FOLDER_ELEMENT = "folder"

@@ -1,5 +1,6 @@
 package app.k9mail.feature.migration.qrcode.transfer
 
+import com.fsck.k9.mail.AuthType
 import net.thunderbird.core.android.account.LegacyAccount
 import net.thunderbird.core.android.account.LegacyAccountManager
 
@@ -34,6 +35,18 @@ internal class LegacyTransferAccountSource(
                     displayName = identity.name.orEmpty(),
                 )
             },
+            oAuthState = oAuthStateForTransfer(),
         )
+    }
+
+    /**
+     * The sign-in state of the account, so the receiving device doesn't have to sign in again. Only OAuth accounts
+     * have one.
+     */
+    private fun LegacyAccount.oAuthStateForTransfer(): String? {
+        val isOAuthAccount = incomingServerSettings.authenticationType == AuthType.XOAUTH2 ||
+            outgoingServerSettings.authenticationType == AuthType.XOAUTH2
+
+        return oAuthState.takeIf { isOAuthAccount }
     }
 }

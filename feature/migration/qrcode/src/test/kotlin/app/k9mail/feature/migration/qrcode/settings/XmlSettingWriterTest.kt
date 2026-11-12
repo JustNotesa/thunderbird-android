@@ -4,6 +4,7 @@ import app.k9mail.feature.migration.qrcode.domain.entity.AccountData
 import app.k9mail.feature.migration.qrcode.domain.entity.AccountData.ConnectionSecurity
 import assertk.assertThat
 import assertk.assertions.contains
+import assertk.assertions.doesNotContain
 import assertk.assertions.isEqualTo
 import kotlin.test.Test
 import kotlinx.coroutines.test.runTest
@@ -80,6 +81,38 @@ class XmlSettingWriterTest {
         assertThat(xmlString).contains("<value key=\"chipColor\">#0000ee</value>")
     }
 
+    @Test
+    fun `the OAuth state of an account is written`() = runTest {
+        // Arrange
+        val buffer = Buffer()
+        val accounts = listOf(OAUTH_ACCOUNT)
+
+        // Act
+        buffer.outputStream().use { outputStream ->
+            xmlSettingsWriter.writeSettings(outputStream, accounts)
+        }
+
+        // Assert
+        val xmlString = buffer.readUtf8().normalizeLineBreaks()
+        assertThat(xmlString).contains("""<oauth-state>{"refresh_token":"refresh-token"}</oauth-state>""")
+    }
+
+    @Test
+    fun `no OAuth state is written for an account that doesn't have one`() = runTest {
+        // Arrange
+        val buffer = Buffer()
+        val accounts = listOf(ACCOUNT)
+
+        // Act
+        buffer.outputStream().use { outputStream ->
+            xmlSettingsWriter.writeSettings(outputStream, accounts)
+        }
+
+        // Assert
+        val xmlString = buffer.readUtf8().normalizeLineBreaks()
+        assertThat(xmlString).doesNotContain("oauth-state")
+    }
+
     private fun String.normalizeLineBreaks() = replace("\r\n", "\n")
 
     companion object {
@@ -117,6 +150,40 @@ class XmlSettingWriterTest {
                     ),
                 ),
             ),
+        )
+
+        private val OAUTH_ACCOUNT = AccountData.Account(
+            accountName = "Account name",
+            deletePolicy = DeletePolicy.ON_DELETE,
+            incomingServer = AccountData.IncomingServer(
+                protocol = AccountData.IncomingServerProtocol.Imap,
+                hostname = "imap.domain.example".toHostname(),
+                port = 993.toPort(),
+                connectionSecurity = ConnectionSecurity.Tls,
+                authenticationType = AccountData.AuthenticationType.OAuth2,
+                username = "user@domain.example",
+                password = null,
+            ),
+            outgoingServerGroups = listOf(
+                AccountData.OutgoingServerGroup(
+                    outgoingServer = AccountData.OutgoingServer(
+                        protocol = AccountData.OutgoingServerProtocol.Smtp,
+                        hostname = "smtp.domain.example".toHostname(),
+                        port = 465.toPort(),
+                        connectionSecurity = ConnectionSecurity.Tls,
+                        authenticationType = AccountData.AuthenticationType.OAuth2,
+                        username = "user@domain.example",
+                        password = null,
+                    ),
+                    identities = listOf(
+                        AccountData.Identity(
+                            emailAddress = "user@domain.example".toUserEmailAddress(),
+                            displayName = "Firstname Lastname",
+                        ),
+                    ),
+                ),
+            ),
+            oAuthState = """{"refresh_token":"refresh-token"}""",
         )
 
         private val POP3ACCOUNT = AccountData.Account(

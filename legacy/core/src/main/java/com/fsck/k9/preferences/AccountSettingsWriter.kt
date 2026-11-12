@@ -128,6 +128,8 @@ internal class AccountSettingsWriter(
             profile = ProfileDto(accountId, name, int("chipColor"), avatar),
             incomingServerSettings = serverSettingsWriter.createServerSettings(account.incoming),
             outgoingServerSettings = serverSettingsWriter.createServerSettings(account.outgoing),
+            // The OAuth sign-in state contains a refresh token. Never log it.
+            oAuthState = account.oAuthState,
             identities = identities,
             senderName = identities.first().name,
             alwaysBcc = string("alwaysBcc"),

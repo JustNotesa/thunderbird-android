@@ -104,6 +104,7 @@ internal class TransferSender(
         val plaintext = TransferPayload.write(
             accountsJson = DesktopPayloadWriter.write(accounts),
             createdAt = clock(),
+            oAuthStates = accounts.map { it.oAuthState },
         ).encodeToByteArray()
         val secrets = TransferSecrets.generate(random)
 

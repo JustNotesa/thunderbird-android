@@ -11,11 +11,13 @@ import assertk.assertions.isEmpty
 import assertk.assertions.isEqualTo
 import assertk.assertions.isFalse
 import assertk.assertions.isInstanceOf
+import assertk.assertions.isNull
 import assertk.assertions.isTrue
 import assertk.assertions.prop
 import com.fsck.k9.K9RobolectricTest
 import com.fsck.k9.account.FakeStorageBackedAccountManager
 import java.io.ByteArrayOutputStream
+import java.io.InputStream
 import java.util.UUID
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
@@ -61,6 +63,38 @@ class SettingsImporterTest : K9RobolectricTest() {
             generalSettingsWriter = get(),
             unifiedInboxConfigurator = unifiedInboxConfigurator,
         )
+    }
+
+    private fun createOAuthAccountSettings(accountUuid: String, oAuthState: String?): InputStream {
+        val oAuthStateElement = oAuthState?.let { "<oauth-state>$it</oauth-state>" } ?: ""
+
+        return """
+            <k9settings format="1" version="1">
+              <accounts>
+                <account uuid="$accountUuid">
+                  <name>Account</name>
+                  $oAuthStateElement
+                  <incoming-server type="IMAP">
+                    <connection-security>SSL_TLS_REQUIRED</connection-security>
+                    <username>user@gmail.com</username>
+                    <authentication-type>XOAUTH2</authentication-type>
+                    <host>googlemail.com</host>
+                  </incoming-server>
+                  <outgoing-server type="SMTP">
+                    <connection-security>SSL_TLS_REQUIRED</connection-security>
+                    <username>user@googlemail.com</username>
+                    <authentication-type>XOAUTH2</authentication-type>
+                    <host>googlemail.com</host>
+                  </outgoing-server>
+                  <identities>
+                    <identity>
+                      <email>user@gmail.com</email>
+                    </identity>
+                  </identities>
+                </account>
+              </accounts>
+            </k9settings>
+            """.trimIndent().byteInputStream()
     }
 
     @Test
@@ -203,6 +237,51 @@ class SettingsImporterTest : K9RobolectricTest() {
                 }
             }
         }
+    }
+
+    @Test
+    fun `importSettings() should store OAuth state and not require authorization`() = runTest {
+        val accountUuid = UUID.randomUUID().toString()
+        val oAuthState = """{"access_token":"token","refresh_token":"refresh_token"}"""
+        val inputStream = createOAuthAccountSettings(accountUuid, oAuthState)
+        val accountUuids = listOf(accountUuid)
+
+        val results = settingsImporter.importSettings(inputStream, globalSettings = true, accountUuids)
+
+        assertThat(results).all {
+            prop(ImportResults::erroneousAccounts).isEmpty()
+            prop(ImportResults::importedAccounts).all {
+                hasSize(1)
+                first().all {
+                    prop(AccountDescriptionPair::authorizationNeeded).isFalse()
+                }
+            }
+        }
+
+        val importedAccount = get<LegacyAccountManager>().findById(AccountIdFactory.of(accountUuid))
+        assertThat(importedAccount?.oAuthState).isEqualTo(oAuthState)
+    }
+
+    @Test
+    fun `importSettings() should require authorization for OAuth account without OAuth state`() = runTest {
+        val accountUuid = UUID.randomUUID().toString()
+        val inputStream = createOAuthAccountSettings(accountUuid, oAuthState = null)
+        val accountUuids = listOf(accountUuid)
+
+        val results = settingsImporter.importSettings(inputStream, globalSettings = true, accountUuids)
+
+        assertThat(results).all {
+            prop(ImportResults::erroneousAccounts).isEmpty()
+            prop(ImportResults::importedAccounts).all {
+                hasSize(1)
+                first().all {
+                    prop(AccountDescriptionPair::authorizationNeeded).isTrue()
+                }
+            }
+        }
+
+        val importedAccount = get<LegacyAccountManager>().findById(AccountIdFactory.of(accountUuid))
+        assertThat(importedAccount?.oAuthState).isNull()
     }
 
     @Test
