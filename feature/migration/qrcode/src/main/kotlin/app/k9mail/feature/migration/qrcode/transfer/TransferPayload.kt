@@ -12,6 +12,7 @@ private const val KEY_CREATED_AT = "createdAt"
 private const val KEY_ACCOUNTS = "accounts"
 private const val KEY_EXTENSIONS = "extensions"
 private const val KEY_OAUTH_STATES = "oauthStates"
+private const val KEY_DESKTOP_OAUTH = "desktopOAuth"
 private const val PAYLOAD_TYPE = "thunderbird-account-transfer"
 private const val PAYLOAD_VERSION = 1
 
@@ -93,7 +94,7 @@ internal object TransferPayload {
         var version: Int? = null
         var createdAt: Long? = null
         var accountsJson: String? = null
-        var oAuthStates: List<String?> = emptyList()
+        var extensions = Extensions()
 
         jsonReader.beginObject()
         while (jsonReader.hasNext()) {
@@ -102,14 +103,14 @@ internal object TransferPayload {
                 KEY_VERSION -> version = jsonReader.nextInt()
                 KEY_CREATED_AT -> createdAt = jsonReader.nextLong()
                 KEY_ACCOUNTS -> accountsJson = readJsonArray(jsonReader)
-                KEY_EXTENSIONS -> oAuthStates = readExtensions(jsonReader)
+                KEY_EXTENSIONS -> extensions = readExtensions(jsonReader)
                 else -> jsonReader.skipValue()
             }
         }
         jsonReader.endObject()
 
         return if (isSupported(type = type, version = version)) {
-            createContent(createdAt = createdAt, accountsJson = accountsJson, oAuthStates = oAuthStates)
+            createContent(createdAt = createdAt, accountsJson = accountsJson, extensions = extensions)
         } else {
             Log.d("Unsupported transfer payload: type %s, version %s", type, version)
             null
@@ -123,7 +124,7 @@ internal object TransferPayload {
     private fun createContent(
         createdAt: Long?,
         accountsJson: String?,
-        oAuthStates: List<String?>,
+        extensions: Extensions,
     ): TransferPayloadContent {
         val validCreatedAt = requireNotNull(createdAt) { "Transfer payload is missing the creation time" }
         val validAccounts = requireNotNull(accountsJson) { "Transfer payload is missing the accounts" }
@@ -131,7 +132,8 @@ internal object TransferPayload {
         return TransferPayloadContent(
             createdAt = validCreatedAt,
             accountsJson = validAccounts,
-            oAuthStates = oAuthStates,
+            oAuthStates = extensions.oAuthStates,
+            desktopOAuth = extensions.desktopOAuth,
         )
     }
 
@@ -139,24 +141,25 @@ internal object TransferPayload {
      * Reads the extensions of the payload. Unknown extensions are ignored, an extension that can't be read is treated
      * as if it wasn't there.
      */
-    private fun readExtensions(jsonReader: JsonReader): List<String?> {
+    private fun readExtensions(jsonReader: JsonReader): Extensions {
         if (jsonReader.peek() != JsonReader.Token.BEGIN_OBJECT) {
             jsonReader.skipValue()
-            return emptyList()
+            return Extensions()
         }
 
-        var oAuthStates: List<String?> = emptyList()
+        var extensions = Extensions()
 
         jsonReader.beginObject()
         while (jsonReader.hasNext()) {
             when (jsonReader.nextName()) {
-                KEY_OAUTH_STATES -> oAuthStates = readOAuthStates(jsonReader)
+                KEY_OAUTH_STATES -> extensions = extensions.copy(oAuthStates = readOAuthStates(jsonReader))
+                KEY_DESKTOP_OAUTH -> extensions = extensions.copy(desktopOAuth = readDesktopOAuthGrants(jsonReader))
                 else -> jsonReader.skipValue()
             }
         }
         jsonReader.endObject()
 
-        return oAuthStates
+        return extensions
     }
 
     /**
@@ -217,4 +220,13 @@ internal data class TransferPayloadContent(
     val createdAt: Long,
     val accountsJson: String,
     val oAuthStates: List<String?> = emptyList(),
+    val desktopOAuth: List<DesktopOAuthGrant?> = emptyList(),
+)
+
+/**
+ * The extensions of the transfer payload.
+ */
+private data class Extensions(
+    val oAuthStates: List<String?> = emptyList(),
+    val desktopOAuth: List<DesktopOAuthGrant?> = emptyList(),
 )

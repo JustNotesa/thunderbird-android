@@ -125,7 +125,11 @@ internal class TransferReceiver(
         return if (content == null) {
             TransferReceiveResult.UnsupportedFormat
         } else {
-            TransferReceiveResult.Success(accountsJson = content.accountsJson, oAuthStates = content.oAuthStates)
+            TransferReceiveResult.Success(
+                accountsJson = content.accountsJson,
+                oAuthStates = content.oAuthStates,
+                desktopOAuth = content.desktopOAuth,
+            )
         }
     }
 }
@@ -159,6 +163,7 @@ internal sealed interface TransferReceiveResult {
     data class Success(
         val accountsJson: String,
         val oAuthStates: List<String?> = emptyList(),
+        val desktopOAuth: List<DesktopOAuthGrant?> = emptyList(),
     ) : TransferReceiveResult
 
     data object Unreachable : TransferReceiveResult

@@ -105,6 +105,61 @@ class TransferPayloadTest {
     }
 
     @Test
+    fun `the desktop sign-ins of a payload are read`() {
+        val signIn = """
+            {"issuer":"accounts.google.com","clientId":"client-id","scope":"scope","refreshToken":"refresh-token"}
+        """.trimIndent()
+        val json = payloadJson(extraFields = """"extensions":{"desktopOAuth":[$signIn]},""")
+
+        val content = testSubject.read(json)
+
+        assertThat(checkNotNull(content).desktopOAuth).isEqualTo(
+            listOf(
+                DesktopOAuthGrant(
+                    issuer = "accounts.google.com",
+                    clientId = "client-id",
+                    scope = "scope",
+                    refreshToken = "refresh-token",
+                ),
+            ),
+        )
+    }
+
+    @Test
+    fun `payload without desktop sign-ins is read without them`() {
+        val content = testSubject.read(payloadJson())
+
+        assertThat(checkNotNull(content).desktopOAuth).isEmpty()
+    }
+
+    @Test
+    fun `a desktop sign-in that isn't valid is read as none`() {
+        val json = payloadJson(extraFields = """"extensions":{"desktopOAuth":[{"issuer":"accounts.google.com"}]},""")
+
+        val content = testSubject.read(json)
+
+        assertThat(checkNotNull(content).desktopOAuth).isEqualTo(listOf(null))
+    }
+
+    @Test
+    fun `a desktop sign-in that isn't a list is read without them`() {
+        val json = payloadJson(extraFields = """"extensions":{"desktopOAuth":"sign-in"},""")
+
+        val content = testSubject.read(json)
+
+        assertThat(checkNotNull(content).desktopOAuth).isEmpty()
+    }
+
+    @Test
+    fun `a desktop sign-in that isn't an object is read as none`() {
+        val json = payloadJson(extraFields = """"extensions":{"desktopOAuth":["sign-in"]},""")
+
+        val content = testSubject.read(json)
+
+        assertThat(checkNotNull(content).desktopOAuth).isEqualTo(listOf(null))
+    }
+
+    @Test
     fun `payload with unsupported type is not read`() {
         val json = payloadJson(type = "thunderbird-account-transfer-v2")
 

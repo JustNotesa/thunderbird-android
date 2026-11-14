@@ -12,7 +12,15 @@ import net.openid.appauth.AuthorizationException
 import net.openid.appauth.AuthorizationException.AuthorizationRequestErrors
 import net.openid.appauth.AuthorizationException.GeneralErrors
 import net.openid.appauth.AuthorizationService
+import net.openid.appauth.ClientAuthentication
+import net.openid.appauth.ClientSecretPost
 import net.thunderbird.legacy.logging.Log
+
+/**
+ * The parameter of the sign-in state that holds the secret of the OAuth client. The state of the accounts that signed
+ * in with Thunderbird desktop holds the secret of the desktop client, which is needed to refresh their token.
+ */
+private const val CLIENT_SECRET_PARAMETER = "tb_client_secret"
 
 class RealOAuth2TokenProvider(
     context: Context,
@@ -64,8 +72,9 @@ class RealOAuth2TokenProvider(
         val oldAccessToken = authState.accessToken
 
         try {
-            authState.performActionWithFreshTokens(
-                authService,
+            performActionWithFreshTokens(
+                authState = authState,
+                authService = authService,
             ) { accessToken: String?, _, authException: AuthorizationException? ->
                 token = accessToken
                 exception = authException
@@ -118,4 +127,41 @@ class RealOAuth2TokenProvider(
             ?.let { AuthState.jsonDeserialize(it) }
             ?: throw AuthenticationFailedException("Login required")
     }
+}
+
+/**
+ * Performs the action with a fresh access token of the account.
+ *
+ * The accounts that signed in with the OAuth client of Thunderbird desktop have to be refreshed with that client,
+ * because a refresh token can only be refreshed with the client it was issued to.
+ */
+private fun performActionWithFreshTokens(
+    authState: AuthState,
+    authService: AuthorizationService,
+    action: AuthState.AuthStateAction,
+) {
+    val clientAuthentication = clientAuthenticationFor(authState)
+
+    if (clientAuthentication != null) {
+        authState.performActionWithFreshTokens(authService, clientAuthentication, action)
+    } else {
+        authState.performActionWithFreshTokens(authService, action)
+    }
+}
+
+/**
+ * The client authentication for the token request of the account.
+ *
+ * The secret of the client is part of the sign-in state of the accounts that signed in with the OAuth client of
+ * Thunderbird desktop.
+ *
+ * @return The client authentication, or `null` when the account doesn't need one.
+ */
+internal fun clientAuthenticationFor(authState: AuthState): ClientAuthentication? {
+    val clientSecret = authState.lastAuthorizationResponse
+        ?.request
+        ?.additionalParameters
+        ?.get(CLIENT_SECRET_PARAMETER)
+
+    return clientSecret?.let { ClientSecretPost(it) }
 }

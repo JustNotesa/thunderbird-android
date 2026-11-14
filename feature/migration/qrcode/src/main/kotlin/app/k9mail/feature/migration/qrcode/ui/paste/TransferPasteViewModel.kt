@@ -87,7 +87,12 @@ internal class TransferPasteViewModel(
             return
         }
 
-        writeAccounts(accountData.withOAuthStates(content.oAuthStates).accounts)
+        writeAccounts(
+            accountData.withOAuthStates(
+                oAuthStates = content.oAuthStates,
+                desktopOAuthGrants = content.desktopOAuth,
+            ).accounts,
+        )
     }
 
     private fun writeAccounts(accounts: List<Account>) {
