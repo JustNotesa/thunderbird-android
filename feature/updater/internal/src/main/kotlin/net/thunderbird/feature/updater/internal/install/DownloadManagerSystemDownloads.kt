@@ -120,8 +120,8 @@ internal class DownloadManagerSystemDownloads(private val context: Context) : Sy
             .setMimeType(APK_MIME_TYPE)
             .setDestinationUri(Uri.fromFile(target))
             .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE)
-            .setAllowedOverMetered(true)
-            .setAllowedOverRoaming(true)
+            .setAllowedOverMetered(!request.onlyOnWifi)
+            .setAllowedOverRoaming(!request.onlyOnWifi)
     }
 
     private fun targetFile(fileName: String): File? {

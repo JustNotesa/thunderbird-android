@@ -11,18 +11,6 @@ import androidx.core.content.ContextCompat
 import net.thunderbird.feature.updater.api.AppUpdate
 
 /**
- * Tells the user that the app update is being installed.
- */
-internal interface InstallingNotifier {
-
-    /** Notifies the user that the update is being installed. */
-    fun notifyInstalling()
-
-    /** Removes the notification that tells the user that the update is being installed. */
-    fun cancelInstalling()
-}
-
-/**
  * Tells the user with a notification that a new version of the app is ready to be installed.
  *
  * Every function that posts a notification checks [canPostNotifications] first; lint doesn't see that check.
@@ -76,6 +64,46 @@ internal class UpdateNotifier(private val context: Context) : InstallingNotifier
     /** Removes the notification that announces an available update. */
     fun cancelUpdateAvailable() {
         notificationManager.cancel(UPDATE_NOTIFICATION_TAG, UPDATE_NOTIFICATION_ID)
+    }
+
+    /**
+     * Notifies the user that the update was downloaded and can be installed now.
+     *
+     * The notification offers the installation of the update, so that the user doesn't have to open the app first.
+     *
+     * @param tag the release tag of the downloaded update.
+     * @param title the title of the downloaded update.
+     */
+    fun notifyUpdateReady(tag: String, title: String) {
+        if (!canPostNotifications()) return
+
+        notificationManager.createNotificationChannel(notifications.updateChannel())
+        notificationManager.notify(
+            READY_NOTIFICATION_TAG,
+            READY_NOTIFICATION_ID,
+            notifications.updateReady(tag, title),
+        )
+    }
+
+    /** Removes the notification that offers the installation of the downloaded update. */
+    fun cancelUpdateReady() {
+        notificationManager.cancel(READY_NOTIFICATION_TAG, READY_NOTIFICATION_ID)
+    }
+
+    /**
+     * Notifies the user that the download of the update failed.
+     *
+     * A download of the background that fails isn't allowed to fail unnoticed.
+     */
+    fun notifyDownloadFailed() {
+        if (!canPostNotifications()) return
+
+        notificationManager.createNotificationChannel(notifications.updateChannel())
+        notificationManager.notify(
+            FAILED_NOTIFICATION_TAG,
+            FAILED_NOTIFICATION_ID,
+            notifications.downloadFailed(),
+        )
     }
 
     /**
@@ -139,5 +167,9 @@ internal class UpdateNotifier(private val context: Context) : InstallingNotifier
         const val UPDATED_NOTIFICATION_ID = 0x5552
         const val INSTALLING_NOTIFICATION_TAG = "app_installing"
         const val INSTALLING_NOTIFICATION_ID = 0x5553
+        const val READY_NOTIFICATION_TAG = "app_update_ready"
+        const val READY_NOTIFICATION_ID = 0x5554
+        const val FAILED_NOTIFICATION_TAG = "app_update_failed"
+        const val FAILED_NOTIFICATION_ID = 0x5555
     }
 }

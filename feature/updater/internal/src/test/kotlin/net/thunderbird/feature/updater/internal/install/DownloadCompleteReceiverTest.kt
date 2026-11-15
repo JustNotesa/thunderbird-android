@@ -195,6 +195,7 @@ class DownloadCompleteReceiverTest {
             sha256 = sha256Of(APK_CONTENT),
             sizeBytes = APK_CONTENT.length.toLong(),
             title = TITLE,
+            installWhenDone = true,
         )
     }
 

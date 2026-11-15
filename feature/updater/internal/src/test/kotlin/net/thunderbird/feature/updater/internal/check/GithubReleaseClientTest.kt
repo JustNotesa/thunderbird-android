@@ -17,9 +17,13 @@ import okhttp3.mockwebserver.MockWebServer
 
 private const val REPOSITORY = "JustNotesa/thunderbird-android"
 private const val RELEASES_PATH = "/repos/JustNotesa/thunderbird-android/releases/latest"
+private const val RELEASE_BY_TAG_PATH =
+    "/repos/JustNotesa/thunderbird-android/releases/tags/mein-thunderbird-2026-10-25-3"
 private const val TAG_NAME = "mein-thunderbird-2026-10-25-3"
 private const val RELEASE_NAME = "Mein Thunderbird 2026-10-25 (3)"
 private const val RELEASE_BODY = "notes"
+private const val RELEASE_HTML_URL =
+    "https://github.com/JustNotesa/thunderbird-android/releases/tag/mein-thunderbird-2026-10-25-3"
 private const val ASSET_NAME = "mein-thunderbird-2026-10-25-3.apk"
 private const val ASSET_CONTENT_TYPE = "application/vnd.android.package-archive"
 private const val ASSET_SIZE = 36_349_629L
@@ -31,6 +35,7 @@ private val RELEASE_JSON = """
       "tag_name": "$TAG_NAME",
       "name": "$RELEASE_NAME",
       "body": "$RELEASE_BODY",
+      "html_url": "$RELEASE_HTML_URL",
       "prerelease": false,
       "draft": false,
       "unknown_field": 1,
@@ -109,6 +114,7 @@ class GithubReleaseClientTest {
                     tagName = TAG_NAME,
                     name = RELEASE_NAME,
                     body = RELEASE_BODY,
+                    htmlUrl = RELEASE_HTML_URL,
                     draft = false,
                     prerelease = false,
                     assets = listOf(
@@ -218,5 +224,46 @@ class GithubReleaseClientTest {
         val result = testSubject.fetchLatestRelease(REPOSITORY)
 
         assertThat(result).isEqualTo(GithubReleaseResponse.NetworkError)
+    }
+
+    @Test
+    fun `should fetch the release with the tag`() = runTest {
+        server.enqueue(MockResponse().setBody(RELEASE_JSON))
+
+        val result = testSubject.fetchReleaseByTag(REPOSITORY, TAG_NAME)
+
+        assertThat(result).isInstanceOf<GithubReleaseResponse.Success>().all {
+            prop(GithubReleaseResponse.Success::release).transform { it.tagName }.isEqualTo(TAG_NAME)
+        }
+        val request = server.takeRequest()
+        assertThat(request.method).isEqualTo("GET")
+        assertThat(request.path).isEqualTo(RELEASE_BY_TAG_PATH)
+    }
+
+    @Test
+    fun `should report http error when the release with the tag is not found`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(404).setBody("""{"message":"Not Found"}"""))
+
+        val result = testSubject.fetchReleaseByTag(REPOSITORY, TAG_NAME)
+
+        assertThat(result).isEqualTo(GithubReleaseResponse.HttpError(404))
+    }
+
+    @Test
+    fun `should not request an invalid tag`() = runTest {
+        val invalidTags = listOf("", "..", "../x", "a b", "tag/with/slash", "tag?query", "tag#fragment")
+
+        val results = invalidTags.map { testSubject.fetchReleaseByTag(REPOSITORY, it) }
+
+        assertThat(results).containsOnly(GithubReleaseResponse.InvalidResponse)
+        assertThat(server.requestCount).isEqualTo(0)
+    }
+
+    @Test
+    fun `should not request an invalid repository for the release with the tag`() = runTest {
+        val result = testSubject.fetchReleaseByTag("a b/c", TAG_NAME)
+
+        assertThat(result).isEqualTo(GithubReleaseResponse.InvalidResponse)
+        assertThat(server.requestCount).isEqualTo(0)
     }
 }

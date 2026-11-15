@@ -14,6 +14,7 @@ import net.thunderbird.feature.updater.api.AppUpdate
 import net.thunderbird.feature.updater.api.AppUpdateChecker
 import net.thunderbird.feature.updater.api.AppUpdateInstaller
 import net.thunderbird.feature.updater.api.AppUpdateSettings
+import net.thunderbird.feature.updater.api.ReleaseNotesResult
 import net.thunderbird.feature.updater.api.UpdateCheckFailure
 import net.thunderbird.feature.updater.api.UpdateCheckResult
 import net.thunderbird.feature.updater.api.UpdateInstallFailure
@@ -34,6 +35,11 @@ class AboutUpdatesViewModelTest {
         apkUrl = "https://example.com/mein-thunderbird-2026-10-26.apk",
         apkSizeBytes = 36_349_629,
         apkSha256 = null,
+    )
+    private val releaseNotes = ReleaseNotesResult.Loaded(
+        title = "Mein Thunderbird 2026-10-25",
+        notes = "Some release notes",
+        url = RELEASE_NOTES_URL,
     )
 
     @Before
@@ -129,6 +135,106 @@ class AboutUpdatesViewModelTest {
     }
 
     @Test
+    fun `changing the background download switch updates the settings`() {
+        val testSubject = createViewModel()
+
+        testSubject.event(AboutContract.Event.OnBackgroundDownloadChanged(true))
+
+        assertThat(settings.setBackgroundDownloadEnabledCount).isEqualTo(1)
+        assertThat(testSubject.state.value.updates?.backgroundDownloadEnabled).isEqualTo(true)
+    }
+
+    @Test
+    fun `changing the Wi-Fi switch updates the settings`() {
+        val testSubject = createViewModel()
+
+        testSubject.event(AboutContract.Event.OnDownloadOnlyOnWifiChanged(false))
+
+        assertThat(settings.setDownloadOnlyOnWifiCount).isEqualTo(1)
+        assertThat(testSubject.state.value.updates?.downloadOnlyOnWifi).isEqualTo(false)
+    }
+
+    @Test
+    fun `changing the automatic installation switch updates the settings`() {
+        val testSubject = createViewModel()
+
+        testSubject.event(AboutContract.Event.OnAutoInstallWhenIdleChanged(true))
+
+        assertThat(settings.setAutoInstallWhenIdleCount).isEqualTo(1)
+        assertThat(testSubject.state.value.updates?.autoInstallWhenIdle).isEqualTo(true)
+    }
+
+    @Test
+    fun `the release notes of the installed version are loaded when the version is tapped`() {
+        checker.releaseNotesResult = releaseNotes
+        val testSubject = createViewModel()
+
+        testSubject.event(AboutContract.Event.OnInstalledVersionClick)
+
+        assertThat(checker.installedReleaseNotesCount).isEqualTo(1)
+        assertThat(testSubject.state.value.updates?.installedNotes).isEqualTo(
+            InstalledNotesStatus.Loaded(
+                title = "Mein Thunderbird 2026-10-25",
+                notes = "Some release notes",
+                url = RELEASE_NOTES_URL,
+            ),
+        )
+    }
+
+    @Test
+    fun `the release notes of the installed version are hidden when the version is tapped again`() {
+        checker.releaseNotesResult = releaseNotes
+        val testSubject = createViewModel()
+
+        testSubject.event(AboutContract.Event.OnInstalledVersionClick)
+        testSubject.event(AboutContract.Event.OnInstalledVersionClick)
+
+        assertThat(testSubject.state.value.updates?.installedNotes).isEqualTo(InstalledNotesStatus.Hidden)
+        assertThat(checker.installedReleaseNotesCount).isEqualTo(1)
+    }
+
+    @Test
+    fun `loading the release notes of the installed version can fail`() {
+        checker.releaseNotesResult = ReleaseNotesResult.Failed(UpdateCheckFailure.NETWORK)
+        val testSubject = createViewModel()
+
+        testSubject.event(AboutContract.Event.OnInstalledVersionClick)
+
+        assertThat(testSubject.state.value.updates?.installedNotes).isEqualTo(
+            InstalledNotesStatus.Failed(UpdateCheckFailure.NETWORK),
+        )
+    }
+
+    @Test
+    fun `the release notes of the installed version are loaded again after a failure`() {
+        checker.releaseNotesResult = ReleaseNotesResult.Failed(UpdateCheckFailure.NETWORK)
+        val testSubject = createViewModel()
+        testSubject.event(AboutContract.Event.OnInstalledVersionClick)
+
+        checker.releaseNotesResult = releaseNotes
+        testSubject.event(AboutContract.Event.OnRetryInstalledNotes)
+
+        assertThat(checker.installedReleaseNotesCount).isEqualTo(2)
+        assertThat(testSubject.state.value.updates?.installedNotes).isEqualTo(
+            InstalledNotesStatus.Loaded(
+                title = "Mein Thunderbird 2026-10-25",
+                notes = "Some release notes",
+                url = RELEASE_NOTES_URL,
+            ),
+        )
+    }
+
+    @Test
+    fun `the release notes aren't shown when the updater is switched off`() {
+        checker.releaseNotesResult = ReleaseNotesResult.Disabled
+        val testSubject = createViewModel()
+
+        testSubject.event(AboutContract.Event.OnInstalledVersionClick)
+
+        assertThat(testSubject.state.value.updates?.installedNotes).isEqualTo(InstalledNotesStatus.Hidden)
+    }
+
+    @Test
     fun `installing an available update is forwarded to the installer`() {
         checker.checkResult = UpdateCheckResult.Available(update)
         val testSubject = createViewModel()
@@ -136,6 +242,15 @@ class AboutUpdatesViewModelTest {
         testSubject.event(AboutContract.Event.OnInstallClick)
 
         assertThat(installer.installedUpdates).containsExactly(update)
+    }
+
+    @Test
+    fun `installing the update that was downloaded in the background is forwarded to the installer`() {
+        val testSubject = createViewModel()
+
+        testSubject.event(AboutContract.Event.OnInstallDownloadedClick)
+
+        assertThat(installer.installDownloadedCount).isEqualTo(1)
     }
 
     @Test
@@ -264,5 +379,10 @@ class AboutUpdatesViewModelTest {
             updateSettings = settings,
             updateInstaller = installer,
         )
+    }
+
+    companion object {
+        const val RELEASE_NOTES_URL =
+            "https://github.com/JustNotesa/thunderbird-android/releases/tag/mein-thunderbird-2026-10-25"
     }
 }

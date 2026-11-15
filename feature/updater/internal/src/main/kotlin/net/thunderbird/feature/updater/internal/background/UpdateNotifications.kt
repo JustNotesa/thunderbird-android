@@ -4,11 +4,13 @@ import android.app.Notification
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import androidx.core.app.NotificationChannelCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import net.thunderbird.feature.updater.api.AppUpdate
 import net.thunderbird.feature.updater.internal.R
+import net.thunderbird.feature.updater.internal.install.InstallDownloadedReceiver
 
 /**
  * Builds the channels and the notifications of the updater.
@@ -16,6 +18,8 @@ import net.thunderbird.feature.updater.internal.R
  * The notifications are built here, so that [UpdateNotifier] only has to post them.
  */
 internal class UpdateNotifications(private val context: Context) {
+
+    private val launchIntent = AppLaunchIntent(context)
 
     /** The channel of the notifications about the pending update. */
     fun updateChannel(): NotificationChannelCompat {
@@ -92,15 +96,45 @@ internal class UpdateNotifications(private val context: Context) {
         return builder.build()
     }
 
-    private fun contentIntent(): PendingIntent? {
-        val launchIntent = context.packageManager.getLaunchIntentForPackage(context.packageName) ?: return null
+    /**
+     * The notification that tells the user that the update was downloaded and can be installed now.
+     *
+     * The notification offers the installation of the update, so that the user doesn't have to open the app first.
+     */
+    fun updateReady(tag: String, title: String): Notification {
+        val builder = NotificationCompat.Builder(context, CHANNEL_ID)
+            .setSmallIcon(R.drawable.updater_ic_notification)
+            .setContentTitle(context.getString(R.string.updater_ready_notification_title))
+            .setContentText(context.getString(R.string.updater_ready_notification_text, title))
+            .setAutoCancel(true)
+            .addAction(
+                R.drawable.updater_ic_notification,
+                context.getString(R.string.updater_install_action),
+                installIntent(tag),
+            )
 
-        return PendingIntent.getActivity(
-            context,
-            CONTENT_INTENT_REQUEST_CODE,
-            launchIntent,
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
-        )
+        contentIntent()?.let { builder.setContentIntent(it) }
+
+        return builder.build()
+    }
+
+    /**
+     * The notification that tells the user that the download of the update failed.
+     */
+    fun downloadFailed(): Notification {
+        val builder = NotificationCompat.Builder(context, CHANNEL_ID)
+            .setSmallIcon(R.drawable.updater_ic_notification)
+            .setContentTitle(context.getString(R.string.updater_failed_notification_title))
+            .setContentText(context.getString(R.string.updater_failed_notification_text))
+            .setAutoCancel(true)
+
+        contentIntent()?.let { builder.setContentIntent(it) }
+
+        return builder.build()
+    }
+
+    private fun contentIntent(): PendingIntent? {
+        return launchIntent.pendingIntent(CONTENT_INTENT_REQUEST_CODE)
     }
 
     private fun confirmIntent(confirmIntent: Intent): PendingIntent {
@@ -112,10 +146,36 @@ internal class UpdateNotifications(private val context: Context) {
         )
     }
 
+    /**
+     * The intent that installs the update that was downloaded.
+     */
+    private fun installIntent(tag: String): PendingIntent {
+        // The tag is part of the intent, so that the action of an older update isn't used for a newer one.
+        val data = Uri.Builder()
+            .scheme(RELEASE_URI_SCHEME)
+            .authority(RELEASE_URI_AUTHORITY)
+            .appendPath(tag)
+            .build()
+        val intent = Intent(context, InstallDownloadedReceiver::class.java)
+            .setAction(InstallDownloadedReceiver.ACTION_INSTALL_DOWNLOADED)
+            .setData(data)
+            .setPackage(context.packageName)
+
+        return PendingIntent.getBroadcast(
+            context,
+            INSTALL_INTENT_REQUEST_CODE,
+            intent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+    }
+
     private companion object {
         const val CHANNEL_ID = "app_updates"
         const val UPDATED_CHANNEL_ID = "app_updated"
         const val CONTENT_INTENT_REQUEST_CODE = 1
         const val CONFIRM_INTENT_REQUEST_CODE = 2
+        const val INSTALL_INTENT_REQUEST_CODE = 3
+        const val RELEASE_URI_SCHEME = "thunderbird"
+        const val RELEASE_URI_AUTHORITY = "app-update"
     }
 }

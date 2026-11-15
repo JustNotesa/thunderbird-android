@@ -44,14 +44,38 @@ internal class AboutViewModel(
             is Event.OnChangeLogClick -> emitEffect(Effect.OpenChangeLog)
             is Event.OnSectionContentClick -> emitEffect(Effect.OpenUrl(event.url))
             is Event.OnLibraryClick -> emitEffect(Effect.OpenUrl(event.library.url))
-            is Event.OnAutoCheckChanged -> updatesController?.onAutoCheckChanged(event.enabled)
-            Event.OnCheckForUpdatesClick -> updatesController?.onCheckForUpdatesClick()
-            Event.OnInstallClick -> updatesController?.onInstallClick()
-            Event.OnRefreshDownloadClick -> updatesController?.onRefreshDownloadClick()
-            Event.OnOpenInstallPermissionClick -> updatesController?.onOpenInstallPermissionClick()
-            Event.OnScreenResumed -> updatesController?.onScreenResumed()
-            Event.OnInstallFailureDismiss -> updatesController?.onInstallFailureDismiss()
-            Event.OnCancelInstallClick -> updatesController?.onCancelInstallClick()
+            else -> handleUpdatesEvent(event)
+        }
+    }
+
+    private fun handleUpdatesEvent(event: Event) {
+        val controller = updatesController ?: return
+
+        when (event) {
+            is Event.OnAutoCheckChanged -> controller.onAutoCheckChanged(event.enabled)
+            is Event.OnBackgroundDownloadChanged -> controller.onBackgroundDownloadChanged(event.enabled)
+            is Event.OnDownloadOnlyOnWifiChanged -> controller.onDownloadOnlyOnWifiChanged(event.enabled)
+            is Event.OnAutoInstallWhenIdleChanged -> controller.onAutoInstallWhenIdleChanged(event.enabled)
+            Event.OnInstalledVersionClick -> controller.onInstalledVersionClick()
+            Event.OnRetryInstalledNotes -> controller.onRetryInstalledNotes()
+            Event.OnCheckForUpdatesClick -> controller.onCheckForUpdatesClick()
+            else -> handleInstallEvent(event)
+        }
+    }
+
+    private fun handleInstallEvent(event: Event) {
+        val installController = updatesController?.installController ?: return
+
+        when (event) {
+            Event.OnInstallClick -> installController.onInstallClick()
+            Event.OnInstallDownloadedClick -> installController.onInstallDownloadedClick()
+            Event.OnCancelInstallClick -> installController.onCancelInstallClick()
+            Event.OnInstallFailureDismiss -> installController.onInstallFailureDismiss()
+            Event.OnOpenInstallPermissionClick -> installController.onOpenInstallPermissionClick()
+            Event.OnRefreshDownloadClick -> installController.onRefreshDownloadClick()
+            Event.OnScreenResumed -> installController.onScreenResumed()
+            // The other events aren't handled here.
+            else -> Unit
         }
     }
 

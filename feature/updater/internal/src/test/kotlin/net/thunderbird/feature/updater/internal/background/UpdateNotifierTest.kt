@@ -6,6 +6,7 @@ import android.app.Notification
 import android.app.NotificationManager
 import android.content.Intent
 import assertk.assertThat
+import assertk.assertions.hasSize
 import assertk.assertions.isEqualTo
 import assertk.assertions.isFalse
 import assertk.assertions.isNotEqualTo
@@ -13,6 +14,7 @@ import assertk.assertions.isNotNull
 import assertk.assertions.isNull
 import assertk.assertions.isTrue
 import net.thunderbird.feature.updater.api.AppUpdate
+import net.thunderbird.feature.updater.internal.R
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -218,6 +220,78 @@ class UpdateNotifierTest {
         ).isNull()
     }
 
+    @Test
+    fun `the ready notification is posted with its own id`() {
+        // Arrange
+        shadowOf(application).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
+
+        // Act
+        testSubject.notifyUpdateReady(RELEASE_TAG, RELEASE_TITLE)
+
+        // Assert
+        assertThat(
+            notification(UpdateNotifier.READY_NOTIFICATION_TAG, UpdateNotifier.READY_NOTIFICATION_ID),
+        ).isNotNull()
+    }
+
+    @Test
+    fun `the ready notification offers the installation of the update`() {
+        // Arrange
+        shadowOf(application).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
+
+        // Act
+        testSubject.notifyUpdateReady(RELEASE_TAG, RELEASE_TITLE)
+
+        // Assert
+        val actions = notification(
+            UpdateNotifier.READY_NOTIFICATION_TAG,
+            UpdateNotifier.READY_NOTIFICATION_ID,
+        )?.actions.orEmpty()
+        assertThat(actions).hasSize(1)
+        assertThat(actions.first().title).isEqualTo(application.getString(R.string.updater_install_action))
+    }
+
+    @Test
+    fun `the ready notification is cancelled`() {
+        // Arrange
+        shadowOf(application).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
+        testSubject.notifyUpdateReady(RELEASE_TAG, RELEASE_TITLE)
+
+        // Act
+        testSubject.cancelUpdateReady()
+
+        // Assert
+        assertThat(
+            notification(UpdateNotifier.READY_NOTIFICATION_TAG, UpdateNotifier.READY_NOTIFICATION_ID),
+        ).isNull()
+    }
+
+    @Test
+    fun `the failed download notification is posted with its own id`() {
+        // Arrange
+        shadowOf(application).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
+
+        // Act
+        testSubject.notifyDownloadFailed()
+
+        // Assert
+        assertThat(
+            notification(UpdateNotifier.FAILED_NOTIFICATION_TAG, UpdateNotifier.FAILED_NOTIFICATION_ID),
+        ).isNotNull()
+    }
+
+    @Test
+    fun `the failed download notification is not posted without the permission`() {
+        // Arrange
+        shadowOf(application).denyPermissions(Manifest.permission.POST_NOTIFICATIONS)
+
+        // Act
+        testSubject.notifyDownloadFailed()
+
+        // Assert
+        assertThat(notificationCount()).isEqualTo(0)
+    }
+
     private fun notification(tag: String, id: Int) =
         shadowOf(notificationManager()).getNotification(tag, id)
 
@@ -241,6 +315,7 @@ class UpdateNotifierTest {
     private companion object {
         const val TAG = "test-tag"
         const val RELEASE_TAG = "mein-thunderbird-2026-10-25"
+        const val RELEASE_TITLE = "Mein Thunderbird 2026-10-25"
         const val CONFIRMATION_ACTION = "com.android.packageinstaller.CONFIRM_INSTALL"
         const val UPDATED_CHANNEL_ID = "app_updated"
     }

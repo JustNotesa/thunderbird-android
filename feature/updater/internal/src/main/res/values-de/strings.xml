@@ -10,5 +10,10 @@
     <string name="updater_updated_channel_name">App aktualisiert</string>
     <string name="updater_installing_notification_title">Update wird installiert…</string>
     <string name="updater_installing_notification_text">Thunderbird wird danach geschlossen. Tippe dann auf die nächste Benachrichtigung, um es wieder zu öffnen.</string>
+    <string name="updater_ready_notification_title">Update bereit zur Installation</string>
+    <string name="updater_ready_notification_text">%1$s wurde heruntergeladen und kann jetzt installiert werden.</string>
+    <string name="updater_install_action">Installieren</string>
+    <string name="updater_failed_notification_title">Update konnte nicht heruntergeladen werden</string>
+    <string name="updater_failed_notification_text">Öffne die App, um es erneut zu versuchen.</string>
     <string name="updater_download_title">Thunderbird-Update</string>
 </resources>

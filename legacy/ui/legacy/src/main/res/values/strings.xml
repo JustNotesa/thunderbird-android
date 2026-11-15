@@ -1376,8 +1376,22 @@ You can keep this message and use it as a backup for your secret key. If you wan
     <string name="about_updates_title">Updates</string>
     <!-- Label of the row showing the release tag of the installed version -->
     <string name="about_updates_installed_version">Installed version</string>
+    <!-- Hint shown below the installed version that tells the user how to see the release notes -->
+    <string name="about_updates_installed_version_hint">Tap to show the release notes</string>
+    <!-- Message shown while the release notes of the installed version are loading -->
+    <string name="about_updates_notes_loading">Loading the release notes…</string>
+    <!-- Button that opens the release notes of the installed version on GitHub -->
+    <string name="about_updates_notes_open_on_github">Open on GitHub</string>
     <!-- Label of the switch that enables checking for updates automatically -->
     <string name="about_updates_auto_check">Automatically check for updates</string>
+    <!-- Label of the switch that enables downloading updates in the background -->
+    <string name="about_updates_background_download">Download updates in the background</string>
+    <!-- Label of the switch that limits the background download to Wi-Fi -->
+    <string name="about_updates_only_on_wifi">Only over Wi-Fi</string>
+    <!-- Label of the switch that enables installing an update while the device is idle -->
+    <string name="about_updates_auto_install_when_idle">Install automatically while the device is idle and charging</string>
+    <!-- Hint shown below the switch that enables installing an update while the device is idle -->
+    <string name="about_updates_auto_install_when_idle_hint">Android or Google Play Protect may still ask; then a notification appears.</string>
     <!-- Button that starts a check for updates -->
     <string name="about_updates_check_button">Check for updates</string>
     <!-- Button that repeats a check for updates -->
@@ -1404,6 +1418,10 @@ You can keep this message and use it as a backup for your secret key. If you wan
     <string name="about_updates_size">Size: %1$s</string>
     <!-- Button that downloads and installs a newer release -->
     <string name="about_updates_install_button">Download and install</string>
+    <!-- Message shown when a newer release was downloaded and is ready to be installed -->
+    <string name="about_updates_ready_to_install">Update %1$s has been downloaded and is ready to install.</string>
+    <!-- Button that installs the update that was downloaded in the background -->
+    <string name="about_updates_install_now_button">Install now</string>
     <!-- Progress of the download of a newer release -->
     <string name="about_updates_downloading_progress">%1$s of %2$s (%3$d %%)</string>
     <!-- Progress of the download of a newer release when the total size isn't known -->

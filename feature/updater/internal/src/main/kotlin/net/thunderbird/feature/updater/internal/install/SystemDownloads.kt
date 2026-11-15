@@ -34,6 +34,8 @@ internal data class SystemDownloadRequest(
     val fileName: String,
     val title: String,
     val description: String,
+    /** Whether the download may only run over an unmetered network (Wi-Fi). */
+    val onlyOnWifi: Boolean = false,
 )
 
 /** The status of a download that is handled by the download manager of the system. */

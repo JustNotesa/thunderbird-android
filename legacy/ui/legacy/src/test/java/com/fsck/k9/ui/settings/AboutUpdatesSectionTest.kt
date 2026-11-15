@@ -119,6 +119,21 @@ class AboutUpdatesSectionTest {
 
         assertThat(result.length).isEqualTo(301)
     }
+
+    @Test
+    fun `release notes aren't shortened when the shortening is turned off`() {
+        val releaseNotes = "a".repeat(400)
+
+        val result = formatReleaseNotes(releaseNotes, shorten = false)
+
+        assertThat(result.length).isEqualTo(400)
+    }
+
+    @Test
+    fun `only URLs of GitHub are opened in the browser`() {
+        assertThat(isGithubReleaseUrl("https://github.com/JustNotesa/thunderbird-android")).isEqualTo(true)
+        assertThat(isGithubReleaseUrl("https://example.com/mein-thunderbird.apk")).isEqualTo(false)
+    }
 }
 
 @RunWith(RobolectricTestRunner::class)
@@ -232,6 +247,40 @@ class AboutUpdatesSectionUiTest {
         assertThat(percentNode).isNull()
     }
 
+    @Test
+    fun `the update that was downloaded in the background can be installed`() {
+        val installs = mutableListOf<Boolean>()
+        val composeView = createComposeView(
+            install = UpdateInstallState.ReadyToInstall(tag = VERSION_TAG),
+            onInstallDownloadedClick = { installs.add(true) },
+        )
+
+        val installNowNode = findTextNode(composeView, INSTALL_NOW_BUTTON_LABEL)
+        assertThat(installNowNode).isNotNull()
+
+        tap(composeView, installNowNode!!.boundsInRoot.center)
+
+        assertThat(installs).containsExactly(true)
+    }
+
+    @Test
+    fun `the downloaded update is shown with its release tag`() {
+        val composeView = createComposeView(install = UpdateInstallState.ReadyToInstall(tag = VERSION_TAG))
+
+        val messageNode = findTextNode(composeView, "Update $VERSION_TAG has been downloaded and is ready to install.")
+
+        assertThat(messageNode).isNotNull()
+    }
+
+    @Test
+    fun `the update isn't downloaded again while it is ready to install`() {
+        val composeView = createComposeView(install = UpdateInstallState.ReadyToInstall(tag = VERSION_TAG))
+
+        val installButtonNode = findTextNode(composeView, INSTALL_BUTTON_LABEL)
+
+        assertThat(installButtonNode).isNull()
+    }
+
     private fun findTextNode(composeView: ComposeView, text: String): SemanticsNode? {
         return findNode(composeView) { node ->
             node.config.contains(SemanticsProperties.Text) &&
@@ -244,6 +293,7 @@ class AboutUpdatesSectionUiTest {
         onAutoCheckChange: (Boolean) -> Unit = {},
         onCancelInstallClick: () -> Unit = {},
         onRefreshDownloadClick: () -> Unit = {},
+        onInstallDownloadedClick: () -> Unit = {},
     ): ComposeView {
         val activity = Robolectric.buildActivity(ComponentActivity::class.java).setup().get()
         val composeView = ComposeView(activity)
@@ -254,17 +304,28 @@ class AboutUpdatesSectionUiTest {
                     state = UpdatesState(
                         currentVersionTag = VERSION_TAG,
                         autoCheckEnabled = true,
+                        backgroundDownloadEnabled = false,
+                        downloadOnlyOnWifi = true,
+                        autoInstallWhenIdle = false,
                         check = CheckStatus.Available(update = createAppUpdate()),
                         install = install,
                         canInstallPackages = true,
+                        installedNotes = InstalledNotesStatus.Hidden,
                     ),
                     onAutoCheckChange = onAutoCheckChange,
+                    onBackgroundDownloadChange = {},
+                    onDownloadOnlyOnWifiChange = {},
+                    onAutoInstallWhenIdleChange = {},
+                    onInstalledVersionClick = {},
+                    onRetryInstalledNotes = {},
                     onCheckClick = {},
                     onInstallClick = {},
+                    onInstallDownloadedClick = onInstallDownloadedClick,
                     onCancelInstallClick = onCancelInstallClick,
                     onRefreshDownloadClick = onRefreshDownloadClick,
                     onOpenInstallPermissionClick = {},
                     onInstallFailureDismiss = {},
+                    onOpenUrl = {},
                 )
             }
         }
@@ -333,6 +394,7 @@ class AboutUpdatesSectionUiTest {
         const val CANCEL_BUTTON_LABEL = "Cancel"
         const val CHECK_STATUS_BUTTON_LABEL = "Check status"
         const val INSTALL_BUTTON_LABEL = "Download and install"
+        const val INSTALL_NOW_BUTTON_LABEL = "Install now"
         const val INSTALLING_PROGRESS_TEXT = "Android is installing the update…"
         const val INSTALLING_HINT_TEXT = "tap the notification “Thunderbird updated”"
         const val WAITING_FOR_NETWORK_TEXT = "Waiting for an internet connection…"

@@ -18,6 +18,15 @@ private const val ACCEPT_HEADER = "application/vnd.github+json"
 private const val API_VERSION_HEADER = "2022-11-28"
 private const val USER_AGENT = "MeinThunderbird-Updater"
 private val REPOSITORY_PATTERN = Regex("^[A-Za-z0-9-]+/[A-Za-z0-9._-]+$")
+private val TAG_PATTERN = Regex("^[A-Za-z0-9._-]+$")
+
+// The tags that would change the path of the request, because the browser of the URL treats them as a step up.
+private val DOT_SEGMENT_TAGS = setOf(".", "..")
+
+private const val SEGMENT_REPOS = "repos"
+private const val SEGMENT_RELEASES = "releases"
+private const val SEGMENT_LATEST = "latest"
+private const val SEGMENT_TAGS = "tags"
 
 /**
  * Asks the GitHub REST API for the latest release of a repository.
@@ -38,8 +47,51 @@ internal class GithubReleaseClient(
      * Never throws; every failure is reported as a [GithubReleaseResponse] value.
      */
     suspend fun fetchLatestRelease(repository: String): GithubReleaseResponse {
-        val request = buildRequest(repository) ?: return GithubReleaseResponse.InvalidResponse
+        val request = request(repository, listOf(SEGMENT_RELEASES, SEGMENT_LATEST))
+            ?: return GithubReleaseResponse.InvalidResponse
 
+        return execute(request)
+    }
+
+    /**
+     * Fetches the release with the tag [tag] of [repository], given in the form `owner/name`.
+     *
+     * Never throws; every failure is reported as a [GithubReleaseResponse] value.
+     */
+    suspend fun fetchReleaseByTag(repository: String, tag: String): GithubReleaseResponse {
+        // A tag that isn't a plain name isn't asked for, so that it can't change the requested path.
+        val plainTag = TAG_PATTERN.matches(tag) && tag !in DOT_SEGMENT_TAGS
+        val request = if (plainTag) request(repository, listOf(SEGMENT_RELEASES, SEGMENT_TAGS, tag)) else null
+
+        return if (request == null) GithubReleaseResponse.InvalidResponse else execute(request)
+    }
+
+    private fun request(repository: String, segments: List<String>): Request? {
+        if (!REPOSITORY_PATTERN.matches(repository)) {
+            return null
+        }
+
+        return createRequest(repository, segments)
+    }
+
+    private fun createRequest(repository: String, segments: List<String>): Request? {
+        val builder = baseUrl.toHttpUrlOrNull()?.newBuilder() ?: return null
+        // The tag is a path segment of its own, so that it can't change the path of the request.
+        builder.addPathSegment(SEGMENT_REPOS)
+        builder.addPathSegment(repository.substringBefore('/'))
+        builder.addPathSegment(repository.substringAfter('/'))
+        segments.forEach { segment -> builder.addPathSegment(segment) }
+
+        return Request.Builder()
+            .url(builder.build())
+            .header("Accept", ACCEPT_HEADER)
+            .header("X-GitHub-Api-Version", API_VERSION_HEADER)
+            .header("User-Agent", USER_AGENT)
+            .get()
+            .build()
+    }
+
+    private suspend fun execute(request: Request): GithubReleaseResponse {
         return try {
             withContext(Dispatchers.IO) {
                 httpClient.newCall(request).execute().use { response ->
@@ -51,26 +103,6 @@ internal class GithubReleaseClient(
             currentCoroutineContext().ensureActive()
             GithubReleaseResponse.NetworkError
         }
-    }
-
-    private fun buildRequest(repository: String): Request? {
-        if (!REPOSITORY_PATTERN.matches(repository)) {
-            return null
-        }
-
-        return createRequest(repository)
-    }
-
-    private fun createRequest(repository: String): Request? {
-        val url = "$baseUrl/repos/$repository/releases/latest".toHttpUrlOrNull() ?: return null
-
-        return Request.Builder()
-            .url(url)
-            .header("Accept", ACCEPT_HEADER)
-            .header("X-GitHub-Api-Version", API_VERSION_HEADER)
-            .header("User-Agent", USER_AGENT)
-            .get()
-            .build()
     }
 
     private fun parseResponse(response: Response): GithubReleaseResponse {

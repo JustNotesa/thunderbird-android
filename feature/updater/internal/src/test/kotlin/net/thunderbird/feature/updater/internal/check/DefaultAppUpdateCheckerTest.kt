@@ -11,6 +11,7 @@ import kotlinx.coroutines.test.runTest
 import net.thunderbird.components.core.logging.testing.TestLogger
 import net.thunderbird.feature.updater.api.AppUpdate
 import net.thunderbird.feature.updater.api.AppUpdateConfig
+import net.thunderbird.feature.updater.api.ReleaseNotesResult
 import net.thunderbird.feature.updater.api.UpdateCheckFailure
 import net.thunderbird.feature.updater.api.UpdateCheckResult
 import okhttp3.OkHttpClient
@@ -247,6 +248,84 @@ class DefaultAppUpdateCheckerTest {
         )
     }
 
+    @Test
+    fun `should load the release notes of the installed release`() = runTest {
+        // Arrange
+        val releaseUrl = "https://github.com/$REPOSITORY/releases/tag/$CURRENT_TAG"
+        server.enqueue(MockResponse().setBody(releaseJson(tag = CURRENT_TAG, htmlUrl = releaseUrl)))
+        val testSubject = createChecker(currentReleaseTag = CURRENT_TAG)
+
+        // Act
+        val result = testSubject.installedReleaseNotes()
+
+        // Assert
+        assertThat(result).isEqualTo(
+            ReleaseNotesResult.Loaded(
+                title = "Mein Thunderbird $CURRENT_TAG",
+                notes = "Release notes for $CURRENT_TAG",
+                url = releaseUrl,
+            ),
+        )
+    }
+
+    @Test
+    fun `should disable the release notes for a build without release tag`() = runTest {
+        // Arrange
+        val testSubject = createChecker(currentReleaseTag = "")
+
+        // Act
+        val result = testSubject.installedReleaseNotes()
+
+        // Assert
+        assertThat(result).isEqualTo(ReleaseNotesResult.Disabled)
+        assertThat(server.requestCount).isEqualTo(0)
+    }
+
+    @Test
+    fun `should use the page of the release when github doesn't know it`() = runTest {
+        // Arrange
+        server.enqueue(MockResponse().setBody(releaseJson(tag = CURRENT_TAG)))
+        val testSubject = createChecker(currentReleaseTag = CURRENT_TAG)
+
+        // Act
+        val result = testSubject.installedReleaseNotes()
+
+        // Assert
+        assertThat(result).isInstanceOf<ReleaseNotesResult.Loaded>()
+            .transform { it.url }
+            .isEqualTo("https://github.com/$REPOSITORY/releases/tag/$CURRENT_TAG")
+    }
+
+    @Test
+    fun `should not use a page of the release outside of github`() = runTest {
+        // Arrange
+        server.enqueue(
+            MockResponse().setBody(releaseJson(tag = CURRENT_TAG, htmlUrl = "https://example.com/release")),
+        )
+        val testSubject = createChecker(currentReleaseTag = CURRENT_TAG)
+
+        // Act
+        val result = testSubject.installedReleaseNotes()
+
+        // Assert
+        assertThat(result).isInstanceOf<ReleaseNotesResult.Loaded>()
+            .transform { it.url }
+            .isEqualTo("https://github.com/$REPOSITORY/releases/tag/$CURRENT_TAG")
+    }
+
+    @Test
+    fun `should report failure when the release of the installed version is not found`() = runTest {
+        // Arrange
+        server.enqueue(MockResponse().setResponseCode(404))
+        val testSubject = createChecker(currentReleaseTag = CURRENT_TAG)
+
+        // Act
+        val result = testSubject.installedReleaseNotes()
+
+        // Assert
+        assertThat(result).isEqualTo(ReleaseNotesResult.Failed(UpdateCheckFailure.SERVER))
+    }
+
     private fun createChecker(currentReleaseTag: String): DefaultAppUpdateChecker {
         val client = GithubReleaseClient(OkHttpClient(), server.url("/").toString().trimEnd('/'))
         val config = AppUpdateConfig(repository = REPOSITORY, currentReleaseTag = currentReleaseTag)
@@ -259,15 +338,18 @@ private fun releaseJson(
     prerelease: Boolean = false,
     draft: Boolean = false,
     assets: List<String> = listOf(apkAsset()),
+    htmlUrl: String? = null,
 ): String {
+    val htmlUrlField = htmlUrl?.let { url -> "\"html_url\": \"$url\"" }.orEmpty()
     return listOf(
         "\"tag_name\": \"$tag\"",
         "\"name\": \"Mein Thunderbird $tag\"",
         "\"body\": \"Release notes for $tag\"",
+        htmlUrlField,
         "\"draft\": $draft",
         "\"prerelease\": $prerelease",
         "\"assets\": [${assets.joinToString(", ")}]",
-    ).joinToString(", ", prefix = "{", postfix = "}")
+    ).filter { it.isNotEmpty() }.joinToString(", ", prefix = "{", postfix = "}")
 }
 
 private fun apkAsset(

@@ -4,8 +4,10 @@ import android.app.DownloadManager
 import android.content.Context
 import assertk.assertThat
 import assertk.assertions.isEqualTo
+import assertk.assertions.isFalse
 import assertk.assertions.isNotNull
 import assertk.assertions.isNull
+import assertk.assertions.isTrue
 import net.thunderbird.feature.updater.api.DownloadWaiting
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -44,6 +46,34 @@ class DownloadManagerSystemDownloadsTest {
 
         // Assert
         assertThat(downloadId).isNotNull()
+    }
+
+    @Test
+    fun `a download that may only run over wifi isn't allowed over a metered network`() {
+        // Arrange
+        val request = createRequest(url = "https://example.test/app.apk", onlyOnWifi = true)
+
+        // Act
+        val downloadId = testSubject.enqueue(request)
+
+        // Assert
+        val downloadRequest = shadowOf(downloadManager()).getRequest(downloadId!!)
+        assertThat(allowedOverMetered(downloadRequest)).isFalse()
+        assertThat(allowedOverRoaming(downloadRequest)).isFalse()
+    }
+
+    @Test
+    fun `a download may run over a metered network by default`() {
+        // Arrange
+        val request = createRequest(url = "https://example.test/app.apk")
+
+        // Act
+        val downloadId = testSubject.enqueue(request)
+
+        // Assert
+        val downloadRequest = shadowOf(downloadManager()).getRequest(downloadId!!)
+        assertThat(allowedOverMetered(downloadRequest)).isTrue()
+        assertThat(allowedOverRoaming(downloadRequest)).isTrue()
     }
 
     @Test
@@ -104,12 +134,36 @@ class DownloadManagerSystemDownloadsTest {
         return context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
     }
 
-    private fun createRequest(url: String): SystemDownloadRequest {
+    /**
+     * The download manager of the system doesn't tell whether the download may run over a metered network, so the
+     * field of the request is read.
+     */
+    private fun allowedOverMetered(request: DownloadManager.Request): Boolean {
+        return flagOf(request, "metered")
+    }
+
+    /**
+     * The download manager of the system doesn't tell whether the download may run while roaming, so the field of the
+     * request is read.
+     */
+    private fun allowedOverRoaming(request: DownloadManager.Request): Boolean {
+        return flagOf(request, "roaming")
+    }
+
+    private fun flagOf(request: DownloadManager.Request, name: String): Boolean {
+        val field = request.javaClass.declaredFields
+            .first { it.name.contains(name, ignoreCase = true) && it.type == Boolean::class.javaPrimitiveType }
+        field.isAccessible = true
+        return field.getBoolean(request)
+    }
+
+    private fun createRequest(url: String, onlyOnWifi: Boolean = false): SystemDownloadRequest {
         return SystemDownloadRequest(
             url = url,
             fileName = FILE_NAME,
             title = TITLE,
             description = DESCRIPTION,
+            onlyOnWifi = onlyOnWifi,
         )
     }
 

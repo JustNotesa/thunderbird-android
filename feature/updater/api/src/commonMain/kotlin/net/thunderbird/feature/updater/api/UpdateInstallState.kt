@@ -13,6 +13,12 @@ sealed interface UpdateInstallState {
         val waiting: DownloadWaiting? = null,
     ) : UpdateInstallState
 
+    /**
+     * The update with the release tag [tag] was downloaded and verified in the background and waits until the user
+     * (or the automatic installation) starts the installation with [AppUpdateInstaller.installDownloaded].
+     */
+    data class ReadyToInstall(val tag: String) : UpdateInstallState
+
     /** Checking the SHA-256 of the downloaded file. */
     data object Verifying : UpdateInstallState
 
