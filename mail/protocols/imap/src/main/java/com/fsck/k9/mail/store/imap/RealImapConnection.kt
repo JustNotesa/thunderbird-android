@@ -313,8 +313,6 @@ internal class RealImapConnection(
             AuthType.XOAUTH2 -> {
                 if (oauthTokenProvider == null) {
                     throw MessagingException("No OAuthToken Provider available.")
-                } else if (!hasCapability(Capabilities.SASL_IR)) {
-                    throw MissingCapabilityException(Capabilities.SASL_IR)
                 } else if (hasCapability(Capabilities.AUTH_OAUTHBEARER)) {
                     authWithOAuthToken(OAuthMethod.OAUTHBEARER)
                 } else if (hasCapability(Capabilities.AUTH_XOAUTH2)) {
@@ -413,13 +411,38 @@ internal class RealImapConnection(
         val token = oauthTokenProvider.getToken(OAuth2TokenProvider.OAUTH2_TIMEOUT.toLong())
 
         val authString = method.buildInitialClientResponse(settings.username, token)
-        val tag = sendSaslIrCommand(command = method.command, initialClientResponse = authString, sensitive = true)
 
-        return responseParser.readStatusResponse(
-            tag,
-            method.command,
-            logId,
-        ) { handleOAuthUntaggedResponse(it) }
+        return if (hasCapability(Capabilities.SASL_IR)) {
+            val tag = sendSaslIrCommand(command = method.command, initialClientResponse = authString, sensitive = true)
+
+            responseParser.readStatusResponse(
+                tag,
+                method.command,
+                logId,
+            ) { handleOAuthUntaggedResponse(it) }
+        } else {
+            val tag = sendCommand(method.command, false)
+            var pendingInitialResponse: String? = authString
+
+            responseParser.readStatusResponse(
+                tag,
+                method.command,
+                logId,
+            ) { response ->
+                if (pendingInitialResponse != null && response.isContinuationRequested) {
+                    val initialResponse = checkNotNull(pendingInitialResponse)
+                    pendingInitialResponse = null
+
+                    val outputStream = checkNotNull(imapOutputStream)
+                    outputStream.write(initialResponse.toByteArray())
+                    outputStream.write('\r'.code)
+                    outputStream.write('\n'.code)
+                    outputStream.flush()
+                } else {
+                    handleOAuthUntaggedResponse(response)
+                }
+            }
+        }
     }
 
     private fun handleOAuthUntaggedResponse(response: ImapResponse) {

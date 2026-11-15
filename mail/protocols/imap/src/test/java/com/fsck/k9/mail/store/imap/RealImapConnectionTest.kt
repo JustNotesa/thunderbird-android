@@ -375,18 +375,108 @@ class RealImapConnectionTest {
     }
 
     @Test
-    fun `open() AUTH OAUTHBEARER with SASL-IR capability missing`() {
+    fun `open() AUTH OAUTHBEARER without SASL-IR`() {
         val server = MockImapServer().apply {
             preAuthenticationDialog(capabilities = "AUTH=OAUTHBEARER")
+            expect("2 AUTHENTICATE OAUTHBEARER")
+            output("+ ")
+            expect(OAUTHBEARER_STRING)
+            output("2 OK Success")
+            postAuthenticationDialogRequestingCapabilities()
+        }
+        val imapConnection = startServerAndCreateImapConnection(server, authType = AuthType.XOAUTH2)
+
+        imapConnection.open()
+
+        server.verifyConnectionStillOpen()
+        server.verifyInteractionCompleted()
+    }
+
+    @Test
+    fun `open() AUTH XOAUTH2 without SASL-IR`() {
+        val server = MockImapServer().apply {
+            preAuthenticationDialog(capabilities = "AUTH=PLAIN AUTH=XOAUTH2")
+            expect("2 AUTHENTICATE XOAUTH2")
+            output("+ ")
+            expect(XOAUTH_STRING)
+            output("2 OK Success")
+            postAuthenticationDialogRequestingCapabilities()
+        }
+        val imapConnection = startServerAndCreateImapConnection(server, authType = AuthType.XOAUTH2)
+
+        imapConnection.open()
+
+        server.verifyConnectionStillOpen()
+        server.verifyInteractionCompleted()
+    }
+
+    @Test
+    fun `open() AUTH XOAUTH2 without SASL-IR invalidates and retries new token on 400 response`() {
+        val server = MockImapServer().apply {
+            preAuthenticationDialog(capabilities = "AUTH=PLAIN AUTH=XOAUTH2")
+            expect("2 AUTHENTICATE XOAUTH2")
+            output("+ ")
+            expect(XOAUTH_STRING)
+            output("+ ${XOAuth2ChallengeParserTestData.STATUS_400_RESPONSE}")
+            expect("")
+            output("2 NO SASL authentication failed")
+            expect("3 AUTHENTICATE XOAUTH2")
+            output("+ ")
+            expect(XOAUTH_STRING_RETRY)
+            output("3 OK Success")
+            postAuthenticationDialogRequestingCapabilities(tag = 4)
+        }
+        val imapConnection = startServerAndCreateImapConnection(server, authType = AuthType.XOAUTH2)
+
+        imapConnection.open()
+
+        server.verifyConnectionStillOpen()
+        server.verifyInteractionCompleted()
+    }
+
+    @Test
+    fun `open() AUTH XOAUTH2 without SASL-IR throws exception if retry fails`() {
+        val server = MockImapServer().apply {
+            preAuthenticationDialog(capabilities = "AUTH=PLAIN AUTH=XOAUTH2")
+            expect("2 AUTHENTICATE XOAUTH2")
+            output("+ ")
+            expect(XOAUTH_STRING)
+            output("+ ${XOAuth2ChallengeParserTestData.STATUS_400_RESPONSE}")
+            expect("")
+            output("2 NO SASL authentication failed")
+            expect("3 AUTHENTICATE XOAUTH2")
+            output("+ ")
+            expect(XOAUTH_STRING_RETRY)
+            output("+ ${XOAuth2ChallengeParserTestData.STATUS_400_RESPONSE}")
+            expect("")
+            output("3 NO SASL authentication failed")
         }
         val imapConnection = startServerAndCreateImapConnection(server, authType = AuthType.XOAUTH2)
 
         assertFailure {
             imapConnection.open()
-        }.isInstanceOf<MissingCapabilityException>()
-            .prop(MissingCapabilityException::capabilityName).isEqualTo("SASL-IR")
+        }.isInstanceOf<AuthenticationFailedException>()
+            .prop(AuthenticationFailedException::messageFromServer)
+            .isEqualTo("SASL authentication failed")
+    }
 
-        server.verifyConnectionClosed()
+    @Test
+    fun `open() AUTH XOAUTH2 without SASL-IR with tagged NO before continuation should retry`() {
+        val server = MockImapServer().apply {
+            preAuthenticationDialog(capabilities = "AUTH=PLAIN AUTH=XOAUTH2")
+            expect("2 AUTHENTICATE XOAUTH2")
+            output("2 NO Temporary failure")
+            expect("3 AUTHENTICATE XOAUTH2")
+            output("+ ")
+            expect(XOAUTH_STRING_RETRY)
+            output("3 OK Success")
+            postAuthenticationDialogRequestingCapabilities(tag = 4)
+        }
+        val imapConnection = startServerAndCreateImapConnection(server, authType = AuthType.XOAUTH2)
+
+        imapConnection.open()
+
+        server.verifyConnectionStillOpen()
         server.verifyInteractionCompleted()
     }
 
