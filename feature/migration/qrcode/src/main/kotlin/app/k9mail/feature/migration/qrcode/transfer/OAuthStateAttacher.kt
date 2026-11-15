@@ -9,22 +9,44 @@ import app.k9mail.feature.migration.qrcode.domain.entity.AccountData.Authenticat
  * The states are matched to the accounts by their position. Only accounts that sign in with OAuth get a state, because
  * the state of an account that signs in with a password has no meaning. The states hold refresh tokens, so they must
  * never be logged.
+ *
+ * The accounts that signed in with the OAuth client of Thunderbird desktop don't have a state of their own. Their state
+ * is created from the sign-in of the desktop client, so they keep their sign-in.
  */
-internal fun AccountData.withOAuthStates(oAuthStates: List<String?>): AccountData {
-    if (oAuthStates.isEmpty()) {
+internal fun AccountData.withOAuthStates(
+    oAuthStates: List<String?>,
+    desktopOAuthGrants: List<DesktopOAuthGrant?> = emptyList(),
+): AccountData {
+    if (oAuthStates.isEmpty() && desktopOAuthGrants.isEmpty()) {
         return this
     }
 
     val accounts = accounts.mapIndexed { index, account ->
-        val oAuthState = oAuthStates.getOrNull(index)
-        if (oAuthState != null && account.usesOAuth()) {
-            account.copy(oAuthState = oAuthState)
-        } else {
-            account.copy(oAuthState = null)
-        }
+        val oAuthState = oAuthStateFor(
+            index = index,
+            account = account,
+            oAuthStates = oAuthStates,
+            desktopOAuthGrants = desktopOAuthGrants,
+        )
+
+        account.copy(oAuthState = oAuthState)
     }
 
     return copy(accounts = accounts)
+}
+
+private fun oAuthStateFor(
+    index: Int,
+    account: AccountData.Account,
+    oAuthStates: List<String?>,
+    desktopOAuthGrants: List<DesktopOAuthGrant?>,
+): String? {
+    if (!account.usesOAuth()) {
+        return null
+    }
+
+    val oAuthState = oAuthStates.getOrNull(index)
+    return oAuthState ?: desktopOAuthGrants.getOrNull(index)?.toAuthStateJson()
 }
 
 private fun AccountData.Account.usesOAuth(): Boolean {

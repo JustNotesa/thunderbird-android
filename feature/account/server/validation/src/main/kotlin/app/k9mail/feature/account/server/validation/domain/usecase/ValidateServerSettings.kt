@@ -17,6 +17,13 @@ class ValidateServerSettings(
     private val coroutineDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ServerValidationDomainContract.UseCase.ValidateServerSettings {
     override suspend fun execute(settings: ServerSettings): ServerSettingsValidationResult {
+        return execute(settings, this.authStateStorage)
+    }
+
+    override suspend fun execute(
+        settings: ServerSettings,
+        authStateStorage: AuthStateStorage,
+    ): ServerSettingsValidationResult {
         return withContext(coroutineDispatcher) {
             when (settings.type) {
                 "imap" -> imapValidator.checkServerSettings(settings, authStateStorage)

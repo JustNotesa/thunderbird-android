@@ -5,6 +5,7 @@ import app.k9mail.feature.migration.qrcode.domain.QrCodeDomainContract.UseCase
 import app.k9mail.feature.migration.qrcode.domain.entity.AccountData
 import app.k9mail.feature.migration.qrcode.domain.entity.AccountData.Account
 import app.k9mail.feature.migration.qrcode.domain.usecase.QrCodeImageAnalysisProvider
+import app.k9mail.feature.migration.qrcode.transfer.DesktopOAuthGrant
 import app.k9mail.feature.migration.qrcode.transfer.TransferQrCode
 import app.k9mail.feature.migration.qrcode.transfer.TransferReceiveResult
 import app.k9mail.feature.migration.qrcode.transfer.TransferReceiver
@@ -182,6 +183,7 @@ internal class QrCodeScannerViewModel(
                 handleReceivedAccounts(
                     accountsJson = result.accountsJson,
                     oAuthStates = result.oAuthStates,
+                    desktopOAuth = result.desktopOAuth,
                     payloadHash = payloadHash,
                 )
             } else {
@@ -203,12 +205,18 @@ internal class QrCodeScannerViewModel(
     private fun handleReceivedAccounts(
         accountsJson: String,
         oAuthStates: List<String?>,
+        desktopOAuth: List<DesktopOAuthGrant?>,
         payloadHash: ByteString,
     ) {
         val accountData = qrCodePayloadReader.read(accountsJson)
         if (accountData != null) {
             supportedPayloadHashes.add(payloadHash)
-            handleSupportedPayload(accountData.withOAuthStates(oAuthStates))
+            handleSupportedPayload(
+                accountData.withOAuthStates(
+                    oAuthStates = oAuthStates,
+                    desktopOAuthGrants = desktopOAuth,
+                ),
+            )
         } else {
             // The transfer held data this version of the app doesn't understand.
             updateState {

@@ -2,12 +2,14 @@ package app.k9mail.feature.settings.import
 
 import app.k9mail.feature.account.server.validation.domain.ServerValidationDomainContract
 import com.fsck.k9.mail.ServerSettings
+import com.fsck.k9.mail.oauth.AuthStateStorage
 import com.fsck.k9.mail.server.ServerSettingsValidationResult
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import net.thunderbird.core.android.account.LegacyAccount
 import net.thunderbird.core.android.account.LegacyAccountManager
 import net.thunderbird.feature.account.AccountIdFactory
 
@@ -30,13 +32,12 @@ internal class ImportedAccountConnectionChecker(
 ) : AccountConnectionChecker {
 
     override suspend fun check(accountUuid: String): ConnectionCheckResult {
-        val serverSettings = loadIncomingServerSettings(accountUuid)
-            ?: return ConnectionCheckResult.NotChecked
+        val importedAccount = loadImportedAccount(accountUuid) ?: return ConnectionCheckResult.NotChecked
 
-        return validateConnection(serverSettings)
+        return validateConnection(importedAccount)
     }
 
-    private suspend fun loadIncomingServerSettings(accountUuid: String): ServerSettings? {
+    private suspend fun loadImportedAccount(accountUuid: String): ImportedAccountData? {
         val accountId = try {
             AccountIdFactory.of(accountUuid)
         } catch (ignoredInvalidUuidException: IllegalArgumentException) {
@@ -45,17 +46,29 @@ internal class ImportedAccountConnectionChecker(
 
         return withContext(coroutineDispatcher) {
             try {
-                accountManager.findById(accountId)?.incomingServerSettings
+                accountManager.findById(accountId)?.let { account ->
+                    ImportedAccountData(
+                        account = account,
+                        incomingServerSettings = account.incomingServerSettings,
+                    )
+                }
             } catch (ignoredException: Exception) {
                 null
             }
         }
     }
 
-    private suspend fun validateConnection(serverSettings: ServerSettings): ConnectionCheckResult {
+    private fun createAuthStateStorage(account: LegacyAccount): AuthStateStorage {
+        return ImportedAccountAuthStateStorage(
+            account = account,
+            accountManager = accountManager,
+        )
+    }
+
+    private suspend fun validateConnection(importedAccount: ImportedAccountData): ConnectionCheckResult {
         val validationResult = withContext(coroutineDispatcher) {
             withTimeoutOrNull(CONNECTION_CHECK_TIMEOUT) {
-                validateServerSettingsOrNull(serverSettings)
+                validateServerSettingsOrNull(importedAccount)
             }
         }
 
@@ -65,14 +78,47 @@ internal class ImportedAccountConnectionChecker(
         }
     }
 
-    private suspend fun validateServerSettingsOrNull(serverSettings: ServerSettings): ServerSettingsValidationResult? {
+    private suspend fun validateServerSettingsOrNull(
+        importedAccount: ImportedAccountData,
+    ): ServerSettingsValidationResult? {
         return try {
-            validateServerSettings.execute(serverSettings)
+            validateServerSettings.execute(
+                settings = importedAccount.incomingServerSettings,
+                authStateStorage = createAuthStateStorage(importedAccount.account),
+            )
         } catch (cancellationException: CancellationException) {
             throw cancellationException
         } catch (ignoredException: Exception) {
             null
         }
+    }
+}
+
+/**
+ * The data of an imported account that's needed to check its server connection.
+ */
+private data class ImportedAccountData(
+    val account: LegacyAccount,
+    val incomingServerSettings: ServerSettings,
+)
+
+/**
+ * Provides the authentication state of an imported account and stores an updated state in that account.
+ */
+private class ImportedAccountAuthStateStorage(
+    private val account: LegacyAccount,
+    private val accountManager: LegacyAccountManager,
+) : AuthStateStorage {
+    private var authorizationState: String? = account.oAuthState
+
+    override fun getAuthorizationState(): String? = authorizationState
+
+    override fun updateAuthorizationState(authorizationState: String?) {
+        this.authorizationState = authorizationState
+
+        // The account is immutable, so the new state is saved by copying the latest version of the account. This way
+        // changes made to the account in the meantime aren't lost.
+        accountManager.updateSync(account.id) { it.copy(oAuthState = authorizationState) }
     }
 }
 

@@ -5,6 +5,7 @@ import assertk.assertions.isEqualTo
 import com.fsck.k9.mail.AuthType
 import com.fsck.k9.mail.ConnectionSecurity
 import com.fsck.k9.mail.ServerSettings
+import com.fsck.k9.mail.oauth.AuthStateStorage
 import com.fsck.k9.mail.server.ServerSettingsValidationResult
 import java.io.IOException
 import kotlinx.coroutines.test.runTest
@@ -98,6 +99,43 @@ class ValidateServerSettingsTest {
         val result = testSubject.execute(SMTP_SERVER_SETTINGS)
 
         assertThat(result).isEqualTo(failure)
+    }
+
+    @Test
+    fun `should use own authentication state storage when validating`() = runTest {
+        var receivedAuthStateStorage: AuthStateStorage? = null
+        val testSubject = ValidateServerSettings(
+            authStateStorage = authStateStorage,
+            imapValidator = { _, storage ->
+                receivedAuthStateStorage = storage
+                ServerSettingsValidationResult.Success
+            },
+            pop3Validator = { _, _ -> ServerSettingsValidationResult.NetworkError(IOException("Failed POP3")) },
+            smtpValidator = { _, _ -> ServerSettingsValidationResult.NetworkError(IOException("Failed SMTP")) },
+        )
+
+        testSubject.execute(IMAP_SERVER_SETTINGS)
+
+        assertThat(receivedAuthStateStorage).isEqualTo(authStateStorage)
+    }
+
+    @Test
+    fun `should use given authentication state storage when validating`() = runTest {
+        val givenAuthStateStorage = FakeAuthStateStorage()
+        var receivedAuthStateStorage: AuthStateStorage? = null
+        val testSubject = ValidateServerSettings(
+            authStateStorage = FakeAuthStateStorage(),
+            imapValidator = { _, storage ->
+                receivedAuthStateStorage = storage
+                ServerSettingsValidationResult.Success
+            },
+            pop3Validator = { _, _ -> ServerSettingsValidationResult.NetworkError(IOException("Failed POP3")) },
+            smtpValidator = { _, _ -> ServerSettingsValidationResult.NetworkError(IOException("Failed SMTP")) },
+        )
+
+        testSubject.execute(IMAP_SERVER_SETTINGS, givenAuthStateStorage)
+
+        assertThat(receivedAuthStateStorage).isEqualTo(givenAuthStateStorage)
     }
 
     @Test
