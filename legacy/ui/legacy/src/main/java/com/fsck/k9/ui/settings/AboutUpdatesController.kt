@@ -34,8 +34,7 @@ internal class AboutUpdatesController(
             install = installer.state.value,
             canInstallPackages = installer.canInstallPackages(),
         )
-        observeAutoCheckSetting()
-        observeInstallState()
+        observeSettingsAndInstallState()
         scope.launch { runCheck() }
     }
 
@@ -79,21 +78,23 @@ internal class AboutUpdatesController(
 
     fun onScreenResumed() {
         _state.update { state -> state?.copy(canInstallPackages = installer.canInstallPackages()) }
+        scope.launch { installer.refresh() }
+    }
+
+    fun onRefreshDownloadClick() {
+        scope.launch { installer.refresh() }
     }
 
     fun onInstallFailureDismiss() {
         installer.resetState()
     }
 
-    private fun observeAutoCheckSetting() {
+    private fun observeSettingsAndInstallState() {
         scope.launch {
             settings.autoCheckEnabled.collect { enabled ->
                 _state.update { state -> state?.copy(autoCheckEnabled = enabled) }
             }
         }
-    }
-
-    private fun observeInstallState() {
         scope.launch {
             installer.state.collect { installState ->
                 _state.update { state -> state?.copy(install = installState) }

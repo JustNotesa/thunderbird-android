@@ -161,7 +161,7 @@ class UpdateNotifierTest {
         shadowOf(application).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
 
         // Act
-        testSubject.notifyInstalling(INSTALL_PROGRESS)
+        testSubject.notifyInstalling()
 
         // Assert
         val installing = notification(
@@ -169,7 +169,6 @@ class UpdateNotifierTest {
             UpdateNotifier.INSTALLING_NOTIFICATION_ID,
         )
         assertThat(installing).isNotNull()
-        assertThat(installing?.extras?.getInt(Notification.EXTRA_PROGRESS)).isEqualTo(INSTALL_PROGRESS_PERCENT)
     }
 
     @Test
@@ -178,7 +177,7 @@ class UpdateNotifierTest {
         shadowOf(application).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
 
         // Act
-        testSubject.notifyInstalling(INSTALL_PROGRESS)
+        testSubject.notifyInstalling()
 
         // Assert
         val flags = notification(
@@ -189,12 +188,12 @@ class UpdateNotifierTest {
     }
 
     @Test
-    fun `the installing notification shows an unknown progress`() {
+    fun `the installing notification shows an indeterminate progress`() {
         // Arrange
         shadowOf(application).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
 
         // Act
-        testSubject.notifyInstalling(UNKNOWN_PROGRESS)
+        testSubject.notifyInstalling()
 
         // Assert
         val installing = notification(
@@ -208,7 +207,7 @@ class UpdateNotifierTest {
     fun `the installing notification is cancelled`() {
         // Arrange
         shadowOf(application).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
-        testSubject.notifyInstalling(INSTALL_PROGRESS)
+        testSubject.notifyInstalling()
 
         // Act
         testSubject.cancelInstalling()
@@ -244,8 +243,5 @@ class UpdateNotifierTest {
         const val RELEASE_TAG = "mein-thunderbird-2026-10-25"
         const val CONFIRMATION_ACTION = "com.android.packageinstaller.CONFIRM_INSTALL"
         const val UPDATED_CHANNEL_ID = "app_updated"
-        const val INSTALL_PROGRESS = 0.5f
-        const val INSTALL_PROGRESS_PERCENT = 50
-        const val UNKNOWN_PROGRESS = -1f
     }
 }

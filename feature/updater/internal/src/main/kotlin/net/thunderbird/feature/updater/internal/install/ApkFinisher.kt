@@ -120,6 +120,7 @@ internal class ApkFinisher(
             // The download isn't the one the app is waiting for.
             return
         }
+        logger.info(TAG) { "The download of the app update is finished." }
         val downloaded = downloadedFile(downloadId)
         if (downloaded == null) {
             fail(UpdateInstallFailure.DOWNLOAD, downloadId)
@@ -150,10 +151,12 @@ internal class ApkFinisher(
         systemDownloads.remove(downloadId)
         val verification = apkVerifier.verify(copy, pending.sha256, pending.sizeBytes)
         if (verification != ApkVerification.Valid) {
+            logger.warn(TAG) { "The downloaded APK of the app update wasn't verified." }
             copy.delete()
             state.value = UpdateInstallState.Failed(failureOf(verification))
             return
         }
+        logger.info(TAG) { "The downloaded APK of the app update was verified." }
         writeInstallSession(copy, pending.tag, pending.sha256)
     }
 
@@ -166,6 +169,7 @@ internal class ApkFinisher(
             state.value = UpdateInstallState.Failed(UpdateInstallFailure.REJECTED)
             return
         }
+        logger.info(TAG) { "The install session $sessionId of the app update was committed." }
         state.value = UpdateInstallState.WaitingForConfirmation
         // The session is watched, so that the user is told about the progress of the installation.
         onSessionCommitted(sessionId)

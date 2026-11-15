@@ -27,6 +27,7 @@ internal interface AboutContract {
         data class OnAutoCheckChanged(val enabled: Boolean) : Event
         data object OnCheckForUpdatesClick : Event
         data object OnInstallClick : Event
+        data object OnRefreshDownloadClick : Event
         data object OnOpenInstallPermissionClick : Event
         data object OnScreenResumed : Event
         data object OnInstallFailureDismiss : Event

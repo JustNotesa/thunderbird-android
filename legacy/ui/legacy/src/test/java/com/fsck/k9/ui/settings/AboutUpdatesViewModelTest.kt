@@ -206,6 +206,24 @@ class AboutUpdatesViewModelTest {
     }
 
     @Test
+    fun `resuming the screen asks the installer for the state of the download`() {
+        val testSubject = createViewModel()
+
+        testSubject.event(AboutContract.Event.OnScreenResumed)
+
+        assertThat(installer.refreshCount).isEqualTo(1)
+    }
+
+    @Test
+    fun `checking the status of the download asks the installer to refresh`() {
+        val testSubject = createViewModel()
+
+        testSubject.event(AboutContract.Event.OnRefreshDownloadClick)
+
+        assertThat(installer.refreshCount).isEqualTo(1)
+    }
+
+    @Test
     fun `the state of the installer is shown in the state`() {
         val testSubject = createViewModel()
 

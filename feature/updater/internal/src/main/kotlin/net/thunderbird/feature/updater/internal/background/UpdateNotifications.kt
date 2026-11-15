@@ -59,16 +59,17 @@ internal class UpdateNotifications(private val context: Context) {
      * The notification that tells the user that the update is being installed.
      *
      * The notification is ongoing, because the installation isn't finished when the app is closed. It is silent, so
-     * that it doesn't disturb the user while Android installs the update.
+     * that it doesn't disturb the user while Android installs the update. Android doesn't report a meaningful
+     * progress of the installation, so the progress of the notification is indeterminate.
      */
-    fun installing(progress: Float): Notification {
+    fun installing(): Notification {
         return NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.updater_ic_notification)
             .setContentTitle(context.getString(R.string.updater_installing_notification_title))
             .setContentText(context.getString(R.string.updater_installing_notification_text))
             .setOngoing(true)
             .setSilent(true)
-            .setProgress(PROGRESS_MAX, progressPercent(progress), progress < 0)
+            .setProgress(0, 0, true)
             .build()
     }
 
@@ -89,15 +90,6 @@ internal class UpdateNotifications(private val context: Context) {
         contentIntent()?.let { builder.setContentIntent(it) }
 
         return builder.build()
-    }
-
-    /**
-     * The progress of the installation in percent.
-     *
-     * An unknown progress is 0, because the progress bar is indeterminate then.
-     */
-    private fun progressPercent(progress: Float): Int {
-        return (progress * PROGRESS_MAX).toInt().coerceIn(0, PROGRESS_MAX)
     }
 
     private fun contentIntent(): PendingIntent? {
@@ -125,6 +117,5 @@ internal class UpdateNotifications(private val context: Context) {
         const val UPDATED_CHANNEL_ID = "app_updated"
         const val CONTENT_INTENT_REQUEST_CODE = 1
         const val CONFIRM_INTENT_REQUEST_CODE = 2
-        const val PROGRESS_MAX = 100
     }
 }

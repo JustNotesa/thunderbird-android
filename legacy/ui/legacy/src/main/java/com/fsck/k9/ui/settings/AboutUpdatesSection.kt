@@ -1,6 +1,7 @@
 package com.fsck.k9.ui.settings
 
 import android.text.format.Formatter
+import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -26,6 +27,7 @@ import net.thunderbird.components.ui.bolt.atom.text.TextBodyMedium
 import net.thunderbird.components.ui.bolt.atom.text.TextTitleMedium
 import net.thunderbird.components.ui.bolt.theme.BoltTheme
 import net.thunderbird.feature.updater.api.AppUpdate
+import net.thunderbird.feature.updater.api.DownloadWaiting
 import net.thunderbird.feature.updater.api.UpdateCheckFailure
 import net.thunderbird.feature.updater.api.UpdateInstallFailure
 import net.thunderbird.feature.updater.api.UpdateInstallState
@@ -34,6 +36,20 @@ private const val MAX_RELEASE_NOTES_LENGTH = 300
 private const val PERCENT = 100
 private const val INDICATOR_SIZE = 24
 
+/**
+ * The information about a running download that is shown in the UI.
+ */
+internal data class DownloadStatus(
+    /** The text describing how much of the download is done. */
+    @StringRes val progressTextRes: Int,
+    /** The arguments of [progressTextRes]. */
+    val progressTextArgs: List<Any>,
+    /** The percentage of the download that is done, `null` when the total size isn't known. */
+    val percent: Int?,
+    /** The text explaining why the download isn't running, `null` while the download is running. */
+    @StringRes val waitingTextRes: Int?,
+)
+
 @Composable
 internal fun AboutUpdatesSection(
     state: UpdatesState,
@@ -41,6 +57,7 @@ internal fun AboutUpdatesSection(
     onCheckClick: () -> Unit,
     onInstallClick: () -> Unit,
     onCancelInstallClick: () -> Unit,
+    onRefreshDownloadClick: () -> Unit,
     onOpenInstallPermissionClick: () -> Unit,
     onInstallFailureDismiss: () -> Unit,
     modifier: Modifier = Modifier,
@@ -81,12 +98,26 @@ internal fun AboutUpdatesSection(
 
             AboutUpdateInstallStatus(
                 install = state.install,
-                canInstallPackages = state.canInstallPackages,
                 onInstallAgainClick = onInstallClick,
                 onCancelInstallClick = onCancelInstallClick,
-                onOpenInstallPermissionClick = onOpenInstallPermissionClick,
+                onRefreshDownloadClick = onRefreshDownloadClick,
                 onInstallFailureDismiss = onInstallFailureDismiss,
             )
+
+            if (!state.canInstallPackages) {
+                Column(
+                    modifier = Modifier.padding(horizontal = BoltTheme.spacings.double),
+                    verticalArrangement = Arrangement.spacedBy(BoltTheme.spacings.half),
+                ) {
+                    TextBodyMedium(text = stringResource(R.string.about_updates_install_permission_explanation))
+                    DisableSelection {
+                        ButtonOutlined(
+                            text = stringResource(R.string.about_updates_open_settings_button),
+                            onClick = onOpenInstallPermissionClick,
+                        )
+                    }
+                }
+            }
         }
     }
 }
@@ -181,7 +212,14 @@ private fun AboutUpdateCheckStatus(
             is CheckStatus.Available -> Unit
 
             is CheckStatus.Failed -> {
-                TextBodyMedium(text = checkFailureMessage(check.reason))
+                val messageRes = when (check.reason) {
+                    UpdateCheckFailure.NETWORK -> R.string.about_updates_check_failed_network
+                    UpdateCheckFailure.SERVER -> R.string.about_updates_check_failed_server
+                    UpdateCheckFailure.INVALID_RESPONSE -> R.string.about_updates_check_failed_invalid_response
+                    UpdateCheckFailure.NO_APK -> R.string.about_updates_check_failed_no_apk
+                }
+
+                TextBodyMedium(text = stringResource(messageRes))
                 DisableSelection {
                     ButtonOutlined(
                         text = stringResource(R.string.about_updates_retry_button),
@@ -232,10 +270,9 @@ private fun AboutUpdateAvailable(
 @Composable
 private fun AboutUpdateInstallStatus(
     install: UpdateInstallState,
-    canInstallPackages: Boolean,
     onInstallAgainClick: () -> Unit,
     onCancelInstallClick: () -> Unit,
-    onOpenInstallPermissionClick: () -> Unit,
+    onRefreshDownloadClick: () -> Unit,
     onInstallFailureDismiss: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -249,19 +286,15 @@ private fun AboutUpdateInstallStatus(
             UpdateInstallState.Idle -> Unit
 
             is UpdateInstallState.Downloading -> {
-                AboutUpdateProgress(
+                AboutUpdateDownloadProgress(
                     install = install,
+                    onRefreshClick = onRefreshDownloadClick,
                     onCancelClick = onCancelInstallClick,
                 )
             }
 
-            is UpdateInstallState.Installing -> {
-                AboutUpdateProgress(install = install, onCancelClick = null)
-                TextBodyMedium(text = stringResource(R.string.about_updates_installing_hint))
-            }
-
             UpdateInstallState.Verifying -> {
-                TextBodyMedium(text = stringResource(R.string.about_updates_verifying))
+                AboutUpdateProgress(text = stringResource(R.string.about_updates_verifying))
             }
 
             UpdateInstallState.WaitingForConfirmation -> {
@@ -282,8 +315,22 @@ private fun AboutUpdateInstallStatus(
                 }
             }
 
+            UpdateInstallState.Installing -> {
+                AboutUpdateProgress(text = stringResource(R.string.about_updates_installing_progress))
+                TextBodyMedium(text = stringResource(R.string.about_updates_installing_hint))
+            }
+
             is UpdateInstallState.Failed -> {
-                TextBodyMedium(text = installFailureMessage(install.reason))
+                val messageRes = when (install.reason) {
+                    UpdateInstallFailure.DOWNLOAD -> R.string.about_updates_install_failed_download
+                    UpdateInstallFailure.CHECKSUM -> R.string.about_updates_install_failed_checksum
+                    UpdateInstallFailure.PERMISSION_MISSING ->
+                        R.string.about_updates_install_failed_permission_missing
+                    UpdateInstallFailure.CANCELLED -> R.string.about_updates_install_failed_cancelled
+                    UpdateInstallFailure.REJECTED -> R.string.about_updates_install_failed_rejected
+                }
+
+                TextBodyMedium(text = stringResource(messageRes))
                 DisableSelection {
                     ButtonOutlined(
                         text = stringResource(R.string.about_updates_dismiss_button),
@@ -292,103 +339,128 @@ private fun AboutUpdateInstallStatus(
                 }
             }
         }
+    }
+}
 
-        if (!canInstallPackages) {
-            TextBodyMedium(text = stringResource(R.string.about_updates_install_permission_explanation))
-            DisableSelection {
-                ButtonOutlined(
-                    text = stringResource(R.string.about_updates_open_settings_button),
-                    onClick = onOpenInstallPermissionClick,
+/**
+ * Shows the progress of a running download: the size downloaded so far, the total size and the percentage.
+ */
+@Composable
+private fun AboutUpdateDownloadProgress(
+    install: UpdateInstallState.Downloading,
+    onRefreshClick: () -> Unit,
+    onCancelClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val context = LocalContext.current
+    val status = downloadStatus(
+        downloadedBytes = install.downloadedBytes,
+        totalBytes = install.totalBytes,
+        waiting = install.waiting,
+        formatSize = { bytes -> Formatter.formatShortFileSize(context, bytes) },
+    )
+
+    AboutUpdateProgress(
+        text = stringResource(status.progressTextRes, *status.progressTextArgs.toTypedArray()),
+        modifier = modifier,
+        progress = status.percent?.let { it / PERCENT.toFloat() },
+        waitingText = status.waitingTextRes?.let { stringResource(it) },
+        onRefreshClick = onRefreshClick,
+        onCancelClick = onCancelClick,
+    )
+}
+
+/**
+ * Shows the progress of a running update step. The progress indicator is indeterminate when [progress] is `null`.
+ * [waitingText] is shown below the progress. The buttons are only shown when their action isn't `null`.
+ */
+@Composable
+private fun AboutUpdateProgress(
+    text: String,
+    modifier: Modifier = Modifier,
+    progress: Float? = null,
+    waitingText: String? = null,
+    onRefreshClick: (() -> Unit)? = null,
+    onCancelClick: (() -> Unit)? = null,
+) {
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(BoltTheme.spacings.half),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (progress == null) {
+                CircularProgressIndicator(modifier = Modifier.size(INDICATOR_SIZE.dp))
+            } else {
+                CircularProgressIndicator(
+                    progress = { progress },
+                    modifier = Modifier.size(INDICATOR_SIZE.dp),
                 )
+            }
+            Spacer(modifier = Modifier.width(BoltTheme.spacings.half))
+            TextBodyMedium(text = text)
+        }
+
+        waitingText?.let {
+            TextBodyMedium(text = it)
+        }
+
+        if (onRefreshClick != null || onCancelClick != null) {
+            Row(horizontalArrangement = Arrangement.spacedBy(BoltTheme.spacings.half)) {
+                onRefreshClick?.let { click ->
+                    DisableSelection {
+                        ButtonOutlined(
+                            text = stringResource(R.string.about_updates_check_status_button),
+                            onClick = click,
+                        )
+                    }
+                }
+                onCancelClick?.let { click ->
+                    DisableSelection {
+                        ButtonOutlined(
+                            text = stringResource(R.string.about_updates_cancel_button),
+                            onClick = click,
+                        )
+                    }
+                }
             }
         }
     }
 }
 
 /**
- * Shows the progress of a running [UpdateInstallState.Downloading] or [UpdateInstallState.Installing] step.
- * The cancel button is only shown when [onCancelClick] is not `null`.
+ * Collects the information about a running download that the UI shows.
  */
-@Composable
-private fun AboutUpdateProgress(
-    install: UpdateInstallState,
-    onCancelClick: (() -> Unit)?,
-    modifier: Modifier = Modifier,
-) {
-    val installing = install is UpdateInstallState.Installing
-    val percent = when (install) {
-        is UpdateInstallState.Downloading -> calculateDownloadPercent(
-            downloadedBytes = install.downloadedBytes,
-            totalBytes = install.totalBytes,
+internal fun downloadStatus(
+    downloadedBytes: Long,
+    totalBytes: Long,
+    waiting: DownloadWaiting?,
+    formatSize: (Long) -> String,
+): DownloadStatus {
+    val downloadedSize = formatSize(downloadedBytes)
+    val percent = calculateDownloadPercent(downloadedBytes, totalBytes)
+    val waitingTextRes = when (waiting) {
+        null -> null
+        DownloadWaiting.NETWORK -> R.string.about_updates_downloading_waiting_network
+        DownloadWaiting.WIFI -> R.string.about_updates_downloading_waiting_wifi
+        DownloadWaiting.RETRY -> R.string.about_updates_downloading_waiting_retry
+        DownloadWaiting.PAUSED -> R.string.about_updates_downloading_waiting_paused
+    }
+
+    return if (percent == null) {
+        DownloadStatus(
+            progressTextRes = R.string.about_updates_downloading_progress_unknown,
+            progressTextArgs = listOf(downloadedSize),
+            percent = null,
+            waitingTextRes = waitingTextRes,
         )
-        is UpdateInstallState.Installing -> install.progress.takeIf { it >= 0f }
-            ?.let { (it * PERCENT).toInt().coerceIn(0, PERCENT) }
-        else -> null
+    } else {
+        DownloadStatus(
+            progressTextRes = R.string.about_updates_downloading_progress,
+            progressTextArgs = listOf(downloadedSize, formatSize(totalBytes), percent),
+            percent = percent,
+            waitingTextRes = waitingTextRes,
+        )
     }
-
-    Row(
-        modifier = modifier,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        if (percent == null) {
-            CircularProgressIndicator(modifier = Modifier.size(INDICATOR_SIZE.dp))
-        } else {
-            CircularProgressIndicator(
-                progress = { percent / PERCENT.toFloat() },
-                modifier = Modifier.size(INDICATOR_SIZE.dp),
-            )
-        }
-        Spacer(modifier = Modifier.width(BoltTheme.spacings.half))
-        val progressText = if (percent == null) {
-            stringResource(
-                if (installing) {
-                    R.string.about_updates_installing_indeterminate
-                } else {
-                    R.string.about_updates_downloading_indeterminate
-                },
-            )
-        } else {
-            stringResource(
-                if (installing) R.string.about_updates_installing else R.string.about_updates_downloading,
-                percent,
-            )
-        }
-        TextBodyMedium(text = progressText)
-        if (onCancelClick != null) {
-            Spacer(modifier = Modifier.width(BoltTheme.spacings.default))
-            DisableSelection {
-                ButtonOutlined(
-                    text = stringResource(R.string.about_updates_cancel_button),
-                    onClick = onCancelClick,
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun checkFailureMessage(reason: UpdateCheckFailure): String {
-    val stringRes = when (reason) {
-        UpdateCheckFailure.NETWORK -> R.string.about_updates_check_failed_network
-        UpdateCheckFailure.SERVER -> R.string.about_updates_check_failed_server
-        UpdateCheckFailure.INVALID_RESPONSE -> R.string.about_updates_check_failed_invalid_response
-        UpdateCheckFailure.NO_APK -> R.string.about_updates_check_failed_no_apk
-    }
-
-    return stringResource(stringRes)
-}
-
-@Composable
-private fun installFailureMessage(reason: UpdateInstallFailure): String {
-    val stringRes = when (reason) {
-        UpdateInstallFailure.DOWNLOAD -> R.string.about_updates_install_failed_download
-        UpdateInstallFailure.CHECKSUM -> R.string.about_updates_install_failed_checksum
-        UpdateInstallFailure.PERMISSION_MISSING -> R.string.about_updates_install_failed_permission_missing
-        UpdateInstallFailure.CANCELLED -> R.string.about_updates_install_failed_cancelled
-        UpdateInstallFailure.REJECTED -> R.string.about_updates_install_failed_rejected
-    }
-
-    return stringResource(stringRes)
 }
 
 /**

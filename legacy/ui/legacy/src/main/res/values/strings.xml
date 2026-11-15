@@ -1405,18 +1405,26 @@ You can keep this message and use it as a backup for your secret key. If you wan
     <!-- Button that downloads and installs a newer release -->
     <string name="about_updates_install_button">Download and install</string>
     <!-- Progress of the download of a newer release -->
-    <string name="about_updates_downloading">Downloading… %1$d%%</string>
+    <string name="about_updates_downloading_progress">%1$s of %2$s (%3$d %%)</string>
     <!-- Progress of the download of a newer release when the total size isn't known -->
-    <string name="about_updates_downloading_indeterminate">Downloading…</string>
+    <string name="about_updates_downloading_progress_unknown">%1$s downloaded</string>
+    <!-- Reason why the download of a newer release waits for an internet connection -->
+    <string name="about_updates_downloading_waiting_network">Waiting for an internet connection…</string>
+    <!-- Reason why the download of a newer release waits for a Wi-Fi connection -->
+    <string name="about_updates_downloading_waiting_wifi">Waiting for Wi-Fi…</string>
+    <!-- Reason why the download of a newer release is repeated -->
+    <string name="about_updates_downloading_waiting_retry">The download is retried in a moment…</string>
+    <!-- Reason why Android paused the download of a newer release -->
+    <string name="about_updates_downloading_waiting_paused">Android has paused the download…</string>
+    <!-- Button that asks for the current state of the download of a newer release -->
+    <string name="about_updates_check_status_button">Check status</string>
     <!-- Message shown while the downloaded file is verified -->
     <string name="about_updates_verifying">Verifying the downloaded file…</string>
     <!-- Message shown while the user confirms the installation in the system dialog -->
     <string name="about_updates_waiting_for_confirmation">Confirm the installation in the system dialog. Android closes the app while installing – just open it again afterwards. If no dialog appears, tap the notification. If Google Play Protect asks, choose “Scan app” and then “Install”.</string>
-    <!-- Progress of the installation of the downloaded update -->
-    <string name="about_updates_installing">Installing… %1$d%%</string>
-    <!-- Progress of the installation of the downloaded update when the progress isn't known -->
-    <string name="about_updates_installing_indeterminate">Installing…</string>
-    <!-- Message shown while Android installs the update -->
+    <!-- Message shown while Android is installing the update -->
+    <string name="about_updates_installing_progress">Android is installing the update…</string>
+    <!-- Hint shown while Android installs the update -->
     <string name="about_updates_installing_hint">Installing the update… If Google Play Protect asks, choose “Scan app” and then “Install”. Thunderbird closes when it is done. Then tap the notification “Thunderbird updated” to open it again.</string>
     <!-- Button that starts the installation of the downloaded update again -->
     <string name="about_updates_install_again_button">Install again</string>

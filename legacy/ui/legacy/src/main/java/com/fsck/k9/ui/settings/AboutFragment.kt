@@ -132,6 +132,9 @@ class AboutFragment : Fragment() {
                         onInstallClick = {
                             dispatch(Event.OnInstallClick)
                         },
+                        onRefreshDownloadClick = {
+                            dispatch(Event.OnRefreshDownloadClick)
+                        },
                         onOpenInstallPermissionClick = {
                             dispatch(Event.OnOpenInstallPermissionClick)
                         },
@@ -224,6 +227,7 @@ fun AboutScreen(
     onAutoCheckChange: (Boolean) -> Unit = {},
     onCheckForUpdatesClick: () -> Unit = {},
     onInstallClick: () -> Unit = {},
+    onRefreshDownloadClick: () -> Unit = {},
     onOpenInstallPermissionClick: () -> Unit = {},
     onInstallFailureDismiss: () -> Unit = {},
     onCancelInstallClick: () -> Unit = {},
@@ -265,6 +269,7 @@ fun AboutScreen(
                     onCheckClick = onCheckForUpdatesClick,
                     onInstallClick = onInstallClick,
                     onCancelInstallClick = onCancelInstallClick,
+                    onRefreshDownloadClick = onRefreshDownloadClick,
                     onOpenInstallPermissionClick = onOpenInstallPermissionClick,
                     onInstallFailureDismiss = onInstallFailureDismiss,
                 )

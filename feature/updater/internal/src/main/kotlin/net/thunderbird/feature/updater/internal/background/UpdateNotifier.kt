@@ -11,12 +11,24 @@ import androidx.core.content.ContextCompat
 import net.thunderbird.feature.updater.api.AppUpdate
 
 /**
+ * Tells the user that the app update is being installed.
+ */
+internal interface InstallingNotifier {
+
+    /** Notifies the user that the update is being installed. */
+    fun notifyInstalling()
+
+    /** Removes the notification that tells the user that the update is being installed. */
+    fun cancelInstalling()
+}
+
+/**
  * Tells the user with a notification that a new version of the app is ready to be installed.
  *
  * Every function that posts a notification checks [canPostNotifications] first; lint doesn't see that check.
  */
 @SuppressLint("MissingPermission")
-internal class UpdateNotifier(private val context: Context) {
+internal class UpdateNotifier(private val context: Context) : InstallingNotifier {
     private val notificationManager = NotificationManagerCompat.from(context)
     private val notifications = UpdateNotifications(context)
 
@@ -90,22 +102,22 @@ internal class UpdateNotifier(private val context: Context) {
      * Notifies the user that the update is being installed.
      *
      * The notification is ongoing and silent, so that it doesn't disturb the user while Android installs the update.
-     *
-     * @param progress the progress of the installation from 0 to 1, or -1 if it is unknown.
+     * Android doesn't report a meaningful progress of the installation, so the progress of the notification is
+     * indeterminate.
      */
-    fun notifyInstalling(progress: Float) {
+    override fun notifyInstalling() {
         if (!canPostNotifications()) return
 
         notificationManager.createNotificationChannel(notifications.updateChannel())
         notificationManager.notify(
             INSTALLING_NOTIFICATION_TAG,
             INSTALLING_NOTIFICATION_ID,
-            notifications.installing(progress),
+            notifications.installing(),
         )
     }
 
     /** Removes the notification that tells the user that the update is being installed. */
-    fun cancelInstalling() {
+    override fun cancelInstalling() {
         notificationManager.cancel(INSTALLING_NOTIFICATION_TAG, INSTALLING_NOTIFICATION_ID)
     }
 

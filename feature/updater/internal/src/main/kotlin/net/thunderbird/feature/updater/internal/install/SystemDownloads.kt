@@ -1,6 +1,7 @@
 package net.thunderbird.feature.updater.internal.install
 
 import java.io.File
+import net.thunderbird.feature.updater.api.DownloadWaiting
 
 /**
  * Downloads files with the download manager of the system.
@@ -42,8 +43,13 @@ internal sealed interface SystemDownloadStatus {
      *
      * @param downloadedBytes the number of bytes downloaded so far.
      * @param totalBytes the total number of bytes to download, `-1` when the size of the download isn't known.
+     * @param waiting why the download manager of the system doesn't download right now, `null` while it downloads.
      */
-    data class Running(val downloadedBytes: Long, val totalBytes: Long) : SystemDownloadStatus
+    data class Running(
+        val downloadedBytes: Long,
+        val totalBytes: Long,
+        val waiting: DownloadWaiting? = null,
+    ) : SystemDownloadStatus
 
     /** The download finished successfully. [file] is the downloaded file. */
     data class Successful(val file: File) : SystemDownloadStatus

@@ -58,6 +58,8 @@ internal class FakeAppUpdateInstaller(
         private set
     var resetStateCount: Int = 0
         private set
+    var refreshCount: Int = 0
+        private set
 
     override fun canInstallPackages(): Boolean = this.canInstallPackages
 
@@ -67,6 +69,10 @@ internal class FakeAppUpdateInstaller(
 
     override suspend fun install(update: AppUpdate) {
         installedUpdates += update
+    }
+
+    override suspend fun refresh() {
+        refreshCount++
     }
 
     override fun resetState() {

@@ -47,6 +47,7 @@ internal class AboutViewModel(
             is Event.OnAutoCheckChanged -> updatesController?.onAutoCheckChanged(event.enabled)
             Event.OnCheckForUpdatesClick -> updatesController?.onCheckForUpdatesClick()
             Event.OnInstallClick -> updatesController?.onInstallClick()
+            Event.OnRefreshDownloadClick -> updatesController?.onRefreshDownloadClick()
             Event.OnOpenInstallPermissionClick -> updatesController?.onOpenInstallPermissionClick()
             Event.OnScreenResumed -> updatesController?.onScreenResumed()
             Event.OnInstallFailureDismiss -> updatesController?.onInstallFailureDismiss()

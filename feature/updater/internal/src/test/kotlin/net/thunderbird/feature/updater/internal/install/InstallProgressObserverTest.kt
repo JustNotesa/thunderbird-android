@@ -7,15 +7,14 @@ import android.app.NotificationManager
 import android.content.pm.PackageInstaller
 import assertk.assertThat
 import assertk.assertions.contains
-import assertk.assertions.isCloseTo
 import assertk.assertions.isEmpty
 import assertk.assertions.isEqualTo
-import assertk.assertions.isInstanceOf
 import assertk.assertions.isNotNull
 import assertk.assertions.isNull
 import kotlinx.coroutines.flow.MutableStateFlow
 import net.thunderbird.components.core.logging.testing.TestLogger
 import net.thunderbird.feature.updater.api.UpdateInstallState
+import net.thunderbird.feature.updater.internal.background.InstallingNotifier
 import net.thunderbird.feature.updater.internal.background.UpdateNotifier
 import org.junit.Before
 import org.junit.Test
@@ -29,8 +28,6 @@ private const val SESSION_ID = 7
 private const val OTHER_SESSION_ID = 8
 private const val STAGING_PROGRESS = 0.5f
 private const val INSTALL_PROGRESS = 0.9f
-private const val EXPECTED_INSTALL_PROGRESS = 0.5f
-private const val TOLERANCE = 0.001f
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
@@ -72,18 +69,34 @@ class InstallProgressObserverTest {
     }
 
     @Test
-    fun `the progress of the installation is reported`() {
+    fun `the installation is reported`() {
         // Act
         testSubject.onProgress(SESSION_ID, INSTALL_PROGRESS)
 
         // Assert
-        val current = state.value
-        assertThat(current).isInstanceOf<UpdateInstallState.Installing>()
-        assertThat((current as UpdateInstallState.Installing).progress).isCloseTo(
-            EXPECTED_INSTALL_PROGRESS,
-            TOLERANCE,
-        )
+        assertThat(state.value).isEqualTo(UpdateInstallState.Installing)
         assertThat(installingNotification()).isNotNull()
+    }
+
+    @Test
+    fun `the installation is reported only once`() {
+        // Arrange
+        val notifier = FakeInstallingNotifier()
+        val observer = InstallProgressObserver(
+            registrar = registrar,
+            state = state,
+            notifier = notifier,
+            logger = TestLogger(),
+        )
+        observer.watch(SESSION_ID)
+
+        // Act
+        observer.onProgress(SESSION_ID, INSTALL_PROGRESS)
+        observer.onProgress(SESSION_ID, INSTALL_PROGRESS)
+
+        // Assert
+        assertThat(state.value).isEqualTo(UpdateInstallState.Installing)
+        assertThat(notifier.installingNotifications).isEqualTo(1)
     }
 
     @Test
@@ -156,5 +169,25 @@ internal class FakeInstallSessionRegistrar : InstallSessionRegistrar {
 
     override fun unregister(callback: PackageInstaller.SessionCallback) {
         registered.remove(callback)
+    }
+}
+
+/**
+ * A fake of the notifier of the installation, for the tests of the updater.
+ */
+internal class FakeInstallingNotifier : InstallingNotifier {
+
+    /** The number of times the user was told that the update is being installed. */
+    var installingNotifications = 0
+
+    /** The number of times the notification about the installation was removed. */
+    var cancelledNotifications = 0
+
+    override fun notifyInstalling() {
+        installingNotifications++
+    }
+
+    override fun cancelInstalling() {
+        cancelledNotifications++
     }
 }

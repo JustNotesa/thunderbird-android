@@ -14,15 +14,14 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.currentCoroutineContext
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import net.thunderbird.components.core.logging.Logger
 import net.thunderbird.feature.updater.api.AppUpdate
 import net.thunderbird.feature.updater.api.AppUpdateInstaller
@@ -86,13 +85,22 @@ internal class PackageInstallerAppUpdateInstaller(
 
     private val installMutex = Mutex()
     private val installJob = AtomicReference<Job?>(null)
-    private val pollMutex = Mutex()
-    private val pollJob = AtomicReference<Job?>(null)
+
+    private val poll = DownloadPoll(
+        systemDownloads = systemDownloads,
+        pendingDownloadStore = pendingDownloadStore,
+        state = _state,
+        coroutineScope = coroutineScope,
+        pollIntervalMillis = pollIntervalMillis,
+        logger = logger,
+        onDownloadFinished = { downloadId -> onDownloadFinished(downloadId) },
+        onDownloadFailed = { downloadId -> finisher.failPending(UpdateInstallFailure.DOWNLOAD, downloadId) },
+    )
 
     init {
         // The download of an update that was started before the app was closed is continued.
         coroutineScope.launch {
-            resumeDownload(pendingDownloadStore.load())
+            poll.resume(pendingDownloadStore.load())
         }
     }
 
@@ -121,7 +129,7 @@ internal class PackageInstallerAppUpdateInstaller(
             // The user cancelled the update, so the download isn't needed anymore.
             pendingDownloadStore.load()?.let { pending -> systemDownloads.remove(pending.downloadId) }
             pendingDownloadStore.clear()
-            pollJob.getAndSet(null)?.cancel()
+            poll.stop()
         }
         progressObserver.stopWatching()
         _state.value = UpdateInstallState.Idle
@@ -143,11 +151,41 @@ internal class PackageInstallerAppUpdateInstaller(
     }
 
     /**
+     * Compares the state of the app with the download manager of the system.
+     *
+     * A download that was finished while the app didn't notice it is verified and installed, a download that is still
+     * running is watched again and a download that is gone is reported as failed.
+     */
+    override suspend fun refresh() {
+        withContext(Dispatchers.IO) {
+            try {
+                logger.debug(TAG) { "The download of the app update is refreshed." }
+                val pending = pendingDownloadStore.load()
+                if (pending != null) {
+                    logger.debug(TAG) { "The pending download of the app update was found." }
+                    poll.resume(pending)
+                } else if (_state.value is UpdateInstallState.Downloading) {
+                    // The download is gone, so it can't be continued.
+                    logger.warn(TAG) { "The download of the app update was lost." }
+                    _state.value = UpdateInstallState.Failed(UpdateInstallFailure.DOWNLOAD)
+                } else {
+                    logger.debug(TAG) { "There is no download of the app update." }
+                }
+            } catch (cancellation: CancellationException) {
+                throw cancellation
+            } catch (_: Exception) {
+                logger.error(TAG) { "The download of the app update couldn't be refreshed." }
+            }
+        }
+    }
+
+    /**
      * Reports the status of the installation to the user.
      *
      * @param status one of the `PackageInstaller.STATUS_*` values.
      */
     internal fun onInstallStatus(status: Int) {
+        logger.debug(TAG) { "The status of the installation is $status." }
         val failure = when (status) {
             // The app was replaced, so there is nothing left to report.
             PackageInstaller.STATUS_SUCCESS -> null
@@ -210,7 +248,7 @@ internal class PackageInstallerAppUpdateInstaller(
                 keptFile != null -> finisher.installKeptApk(keptFile, update.tag, sha256)
 
                 // The download of this update is still running, so it isn't downloaded again.
-                pending != null -> resumeDownload(pending)
+                pending != null -> poll.resume(pending)
 
                 // The APK has to be downloaded.
                 else -> startDownload(update, sha256)
@@ -245,9 +283,11 @@ internal class PackageInstallerAppUpdateInstaller(
             ),
         )
         if (downloadId == null) {
+            logger.error(TAG) { "The download of the app update couldn't be started." }
             _state.value = UpdateInstallState.Failed(UpdateInstallFailure.DOWNLOAD)
             return
         }
+        logger.info(TAG) { "The download $downloadId of the app update was started." }
         pendingDownloadStore.save(
             PendingDownload(
                 downloadId = downloadId,
@@ -258,60 +298,6 @@ internal class PackageInstallerAppUpdateInstaller(
             ),
         )
         _state.value = UpdateInstallState.Downloading(0L, update.apkSizeBytes)
-        startPolling(downloadId)
-    }
-
-    /**
-     * Watches the download with the id [downloadId] until it is finished.
-     */
-    private suspend fun startPolling(downloadId: Long) {
-        pollMutex.withLock {
-            // Only one download is watched at a time.
-            pollJob.get()?.cancel()
-            val job = coroutineScope.launch {
-                do {
-                    delay(pollIntervalMillis)
-                    // The download may have been finished, cancelled or replaced while the poll was waiting.
-                    val watched = _state.value is UpdateInstallState.Downloading &&
-                        pendingDownloadStore.load()?.downloadId == downloadId
-                    if (watched) {
-                        when (val status = systemDownloads.query(downloadId)) {
-                            is SystemDownloadStatus.Running -> _state.update { current ->
-                                // A finished download must not be reported as running again.
-                                if (current is UpdateInstallState.Downloading) {
-                                    UpdateInstallState.Downloading(status.downloadedBytes, status.totalBytes)
-                                } else {
-                                    current
-                                }
-                            }
-
-                            is SystemDownloadStatus.Successful -> onDownloadFinished(downloadId)
-
-                            else -> finisher.failPending(UpdateInstallFailure.DOWNLOAD, downloadId)
-                        }
-                    }
-                } while (watched)
-            }
-            pollJob.set(job)
-        }
-    }
-
-    /**
-     * Continues the download of the pending download [pending], for example after the app was closed.
-     */
-    private suspend fun resumeDownload(pending: PendingDownload?) {
-        if (pending == null) {
-            return
-        }
-        when (val status = systemDownloads.query(pending.downloadId)) {
-            is SystemDownloadStatus.Running -> {
-                _state.value = UpdateInstallState.Downloading(status.downloadedBytes, status.totalBytes)
-                startPolling(pending.downloadId)
-            }
-
-            is SystemDownloadStatus.Successful -> onDownloadFinished(pending.downloadId)
-
-            else -> finisher.failPending(UpdateInstallFailure.DOWNLOAD, pending.downloadId)
-        }
+        poll.watch(downloadId)
     }
 }
