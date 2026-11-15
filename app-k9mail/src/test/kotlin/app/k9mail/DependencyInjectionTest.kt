@@ -33,6 +33,9 @@ import net.thunderbird.feature.mail.message.reader.api.css.CssClassNameProvider
 import net.thunderbird.feature.mail.message.reader.api.ui.MessageReaderViewContract
 import net.thunderbird.feature.navigation.changelog.api.ChangeLogMode
 import net.thunderbird.feature.thundermail.internal.common.ui.ThundermailContract
+import net.thunderbird.feature.updater.api.AppUpdateChecker
+import net.thunderbird.feature.updater.api.AppUpdateInstaller
+import net.thunderbird.feature.updater.api.AppUpdateSettings
 import org.koin.core.annotation.KoinExperimentalAPI
 import org.koin.test.verify.definition
 import org.koin.test.verify.injectedParameters
@@ -57,6 +60,10 @@ class DependencyInjectionTest {
                 NotificationManager::class,
                 Resources::class,
                 ConfigId::class,
+                // Optional in the About screen (getOrNull); K-9 Mail binds no updater.
+                AppUpdateChecker::class,
+                AppUpdateInstaller::class,
+                AppUpdateSettings::class,
             ),
             injections = injectedParameters(
                 definition<AccountRemoverWorker>(WorkerParameters::class),
