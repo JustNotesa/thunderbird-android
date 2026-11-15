@@ -4,22 +4,29 @@ package com.fsck.k9.controller;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.Date;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.PriorityBlockingQueue;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import android.content.Context;
 import android.os.Process;
@@ -42,6 +49,7 @@ import com.fsck.k9.K9;
 import com.fsck.k9.backend.BackendManager;
 import com.fsck.k9.backend.api.Backend;
 import com.fsck.k9.backend.api.KeptMessages;
+import com.fsck.k9.backend.api.SearchStep;
 import com.fsck.k9.backend.api.SyncConfig;
 import com.fsck.k9.backend.api.SyncListener;
 import com.fsck.k9.controller.ControllerExtension.ControllerInternals;
@@ -88,6 +96,7 @@ import net.thunderbird.core.android.account.LegacyAccountManager;
 import net.thunderbird.core.common.exception.MessagingException;
 import net.thunderbird.core.common.exception.ThrowableExtensions;
 import net.thunderbird.core.common.mail.Flag;
+import net.thunderbird.core.common.mail.ServerSearchCriteria;
 import net.thunderbird.core.featureflag.FeatureFlagProvider;
 import net.thunderbird.core.featureflag.keys.GeneratedFeatureFlagKey;
 import net.thunderbird.components.core.logging.Logger;
@@ -126,9 +135,22 @@ public class MessagingController implements MessagingControllerRegistry, Messagi
     public static final Set<Flag> SYNC_FLAGS = EnumSet.of(Flag.SEEN, Flag.FLAGGED, Flag.ANSWERED, Flag.FORWARDED);
 
     private static final int MAX_CONSECUTIVE_CASCADE_SEARCH_FAILURES = 3;
+    private static final int MAX_CONSECUTIVE_DOWNLOAD_FAILURES = 3;
+    private static final int MAX_PARALLEL_SEARCH_ACCOUNTS = 4;
+    private static final int DEFAULT_SEARCH_CONNECTIONS = 2;
     private static final long NO_START_FOLDER_ID = -1L;
 
     private static final long FOLDER_LIST_STALENESS_THRESHOLD = 30 * 60 * 1000L;
+
+    // Written out instead of Comparator.comparing(), which needs Android 7
+    private static final Comparator<LocalMessage> NEWEST_MESSAGE_FIRST = (first, second) -> {
+        Date firstDate = getMessageDate(first);
+        Date secondDate = getMessageDate(second);
+        if (firstDate == null || secondDate == null) {
+            return firstDate == null ? (secondDate == null ? 0 : 1) : -1;
+        }
+        return secondDate.compareTo(firstDate);
+    };
 
     private static final String TAG = "MessagingController";
 
@@ -148,6 +170,7 @@ public class MessagingController implements MessagingControllerRegistry, Messagi
     private final BlockingQueue<Command> queuedCommands = new PriorityBlockingQueue<>();
     private final Set<MessagingListener> listeners = new CopyOnWriteArraySet<>();
     private final ExecutorService threadPool = Executors.newCachedThreadPool();
+    private final Map<AccountId, Integer> searchConnectionLimits = new ConcurrentHashMap<>();
     private final MemorizingMessagingListener memorizingMessagingListener = new MemorizingMessagingListener();
     private final DraftOperations draftOperations;
     private final NotificationOperations notificationOperations;
@@ -602,6 +625,7 @@ public class MessagingController implements MessagingControllerRegistry, Messagi
         throws MessagingException {
 
         Backend backend = getBackend(accountId);
+        SyncConfig syncConfig = createSyncConfig(accountId);
         String folderServerId = localFolder.getServerId();
         String folderName = localFolder.getName();
         int total = messageServerIds.size();
@@ -616,7 +640,9 @@ public class MessagingController implements MessagingControllerRegistry, Messagi
             LocalMessage localMessage = localFolder.getMessage(messageServerId);
 
             if (localMessage == null) {
-                backend.downloadMessageStructure(folderServerId, messageServerId);
+                // Download the message like a normal synchronization does. Small messages are downloaded completely,
+                // large ones partially, but both include the text parts needed to create a preview.
+                backend.downloadMessage(syncConfig, folderServerId, messageServerId);
 
                 LocalMessage downloadedMessage = localFolder.getMessage(messageServerId);
                 if (listener != null && downloadedMessage != null) {
@@ -641,44 +667,95 @@ public class MessagingController implements MessagingControllerRegistry, Messagi
     public Future<?> searchRemoteMessagesCascading(@Nullable String startAccountUuid, @Nullable Long startFolderId,
             String query, Set<Flag> requiredFlags, Set<Flag> forbiddenFlags, boolean searchMessageContents,
             MessagingListener listener) {
-        return searchRemoteMessagesCascading(startAccountUuid, startFolderId, query, requiredFlags, forbiddenFlags,
-                searchMessageContents, false, 0, listener);
+        ServerSearchCriteria criteria = createSearchCriteria(query, requiredFlags, forbiddenFlags,
+                searchMessageContents);
+
+        return searchRemoteMessagesCascading(startAccountUuid, startFolderId, criteria, false, Collections.emptySet(),
+                listener);
     }
 
     /**
      * @param startFolderOnly
      *         {@code true} to search nothing but the folder the search was started from.
-     * @param searchedFolderCount
-     *         The number of folders a search that was stopped has already searched. They are skipped, so the search
-     *         continues where it was stopped.
+     * @param searchedFolders
+     *         The folder keys, as returned by {@link #searchedFolderKey(String, long)}, of the folders a search that
+     *         was stopped has already searched. They are skipped, so the search continues where it was stopped.
      */
     public Future<?> searchRemoteMessagesCascading(@Nullable String startAccountUuid, @Nullable Long startFolderId,
             String query, Set<Flag> requiredFlags, Set<Flag> forbiddenFlags, boolean searchMessageContents,
-            boolean startFolderOnly, int searchedFolderCount, MessagingListener listener) {
-        Log.i(TAG, "searchRemoteMessagesCascading (acct = %s, startFolderId = %d, contents = %b, startFolderOnly = %b, "
-                + "searched = %d)", startAccountUuid, startFolderId, searchMessageContents, startFolderOnly,
-                searchedFolderCount);
+            boolean startFolderOnly, Set<String> searchedFolders, MessagingListener listener) {
+        ServerSearchCriteria criteria = createSearchCriteria(query, requiredFlags, forbiddenFlags,
+                searchMessageContents);
 
-        return threadPool.submit(() -> searchRemoteMessagesCascadingSynchronous(startAccountUuid, startFolderId, query,
-                requiredFlags, forbiddenFlags, searchMessageContents, startFolderOnly, searchedFolderCount,
-                listener));
+        return searchRemoteMessagesCascading(startAccountUuid, startFolderId, criteria, startFolderOnly,
+                searchedFolders, listener);
+    }
+
+    /**
+     * Search all folders of all accounts on the server.
+     *
+     * @param criteria
+     *         The criteria the messages have to match. They are sent to the server.
+     * @param startFolderOnly
+     *         {@code true} to search nothing but the folder the search was started from.
+     * @param searchedFolders
+     *         The folder keys, as returned by {@link #searchedFolderKey(String, long)}, of the folders a search that
+     *         was stopped has already searched. They are skipped, so the search continues where it was stopped.
+     */
+    public Future<?> searchRemoteMessagesCascading(@Nullable String startAccountUuid, @Nullable Long startFolderId,
+            ServerSearchCriteria criteria, boolean startFolderOnly, Set<String> searchedFolders,
+            MessagingListener listener) {
+        Log.i(TAG, "searchRemoteMessagesCascading (acct = %s, startFolderId = %d, startFolderOnly = %b, "
+                + "searched = %d)", startAccountUuid, startFolderId, startFolderOnly, searchedFolders.size());
+
+        return threadPool.submit(() -> searchRemoteMessagesCascadingSynchronous(startAccountUuid, startFolderId,
+                criteria, startFolderOnly, searchedFolders, listener));
     }
 
     @VisibleForTesting
     void searchRemoteMessagesCascadingSynchronous(@Nullable String startAccountUuid, @Nullable Long startFolderId,
             String query, Set<Flag> requiredFlags, Set<Flag> forbiddenFlags, boolean searchMessageContents,
             MessagingListener listener) {
-        searchRemoteMessagesCascadingSynchronous(startAccountUuid, startFolderId, query, requiredFlags,
-                forbiddenFlags, searchMessageContents, false, 0, listener);
+        ServerSearchCriteria criteria = createSearchCriteria(query, requiredFlags, forbiddenFlags,
+                searchMessageContents);
+
+        searchRemoteMessagesCascadingSynchronous(startAccountUuid, startFolderId, criteria, false,
+                Collections.emptySet(), listener);
     }
 
     @VisibleForTesting
     void searchRemoteMessagesCascadingSynchronous(@Nullable String startAccountUuid, @Nullable Long startFolderId,
             String query, Set<Flag> requiredFlags, Set<Flag> forbiddenFlags, boolean searchMessageContents,
-            boolean startFolderOnly, int searchedFolderCount, MessagingListener listener) {
+            boolean startFolderOnly, Set<String> searchedFolders, MessagingListener listener) {
+        ServerSearchCriteria criteria = createSearchCriteria(query, requiredFlags, forbiddenFlags,
+                searchMessageContents);
+
+        searchRemoteMessagesCascadingSynchronous(startAccountUuid, startFolderId, criteria, startFolderOnly,
+                searchedFolders, listener);
+    }
+
+    @VisibleForTesting
+    void searchRemoteMessagesCascadingSynchronous(@Nullable String startAccountUuid, @Nullable Long startFolderId,
+            ServerSearchCriteria criteria, MessagingListener listener) {
+        searchRemoteMessagesCascadingSynchronous(startAccountUuid, startFolderId, criteria, false,
+                Collections.emptySet(), listener);
+    }
+
+    /**
+     * The key that identifies a folder in the list of folders a search has already searched.
+     */
+    public static String searchedFolderKey(String accountUuid, long folderId) {
+        return accountUuid + "/" + folderId;
+    }
+
+    @VisibleForTesting
+    void searchRemoteMessagesCascadingSynchronous(@Nullable String startAccountUuid, @Nullable Long startFolderId,
+            ServerSearchCriteria criteria, boolean startFolderOnly, Set<String> searchedFolders,
+            MessagingListener listener) {
         long listenerFolderId = startFolderId != null ? startFolderId : NO_START_FOLDER_ID;
-        if (listener != null) {
-            listener.remoteSearchStarted(listenerFolderId);
+        MessagingListener searchListener = listener == null ? null : new SynchronizedSearchListener(listener);
+        if (searchListener != null) {
+            searchListener.remoteSearchStarted(listenerFolderId);
         }
 
         try {
@@ -686,64 +763,33 @@ public class MessagingController implements MessagingControllerRegistry, Messagi
             if (startFolderOnly) {
                 targets = keepStartFolder(targets, startAccountUuid, startFolderId);
             }
-            int folderCount = targets.size();
-            int folderIndex = 0;
-            int failedFolderCount = 0;
-            int notLoadedResultCount = 0;
-            String failureReason = null;
-            Map<String, Integer> consecutiveFailures = new HashMap<>();
-            Set<String> unreachableAccounts = new HashSet<>();
 
+            Map<String, List<CascadeSearchTarget>> targetsByAccount = new LinkedHashMap<>();
+            int skippedFolderCount = 0;
             for (CascadeSearchTarget target : targets) {
-                if (Thread.currentThread().isInterrupted()) {
-                    break;
-                }
-
-                folderIndex++;
-                if (folderIndex <= searchedFolderCount) {
-                    continue;
-                }
-
                 String accountUuid = target.accountId.toString();
-                if (unreachableAccounts.contains(accountUuid)) {
-                    // Don't keep trying the remaining folders of an account whose server can't be reached.
-                    failedFolderCount++;
-                    continue;
-                }
-
-                if (listener != null) {
-                    listener.remoteSearchCascadeProgress(accountUuid, target.accountName,
-                            target.folderName, folderIndex, folderCount);
-                }
-
-                try {
-                    notLoadedResultCount += searchSingleFolderOnServer(target.accountId, target.folderId, query,
-                            requiredFlags, forbiddenFlags, searchMessageContents, listener);
-                    consecutiveFailures.remove(accountUuid);
-                } catch (Exception e) {
-                    if (Thread.currentThread().isInterrupted()) {
-                        break;
-                    }
-                    Log.e(TAG, e, "Cascading remote search failed for folder %d of account %s", target.folderId,
-                            accountUuid);
-
-                    failedFolderCount++;
-                    failureReason = ThrowableExtensions.getRootCauseMessage(e);
-                    Integer previousFailures = consecutiveFailures.get(accountUuid);
-                    int failures = previousFailures == null ? 1 : previousFailures + 1;
-                    consecutiveFailures.put(accountUuid, failures);
-                    if (failures >= MAX_CONSECUTIVE_CASCADE_SEARCH_FAILURES) {
-                        unreachableAccounts.add(accountUuid);
-                    }
+                if (searchedFolders.contains(searchedFolderKey(accountUuid, target.folderId))) {
+                    skippedFolderCount++;
+                } else {
+                    targetsByAccount.computeIfAbsent(accountUuid, key -> new ArrayList<>()).add(target);
                 }
             }
 
-            if (listener != null && !Thread.currentThread().isInterrupted()) {
-                if (failedFolderCount > 0) {
-                    listener.remoteSearchCascadeIncomplete(failedFolderCount, folderCount, failureReason);
+            CascadeSearchState state = new CascadeSearchState(skippedFolderCount, targets.size(), searchListener);
+            List<AccountSearch> accountSearches = new ArrayList<>();
+            for (Map.Entry<String, List<CascadeSearchTarget>> entry : targetsByAccount.entrySet()) {
+                accountSearches.add(createAccountSearch(entry.getKey(), entry.getValue()));
+            }
+
+            searchAccounts(accountSearches, state, criteria);
+
+            if (searchListener != null && !Thread.currentThread().isInterrupted()) {
+                if (state.failedFolders.get() > 0) {
+                    searchListener.remoteSearchCascadeIncomplete(state.failedFolders.get(), state.folderCount,
+                            state.failureReason.get());
                 }
-                if (notLoadedResultCount > 0) {
-                    listener.remoteSearchResultsLimited(notLoadedResultCount);
+                if (state.notLoadedResults.get() > 0) {
+                    searchListener.remoteSearchResultsLimited(state.notLoadedResults.get());
                 }
             }
         } catch (Exception e) {
@@ -751,22 +797,472 @@ public class MessagingController implements MessagingControllerRegistry, Messagi
                 Log.i(TAG, e, "Caught exception on aborted cascading remote search; safe to ignore.");
             } else {
                 Log.e(TAG, e, "Could not complete cascading remote search");
-                if (listener != null) {
-                    listener.remoteSearchFailed(null, e.getMessage());
+                if (searchListener != null) {
+                    searchListener.remoteSearchFailed(null, e.getMessage());
                 }
             }
         } finally {
-            if (listener != null) {
-                listener.remoteSearchFinished(listenerFolderId, 0, 0, null);
+            if (searchListener != null) {
+                searchListener.remoteSearchFinished(listenerFolderId, 0, 0, null);
             }
         }
     }
 
     /**
+     * Search the server for messages with attachments and download them completely.
+     *
+     * The messages that are found are downloaded with their attachments, so the words of the search can be found in
+     * them on the device.
+     *
+     * @param startFolderOnly
+     *         {@code true} to search nothing but the folder the search was started from.
+     */
+    public Future<?> searchAttachmentsOnServer(@Nullable String startAccountUuid, @Nullable Long startFolderId,
+            ServerSearchCriteria criteria, boolean startFolderOnly, MessagingListener listener) {
+        Log.i(TAG, "searchAttachmentsOnServer (acct = %s, startFolderId = %d, startFolderOnly = %b)", startAccountUuid,
+                startFolderId, startFolderOnly);
+
+        return threadPool.submit(() -> searchAttachmentsOnServerSynchronous(startAccountUuid, startFolderId, criteria,
+                startFolderOnly, listener));
+    }
+
+    @VisibleForTesting
+    void searchAttachmentsOnServerSynchronous(@Nullable String startAccountUuid, @Nullable Long startFolderId,
+            ServerSearchCriteria criteria, boolean startFolderOnly, MessagingListener listener) {
+        long listenerFolderId = startFolderId != null ? startFolderId : NO_START_FOLDER_ID;
+        MessagingListener searchListener = listener == null ? null : new SynchronizedSearchListener(listener);
+        if (searchListener != null) {
+            searchListener.remoteSearchStarted(listenerFolderId);
+        }
+
+        try {
+            List<CascadeSearchTarget> targets = buildCascadeSearchTargets(startAccountUuid, startFolderId);
+            if (startFolderOnly) {
+                targets = keepStartFolder(targets, startAccountUuid, startFolderId);
+            }
+
+            AttachmentSearchState state = new AttachmentSearchState(targets.size());
+            searchAccountsForAttachments(targets, withAttachmentCriteria(criteria), state, searchListener);
+
+            if (searchListener != null && !Thread.currentThread().isInterrupted() && state.failedCount > 0) {
+                searchListener.remoteSearchCascadeIncomplete(state.failedCount, state.folderCount, state.failureReason);
+            }
+        } catch (Exception e) {
+            if (Thread.currentThread().isInterrupted()) {
+                Log.i(TAG, e, "Caught exception on aborted attachment search; safe to ignore.");
+            } else {
+                Log.e(TAG, e, "Could not complete attachment search");
+                if (searchListener != null) {
+                    searchListener.remoteSearchFailed(null, e.getMessage());
+                }
+            }
+        } finally {
+            if (searchListener != null) {
+                searchListener.remoteSearchFinished(listenerFolderId, 0, 0, null);
+            }
+        }
+    }
+
+    /**
+     * Search the folders of all accounts for messages with attachments. The accounts are searched one after the other.
+     */
+    private void searchAccountsForAttachments(List<CascadeSearchTarget> targets, ServerSearchCriteria criteria,
+            AttachmentSearchState state, MessagingListener listener) {
+        Map<String, List<CascadeSearchTarget>> targetsByAccount = new LinkedHashMap<>();
+        for (CascadeSearchTarget target : targets) {
+            targetsByAccount.computeIfAbsent(target.accountId.toString(), key -> new ArrayList<>()).add(target);
+        }
+
+        for (Map.Entry<String, List<CascadeSearchTarget>> entry : targetsByAccount.entrySet()) {
+            if (Thread.currentThread().isInterrupted()) {
+                return;
+            }
+
+            searchAccountForAttachments(entry.getKey(), entry.getValue(), criteria, state, listener);
+        }
+    }
+
+    /**
+     * Search the folders of one account for messages with attachments.
+     */
+    private void searchAccountForAttachments(String accountUuid, List<CascadeSearchTarget> targets,
+            ServerSearchCriteria criteria, AttachmentSearchState state, MessagingListener listener) {
+        for (int index = 0; index < targets.size(); index++) {
+            if (Thread.currentThread().isInterrupted()) {
+                return;
+            }
+
+            CascadeSearchTarget target = targets.get(index);
+            state.folderIndex++;
+            if (listener != null) {
+                listener.remoteSearchCascadeProgress(accountUuid, target.accountName, target.folderName,
+                        state.folderIndex, state.folderCount);
+            }
+
+            int failureCount;
+            try {
+                failureCount = searchFolderForAttachments(target, criteria, state, listener);
+            } catch (Exception e) {
+                if (Thread.currentThread().isInterrupted()) {
+                    return;
+                }
+
+                Log.e(TAG, e, "Attachment search failed for folder %d of account %s", target.folderId, accountUuid);
+                failureCount = 1;
+                state.failureReason = ThrowableExtensions.getRootCauseMessage(e);
+            }
+
+            state.failedCount += failureCount;
+            if (failureCount > 0) {
+                state.consecutiveFailures += failureCount;
+            } else {
+                state.consecutiveFailures = 0;
+            }
+
+            if (state.consecutiveFailures >= MAX_CONSECUTIVE_CASCADE_SEARCH_FAILURES) {
+                // The folders that are left couldn't be searched either.
+                state.failedCount += targets.size() - index - 1;
+                Log.w(TAG, "Giving up attachment search for account %s", accountUuid);
+                return;
+            }
+        }
+    }
+
+    /**
+     * Find the messages with attachments in a folder and download them completely, so the words of the search can be
+     * found in their attachments on the device.
+     *
+     * @return The number of messages that couldn't be downloaded.
+     */
+    private int searchFolderForAttachments(CascadeSearchTarget target, ServerSearchCriteria criteria,
+            AttachmentSearchState state, MessagingListener listener) throws MessagingException {
+        if (accountManager.findById(target.accountId) == null) {
+            throw new MessagingException("Account not found");
+        }
+
+        LocalStore localStore = localStoreProvider.getInstance(target.accountId);
+        LocalFolder localFolder = localStore.getFolder(target.folderId);
+        if (!localFolder.exists()) {
+            throw new MessagingException("Folder not found");
+        }
+
+        localFolder.open();
+        String folderServerId = localFolder.getServerId();
+
+        Backend backend = getBackend(target.accountId);
+        List<String> foundMessageServerIds = backend.search(folderServerId, criteria, step -> {
+            if (listener != null) {
+                listener.remoteSearchStep(step);
+            }
+        });
+
+        keepMessages(target.accountId, target.folderId, foundMessageServerIds);
+        return downloadMessagesWithAttachments(backend, localFolder, folderServerId, foundMessageServerIds, target,
+                state, listener);
+    }
+
+    /**
+     * Download the messages that aren't completely on the device yet. The backend returns the messages in reverse
+     * order, so the newest ones are downloaded first.
+     *
+     * @return The number of messages that couldn't be downloaded.
+     */
+    private int downloadMessagesWithAttachments(Backend backend, LocalFolder localFolder, String folderServerId,
+            List<String> messageServerIds, CascadeSearchTarget target, AttachmentSearchState state,
+            MessagingListener listener) {
+        int total = messageServerIds.size();
+        int completed = 0;
+        int failures = 0;
+
+        for (String messageServerId : messageServerIds) {
+            if (Thread.currentThread().isInterrupted()) {
+                return failures;
+            }
+
+            try {
+                if (!isDownloadedCompletely(localFolder, messageServerId)) {
+                    MessagingControllerWrapperKt.downloadCompleteMessageBlocking(backend, Dispatchers.getIO(),
+                            folderServerId, messageServerId);
+                }
+
+                completed++;
+                if (listener != null) {
+                    listener.remoteSearchDownloadProgress(target.folderName, completed, total);
+                }
+            } catch (Exception e) {
+                failures++;
+                state.failureReason = ThrowableExtensions.getRootCauseMessage(e);
+                Log.w(TAG, e, "Couldn't download message of folder %d", target.folderId);
+            }
+        }
+
+        return failures;
+    }
+
+    /**
+     * Whether the message is completely on the device, including its attachments.
+     */
+    private boolean isDownloadedCompletely(LocalFolder localFolder, String messageServerId) throws MessagingException {
+        LocalMessage localMessage = localFolder.getMessage(messageServerId);
+        return localMessage != null && localMessage.isSet(Flag.X_DOWNLOADED_FULL);
+    }
+
+    /**
+     * Create a copy of the criteria that looks for messages with attachments. The words of the search are looked for
+     * on the device, in the text of the attachments.
+     */
+    private static ServerSearchCriteria withAttachmentCriteria(ServerSearchCriteria criteria) {
+        return new ServerSearchCriteria(null, ServerSearchCriteria.TextScope.HEADERS, criteria.getFrom(),
+                criteria.getTo(), criteria.getSubject(), criteria.getReceivedSince(), criteria.getReceivedBefore(),
+                criteria.getReceivedWithinDays(), criteria.getLargerThanBytes(), criteria.getSmallerThanBytes(), true,
+                criteria.getRequiredFlags(), criteria.getForbiddenFlags());
+    }
+
+    /**
+     * Create the criteria of a search that only knows a query and flags.
+     */
+    private static ServerSearchCriteria createSearchCriteria(String query, Set<Flag> requiredFlags,
+            Set<Flag> forbiddenFlags, boolean searchMessageContents) {
+        ServerSearchCriteria.TextScope textScope = searchMessageContents
+                ? ServerSearchCriteria.TextScope.EVERYWHERE
+                : ServerSearchCriteria.TextScope.HEADERS;
+
+        return new ServerSearchCriteria(query, textScope, null, null, null, null, null, null, null, null, false,
+                requiredFlags != null ? requiredFlags : Collections.<Flag>emptySet(),
+                forbiddenFlags != null ? forbiddenFlags : Collections.<Flag>emptySet());
+    }
+
+    /**
+     * Search the folders of all accounts. The accounts are searched at the same time.
+     */
+    private void searchAccounts(List<AccountSearch> accountSearches, CascadeSearchState state,
+            ServerSearchCriteria criteria) {
+        if (accountSearches.isEmpty()) {
+            return;
+        }
+
+        ExecutorService executor = Executors.newFixedThreadPool(
+                Math.min(accountSearches.size(), MAX_PARALLEL_SEARCH_ACCOUNTS));
+        List<Future<?>> futures = new ArrayList<>();
+        boolean interrupted = false;
+
+        try {
+            for (AccountSearch accountSearch : accountSearches) {
+                futures.add(executor.submit(() -> searchAccountOnServer(accountSearch, state, criteria)));
+            }
+
+            for (int index = 0; index < futures.size(); index++) {
+                if (Thread.currentThread().isInterrupted()) {
+                    interrupted = true;
+                    break;
+                }
+
+                try {
+                    futures.get(index).get();
+                } catch (ExecutionException e) {
+                    AccountSearch accountSearch = accountSearches.get(index);
+                    Log.e(TAG, e, "Cascading remote search failed for account %s", accountSearch.accountUuid);
+                    countRemainingFoldersAsFailed(accountSearch, state);
+                } catch (InterruptedException e) {
+                    Log.i(TAG, e, "Caught exception on aborted cascading remote search; safe to ignore.");
+                    interrupted = true;
+                    break;
+                }
+            }
+        } finally {
+            if (interrupted) {
+                cancelFutures(futures);
+                executor.shutdownNow();
+                Thread.currentThread().interrupt();
+            }
+            executor.shutdown();
+        }
+    }
+
+    /**
+     * Search the folders of one account. The folders are searched by up to two connections at the same time.
+     */
+    private void searchAccountOnServer(AccountSearch accountSearch, CascadeSearchState state,
+            ServerSearchCriteria criteria) {
+        List<Future<?>> workerFutures = new ArrayList<>();
+        for (int worker = 1; worker < accountSearch.connectionCount; worker++) {
+            int workerIndex = worker;
+            workerFutures.add(threadPool.submit(() -> searchAccountFoldersOnWorkerThread(accountSearch, workerIndex,
+                    state, criteria)));
+        }
+
+        searchFoldersOfAccount(accountSearch, 0, state, criteria);
+        joinFutures(workerFutures);
+
+        if (accountSearch.unreachable.get()) {
+            countRemainingFoldersAsFailed(accountSearch, state);
+        }
+
+        if (state.listener != null) {
+            state.listener.remoteSearchAccountFinished(accountSearch.accountUuid);
+        }
+    }
+
+    /**
+     * Wait until the first connection has searched a folder. Only then the other connections start, so the folder the
+     * search was started from is searched first.
+     */
+    private void searchAccountFoldersOnWorkerThread(AccountSearch accountSearch, int worker, CascadeSearchState state,
+            ServerSearchCriteria criteria) {
+        try {
+            accountSearch.firstFolderSearched.await();
+        } catch (InterruptedException e) {
+            Log.i(TAG, e, "Caught exception on aborted cascading remote search; safe to ignore.");
+            Thread.currentThread().interrupt();
+            return;
+        }
+
+        if (Thread.currentThread().isInterrupted() || accountSearch.unreachable.get()) {
+            return;
+        }
+
+        searchFoldersOfAccount(accountSearch, worker, state, criteria);
+    }
+
+    /**
+     * Search the folders of one account until there is none left. Every folder is searched by one connection only.
+     */
+    private void searchFoldersOfAccount(AccountSearch accountSearch, int worker, CascadeSearchState state,
+            ServerSearchCriteria criteria) {
+        boolean searchedFolder = false;
+
+        try {
+            while (true) {
+                if (Thread.currentThread().isInterrupted() || accountSearch.unreachable.get()) {
+                    break;
+                }
+
+                CascadeSearchTarget target = accountSearch.queue.next(worker);
+                if (target == null) {
+                    break;
+                }
+
+                int folderIndex = state.startedFolders.incrementAndGet();
+                if (state.listener != null) {
+                    state.listener.remoteSearchCascadeProgress(accountSearch.accountUuid, target.accountName,
+                            target.folderName, folderIndex, state.folderCount);
+                }
+
+                try {
+                    int notLoadedResultCount = searchSingleFolderOnServer(target.accountId, target.folderId, criteria,
+                            state.listener);
+                    state.notLoadedResults.addAndGet(notLoadedResultCount);
+                    accountSearch.consecutiveFailures.set(0);
+                    searchedFolder = true;
+                    accountSearch.firstFolderSearched.countDown();
+                } catch (Exception e) {
+                    if (Thread.currentThread().isInterrupted()) {
+                        break;
+                    }
+
+                    if (worker > 0 && !searchedFolder) {
+                        // The server refused another connection. The folder is searched by the other connections.
+                        accountSearch.queue.putBack(target);
+                        state.startedFolders.decrementAndGet();
+                        setSearchConnectionLimit(accountSearch.accountId, 1);
+                        Log.i(TAG, "Server refused another connection for account %s. Using one connection.",
+                                accountSearch.accountUuid);
+                        break;
+                    }
+
+                    Log.e(TAG, e, "Cascading remote search failed for folder %d of account %s", target.folderId,
+                            accountSearch.accountUuid);
+                    state.failedFolders.incrementAndGet();
+                    state.failureReason.set(ThrowableExtensions.getRootCauseMessage(e));
+                    int failures = accountSearch.consecutiveFailures.incrementAndGet();
+                    if (failures >= MAX_CONSECUTIVE_CASCADE_SEARCH_FAILURES) {
+                        accountSearch.unreachable.set(true);
+                    }
+                }
+
+                if (state.listener != null) {
+                    state.listener.remoteSearchFolderSearched(accountSearch.accountUuid, target.folderId);
+                }
+            }
+        } finally {
+            accountSearch.firstFolderSearched.countDown();
+        }
+    }
+
+    /**
+     * The folders that are left when an account was given up couldn't be searched. They count as failed.
+     */
+    private void countRemainingFoldersAsFailed(AccountSearch accountSearch, CascadeSearchState state) {
+        CascadeSearchTarget target = accountSearch.queue.next(0);
+        while (target != null) {
+            state.failedFolders.incrementAndGet();
+            if (state.listener != null) {
+                state.listener.remoteSearchFolderSearched(accountSearch.accountUuid, target.folderId);
+            }
+            target = accountSearch.queue.next(0);
+        }
+    }
+
+    private AccountSearch createAccountSearch(String accountUuid, List<CascadeSearchTarget> folders) {
+        AccountId accountId = folders.get(0).accountId;
+        int connectionCount = Math.min(getSearchConnectionLimit(accountId), folders.size());
+        FolderSearchQueue<CascadeSearchTarget> queue = new FolderSearchQueue<>(folders, connectionCount);
+
+        return new AccountSearch(accountUuid, accountId, queue, connectionCount);
+    }
+
+    /**
+     * The number of connections that are used to search the folders of an account.
+     *
+     * Some servers only allow one connection per account at a time. Once a second connection failed, the search uses
+     * one until the app is restarted. It isn't stored, because the second connection may also have failed for a
+     * different reason, e.g. a folder that can't be opened.
+     */
+    int getSearchConnectionLimit(AccountId accountId) {
+        Integer limit = searchConnectionLimits.get(accountId);
+        return limit != null ? limit : DEFAULT_SEARCH_CONNECTIONS;
+    }
+
+    void setSearchConnectionLimit(AccountId accountId, int limit) {
+        searchConnectionLimits.put(accountId, Math.max(1, limit));
+    }
+
+    private void joinFutures(List<Future<?>> futures) {
+        for (Future<?> future : futures) {
+            try {
+                future.get();
+            } catch (ExecutionException e) {
+                Log.e(TAG, e, "Cascading remote search connection failed");
+            } catch (InterruptedException e) {
+                Log.i(TAG, e, "Caught exception on aborted cascading remote search; safe to ignore.");
+                cancelFutures(futures);
+                Thread.currentThread().interrupt();
+                return;
+            }
+        }
+    }
+
+    private void cancelFutures(List<Future<?>> futures) {
+        for (Future<?> future : futures) {
+            future.cancel(true);
+        }
+    }
+
+    /**
+     * Create a copy of the criteria that looks for the text in a different place.
+     */
+    private static ServerSearchCriteria withTextScope(ServerSearchCriteria criteria,
+            ServerSearchCriteria.TextScope textScope) {
+        return new ServerSearchCriteria(criteria.getText(), textScope, criteria.getFrom(), criteria.getTo(),
+                criteria.getSubject(), criteria.getReceivedSince(), criteria.getReceivedBefore(),
+                criteria.getReceivedWithinDays(), criteria.getLargerThanBytes(), criteria.getSmallerThanBytes(),
+                criteria.getHasAttachment(), criteria.getRequiredFlags(), criteria.getForbiddenFlags());
+    }
+
+    /**
      * @return The number of search results that were not loaded because of the account's server search limit.
      */
-    private int searchSingleFolderOnServer(AccountId accountId, long folderId, String query,
-            Set<Flag> requiredFlags, Set<Flag> forbiddenFlags, boolean searchMessageContents,
+    private int searchSingleFolderOnServer(AccountId accountId, long folderId, ServerSearchCriteria criteria,
             MessagingListener listener) throws MessagingException {
         LegacyAccount account = accountManager.findById(accountId);
         if (account == null) {
@@ -783,13 +1279,15 @@ public class MessagingController implements MessagingControllerRegistry, Messagi
         String folderServerId = localFolder.getServerId();
 
         Backend backend = getBackend(accountId);
-        boolean performFullTextSearch = searchMessageContents || account.isRemoteSearchFullText();
-        List<String> foundMessageServerIds = backend.search(folderServerId, query, requiredFlags, forbiddenFlags,
-                performFullTextSearch, step -> {
-                    if (listener != null) {
-                        listener.remoteSearchStep(step);
-                    }
-                });
+        ServerSearchCriteria searchCriteria = criteria;
+        if (account.isRemoteSearchFullText() && criteria.getTextScope() == ServerSearchCriteria.TextScope.HEADERS) {
+            searchCriteria = withTextScope(criteria, ServerSearchCriteria.TextScope.EVERYWHERE);
+        }
+        List<String> foundMessageServerIds = backend.search(folderServerId, searchCriteria, step -> {
+            if (listener != null) {
+                listener.remoteSearchStep(step);
+            }
+        });
 
         List<String> newMessageServerIds = localFolder.extractNewMessages(foundMessageServerIds);
         List<String> notLoadedMessageServerIds = Collections.emptyList();
@@ -902,6 +1400,165 @@ public class MessagingController implements MessagingControllerRegistry, Messagi
             this.folderId = folderId;
             this.folderName = folderName;
             this.serverId = serverId;
+        }
+    }
+
+    /**
+     * The state of a search for messages with attachments.
+     */
+    private static class AttachmentSearchState {
+        final int folderCount;
+        int folderIndex;
+        int failedCount;
+        int consecutiveFailures;
+        String failureReason;
+
+        AttachmentSearchState(int folderCount) {
+            this.folderCount = folderCount;
+        }
+    }
+
+    /**
+     * The state that is shared by all connections that search the folders of the accounts.
+     */
+    private static class CascadeSearchState {
+        final AtomicInteger startedFolders;
+        final AtomicInteger failedFolders = new AtomicInteger();
+        final AtomicInteger notLoadedResults = new AtomicInteger();
+        final AtomicReference<String> failureReason = new AtomicReference<>();
+        final int folderCount;
+        final MessagingListener listener;
+
+        CascadeSearchState(int skippedFolderCount, int folderCount, @Nullable MessagingListener listener) {
+            this.startedFolders = new AtomicInteger(skippedFolderCount);
+            this.folderCount = folderCount;
+            this.listener = listener;
+        }
+    }
+
+    /**
+     * The folders of one account and the state that is shared by the connections that search them.
+     */
+    private static class AccountSearch {
+        final String accountUuid;
+        final AccountId accountId;
+        final FolderSearchQueue<CascadeSearchTarget> queue;
+        final int connectionCount;
+        final AtomicInteger consecutiveFailures = new AtomicInteger();
+        final AtomicBoolean unreachable = new AtomicBoolean(false);
+        final CountDownLatch firstFolderSearched = new CountDownLatch(1);
+
+        AccountSearch(String accountUuid, AccountId accountId, FolderSearchQueue<CascadeSearchTarget> queue,
+                int connectionCount) {
+            this.accountUuid = accountUuid;
+            this.accountId = accountId;
+            this.queue = queue;
+            this.connectionCount = connectionCount;
+        }
+    }
+
+    /**
+     * Passes the events of a remote search on to the listener. The events come from several threads, so they are
+     * synchronized.
+     */
+    private static class SynchronizedSearchListener extends SimpleMessagingListener {
+        private final MessagingListener delegate;
+        private final Object lock = new Object();
+
+        SynchronizedSearchListener(MessagingListener delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public void remoteSearchStarted(long folderId) {
+            synchronized (lock) {
+                delegate.remoteSearchStarted(folderId);
+            }
+        }
+
+        @Override
+        public void remoteSearchServerQueryComplete(long folderId, int numResults, int maxResults) {
+            synchronized (lock) {
+                delegate.remoteSearchServerQueryComplete(folderId, numResults, maxResults);
+            }
+        }
+
+        @Override
+        public void remoteSearchCascadeProgress(String accountUuid, String accountName, String folderName,
+                int folderIndex, int folderCount) {
+            synchronized (lock) {
+                delegate.remoteSearchCascadeProgress(accountUuid, accountName, folderName, folderIndex, folderCount);
+            }
+        }
+
+        @Override
+        public void remoteSearchStep(SearchStep step) {
+            synchronized (lock) {
+                delegate.remoteSearchStep(step);
+            }
+        }
+
+        @Override
+        public void remoteSearchDownloadProgress(String folderName, int completed, int total) {
+            synchronized (lock) {
+                delegate.remoteSearchDownloadProgress(folderName, completed, total);
+            }
+        }
+
+        @Override
+        public void remoteSearchMessageDownloaded(String folderName, String subject) {
+            synchronized (lock) {
+                delegate.remoteSearchMessageDownloaded(folderName, subject);
+            }
+        }
+
+        @Override
+        public void remoteSearchCascadeIncomplete(int failedFolderCount, int folderCount, String reason) {
+            synchronized (lock) {
+                delegate.remoteSearchCascadeIncomplete(failedFolderCount, folderCount, reason);
+            }
+        }
+
+        @Override
+        public void remoteSearchFolderResults(String accountUuid, long folderId, List<String> messageServerIds) {
+            synchronized (lock) {
+                delegate.remoteSearchFolderResults(accountUuid, folderId, messageServerIds);
+            }
+        }
+
+        @Override
+        public void remoteSearchFolderSearched(String accountUuid, long folderId) {
+            synchronized (lock) {
+                delegate.remoteSearchFolderSearched(accountUuid, folderId);
+            }
+        }
+
+        @Override
+        public void remoteSearchAccountFinished(String accountUuid) {
+            synchronized (lock) {
+                delegate.remoteSearchAccountFinished(accountUuid);
+            }
+        }
+
+        @Override
+        public void remoteSearchResultsLimited(int notLoadedCount) {
+            synchronized (lock) {
+                delegate.remoteSearchResultsLimited(notLoadedCount);
+            }
+        }
+
+        @Override
+        public void remoteSearchFinished(long folderId, int numResults, int maxResults, List<String> extraResults) {
+            synchronized (lock) {
+                delegate.remoteSearchFinished(folderId, numResults, maxResults, extraResults);
+            }
+        }
+
+        @Override
+        public void remoteSearchFailed(String folderServerId, String err) {
+            synchronized (lock) {
+                delegate.remoteSearchFailed(folderServerId, err);
+            }
         }
     }
 
@@ -1267,6 +1924,112 @@ public class MessagingController implements MessagingControllerRegistry, Messagi
         messageStore.setVisibleLimit(folderId, visibleLimit);
         // Whether there are more messages on the server has to be found out again with the new limit
         messageStore.setMoreMessages(folderId, MoreMessages.UNKNOWN);
+    }
+
+    /**
+     * Make every message of a folder available on the device, including attachments.
+     *
+     * First the folder is synchronized with all messages on the server (it displays all of them from now on), then
+     * every message that isn't completely on the device is downloaded, the newest first.
+     *
+     * @param condition
+     *         Asked before every message. Downloading stops when it returns {@code false}.
+     * @return {@code true} if every message of the folder is now completely on the device, {@code false} if downloading
+     *         was stopped before or a message couldn't be downloaded.
+     */
+    public boolean downloadFolderForOfflineUseSynchronous(AccountId accountId, long folderId,
+            ContinueCondition condition) {
+        MessageStore messageStore = messageStoreManager.getMessageStore(accountId);
+        Integer visibleLimit = messageStore.getFolder(folderId, FolderDetailsAccessor::getVisibleLimit);
+        if (visibleLimit == null) {
+            Log.w(TAG, "downloadFolderForOfflineUse(%s, %d): Folder not found", accountId, folderId);
+            return false;
+        }
+
+        if (visibleLimit != MessageLoadingSteps.ALL_MESSAGES) {
+            setVisibleLimit(messageStore, folderId, MessageLoadingSteps.ALL_MESSAGES);
+        }
+
+        synchronizeMailboxSynchronous(accountId, folderId, false, null, new NotificationState());
+
+        return downloadMessagesOfFolder(accountId, folderId, condition);
+    }
+
+    private boolean downloadMessagesOfFolder(AccountId accountId, long folderId, ContinueCondition condition) {
+        LocalFolder localFolder;
+        List<LocalMessage> messages;
+        try {
+            localFolder = localStoreProvider.getInstance(accountId).getFolder(folderId);
+            if (!localFolder.exists()) {
+                Log.w(TAG, "downloadFolderForOfflineUse(%s, %d): Folder not found", accountId, folderId);
+                return false;
+            }
+
+            localFolder.open();
+            messages = localFolder.getMessages();
+        } catch (MessagingException e) {
+            Log.w(TAG, e, "downloadFolderForOfflineUse(%s, %d): Couldn't read folder", accountId, folderId);
+            return false;
+        }
+
+        String folderServerId = localFolder.getServerId();
+        if (folderServerId == null) {
+            // A folder that only exists on the device doesn't have messages on the server.
+            return true;
+        }
+
+        return downloadMessages(accountId, folderId, folderServerId, getMessagesToDownload(messages), condition);
+    }
+
+    private List<LocalMessage> getMessagesToDownload(List<LocalMessage> messages) {
+        List<LocalMessage> messagesToDownload = new ArrayList<>();
+        for (LocalMessage message : messages) {
+            if (!message.isSet(Flag.X_DOWNLOADED_FULL) && !message.isSet(Flag.DELETED) && !isLocalMessage(message)) {
+                messagesToDownload.add(message);
+            }
+        }
+
+        Collections.sort(messagesToDownload, NEWEST_MESSAGE_FIRST);
+
+        return messagesToDownload;
+    }
+
+    private boolean downloadMessages(AccountId accountId, long folderId, String folderServerId,
+            List<LocalMessage> messages, ContinueCondition condition) {
+        Backend backend = getBackend(accountId);
+        int consecutiveFailures = 0;
+        boolean downloadFailed = false;
+
+        for (LocalMessage message : messages) {
+            if (Thread.currentThread().isInterrupted() || !condition.shouldContinue()) {
+                return false;
+            }
+
+            try {
+                MessagingControllerWrapperKt.downloadCompleteMessageBlocking(
+                        backend, Dispatchers.getIO(), folderServerId, message.getUid());
+                consecutiveFailures = 0;
+            } catch (Exception e) {
+                consecutiveFailures++;
+                downloadFailed = true;
+                Log.w(TAG, "Couldn't download message. Folder ID: %d", folderId);
+                if (consecutiveFailures >= MAX_CONSECUTIVE_DOWNLOAD_FAILURES) {
+                    return false;
+                }
+            }
+        }
+
+        return !downloadFailed;
+    }
+
+    private boolean isLocalMessage(LocalMessage message) {
+        String uid = message.getUid();
+        return uid != null && uid.startsWith(localMessageUidPrefixProvider.get());
+    }
+
+    private static Date getMessageDate(LocalMessage message) {
+        Date date = message.getInternalDate();
+        return date != null ? date : message.getSentDate();
     }
 
     private void refreshFolderListIfStale(AccountId accountId) {
@@ -1944,6 +2707,65 @@ public class MessagingController implements MessagingControllerRegistry, Messagi
         put("loadMessageRemotePartial", listener, () ->
             loadMessageRemoteSynchronous(accountId, folderId, uid, listener, true)
         );
+    }
+
+    /**
+     * Downloads the text of messages the message list displays without a preview, because only their headers are on
+     * the device. Messages that were already downloaded, even partially, are skipped. Small messages are downloaded
+     * completely, large ones up to the account's download limit, like the synchronization does.
+     */
+    public void downloadMissingPreviews(AccountId accountId, long folderId, List<String> messageServerIds) {
+        putBackground("downloadMissingPreviews", null, () ->
+            downloadMissingPreviewsSynchronous(accountId, folderId, messageServerIds)
+        );
+    }
+
+    @VisibleForTesting
+    void downloadMissingPreviewsSynchronous(AccountId accountId, long folderId, List<String> messageServerIds) {
+        try {
+            Backend backend = getBackend(accountId);
+            LocalFolder localFolder = localStoreProvider.getInstance(accountId).getFolder(folderId);
+            if (!localFolder.exists()) {
+                return;
+            }
+
+            localFolder.open();
+
+            String folderServerId = localFolder.getServerId();
+            if (folderServerId == null) {
+                return;
+            }
+
+            SyncConfig syncConfig = createSyncConfig(accountId);
+
+            for (String messageServerId : messageServerIds) {
+                if (Thread.currentThread().isInterrupted()) {
+                    break;
+                }
+
+                downloadMissingPreview(backend, syncConfig, localFolder, folderServerId, folderId, messageServerId);
+            }
+        } catch (Exception e) {
+            Log.e(TAG, e, "Couldn't download missing previews. Account: %s, folder ID: %d", accountId, folderId);
+        }
+    }
+
+    private void downloadMissingPreview(Backend backend, SyncConfig syncConfig, LocalFolder localFolder,
+        String folderServerId, long folderId, String messageServerId) {
+        try {
+            LocalMessage message = localFolder.getMessage(messageServerId);
+            if (message == null) {
+                return;
+            }
+
+            if (message.isSet(Flag.X_DOWNLOADED_FULL) || message.isSet(Flag.X_DOWNLOADED_PARTIAL)) {
+                return;
+            }
+
+            backend.downloadMessage(syncConfig, folderServerId, messageServerId);
+        } catch (Exception e) {
+            Log.w(TAG, "Couldn't download message. Folder ID: %d", folderId);
+        }
     }
 
     //TODO: Fix the callback mess. See GH-782

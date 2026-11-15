@@ -6,8 +6,22 @@ import com.fsck.k9.mail.internet.MessageExtractor
 import com.fsck.k9.mail.internet.MimeUtility
 import com.fsck.k9.message.html.HtmlConverter
 
-class MessageFulltextCreator private constructor(private val textPartFinder: TextPartFinder) {
+class MessageFulltextCreator(
+    private val textPartFinder: TextPartFinder,
+    private val attachmentTextExtractor: AttachmentTextExtractor,
+) {
     fun createFulltext(message: Message): String? {
+        val messageText = createMessageText(message)
+        val attachmentText = attachmentTextExtractor.extractText(message)
+
+        return when {
+            messageText == null -> attachmentText
+            attachmentText == null -> messageText
+            else -> "$messageText\n$attachmentText"
+        }
+    }
+
+    private fun createMessageText(message: Message): String? {
         val textPart = textPartFinder.findFirstTextPart(message)
         if (textPart == null || hasEmptyBody(textPart)) {
             return null
@@ -26,7 +40,5 @@ class MessageFulltextCreator private constructor(private val textPartFinder: Tex
 
     companion object {
         private const val MAX_CHARACTERS_CHECKED_FOR_FTS = 200 * 1024L
-
-        fun newInstance() = MessageFulltextCreator(TextPartFinder())
     }
 }

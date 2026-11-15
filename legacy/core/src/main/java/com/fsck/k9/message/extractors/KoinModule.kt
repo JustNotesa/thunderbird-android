@@ -6,4 +6,6 @@ val extractorModule = module {
     single { AttachmentInfoExtractor(get()) }
     single { TextPartFinder() }
     single { BasicPartInfoExtractor() }
+    factory<PdfTextReader> { AndroidPdfTextReader(context = get()) }
+    factory { AttachmentTextExtractor(pdfTextReader = get()) }
 }

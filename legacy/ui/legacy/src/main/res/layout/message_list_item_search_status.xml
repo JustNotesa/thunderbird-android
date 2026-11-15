@@ -159,7 +159,7 @@
 
         </LinearLayout>
 
-        <!-- Uses the space that isn't taken up by the button -->
+        <!-- Uses the space that isn't taken up by the buttons -->
         <com.google.android.material.textview.MaterialTextView
             android:id="@+id/search_status_message"
             android:textAppearance="?attr/textAppearanceBodySmall"
@@ -168,23 +168,46 @@
             android:ellipsize="end"
             android:paddingBottom="4dp"
             android:visibility="invisible"
-            app:layout_constraintBottom_toTopOf="@id/search_contents_button"
+            app:layout_constraintBottom_toTopOf="@id/search_status_buttons"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent"
             />
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/search_contents_button"
-            style="@style/Widget.Material3.Button.TonalButton.Icon"
+        <!-- The buttons that start a search for the contents or the attachments of the messages. They are side by side,
+             so the row keeps its height. -->
+        <LinearLayout
+            android:id="@+id/search_status_buttons"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="@string/remote_search_contents_action"
-            android:visibility="gone"
-            app:icon="@drawable/ic_find_in_page"
+            android:orientation="horizontal"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintStart_toStartOf="parent"
-            />
+            >
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/search_contents_button"
+                style="@style/Widget.Material3.Button.TonalButton.Icon"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/remote_search_contents_action"
+                android:visibility="gone"
+                app:icon="@drawable/ic_find_in_page"
+                />
+
+            <!-- Downloads the messages with attachments, so the words of the search can be found in them -->
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/search_attachments_button"
+                style="@style/Widget.Material3.Button.OutlinedButton.Icon"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:text="@string/remote_search_attachments_action"
+                android:visibility="gone"
+                app:icon="@drawable/ic_attachment"
+                />
+
+        </LinearLayout>
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 

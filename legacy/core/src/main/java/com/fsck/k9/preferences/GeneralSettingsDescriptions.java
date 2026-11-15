@@ -65,6 +65,10 @@ import static net.thunderbird.core.preference.display.visualSettings.message.lis
 import static net.thunderbird.core.preference.display.visualSettings.message.list.DisplayMessageListSettingsKt.MESSAGE_LIST_SETTINGS_DEFAULT_IS_SHOW_CONTACT_PICTURE;
 import static net.thunderbird.core.preference.display.visualSettings.message.list.DisplayMessageListSettingsKt.MESSAGE_LIST_SETTINGS_DEFAULT_IS_SHOW_CORRESPONDENT_NAMES;
 import static net.thunderbird.core.preference.display.visualSettings.DisplayVisualSettingsKt.DISPLAY_SETTINGS_DEFAULT_IS_USE_MESSAGE_VIEW_FIXED_WIDTH_FONT;
+import static net.thunderbird.core.preference.network.NetworkSettingsKt.NETWORK_SETTINGS_DEFAULT_OFFLINE_DOWNLOAD;
+import static net.thunderbird.core.preference.network.NetworkSettingsKt.NETWORK_SETTINGS_DEFAULT_OFFLINE_DOWNLOAD_ONLY_WHILE_CHARGING;
+import static net.thunderbird.core.preference.network.NetworkSettingsKt.NETWORK_SETTINGS_DEFAULT_OFFLINE_KEEP_FREE_MEGABYTES;
+import static net.thunderbird.core.preference.network.NetworkSettingsKt.NETWORK_SETTINGS_DEFAULT_OFFLINE_STORAGE_LIMIT_MEGABYTES;
 import static net.thunderbird.core.preference.notification.NotificationPreferenceKt.NOTIFICATION_PREFERENCE_DEFAULT_IS_QUIET_TIME_ENABLED;
 import static net.thunderbird.core.preference.notification.NotificationPreferenceKt.NOTIFICATION_PREFERENCE_DEFAULT_QUIET_TIME_END;
 import static net.thunderbird.core.preference.notification.NotificationPreferenceKt.NOTIFICATION_PREFERENCE_DEFAULT_QUIET_TIME_STARTS;
@@ -73,6 +77,8 @@ import static net.thunderbird.core.preference.privacy.PrivacySettingsKt.PRIVACY_
 
 
 class GeneralSettingsDescriptions {
+    private static final int OFFLINE_SETTING_MAX_MEGABYTES = 1048576;
+
     static final Map<String, TreeMap<Integer, SettingsDescription<?>>> SETTINGS;
     private static final Map<Integer, SettingsUpgrader> UPGRADERS;
 
@@ -350,6 +356,20 @@ class GeneralSettingsDescriptions {
         ));
         s.put("messageListDateTimeFormat", Settings.versions(
             new V(110, new EnumSetting<>(MessageListDateTimeFormat.class, MessageListDateTimeFormat.Contextual))
+        ));
+        s.put("offlineDownload", Settings.versions(
+            new V(114, new BooleanSetting(NETWORK_SETTINGS_DEFAULT_OFFLINE_DOWNLOAD))
+        ));
+        s.put("offlineDownloadOnlyWhileCharging", Settings.versions(
+            new V(114, new BooleanSetting(NETWORK_SETTINGS_DEFAULT_OFFLINE_DOWNLOAD_ONLY_WHILE_CHARGING))
+        ));
+        s.put("offlineStorageLimitMegabytes", Settings.versions(
+            new V(114, new IntegerRangeSetting(0, OFFLINE_SETTING_MAX_MEGABYTES,
+                NETWORK_SETTINGS_DEFAULT_OFFLINE_STORAGE_LIMIT_MEGABYTES))
+        ));
+        s.put("offlineKeepFreeMegabytes", Settings.versions(
+            new V(114, new IntegerRangeSetting(0, OFFLINE_SETTING_MAX_MEGABYTES,
+                NETWORK_SETTINGS_DEFAULT_OFFLINE_KEEP_FREE_MEGABYTES))
         ));
 
         // TODO: Add a way to properly support feature-specific settings.

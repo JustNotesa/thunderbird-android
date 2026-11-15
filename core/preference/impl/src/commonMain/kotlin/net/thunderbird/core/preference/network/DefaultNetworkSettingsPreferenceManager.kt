@@ -53,6 +53,22 @@ class DefaultNetworkSettingsPreferenceManager(
             NetworkSettingKey.BackgroundOperations.value,
             NETWORK_SETTINGS_DEFAULT_BACKGROUND_OPS,
         ),
+        offlineDownload = storage.getBoolean(
+            key = NetworkSettingKey.OfflineDownload.value,
+            defValue = NETWORK_SETTINGS_DEFAULT_OFFLINE_DOWNLOAD,
+        ),
+        offlineDownloadOnlyWhileCharging = storage.getBoolean(
+            key = NetworkSettingKey.OfflineDownloadOnlyWhileCharging.value,
+            defValue = NETWORK_SETTINGS_DEFAULT_OFFLINE_DOWNLOAD_ONLY_WHILE_CHARGING,
+        ),
+        offlineStorageLimitMegabytes = storage.getInt(
+            key = NetworkSettingKey.OfflineStorageLimit.value,
+            defValue = NETWORK_SETTINGS_DEFAULT_OFFLINE_STORAGE_LIMIT_MEGABYTES,
+        ),
+        offlineKeepFreeMegabytes = storage.getInt(
+            key = NetworkSettingKey.OfflineKeepFree.value,
+            defValue = NETWORK_SETTINGS_DEFAULT_OFFLINE_KEEP_FREE_MEGABYTES,
+        ),
     )
 
     private fun writeConfig(config: NetworkSettings) {
@@ -61,6 +77,19 @@ class DefaultNetworkSettingsPreferenceManager(
             mutex.withLock {
                 val storageEditor = storageProvider.createStorageEditor()
                 storageEditor.putEnum(NetworkSettingKey.BackgroundOperations.value, config.backgroundOps)
+                storageEditor.putBoolean(NetworkSettingKey.OfflineDownload.value, config.offlineDownload)
+                storageEditor.putBoolean(
+                    NetworkSettingKey.OfflineDownloadOnlyWhileCharging.value,
+                    config.offlineDownloadOnlyWhileCharging,
+                )
+                storageEditor.putInt(
+                    NetworkSettingKey.OfflineStorageLimit.value,
+                    config.offlineStorageLimitMegabytes,
+                )
+                storageEditor.putInt(
+                    NetworkSettingKey.OfflineKeepFree.value,
+                    config.offlineKeepFreeMegabytes,
+                )
                 storageEditor.commit().also { commited ->
                     logger.verbose(TAG) { "writeConfig: storageEditor.commit() resulted in: $commited" }
                 }

@@ -16,6 +16,7 @@ internal open class TestImapConnection(val timeout: Long, override val connectio
     override val isUtf8AcceptCapable: Boolean = false
     override var isIdleCapable: Boolean = true
         protected set
+    override var capabilities: Set<String> = emptySet()
 
     val defaultSocketReadTimeout = 30 * 1000
     var currentSocketReadTimeout = defaultSocketReadTimeout

@@ -553,6 +553,12 @@
             android:title="@string/background_ops_label"
             />
 
+        <Preference
+            android:key="offline_settings"
+            android:summary="@string/offline_settings_summary"
+            android:title="@string/offline_settings_title"
+            />
+
     </PreferenceScreen>
 
     <PreferenceScreen

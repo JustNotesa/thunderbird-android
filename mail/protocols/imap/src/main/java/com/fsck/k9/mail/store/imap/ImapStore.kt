@@ -27,6 +27,12 @@ interface ImapStore {
     @Throws(MessagingException::class)
     fun getStorageQuota(): ImapStorageQuota? = null
 
+    /**
+     * Returns the capabilities the server announces after logging in.
+     */
+    @Throws(MessagingException::class)
+    fun getServerCapabilities(): Set<String> = emptySet()
+
     fun closeAllConnections()
 
     fun fetchImapPrefix()

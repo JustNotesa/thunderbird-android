@@ -5,6 +5,7 @@ import com.fsck.k9.mail.Message
 import com.fsck.k9.mail.Part
 import net.thunderbird.core.common.exception.MessagingException
 import net.thunderbird.core.common.mail.Flag
+import net.thunderbird.core.common.mail.ServerSearchCriteria
 import net.thunderbird.feature.mail.folder.api.FolderPathDelimiter
 
 interface Backend {
@@ -92,6 +93,27 @@ interface Backend {
     ): List<String> {
         return search(folderServerId, query, requiredFlags, forbiddenFlags, performFullTextSearch)
     }
+
+    /**
+     * Searches a folder on the server for messages matching [criteria]. Backends that only know a text search use the
+     * text and the flags of [criteria] and ignore the rest.
+     */
+    @Throws(MessagingException::class)
+    fun search(folderServerId: String, criteria: ServerSearchCriteria, listener: SearchListener): List<String> =
+        search(
+            folderServerId = folderServerId,
+            query = criteria.text,
+            requiredFlags = criteria.requiredFlags,
+            forbiddenFlags = criteria.forbiddenFlags,
+            performFullTextSearch = criteria.textScope != ServerSearchCriteria.TextScope.HEADERS,
+            listener = listener,
+        )
+
+    /**
+     * The capabilities the server announced the last time the app connected to it. Doesn't connect to the server.
+     * Empty if they are not known (yet) or the backend doesn't have such capabilities.
+     */
+    fun getKnownServerCapabilities(): Set<String> = emptySet()
 
     @Throws(MessagingException::class)
     fun fetchPart(folderServerId: String, messageServerId: String, part: Part, bodyFactory: BodyFactory)

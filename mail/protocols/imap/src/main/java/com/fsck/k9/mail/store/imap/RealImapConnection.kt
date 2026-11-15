@@ -57,7 +57,7 @@ internal class RealImapConnection(
     private var imapOutputStream: OutputStream? = null
     private var responseParser: ImapResponseParser? = null
     private var nextCommandTag = 0
-    private var capabilities = emptySet<String>()
+    private var announcedCapabilities = emptySet<String>()
     private var enabled = emptySet<String>()
     private var stacktraceForClose: Exception? = null
     private var open = false
@@ -230,7 +230,7 @@ internal class RealImapConnection(
         val receivedCapabilities = capabilityResponse.capabilities
 
         Log.d(TAG, "Saving %s capabilities for %s", receivedCapabilities, logId)
-        capabilities = receivedCapabilities
+        announcedCapabilities = receivedCapabilities
 
         return true
     }
@@ -243,7 +243,7 @@ internal class RealImapConnection(
     }
 
     private fun requestCapabilitiesIfNecessary() {
-        if (capabilities.isNotEmpty()) return
+        if (announcedCapabilities.isNotEmpty()) return
 
         if (K9MailLib.isDebug()) {
             Log.i(TAG, "Did not get capabilities in banner, requesting CAPABILITY for %s", logId)
@@ -724,8 +724,17 @@ internal class RealImapConnection(
             open()
         }
 
-        return capabilities.contains(capability.uppercase())
+        return announcedCapabilities.contains(capability.uppercase())
     }
+
+    override val capabilities: Set<String>
+        get() {
+            if (!open) {
+                open()
+            }
+
+            return announcedCapabilities
+        }
 
     private val isCondstoreCapable: Boolean
         get() = hasCapability(Capabilities.CONDSTORE)
@@ -733,14 +742,14 @@ internal class RealImapConnection(
     override val isIdleCapable: Boolean
         get() {
             if (K9MailLib.isDebug()) {
-                Log.v(TAG, "Connection %s has %d capabilities", logId, capabilities.size)
+                Log.v(TAG, "Connection %s has %d capabilities", logId, announcedCapabilities.size)
             }
 
-            return capabilities.contains(Capabilities.IDLE)
+            return announcedCapabilities.contains(Capabilities.IDLE)
         }
 
     override val isUidPlusCapable: Boolean
-        get() = capabilities.contains(Capabilities.UID_PLUS)
+        get() = announcedCapabilities.contains(Capabilities.UID_PLUS)
 
     override val isUtf8AcceptCapable: Boolean
         get() = enabled.contains(Capabilities.UTF8_ACCEPT)

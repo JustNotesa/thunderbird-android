@@ -21,11 +21,14 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import net.thunderbird.core.common.exception.MessagingException
 import net.thunderbird.core.common.mail.Flag
+import net.thunderbird.core.common.mail.ServerSearchCriteria
 import net.thunderbird.feature.mail.folder.api.FolderPathDelimiter
+
+internal const val SERVER_CAPABILITIES_EXTRA = "imapServerCapabilities"
 
 class ImapBackend(
     private val accountName: String,
-    backendStorage: BackendStorage,
+    private val backendStorage: BackendStorage,
     internal val imapStore: ImapStore,
     private val powerManager: PowerManager,
     private val idleRefreshManager: IdleRefreshManager,
@@ -58,7 +61,10 @@ class ImapBackend(
     override val isPushCapable = true
 
     override fun refreshFolderList(): FolderPathDelimiter? {
-        return commandRefreshFolderList.refreshFolderList()
+        val folderPathDelimiter = commandRefreshFolderList.refreshFolderList()
+        rememberServerCapabilities()
+
+        return folderPathDelimiter
     }
 
     override fun sync(folderServerId: String, syncConfig: SyncConfig, listener: SyncListener) =
@@ -148,6 +154,11 @@ class ImapBackend(
         forbiddenFlags: Set<Flag>?,
         performFullTextSearch: Boolean,
     ): List<String> {
+        // Asking the server costs a round trip per folder, so the search only does it when nothing is known yet.
+        if (backendStorage.getExtraString(SERVER_CAPABILITIES_EXTRA) == null) {
+            rememberServerCapabilities()
+        }
+
         return commandSearch.search(
             folderServerId = folderServerId,
             query = query,
@@ -165,12 +176,34 @@ class ImapBackend(
         performFullTextSearch: Boolean,
         listener: SearchListener,
     ): List<String> {
+        // Asking the server costs a round trip per folder, so the search only does it when nothing is known yet.
+        if (backendStorage.getExtraString(SERVER_CAPABILITIES_EXTRA) == null) {
+            rememberServerCapabilities()
+        }
+
         return commandSearch.search(
             folderServerId = folderServerId,
             query = query,
             requiredFlags = requiredFlags,
             forbiddenFlags = forbiddenFlags,
             performFullTextSearch = performFullTextSearch,
+            listener = listener,
+        )
+    }
+
+    override fun search(
+        folderServerId: String,
+        criteria: ServerSearchCriteria,
+        listener: SearchListener,
+    ): List<String> {
+        // Asking the server costs a round trip per folder, so the search only does it when nothing is known yet.
+        if (backendStorage.getExtraString(SERVER_CAPABILITIES_EXTRA) == null) {
+            rememberServerCapabilities()
+        }
+
+        return commandSearch.search(
+            folderServerId = folderServerId,
+            criteria = criteria,
             listener = listener,
         )
     }
@@ -217,6 +250,26 @@ class ImapBackend(
     override fun getStorageQuota(): StorageQuota? {
         return imapStore.getStorageQuota()?.let { imapStorageQuota ->
             StorageQuota(usedBytes = imapStorageQuota.usedBytes, limitBytes = imapStorageQuota.limitBytes)
+        }
+    }
+
+    override fun getKnownServerCapabilities(): Set<String> {
+        val storedCapabilities = backendStorage.getExtraString(SERVER_CAPABILITIES_EXTRA) ?: return emptySet()
+
+        return storedCapabilities.split(' ').filter { it.isNotBlank() }.toSet()
+    }
+
+    private fun rememberServerCapabilities() {
+        val capabilities = try {
+            imapStore.getServerCapabilities()
+        } catch (ignoreException: MessagingException) {
+            // The capabilities are only a hint for the search. Ignore errors when retrieving them.
+            return
+        }
+
+        val capabilitiesString = capabilities.map { it.uppercase() }.sorted().joinToString(" ")
+        if (capabilitiesString != backendStorage.getExtraString(SERVER_CAPABILITIES_EXTRA)) {
+            backendStorage.setExtraString(SERVER_CAPABILITIES_EXTRA, capabilitiesString)
         }
     }
 }

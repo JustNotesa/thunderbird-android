@@ -7,6 +7,7 @@ import com.fsck.k9.ui.settings.account.getSystemVibrator
 import com.fsck.k9.ui.settings.export.SettingsExportViewModel
 import com.fsck.k9.ui.settings.general.GeneralSettingsDataStore
 import com.fsck.k9.ui.settings.general.GeneralSettingsViewModel
+import com.fsck.k9.ui.settings.offline.OfflineSettingsViewModel
 import java.util.concurrent.Executors
 import org.koin.core.module.dsl.viewModel
 import org.koin.core.qualifier.named
@@ -61,6 +62,17 @@ val settingsUiModule = module {
         SettingsExportViewModel(
             accountManager = get(),
             settingsExporter = get(),
+        )
+    }
+
+    viewModel {
+        OfflineSettingsViewModel(
+            networkSettingsManager = get(),
+            statusStore = get(),
+            workerManager = get(),
+            accountManager = get(),
+            messageStoreManager = get(),
+            logger = get(),
         )
     }
 }

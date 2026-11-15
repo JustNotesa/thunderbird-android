@@ -8,6 +8,7 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.runBlocking
 import net.thunderbird.core.common.exception.MessagingException
 import net.thunderbird.core.common.mail.Flag
+import net.thunderbird.core.common.mail.ServerSearchCriteria
 import net.thunderbird.feature.account.AccountId
 
 /**
@@ -40,6 +41,14 @@ class MessagingControllerWrapper(
         messagingController.loadSearchResults(accountId, folderId, messageServerIds, listener)
     }
 
+    fun downloadMissingPreviews(
+        accountId: AccountId,
+        folderId: Long,
+        messageServerIds: List<String>,
+    ) {
+        messagingController.downloadMissingPreviews(accountId, folderId, messageServerIds)
+    }
+
     fun clearNewMessages(accountId: AccountId) {
         messagingController.clearNewMessages(accountId)
     }
@@ -68,7 +77,7 @@ class MessagingControllerWrapper(
         forbiddenFlags: Set<Flag>?,
         searchMessageContents: Boolean,
         startFolderOnly: Boolean,
-        searchedFolderCount: Int,
+        searchedFolders: Set<String>,
         listener: MessagingListener,
     ): Future<*>? = messagingController.searchRemoteMessagesCascading(
         id?.toString(),
@@ -78,7 +87,37 @@ class MessagingControllerWrapper(
         forbiddenFlags,
         searchMessageContents,
         startFolderOnly,
-        searchedFolderCount,
+        searchedFolders,
+        listener,
+    )
+
+    fun searchRemoteMessagesCascading(
+        id: AccountId?,
+        startFolderId: Long?,
+        criteria: ServerSearchCriteria,
+        startFolderOnly: Boolean,
+        searchedFolders: Set<String>,
+        listener: MessagingListener,
+    ): Future<*>? = messagingController.searchRemoteMessagesCascading(
+        id?.toString(),
+        startFolderId,
+        criteria,
+        startFolderOnly,
+        searchedFolders,
+        listener,
+    )
+
+    fun searchAttachmentsOnServer(
+        id: AccountId?,
+        startFolderId: Long?,
+        criteria: ServerSearchCriteria,
+        startFolderOnly: Boolean,
+        listener: MessagingListener,
+    ): Future<*>? = messagingController.searchAttachmentsOnServer(
+        id?.toString(),
+        startFolderId,
+        criteria,
+        startFolderOnly,
         listener,
     )
 

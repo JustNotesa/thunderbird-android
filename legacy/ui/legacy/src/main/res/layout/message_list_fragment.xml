@@ -38,6 +38,15 @@
                 android:orientation="vertical"
                 >
 
+                <!-- The filters of the search. Only displayed for a search that supports a search on the server. -->
+                <include
+                    android:id="@+id/search_filter_bar"
+                    layout="@layout/message_list_search_filter_bar"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:visibility="gone"
+                    />
+
                 <com.google.android.material.textview.MaterialTextView
                     android:id="@+id/back_to_search_results"
                     android:layout_width="match_parent"
