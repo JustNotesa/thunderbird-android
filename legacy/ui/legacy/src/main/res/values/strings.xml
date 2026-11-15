@@ -368,6 +368,10 @@
     <string name="message_compose_draft_saving">Saving draft…</string>
     <string name="message_compose_draft_saved">Draft saved %1$s</string>
     <string name="message_compose_draft_not_saved">Draft not saved</string>
+    <!-- Shown while the message is waiting to be sent. The number is the number of seconds left. -->
+    <string name="message_compose_send_countdown">Sending in %d s</string>
+    <!-- Action to stop the countdown and keep the message in the composer. -->
+    <string name="message_compose_send_countdown_cancel">Cancel</string>
     <string name="remove_attachment_action">Remove attachment</string>
     <string name="save_attachment_action">Save attachment</string>
 

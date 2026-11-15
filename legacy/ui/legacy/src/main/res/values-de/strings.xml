@@ -244,6 +244,10 @@
     <string name="message_compose_draft_saving">Entwurf wird gespeichert…</string>
     <string name="message_compose_draft_saved">Entwurf gespeichert %1$s</string>
     <string name="message_compose_draft_not_saved">Entwurf nicht gespeichert</string>
+    <!-- Shown while the message is waiting to be sent. The number is the number of seconds left. -->
+    <string name="message_compose_send_countdown">Senden in %d s</string>
+    <!-- Action to stop the countdown and keep the message in the composer. -->
+    <string name="message_compose_send_countdown_cancel">Abbrechen</string>
     <string name="remove_attachment_action">Anhang entfernen</string>
     <string name="message_to_label">An:</string>
     <string name="message_view_cc_label">CC:</string>
