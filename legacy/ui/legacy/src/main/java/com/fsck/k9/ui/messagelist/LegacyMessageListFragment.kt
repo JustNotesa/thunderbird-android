@@ -1132,7 +1132,7 @@ class LegacyMessageListFragment :
             return
         }
 
-        if (currentFolder.moreMessages && !localSearch.isManualSearch) {
+        if (currentFolder.moreMessages && !localSearch.isManualSearch && isRemoteFolder) {
             loadMoreMessages()
         } else if (isRemoteSearch) {
             val additionalSearchResults = extraSearchResults ?: return
@@ -2013,7 +2013,7 @@ class LegacyMessageListFragment :
             null
         } else if (currentFolder.loading || isLoadingMoreMessagesRequested || isWaitingForLoadedMessages) {
             getString(R.string.status_loading_more)
-        } else if (!currentFolder.moreMessages) {
+        } else if (!currentFolder.moreMessages || !isRemoteFolder) {
             null
         } else if (hasLoadingMessagesFailed) {
             val reason = loadingMessagesFailureReason
