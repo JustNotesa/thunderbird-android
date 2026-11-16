@@ -5,12 +5,13 @@ import assertk.assertions.isEqualTo
 import com.fsck.k9.ui.R
 import net.thunderbird.feature.mail.folder.FolderType
 import org.junit.Test
+import app.k9mail.legacy.ui.folder.R as FolderR
 
 class UnifiedFolderTitlesTest {
 
     @Test
-    fun `unifiedFolderTitle() with INBOX should return the unified inbox title`() {
-        assertThat(unifiedFolderTitle(FolderType.INBOX)).isEqualTo(R.string.integrated_inbox_title)
+    fun `unifiedFolderTitle() with INBOX should return the inbox title`() {
+        assertThat(unifiedFolderTitle(FolderType.INBOX)).isEqualTo(FolderR.string.special_mailbox_name_inbox)
     }
 
     @Test

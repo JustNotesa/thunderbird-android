@@ -3,6 +3,7 @@ package com.fsck.k9.ui.messagelist
 import androidx.annotation.StringRes
 import com.fsck.k9.ui.R
 import net.thunderbird.feature.mail.folder.FolderType
+import app.k9mail.legacy.ui.folder.R as FolderR
 
 /**
  * The title of the unified folder containing the messages of the special folder [folderType] of every account.
@@ -11,7 +12,7 @@ import net.thunderbird.feature.mail.folder.FolderType
  */
 @StringRes
 internal fun unifiedFolderTitle(folderType: FolderType): Int = when (folderType) {
-    FolderType.INBOX -> R.string.integrated_inbox_title
+    FolderType.INBOX -> FolderR.string.special_mailbox_name_inbox
     FolderType.DRAFTS -> R.string.unified_drafts_title
     FolderType.SENT -> R.string.unified_sent_title
     FolderType.ARCHIVE -> R.string.unified_archive_title
