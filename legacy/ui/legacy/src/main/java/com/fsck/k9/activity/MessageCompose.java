@@ -116,6 +116,7 @@ import com.fsck.k9.activity.compose.RecipientPresenter;
 import com.fsck.k9.activity.compose.ReplyToPresenter;
 import com.fsck.k9.activity.compose.ReplyToView;
 import com.fsck.k9.activity.compose.SaveMessageTask;
+import com.fsck.k9.activity.compose.SendCountdown;
 import com.fsck.k9.activity.misc.Attachment;
 import com.fsck.k9.autocrypt.AutocryptDraftStateHeaderParser;
 import app.k9mail.legacy.message.controller.MessageReference;
@@ -166,6 +167,7 @@ import com.fsck.k9.ui.helper.SizeFormatter;
 import com.fsck.k9.ui.messagelist.DefaultFolderProvider;
 import com.google.android.material.color.MaterialColors;
 import com.google.android.material.dialog.MaterialAlertDialogBuilder;
+import com.google.android.material.snackbar.Snackbar;
 import com.google.android.material.textview.MaterialTextView;
 import net.thunderbird.core.android.account.MessageFormat;
 import net.thunderbird.core.android.contact.ContactIntentHelper;
@@ -372,6 +374,21 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
 
     private boolean sendMessageHasBeenTriggered = false;
     private boolean ignoreSentFolderNotAssigned = false;
+
+    private final Handler sendCountdownHandler = new Handler(Looper.getMainLooper());
+    private final SendCountdown sendCountdown = new SendCountdown(SendCountdown.DEFAULT_SECONDS,
+            new SendCountdown.Scheduler() {
+                @Override
+                public void schedule(long delayMillis, Runnable action) {
+                    sendCountdownHandler.postDelayed(action, delayMillis);
+                }
+
+                @Override
+                public void cancel(Runnable action) {
+                    sendCountdownHandler.removeCallbacks(action);
+                }
+            });
+    private Snackbar sendCountdownSnackbar;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -808,6 +825,8 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
     @Override
     protected void onDestroy() {
         draftAutoSaver.stop();
+        sendCountdown.cancel();
+        sendCountdownHandler.removeCallbacksAndMessages(null);
         if (inlineImageController != null) {
             inlineImageController.cancel();
         }
@@ -818,6 +837,11 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
     public void onPause() {
         super.onPause();
         messagingController.removeListener(messagingListener);
+
+        // The user already chose to send the message. Send it now instead of losing it or saving it as a draft.
+        if (sendCountdown.finishNow()) {
+            return;
+        }
 
         boolean isPausingOnConfigurationChange = (getChangingConfigurations() & ActivityInfo.CONFIG_ORIENTATION)
                 == ActivityInfo.CONFIG_ORIENTATION;
@@ -1139,7 +1163,8 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
     private boolean saveDraftAutomatically() {
         ComposeCryptoStatus cryptoStatus = recipientPresenter.getCurrentCachedCryptoStatus();
         boolean mayNeedUserInteraction = cryptoStatus != null && cryptoStatus.isEncryptionEnabled();
-        if (currentMessageBuilder != null || mayNeedUserInteraction || draftSaveGate.isSaving()) {
+        if (currentMessageBuilder != null || mayNeedUserInteraction || draftSaveGate.isSaving()
+                || sendCountdown.isRunning()) {
             return false;
         }
 
@@ -1193,6 +1218,10 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
             return;
         }
 
+        if (sendCountdown.isRunning()) {
+            return;
+        }
+
         if (account.isUploadSentMessages()
             && !ignoreSentFolderNotAssigned && !account.hasSentFolder()) {
             sentFolderNotFoundDialogFragmentFactory.show(account.getId().toString(), getSupportFragmentManager());
@@ -1203,6 +1232,10 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
             Toast.makeText(this, R.string.no_network_message_will_be_sent_later_toast, Toast.LENGTH_LONG).show();
         }
 
+        startSendCountdown();
+    }
+
+    private void sendNow() {
         currentMessageBuilder = createMessageBuilder(false);
         if (currentMessageBuilder != null) {
             sendMessageHasBeenTriggered = true;
@@ -1210,6 +1243,44 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
             setProgressBarIndeterminateVisibility(true);
             showEncryptedMessageProgressIndicatorIfNeeded();
             currentMessageBuilder.buildAsync(this);
+        }
+    }
+
+    private void startSendCountdown() {
+        View view = findViewById(android.R.id.content);
+        sendCountdownSnackbar = Snackbar.make(view,
+                getString(R.string.message_compose_send_countdown, SendCountdown.DEFAULT_SECONDS),
+                Snackbar.LENGTH_INDEFINITE)
+                .setAction(R.string.message_compose_send_countdown_cancel, v -> cancelSendCountdown());
+
+        sendCountdown.start(new SendCountdown.Listener() {
+            @Override
+            public void onTick(int remainingSeconds) {
+                if (sendCountdownSnackbar != null) {
+                    sendCountdownSnackbar.setText(
+                            getString(R.string.message_compose_send_countdown, remainingSeconds));
+                }
+            }
+
+            @Override
+            public void onFinished() {
+                dismissSendCountdownSnackbar();
+                sendNow();
+            }
+        });
+
+        sendCountdownSnackbar.show();
+    }
+
+    private void cancelSendCountdown() {
+        sendCountdown.cancel();
+        dismissSendCountdownSnackbar();
+    }
+
+    private void dismissSendCountdownSnackbar() {
+        if (sendCountdownSnackbar != null) {
+            sendCountdownSnackbar.dismiss();
+            sendCountdownSnackbar = null;
         }
     }
 
@@ -1834,6 +1905,12 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
 
 
     private void prepareToFinish(boolean shouldNavigateUp) {
+        // Closing the composer during the countdown sends the message, and while the message is being built for
+        // sending, closing must not discard it. The activity is finished once the message has been built.
+        if (sendCountdown.finishNow() || sendMessageHasBeenTriggered) {
+            return;
+        }
+
         navigateUp = shouldNavigateUp;
 
         if (changesMadeSinceLastSave && draftIsNotEmpty()) {
