@@ -33,7 +33,6 @@ internal const val INDICATOR_SIZE = 24
 @Composable
 internal fun AboutUpdatesSection(
     state: UpdatesState,
-    onAutoCheckChange: (Boolean) -> Unit,
     onBackgroundDownloadChange: (Boolean) -> Unit,
     onDownloadOnlyOnWifiChange: (Boolean) -> Unit,
     onAutoInstallWhenIdleChange: (Boolean) -> Unit,
@@ -69,7 +68,6 @@ internal fun AboutUpdatesSection(
             DisableSelection {
                 AboutUpdateSettings(
                     state = state,
-                    onAutoCheckChange = onAutoCheckChange,
                     onBackgroundDownloadChange = onBackgroundDownloadChange,
                     onDownloadOnlyOnWifiChange = onDownloadOnlyOnWifiChange,
                     onAutoInstallWhenIdleChange = onAutoInstallWhenIdleChange,

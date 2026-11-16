@@ -126,16 +126,6 @@ class AboutUpdatesViewModelTest {
     }
 
     @Test
-    fun `changing the auto check switch updates the settings`() {
-        val testSubject = createViewModel()
-
-        testSubject.event(AboutContract.Event.OnAutoCheckChanged(false))
-
-        assertThat(settings.setAutoCheckEnabledCount).isEqualTo(1)
-        assertThat(testSubject.state.value.updates?.autoCheckEnabled).isEqualTo(false)
-    }
-
-    @Test
     fun `changing the background download switch updates the settings`() {
         val testSubject = createViewModel()
 

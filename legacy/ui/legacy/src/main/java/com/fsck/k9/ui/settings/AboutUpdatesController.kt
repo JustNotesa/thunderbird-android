@@ -32,7 +32,6 @@ internal class AboutUpdatesController(
         stateHolder.set(
             UpdatesState(
                 currentVersionTag = checker.currentReleaseTag,
-                autoCheckEnabled = settings.autoCheckEnabled.value,
                 backgroundDownloadEnabled = settings.backgroundDownloadEnabled.value,
                 downloadOnlyOnWifi = settings.downloadOnlyOnWifi.value,
                 autoInstallWhenIdle = settings.autoInstallWhenIdle.value,
@@ -45,10 +44,6 @@ internal class AboutUpdatesController(
         observeSettings(settings = settings, stateHolder = stateHolder, scope = scope)
         installController.start()
         scope.launch { runCheck() }
-    }
-
-    fun onAutoCheckChanged(enabled: Boolean) {
-        settings.setAutoCheckEnabled(enabled)
     }
 
     fun onBackgroundDownloadChanged(enabled: Boolean) {
@@ -138,11 +133,6 @@ private fun observeSettings(
     stateHolder: AboutUpdatesStateHolder,
     scope: CoroutineScope,
 ) {
-    scope.launch {
-        settings.autoCheckEnabled.collect { enabled ->
-            stateHolder.update { it.copy(autoCheckEnabled = enabled) }
-        }
-    }
     scope.launch {
         settings.backgroundDownloadEnabled.collect { enabled ->
             stateHolder.update { it.copy(backgroundDownloadEnabled = enabled) }

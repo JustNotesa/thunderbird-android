@@ -26,38 +26,6 @@ class PreferencesAppUpdateSettingsTest {
     }
 
     @Test
-    fun `auto check is enabled by default`() {
-        assertThat(testSubject.autoCheckEnabled.value).isTrue()
-    }
-
-    @Test
-    fun `auto check can be switched off`() {
-        testSubject.setAutoCheckEnabled(false)
-
-        assertThat(testSubject.autoCheckEnabled.value).isFalse()
-    }
-
-    @Test
-    fun `auto check is stored in the preferences`() {
-        testSubject.setAutoCheckEnabled(false)
-
-        val storedValue = context.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
-            .getBoolean(KEY_AUTO_CHECK_ENABLED, true)
-        assertThat(storedValue).isFalse()
-    }
-
-    @Test
-    fun `switching auto check emits the new value`() = runTest {
-        testSubject.autoCheckEnabled.test {
-            assertThat(awaitItem()).isTrue()
-
-            testSubject.setAutoCheckEnabled(false)
-
-            assertThat(awaitItem()).isFalse()
-        }
-    }
-
-    @Test
     fun `the background download is switched off by default`() {
         assertThat(testSubject.backgroundDownloadEnabled.value).isFalse()
     }
@@ -172,7 +140,6 @@ class PreferencesAppUpdateSettingsTest {
 
     private companion object {
         private const val PREFERENCES_NAME = "updater"
-        private const val KEY_AUTO_CHECK_ENABLED = "auto_check_enabled"
         private const val KEY_BACKGROUND_DOWNLOAD_ENABLED = "background_download_enabled"
         private const val KEY_DOWNLOAD_ONLY_ON_WIFI = "download_only_on_wifi"
         private const val KEY_AUTO_INSTALL_WHEN_IDLE = "auto_install_when_idle"

@@ -2,13 +2,13 @@ package net.thunderbird.feature.updater.api
 
 import kotlinx.coroutines.flow.StateFlow
 
-/** User settings of the updater. */
+/**
+ * User settings of the updater.
+ *
+ * The app always checks for updates in the background. The user only decides whether the updates are downloaded and
+ * installed automatically.
+ */
 interface AppUpdateSettings {
-    /** Whether the app checks for updates in the background once a day. Default `true`. */
-    val autoCheckEnabled: StateFlow<Boolean>
-
-    fun setAutoCheckEnabled(enabled: Boolean)
-
     /** Whether an update found by the background check is downloaded and verified right away. Default `false`. */
     val backgroundDownloadEnabled: StateFlow<Boolean>
 

@@ -143,9 +143,9 @@ class AboutUpdatesSectionTest {
 class AboutUpdatesSectionUiTest {
 
     @Test
-    fun `auto check switch can still be toggled by tapping it`() {
+    fun `the background download switch can still be toggled by tapping it`() {
         val toggles = mutableListOf<Boolean>()
-        val composeView = createComposeView(onAutoCheckChange = { toggles.add(it) })
+        val composeView = createComposeView(onBackgroundDownloadChange = { toggles.add(it) })
 
         val switchNode = findNode(composeView) { node ->
             node.config.contains(SemanticsProperties.ToggleableState)
@@ -154,7 +154,7 @@ class AboutUpdatesSectionUiTest {
 
         tap(composeView, switchNode!!.boundsInRoot.center)
 
-        assertThat(toggles).containsExactly(false)
+        assertThat(toggles).containsExactly(true)
     }
 
     @Test
@@ -347,7 +347,7 @@ class AboutUpdatesSectionUiTest {
     private fun createComposeView(
         install: UpdateInstallState = UpdateInstallState.Idle,
         installedNotes: InstalledNotesStatus = InstalledNotesStatus.Hidden,
-        onAutoCheckChange: (Boolean) -> Unit = {},
+        onBackgroundDownloadChange: (Boolean) -> Unit = {},
         onCancelInstallClick: () -> Unit = {},
         onRefreshDownloadClick: () -> Unit = {},
         onInstallDownloadedClick: () -> Unit = {},
@@ -361,7 +361,6 @@ class AboutUpdatesSectionUiTest {
                 AboutUpdatesSection(
                     state = UpdatesState(
                         currentVersionTag = VERSION_TAG,
-                        autoCheckEnabled = true,
                         backgroundDownloadEnabled = false,
                         downloadOnlyOnWifi = true,
                         autoInstallWhenIdle = false,
@@ -370,8 +369,7 @@ class AboutUpdatesSectionUiTest {
                         canInstallPackages = true,
                         installedNotes = installedNotes,
                     ),
-                    onAutoCheckChange = onAutoCheckChange,
-                    onBackgroundDownloadChange = {},
+                    onBackgroundDownloadChange = onBackgroundDownloadChange,
                     onDownloadOnlyOnWifiChange = {},
                     onAutoInstallWhenIdleChange = {},
                     onInstalledVersionClick = {},

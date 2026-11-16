@@ -43,7 +43,7 @@ class AppUpdateSchedulerTest {
     @Test
     fun `update check is scheduled when the updater is enabled`() = runTest {
         // Arrange
-        val settings = FakeAppUpdateSettings(autoCheckEnabled = true)
+        val settings = FakeAppUpdateSettings()
         val checker = FakeAppUpdateChecker(isEnabled = true)
         val coroutineScope = CoroutineScope(UnconfinedTestDispatcher(testScheduler))
         val testSubject = createScheduler(settings, checker, FakeAppUpdateInstaller(), coroutineScope)
@@ -61,7 +61,7 @@ class AppUpdateSchedulerTest {
     @Test
     fun `no update check is scheduled when the updater is disabled`() = runTest {
         // Arrange
-        val settings = FakeAppUpdateSettings(autoCheckEnabled = true)
+        val settings = FakeAppUpdateSettings()
         val checker = FakeAppUpdateChecker(isEnabled = false)
         val coroutineScope = CoroutineScope(UnconfinedTestDispatcher(testScheduler))
         val testSubject = createScheduler(settings, checker, FakeAppUpdateInstaller(), coroutineScope)
@@ -77,29 +77,9 @@ class AppUpdateSchedulerTest {
     }
 
     @Test
-    fun `update check is cancelled when the automatic check is switched off`() = runTest {
-        // Arrange
-        val settings = FakeAppUpdateSettings(autoCheckEnabled = true)
-        val checker = FakeAppUpdateChecker(isEnabled = true)
-        val coroutineScope = CoroutineScope(UnconfinedTestDispatcher(testScheduler))
-        val testSubject = createScheduler(settings, checker, FakeAppUpdateInstaller(), coroutineScope)
-        testSubject.start()
-
-        // Act
-        settings.setAutoCheckEnabled(false)
-
-        // Assert
-        val workInfos = workManager.getWorkInfosForUniqueWork(AppUpdateScheduler.UNIQUE_WORK_NAME).get()
-        assertThat(workInfos.filter { it.state == WorkInfo.State.ENQUEUED }).isEmpty()
-
-        coroutineScope.cancel()
-    }
-
-    @Test
     fun `the update check needs an unmetered network when the download is only allowed over wifi`() = runTest {
         // Arrange
         val settings = FakeAppUpdateSettings(
-            autoCheckEnabled = true,
             backgroundDownloadEnabled = true,
             downloadOnlyOnWifi = true,
         )
@@ -121,7 +101,6 @@ class AppUpdateSchedulerTest {
     fun `the update check needs any network when the download may run over a metered network`() = runTest {
         // Arrange
         val settings = FakeAppUpdateSettings(
-            autoCheckEnabled = true,
             backgroundDownloadEnabled = true,
             downloadOnlyOnWifi = false,
         )
@@ -143,7 +122,6 @@ class AppUpdateSchedulerTest {
     fun `the automatic installation is scheduled when the update is ready`() = runTest {
         // Arrange
         val settings = FakeAppUpdateSettings(
-            autoCheckEnabled = true,
             backgroundDownloadEnabled = true,
             autoInstallWhenIdle = true,
         )
@@ -166,7 +144,6 @@ class AppUpdateSchedulerTest {
     fun `the automatic installation waits for the idle device and the charger`() = runTest {
         // Arrange
         val settings = FakeAppUpdateSettings(
-            autoCheckEnabled = true,
             backgroundDownloadEnabled = true,
             autoInstallWhenIdle = true,
         )
@@ -190,7 +167,6 @@ class AppUpdateSchedulerTest {
     fun `the automatic installation is cancelled when the update isn't ready anymore`() = runTest {
         // Arrange
         val settings = FakeAppUpdateSettings(
-            autoCheckEnabled = true,
             backgroundDownloadEnabled = true,
             autoInstallWhenIdle = true,
         )
@@ -214,7 +190,6 @@ class AppUpdateSchedulerTest {
     fun `no automatic installation is scheduled when the automatic installation is switched off`() = runTest {
         // Arrange
         val settings = FakeAppUpdateSettings(
-            autoCheckEnabled = true,
             backgroundDownloadEnabled = true,
             autoInstallWhenIdle = false,
         )
@@ -255,21 +230,13 @@ private class FakeAppUpdateChecker(
 }
 
 private class FakeAppUpdateSettings(
-    autoCheckEnabled: Boolean,
     backgroundDownloadEnabled: Boolean = false,
     downloadOnlyOnWifi: Boolean = true,
     autoInstallWhenIdle: Boolean = false,
 ) : AppUpdateSettings {
-    private val autoCheckEnabledFlow = MutableStateFlow(autoCheckEnabled)
     private val backgroundDownloadEnabledFlow = MutableStateFlow(backgroundDownloadEnabled)
     private val downloadOnlyOnWifiFlow = MutableStateFlow(downloadOnlyOnWifi)
     private val autoInstallWhenIdleFlow = MutableStateFlow(autoInstallWhenIdle)
-
-    override val autoCheckEnabled: StateFlow<Boolean> = autoCheckEnabledFlow.asStateFlow()
-
-    override fun setAutoCheckEnabled(enabled: Boolean) {
-        autoCheckEnabledFlow.value = enabled
-    }
 
     override val backgroundDownloadEnabled: StateFlow<Boolean> = backgroundDownloadEnabledFlow.asStateFlow()
 

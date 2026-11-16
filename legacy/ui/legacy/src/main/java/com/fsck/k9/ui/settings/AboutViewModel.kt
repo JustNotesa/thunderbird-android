@@ -52,7 +52,6 @@ internal class AboutViewModel(
         val controller = updatesController ?: return
 
         when (event) {
-            is Event.OnAutoCheckChanged -> controller.onAutoCheckChanged(event.enabled)
             is Event.OnBackgroundDownloadChanged -> controller.onBackgroundDownloadChanged(event.enabled)
             is Event.OnDownloadOnlyOnWifiChanged -> controller.onDownloadOnlyOnWifiChanged(event.enabled)
             is Event.OnAutoInstallWhenIdleChanged -> controller.onAutoInstallWhenIdleChanged(event.enabled)

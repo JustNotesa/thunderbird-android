@@ -17,15 +17,13 @@ import net.thunderbird.components.ui.bolt.atom.text.TextBodyMedium
 import net.thunderbird.components.ui.bolt.theme.BoltTheme
 
 /**
- * The switches that control how the app looks for updates and what it does with them.
+ * The switches that control what the app does with the updates it finds.
  *
- * The background download and the automatic installation are only useful when the app checks for updates, the
- * Wi-Fi setting only matters while the update is downloaded in the background.
+ * The app always checks for updates. The Wi-Fi setting only matters while the update is downloaded in the background.
  */
 @Composable
 internal fun AboutUpdateSettings(
     state: UpdatesState,
-    onAutoCheckChange: (Boolean) -> Unit,
     onBackgroundDownloadChange: (Boolean) -> Unit,
     onDownloadOnlyOnWifiChange: (Boolean) -> Unit,
     onAutoInstallWhenIdleChange: (Boolean) -> Unit,
@@ -36,14 +34,8 @@ internal fun AboutUpdateSettings(
         verticalArrangement = Arrangement.spacedBy(BoltTheme.spacings.quarter),
     ) {
         AboutUpdateSwitchRow(
-            label = stringResource(R.string.about_updates_auto_check),
-            checked = state.autoCheckEnabled,
-            onCheckedChange = onAutoCheckChange,
-        )
-        AboutUpdateSwitchRow(
             label = stringResource(R.string.about_updates_background_download),
             checked = state.backgroundDownloadEnabled,
-            enabled = state.autoCheckEnabled,
             onCheckedChange = onBackgroundDownloadChange,
         )
         AboutUpdateSwitchRow(
@@ -55,7 +47,7 @@ internal fun AboutUpdateSettings(
         AboutUpdateSwitchRow(
             label = stringResource(R.string.about_updates_auto_install_when_idle),
             checked = state.autoInstallWhenIdle,
-            enabled = state.autoCheckEnabled && state.backgroundDownloadEnabled,
+            enabled = state.backgroundDownloadEnabled,
             onCheckedChange = onAutoInstallWhenIdleChange,
         )
         TextBodyMedium(

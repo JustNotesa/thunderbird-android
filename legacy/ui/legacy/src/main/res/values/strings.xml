@@ -1384,8 +1384,6 @@ You can keep this message and use it as a backup for your secret key. If you wan
     <string name="about_updates_notes_open_on_github">Open on GitHub</string>
     <!-- Button that closes the dialog showing the release notes of the installed version -->
     <string name="about_updates_notes_close">Close</string>
-    <!-- Label of the switch that enables checking for updates automatically -->
-    <string name="about_updates_auto_check">Automatically check for updates</string>
     <!-- Label of the switch that enables downloading updates in the background -->
     <string name="about_updates_background_download">Download updates in the background</string>
     <!-- Label of the switch that limits the background download to Wi-Fi -->

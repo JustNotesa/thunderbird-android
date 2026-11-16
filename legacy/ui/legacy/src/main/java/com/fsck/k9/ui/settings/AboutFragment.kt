@@ -123,9 +123,6 @@ class AboutFragment : Fragment() {
                                 ),
                             )
                         },
-                        onAutoCheckChange = { enabled ->
-                            dispatch(Event.OnAutoCheckChanged(enabled))
-                        },
                         onBackgroundDownloadChange = { enabled ->
                             dispatch(Event.OnBackgroundDownloadChanged(enabled))
                         },
@@ -248,7 +245,6 @@ fun AboutScreen(
     displayLicense: () -> Unit = {},
     displayWebSite: () -> Unit = {},
     displayForum: () -> Unit = {},
-    onAutoCheckChange: (Boolean) -> Unit = {},
     onBackgroundDownloadChange: (Boolean) -> Unit = {},
     onDownloadOnlyOnWifiChange: (Boolean) -> Unit = {},
     onAutoInstallWhenIdleChange: (Boolean) -> Unit = {},
@@ -283,7 +279,6 @@ fun AboutScreen(
             updates?.let { updatesState ->
                 AboutUpdatesSection(
                     state = updatesState,
-                    onAutoCheckChange = onAutoCheckChange,
                     onBackgroundDownloadChange = onBackgroundDownloadChange,
                     onDownloadOnlyOnWifiChange = onDownloadOnlyOnWifiChange,
                     onAutoInstallWhenIdleChange = onAutoInstallWhenIdleChange,

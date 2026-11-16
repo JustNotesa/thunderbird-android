@@ -31,7 +31,7 @@ internal class AppUpdateWorker(
     private val config: AppUpdateConfig by inject()
 
     override suspend fun doWork(): Result {
-        if (!settings.autoCheckEnabled.value || !checker.isEnabled) {
+        if (!checker.isEnabled) {
             return Result.success()
         }
 

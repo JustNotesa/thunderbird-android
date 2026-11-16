@@ -36,10 +36,9 @@ class AppUpdateScheduler(
 
         coroutineScope.launch {
             combine(
-                settings.autoCheckEnabled,
                 settings.backgroundDownloadEnabled,
                 settings.downloadOnlyOnWifi,
-            ) { _, _, _ -> Unit }
+            ) { _, _ -> Unit }
                 .collect {
                     applySchedule()
                 }
@@ -60,7 +59,7 @@ class AppUpdateScheduler(
     }
 
     private fun applySchedule() {
-        if (checker.isEnabled && settings.autoCheckEnabled.value) {
+        if (checker.isEnabled) {
             enqueueUpdateCheck()
         } else {
             workManager().cancelUniqueWork(UNIQUE_WORK_NAME)
