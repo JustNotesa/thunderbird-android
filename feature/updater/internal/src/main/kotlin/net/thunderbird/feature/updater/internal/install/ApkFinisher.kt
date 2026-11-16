@@ -22,6 +22,9 @@ private const val TAG = "ApkFinisher"
  * The downloaded APK is copied into the private directory of the app, verified against the checksum of the release and
  * written into an install session, which the system hands over to the user to confirm the installation.
  *
+ * A download of the background isn't installed right away. The verified APK is kept instead and the user is told that
+ * the update is ready to be installed.
+ *
  * The download is handled at most once. When it is handled already, the caller waits for the work that handles it, so
  * that the download isn't lost when the app was started by the broadcast of the download manager of the system.
  */
@@ -30,6 +33,7 @@ internal class ApkFinisher(
     private val pendingDownloadStore: PendingDownloadStore,
     private val apkVerifier: ApkVerifier,
     private val keptApks: KeptApkStore,
+    private val backgroundDownload: BackgroundDownload,
     private val logger: Logger,
     private val state: MutableStateFlow<UpdateInstallState>,
     private val writeSession: (File) -> Int?,
@@ -64,6 +68,7 @@ internal class ApkFinisher(
         } catch (_: Exception) {
             // The state must not stay in the middle of the installation, the failure is reported to the user.
             logger.error(TAG) { "Finishing the download of the app update failed." }
+            backgroundDownload.failed(pendingDownloadStore.load())
             failUnfinished()
         } finally {
             claim.work.completed.complete(Unit)
@@ -96,7 +101,9 @@ internal class ApkFinisher(
      */
     suspend fun failPending(reason: UpdateInstallFailure, downloadId: Long) {
         workMutex.withLock {
-            if (pendingDownloadStore.load()?.downloadId == downloadId) {
+            val pending = pendingDownloadStore.load()
+            if (pending?.downloadId == downloadId) {
+                backgroundDownload.failed(pending)
                 fail(reason, downloadId)
             }
         }
@@ -120,8 +127,10 @@ internal class ApkFinisher(
             // The download isn't the one the app is waiting for.
             return
         }
+        logger.info(TAG) { "The download of the app update is finished." }
         val downloaded = downloadedFile(downloadId)
         if (downloaded == null) {
+            backgroundDownload.failed(pending)
             fail(UpdateInstallFailure.DOWNLOAD, downloadId)
             return
         }
@@ -142,6 +151,7 @@ internal class ApkFinisher(
             fileName = keptApks.fileName(pending.tag),
         )
         if (copy == null) {
+            backgroundDownload.failed(pending)
             fail(UpdateInstallFailure.DOWNLOAD, downloadId)
             return
         }
@@ -150,11 +160,19 @@ internal class ApkFinisher(
         systemDownloads.remove(downloadId)
         val verification = apkVerifier.verify(copy, pending.sha256, pending.sizeBytes)
         if (verification != ApkVerification.Valid) {
+            logger.warn(TAG) { "The downloaded APK of the app update wasn't verified." }
             copy.delete()
+            backgroundDownload.failed(pending)
             state.value = UpdateInstallState.Failed(failureOf(verification))
             return
         }
-        writeInstallSession(copy, pending.tag, pending.sha256)
+        logger.info(TAG) { "The downloaded APK of the app update was verified." }
+        if (pending.installWhenDone) {
+            writeInstallSession(copy, pending.tag, pending.sha256)
+        } else {
+            // The download of the background isn't installed right away, the user decides when it is installed.
+            backgroundDownload.keep(pending.tag, pending.sha256, pending.title)
+        }
     }
 
     private fun writeInstallSession(file: File, tag: String, sha256: String) {
@@ -166,6 +184,7 @@ internal class ApkFinisher(
             state.value = UpdateInstallState.Failed(UpdateInstallFailure.REJECTED)
             return
         }
+        logger.info(TAG) { "The install session $sessionId of the app update was committed." }
         state.value = UpdateInstallState.WaitingForConfirmation
         // The session is watched, so that the user is told about the progress of the installation.
         onSessionCommitted(sessionId)

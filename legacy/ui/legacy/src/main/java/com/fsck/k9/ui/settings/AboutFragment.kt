@@ -126,11 +126,32 @@ class AboutFragment : Fragment() {
                         onAutoCheckChange = { enabled ->
                             dispatch(Event.OnAutoCheckChanged(enabled))
                         },
+                        onBackgroundDownloadChange = { enabled ->
+                            dispatch(Event.OnBackgroundDownloadChanged(enabled))
+                        },
+                        onDownloadOnlyOnWifiChange = { enabled ->
+                            dispatch(Event.OnDownloadOnlyOnWifiChanged(enabled))
+                        },
+                        onAutoInstallWhenIdleChange = { enabled ->
+                            dispatch(Event.OnAutoInstallWhenIdleChanged(enabled))
+                        },
+                        onInstalledVersionClick = {
+                            dispatch(Event.OnInstalledVersionClick)
+                        },
+                        onRetryInstalledNotes = {
+                            dispatch(Event.OnRetryInstalledNotes)
+                        },
                         onCheckForUpdatesClick = {
                             dispatch(Event.OnCheckForUpdatesClick)
                         },
                         onInstallClick = {
                             dispatch(Event.OnInstallClick)
+                        },
+                        onInstallDownloadedClick = {
+                            dispatch(Event.OnInstallDownloadedClick)
+                        },
+                        onRefreshDownloadClick = {
+                            dispatch(Event.OnRefreshDownloadClick)
                         },
                         onOpenInstallPermissionClick = {
                             dispatch(Event.OnOpenInstallPermissionClick)
@@ -140,6 +161,9 @@ class AboutFragment : Fragment() {
                         },
                         onCancelInstallClick = {
                             dispatch(Event.OnCancelInstallClick)
+                        },
+                        onOpenUrl = { url ->
+                            dispatch(Event.OnSectionContentClick(url))
                         },
                     )
                 }
@@ -222,11 +246,19 @@ fun AboutScreen(
     displayWebSite: () -> Unit = {},
     displayForum: () -> Unit = {},
     onAutoCheckChange: (Boolean) -> Unit = {},
+    onBackgroundDownloadChange: (Boolean) -> Unit = {},
+    onDownloadOnlyOnWifiChange: (Boolean) -> Unit = {},
+    onAutoInstallWhenIdleChange: (Boolean) -> Unit = {},
+    onInstalledVersionClick: () -> Unit = {},
+    onRetryInstalledNotes: () -> Unit = {},
     onCheckForUpdatesClick: () -> Unit = {},
     onInstallClick: () -> Unit = {},
+    onInstallDownloadedClick: () -> Unit = {},
+    onRefreshDownloadClick: () -> Unit = {},
     onOpenInstallPermissionClick: () -> Unit = {},
     onInstallFailureDismiss: () -> Unit = {},
     onCancelInstallClick: () -> Unit = {},
+    onOpenUrl: (String) -> Unit = {},
 ) {
     val scrollState = rememberScrollState()
     Surface(modifier = modifier.fillMaxSize()) {
@@ -237,36 +269,30 @@ fun AboutScreen(
         ) {
             AppLogo(logoResId = appLogoResId)
             SectionTitle(title = aboutTitle)
-            SectionContent(
-                sectionLabel = stringResource(R.string.version),
-                sectionText = versionNumber,
-                sectionImageId = DesignSystemR.drawable.ic_info,
-                onClick = displayChangeLog,
-            )
-            SectionContent(
-                sectionLabel = stringResource(R.string.authors),
-                sectionText = stringResource(R.string.about_app_authors_k9),
-                secondarySectionText = stringResource(R.string.about_app_authors_thunderbird),
-                sectionImageId = DesignSystemR.drawable.ic_group,
-                onClick = displayAuthors,
-            )
-
-            SectionContent(
-                sectionLabel = stringResource(R.string.license),
-                sectionText = stringResource(R.string.app_license),
-                sectionImageId = DesignSystemR.drawable.ic_code,
-                onClick = displayLicense,
+            AboutInfoContent(
+                versionNumber = versionNumber,
+                displayChangeLog = displayChangeLog,
+                displayAuthors = displayAuthors,
+                displayLicense = displayLicense,
             )
 
             updates?.let { updatesState ->
                 AboutUpdatesSection(
                     state = updatesState,
                     onAutoCheckChange = onAutoCheckChange,
+                    onBackgroundDownloadChange = onBackgroundDownloadChange,
+                    onDownloadOnlyOnWifiChange = onDownloadOnlyOnWifiChange,
+                    onAutoInstallWhenIdleChange = onAutoInstallWhenIdleChange,
+                    onInstalledVersionClick = onInstalledVersionClick,
+                    onRetryInstalledNotes = onRetryInstalledNotes,
                     onCheckClick = onCheckForUpdatesClick,
                     onInstallClick = onInstallClick,
+                    onInstallDownloadedClick = onInstallDownloadedClick,
                     onCancelInstallClick = onCancelInstallClick,
+                    onRefreshDownloadClick = onRefreshDownloadClick,
                     onOpenInstallPermissionClick = onOpenInstallPermissionClick,
                     onInstallFailureDismiss = onInstallFailureDismiss,
+                    onOpenUrl = onOpenUrl,
                 )
             }
 
@@ -289,6 +315,36 @@ fun AboutScreen(
             SectionTitle(title = librariesTitle)
             LibraryList(libraries = libraries)
         }
+    }
+}
+
+@Composable
+private fun AboutInfoContent(
+    versionNumber: String,
+    displayChangeLog: () -> Unit,
+    displayAuthors: () -> Unit,
+    displayLicense: () -> Unit,
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        SectionContent(
+            sectionLabel = stringResource(R.string.version),
+            sectionText = versionNumber,
+            sectionImageId = DesignSystemR.drawable.ic_info,
+            onClick = displayChangeLog,
+        )
+        SectionContent(
+            sectionLabel = stringResource(R.string.authors),
+            sectionText = stringResource(R.string.about_app_authors_k9),
+            secondarySectionText = stringResource(R.string.about_app_authors_thunderbird),
+            sectionImageId = DesignSystemR.drawable.ic_group,
+            onClick = displayAuthors,
+        )
+        SectionContent(
+            sectionLabel = stringResource(R.string.license),
+            sectionText = stringResource(R.string.app_license),
+            sectionImageId = DesignSystemR.drawable.ic_code,
+            onClick = displayLicense,
+        )
     }
 }
 

@@ -16,7 +16,7 @@ import net.thunderbird.feature.updater.api.AppUpdate
  * Every function that posts a notification checks [canPostNotifications] first; lint doesn't see that check.
  */
 @SuppressLint("MissingPermission")
-internal class UpdateNotifier(private val context: Context) {
+internal class UpdateNotifier(private val context: Context) : InstallingNotifier {
     private val notificationManager = NotificationManagerCompat.from(context)
     private val notifications = UpdateNotifications(context)
 
@@ -67,6 +67,46 @@ internal class UpdateNotifier(private val context: Context) {
     }
 
     /**
+     * Notifies the user that the update was downloaded and can be installed now.
+     *
+     * The notification offers the installation of the update, so that the user doesn't have to open the app first.
+     *
+     * @param tag the release tag of the downloaded update.
+     * @param title the title of the downloaded update.
+     */
+    fun notifyUpdateReady(tag: String, title: String) {
+        if (!canPostNotifications()) return
+
+        notificationManager.createNotificationChannel(notifications.updateChannel())
+        notificationManager.notify(
+            READY_NOTIFICATION_TAG,
+            READY_NOTIFICATION_ID,
+            notifications.updateReady(tag, title),
+        )
+    }
+
+    /** Removes the notification that offers the installation of the downloaded update. */
+    fun cancelUpdateReady() {
+        notificationManager.cancel(READY_NOTIFICATION_TAG, READY_NOTIFICATION_ID)
+    }
+
+    /**
+     * Notifies the user that the download of the update failed.
+     *
+     * A download of the background that fails isn't allowed to fail unnoticed.
+     */
+    fun notifyDownloadFailed() {
+        if (!canPostNotifications()) return
+
+        notificationManager.createNotificationChannel(notifications.updateChannel())
+        notificationManager.notify(
+            FAILED_NOTIFICATION_TAG,
+            FAILED_NOTIFICATION_ID,
+            notifications.downloadFailed(),
+        )
+    }
+
+    /**
      * Notifies the user that the app was updated to a new version.
      *
      * Android closes the app while it installs an update of itself, so the user would think that nothing happened.
@@ -90,22 +130,22 @@ internal class UpdateNotifier(private val context: Context) {
      * Notifies the user that the update is being installed.
      *
      * The notification is ongoing and silent, so that it doesn't disturb the user while Android installs the update.
-     *
-     * @param progress the progress of the installation from 0 to 1, or -1 if it is unknown.
+     * Android doesn't report a meaningful progress of the installation, so the progress of the notification is
+     * indeterminate.
      */
-    fun notifyInstalling(progress: Float) {
+    override fun notifyInstalling() {
         if (!canPostNotifications()) return
 
         notificationManager.createNotificationChannel(notifications.updateChannel())
         notificationManager.notify(
             INSTALLING_NOTIFICATION_TAG,
             INSTALLING_NOTIFICATION_ID,
-            notifications.installing(progress),
+            notifications.installing(),
         )
     }
 
     /** Removes the notification that tells the user that the update is being installed. */
-    fun cancelInstalling() {
+    override fun cancelInstalling() {
         notificationManager.cancel(INSTALLING_NOTIFICATION_TAG, INSTALLING_NOTIFICATION_ID)
     }
 
@@ -127,5 +167,9 @@ internal class UpdateNotifier(private val context: Context) {
         const val UPDATED_NOTIFICATION_ID = 0x5552
         const val INSTALLING_NOTIFICATION_TAG = "app_installing"
         const val INSTALLING_NOTIFICATION_ID = 0x5553
+        const val READY_NOTIFICATION_TAG = "app_update_ready"
+        const val READY_NOTIFICATION_ID = 0x5554
+        const val FAILED_NOTIFICATION_TAG = "app_update_failed"
+        const val FAILED_NOTIFICATION_ID = 0x5555
     }
 }

@@ -6,12 +6,19 @@ import android.app.Notification
 import android.app.NotificationManager
 import androidx.work.testing.TestListenableWorkerBuilder
 import assertk.assertThat
+import assertk.assertions.hasSize
 import assertk.assertions.isEqualTo
 import assertk.assertions.isNull
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.test.runTest
 import net.thunderbird.feature.updater.api.AppUpdate
 import net.thunderbird.feature.updater.api.AppUpdateChecker
+import net.thunderbird.feature.updater.api.AppUpdateConfig
+import net.thunderbird.feature.updater.api.AppUpdateInstaller
+import net.thunderbird.feature.updater.api.ReleaseNotesResult
 import net.thunderbird.feature.updater.api.UpdateCheckResult
+import net.thunderbird.feature.updater.api.UpdateInstallState
 import net.thunderbird.feature.updater.internal.R
 import net.thunderbird.feature.updater.internal.settings.PreferencesAppUpdateSettings
 import org.junit.After
@@ -30,6 +37,7 @@ class AppUpdateWorkerTest {
     private val application: Application = RuntimeEnvironment.getApplication()
 
     private val checker = FakeUpdateChecker()
+    private val installer = FakeWorkerInstaller()
     private val settings = PreferencesAppUpdateSettings(application)
 
     @Before
@@ -42,6 +50,8 @@ class AppUpdateWorkerTest {
                     single<AppUpdateChecker> { checker }
                     single { settings }
                     single { UpdateNotifier(application) }
+                    single<AppUpdateInstaller> { installer }
+                    single { AppUpdateConfig(repository = REPOSITORY, currentReleaseTag = INSTALLED_TAG) }
                 },
             )
         }
@@ -108,6 +118,85 @@ class AppUpdateWorkerTest {
         assertThat(settings.lastNotifiedTag).isEqualTo(FIRST_TAG)
     }
 
+    @Test
+    fun `the update is downloaded in the background without a notification`() = runTest {
+        // Arrange
+        settings.setBackgroundDownloadEnabled(true)
+        checker.result = UpdateCheckResult.Available(availableUpdate(FIRST_TAG))
+        val testSubject = createWorker()
+
+        // Act
+        testSubject.doWork()
+
+        // Assert
+        // The user isn't told about the update, because it is downloaded right away.
+        assertThat(installer.downloadedUpdates).hasSize(1)
+        assertThat(installer.downloadedUpdates.first().tag).isEqualTo(FIRST_TAG)
+        assertThat(notificationText()).isNull()
+    }
+
+    @Test
+    fun `the download of the background only runs over wifi when it is asked for`() = runTest {
+        // Arrange
+        settings.setBackgroundDownloadEnabled(true)
+        settings.setDownloadOnlyOnWifi(true)
+        checker.result = UpdateCheckResult.Available(availableUpdate(FIRST_TAG))
+        val testSubject = createWorker()
+
+        // Act
+        testSubject.doWork()
+
+        // Assert
+        assertThat(installer.onlyOnWifi).isEqualTo(true)
+    }
+
+    @Test
+    fun `the update is notified when the background download is switched off`() = runTest {
+        // Arrange
+        settings.setBackgroundDownloadEnabled(false)
+        checker.result = UpdateCheckResult.Available(availableUpdate(FIRST_TAG))
+        val testSubject = createWorker()
+
+        // Act
+        testSubject.doWork()
+
+        // Assert
+        assertThat(installer.downloadedUpdates).hasSize(0)
+        assertThat(notificationText()).isEqualTo(expectedNotificationText(FIRST_TAG))
+    }
+
+    @Test
+    fun `a newer update is downloaded in the background when an older one is ready`() = runTest {
+        // Arrange
+        settings.setBackgroundDownloadEnabled(true)
+        installer.setState(UpdateInstallState.ReadyToInstall(FIRST_TAG))
+        checker.result = UpdateCheckResult.Available(availableUpdate(SECOND_TAG))
+        val testSubject = createWorker()
+
+        // Act
+        testSubject.doWork()
+
+        // Assert
+        assertThat(installer.downloadedUpdates).hasSize(1)
+        assertThat(installer.downloadedUpdates.first().tag).isEqualTo(SECOND_TAG)
+    }
+
+    @Test
+    fun `the update is notified when the download of the background is running`() = runTest {
+        // Arrange
+        settings.setBackgroundDownloadEnabled(true)
+        installer.setState(UpdateInstallState.Downloading(0L, 0L))
+        checker.result = UpdateCheckResult.Available(availableUpdate(FIRST_TAG))
+        val testSubject = createWorker()
+
+        // Act
+        testSubject.doWork()
+
+        // Assert
+        assertThat(installer.downloadedUpdates).hasSize(0)
+        assertThat(notificationText()).isEqualTo(expectedNotificationText(FIRST_TAG))
+    }
+
     private fun createWorker() =
         TestListenableWorkerBuilder.from(application, AppUpdateWorker::class.java).build()
 
@@ -135,6 +224,8 @@ class AppUpdateWorkerTest {
     private companion object {
         private const val FIRST_TAG = "mein-thunderbird-2026-10-25"
         private const val SECOND_TAG = "mein-thunderbird-2026-10-26"
+        private const val INSTALLED_TAG = "mein-thunderbird-2026-10-24"
+        private const val REPOSITORY = "JustNotesa/thunderbird-android"
     }
 }
 
@@ -146,4 +237,37 @@ private class FakeUpdateChecker : AppUpdateChecker {
     var result: UpdateCheckResult = UpdateCheckResult.UpToDate
 
     override suspend fun check(): UpdateCheckResult = result
+
+    override suspend fun installedReleaseNotes(): ReleaseNotesResult = ReleaseNotesResult.Disabled
+}
+
+private class FakeWorkerInstaller : AppUpdateInstaller {
+    private val _state = MutableStateFlow<UpdateInstallState>(UpdateInstallState.Idle)
+    override val state: StateFlow<UpdateInstallState> = _state
+
+    val downloadedUpdates = mutableListOf<AppUpdate>()
+    var onlyOnWifi: Boolean? = null
+
+    fun setState(state: UpdateInstallState) {
+        _state.value = state
+    }
+
+    override fun canInstallPackages(): Boolean = true
+
+    override fun openInstallPermissionSettings() = Unit
+
+    override suspend fun install(update: AppUpdate) = Unit
+
+    override suspend fun download(update: AppUpdate, onlyOnWifi: Boolean) {
+        downloadedUpdates.add(update)
+        this.onlyOnWifi = onlyOnWifi
+    }
+
+    override suspend fun installDownloaded() = Unit
+
+    override suspend fun refresh() = Unit
+
+    override fun resetState() {
+        _state.value = UpdateInstallState.Idle
+    }
 }

@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.StateFlow
 import net.thunderbird.feature.updater.api.AppUpdate
 import net.thunderbird.feature.updater.api.AppUpdateChecker
 import net.thunderbird.feature.updater.api.AppUpdateInstaller
+import net.thunderbird.feature.updater.api.ReleaseNotesResult
 import net.thunderbird.feature.updater.api.UpdateCheckResult
 import net.thunderbird.feature.updater.api.UpdateInstallState
 import net.thunderbird.feature.updater.internal.R
@@ -112,7 +113,7 @@ class AppUpdatedReceiverTest {
     fun `the notification about the installation is cancelled`() {
         // Arrange
         val notifier = UpdateNotifier(application)
-        notifier.notifyInstalling(INSTALL_PROGRESS)
+        notifier.notifyInstalling()
 
         // Act
         testSubject.onReceive(application, Intent(Intent.ACTION_MY_PACKAGE_REPLACED))
@@ -145,7 +146,6 @@ class AppUpdatedReceiverTest {
 
     private companion object {
         const val RELEASE_TAG = "mein-thunderbird-2026-10-25"
-        const val INSTALL_PROGRESS = 0.5f
     }
 }
 
@@ -155,6 +155,8 @@ private class FakeUpdatedAppChecker : AppUpdateChecker {
     override val currentReleaseTag: String = "mein-thunderbird-2026-10-25"
 
     override suspend fun check(): UpdateCheckResult = UpdateCheckResult.UpToDate
+
+    override suspend fun installedReleaseNotes(): ReleaseNotesResult = ReleaseNotesResult.Disabled
 }
 
 private class FakeUpdatedAppInstaller : AppUpdateInstaller {
@@ -166,6 +168,12 @@ private class FakeUpdatedAppInstaller : AppUpdateInstaller {
     override fun openInstallPermissionSettings() = Unit
 
     override suspend fun install(update: AppUpdate) = Unit
+
+    override suspend fun download(update: AppUpdate, onlyOnWifi: Boolean) = Unit
+
+    override suspend fun installDownloaded() = Unit
+
+    override suspend fun refresh() = Unit
 
     override fun resetState() {
         _state.value = UpdateInstallState.Idle

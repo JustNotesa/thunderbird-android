@@ -1161,8 +1161,22 @@
     <string name="about_updates_title">Updates</string>
     <!-- Label of the row showing the release tag of the installed version -->
     <string name="about_updates_installed_version">Installierte Version</string>
+    <!-- Hint shown below the installed version that tells the user how to see the release notes -->
+    <string name="about_updates_installed_version_hint">Tippen, um die Versionshinweise anzuzeigen</string>
+    <!-- Message shown while the release notes of the installed version are loading -->
+    <string name="about_updates_notes_loading">Versionshinweise werden geladen…</string>
+    <!-- Button that opens the release notes of the installed version on GitHub -->
+    <string name="about_updates_notes_open_on_github">Auf GitHub öffnen</string>
     <!-- Label of the switch that enables checking for updates automatically -->
     <string name="about_updates_auto_check">Automatisch nach Updates suchen</string>
+    <!-- Label of the switch that enables downloading updates in the background -->
+    <string name="about_updates_background_download">Updates im Hintergrund herunterladen</string>
+    <!-- Label of the switch that limits the background download to Wi-Fi -->
+    <string name="about_updates_only_on_wifi">Nur über WLAN</string>
+    <!-- Label of the switch that enables installing an update while the device is idle -->
+    <string name="about_updates_auto_install_when_idle">Automatisch installieren, wenn das Gerät ungenutzt am Ladegerät hängt</string>
+    <!-- Hint shown below the switch that enables installing an update while the device is idle -->
+    <string name="about_updates_auto_install_when_idle_hint">Android oder Google Play Protect fragen eventuell trotzdem nach; dann erscheint eine Benachrichtigung.</string>
     <!-- Button that starts a check for updates -->
     <string name="about_updates_check_button">Nach Updates suchen</string>
     <!-- Button that repeats a check for updates -->
@@ -1189,16 +1203,31 @@
     <string name="about_updates_size">Größe: %1$s</string>
     <!-- Button that downloads and installs a newer release -->
     <string name="about_updates_install_button">Herunterladen und installieren</string>
+    <!-- Message shown when a newer release was downloaded and is ready to be installed -->
+    <string name="about_updates_ready_to_install">Update %1$s ist heruntergeladen und bereit zur Installation.</string>
+    <!-- Button that installs the update that was downloaded in the background -->
+    <string name="about_updates_install_now_button">Jetzt installieren</string>
     <!-- Progress of the download of a newer release -->
-    <string name="about_updates_downloading">Wird heruntergeladen… %1$d%%</string>
+    <string name="about_updates_downloading_progress">%1$s von %2$s (%3$d %%)</string>
     <!-- Progress of the download of a newer release when the total size isn't known -->
-    <string name="about_updates_downloading_indeterminate">Wird heruntergeladen…</string>
+    <string name="about_updates_downloading_progress_unknown">%1$s heruntergeladen</string>
+    <!-- Reason why the download of a newer release waits for an internet connection -->
+    <string name="about_updates_downloading_waiting_network">Wartet auf eine Internetverbindung…</string>
+    <!-- Reason why the download of a newer release waits for a Wi-Fi connection -->
+    <string name="about_updates_downloading_waiting_wifi">Wartet auf WLAN…</string>
+    <!-- Reason why the download of a newer release is repeated -->
+    <string name="about_updates_downloading_waiting_retry">Der Download wird gleich erneut versucht…</string>
+    <!-- Reason why Android paused the download of a newer release -->
+    <string name="about_updates_downloading_waiting_paused">Android hat den Download angehalten…</string>
+    <!-- Button that asks for the current state of the download of a newer release -->
+    <string name="about_updates_check_status_button">Status prüfen</string>
     <!-- Message shown while the downloaded file is verified -->
     <string name="about_updates_verifying">Die heruntergeladene Datei wird überprüft…</string>
     <!-- Message shown while the user confirms the installation in the system dialog -->
     <string name="about_updates_waiting_for_confirmation">Bestätige die Installation im Dialog von Android. Android schließt die App beim Installieren – öffne sie danach einfach wieder. Erscheint kein Dialog, tippe auf die Benachrichtigung. Fragt Google Play Protect nach, wähle „App scannen“ und dann „Installieren“.</string>
-    <string name="about_updates_installing">Wird installiert… %1$d%%</string>
-    <string name="about_updates_installing_indeterminate">Wird installiert…</string>
+    <!-- Message shown while Android is installing the update -->
+    <string name="about_updates_installing_progress">Android installiert das Update…</string>
+    <!-- Hint shown while Android installs the update -->
     <string name="about_updates_installing_hint">Update wird installiert… Fragt Google Play Protect nach, wähle „App scannen“ und dann „Installieren“. Thunderbird wird danach geschlossen. Tippe dann auf die Benachrichtigung „Thunderbird wurde aktualisiert“, um es wieder zu öffnen.</string>
     <!-- Button that starts the installation of the downloaded update again -->
     <string name="about_updates_install_again_button">Erneut installieren</string>

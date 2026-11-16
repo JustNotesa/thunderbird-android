@@ -1447,8 +1447,22 @@ You can keep this message and use it as a backup for your secret key. If you wan
     <string name="about_updates_title">Updates</string>
     <!-- Label of the row showing the release tag of the installed version -->
     <string name="about_updates_installed_version">Installed version</string>
+    <!-- Hint shown below the installed version that tells the user how to see the release notes -->
+    <string name="about_updates_installed_version_hint">Tap to show the release notes</string>
+    <!-- Message shown while the release notes of the installed version are loading -->
+    <string name="about_updates_notes_loading">Loading the release notes…</string>
+    <!-- Button that opens the release notes of the installed version on GitHub -->
+    <string name="about_updates_notes_open_on_github">Open on GitHub</string>
     <!-- Label of the switch that enables checking for updates automatically -->
     <string name="about_updates_auto_check">Automatically check for updates</string>
+    <!-- Label of the switch that enables downloading updates in the background -->
+    <string name="about_updates_background_download">Download updates in the background</string>
+    <!-- Label of the switch that limits the background download to Wi-Fi -->
+    <string name="about_updates_only_on_wifi">Only over Wi-Fi</string>
+    <!-- Label of the switch that enables installing an update while the device is idle -->
+    <string name="about_updates_auto_install_when_idle">Install automatically while the device is idle and charging</string>
+    <!-- Hint shown below the switch that enables installing an update while the device is idle -->
+    <string name="about_updates_auto_install_when_idle_hint">Android or Google Play Protect may still ask; then a notification appears.</string>
     <!-- Button that starts a check for updates -->
     <string name="about_updates_check_button">Check for updates</string>
     <!-- Button that repeats a check for updates -->
@@ -1475,19 +1489,31 @@ You can keep this message and use it as a backup for your secret key. If you wan
     <string name="about_updates_size">Size: %1$s</string>
     <!-- Button that downloads and installs a newer release -->
     <string name="about_updates_install_button">Download and install</string>
+    <!-- Message shown when a newer release was downloaded and is ready to be installed -->
+    <string name="about_updates_ready_to_install">Update %1$s has been downloaded and is ready to install.</string>
+    <!-- Button that installs the update that was downloaded in the background -->
+    <string name="about_updates_install_now_button">Install now</string>
     <!-- Progress of the download of a newer release -->
-    <string name="about_updates_downloading">Downloading… %1$d%%</string>
+    <string name="about_updates_downloading_progress">%1$s of %2$s (%3$d %%)</string>
     <!-- Progress of the download of a newer release when the total size isn't known -->
-    <string name="about_updates_downloading_indeterminate">Downloading…</string>
+    <string name="about_updates_downloading_progress_unknown">%1$s downloaded</string>
+    <!-- Reason why the download of a newer release waits for an internet connection -->
+    <string name="about_updates_downloading_waiting_network">Waiting for an internet connection…</string>
+    <!-- Reason why the download of a newer release waits for a Wi-Fi connection -->
+    <string name="about_updates_downloading_waiting_wifi">Waiting for Wi-Fi…</string>
+    <!-- Reason why the download of a newer release is repeated -->
+    <string name="about_updates_downloading_waiting_retry">The download is retried in a moment…</string>
+    <!-- Reason why Android paused the download of a newer release -->
+    <string name="about_updates_downloading_waiting_paused">Android has paused the download…</string>
+    <!-- Button that asks for the current state of the download of a newer release -->
+    <string name="about_updates_check_status_button">Check status</string>
     <!-- Message shown while the downloaded file is verified -->
     <string name="about_updates_verifying">Verifying the downloaded file…</string>
     <!-- Message shown while the user confirms the installation in the system dialog -->
     <string name="about_updates_waiting_for_confirmation">Confirm the installation in the system dialog. Android closes the app while installing – just open it again afterwards. If no dialog appears, tap the notification. If Google Play Protect asks, choose “Scan app” and then “Install”.</string>
-    <!-- Progress of the installation of the downloaded update -->
-    <string name="about_updates_installing">Installing… %1$d%%</string>
-    <!-- Progress of the installation of the downloaded update when the progress isn't known -->
-    <string name="about_updates_installing_indeterminate">Installing…</string>
-    <!-- Message shown while Android installs the update -->
+    <!-- Message shown while Android is installing the update -->
+    <string name="about_updates_installing_progress">Android is installing the update…</string>
+    <!-- Hint shown while Android installs the update -->
     <string name="about_updates_installing_hint">Installing the update… If Google Play Protect asks, choose “Scan app” and then “Install”. Thunderbird closes when it is done. Then tap the notification “Thunderbird updated” to open it again.</string>
     <!-- Button that starts the installation of the downloaded update again -->
     <string name="about_updates_install_again_button">Install again</string>

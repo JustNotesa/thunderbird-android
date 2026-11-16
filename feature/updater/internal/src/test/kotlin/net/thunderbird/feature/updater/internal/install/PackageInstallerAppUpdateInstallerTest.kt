@@ -12,6 +12,7 @@ import assertk.assertions.hasSize
 import assertk.assertions.isEmpty
 import assertk.assertions.isEqualTo
 import assertk.assertions.isFalse
+import assertk.assertions.isNotNull
 import assertk.assertions.isNull
 import assertk.assertions.isTrue
 import java.io.File
@@ -31,6 +32,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import net.thunderbird.components.core.logging.testing.TestLogger
 import net.thunderbird.feature.updater.api.AppUpdate
+import net.thunderbird.feature.updater.api.DownloadWaiting
 import net.thunderbird.feature.updater.api.UpdateInstallFailure
 import net.thunderbird.feature.updater.api.UpdateInstallState
 import net.thunderbird.feature.updater.internal.background.UpdateNotifier
@@ -53,7 +55,6 @@ private const val OTHER_DOWNLOAD_ID = 43L
 private const val DOWNLOADED_BYTES = 5L
 private const val POLL_INTERVAL_MILLIS = 500L
 private const val SESSION_ID = 7
-private const val INSTALL_PROGRESS = 0.5f
 private const val TIMEOUT_MILLIS = 30_000L
 private const val WAIT_INTERVAL_MILLIS = 10L
 
@@ -541,7 +542,7 @@ class PackageInstallerAppUpdateInstallerTest {
         // Arrange
         val testSubject = createInstaller(backgroundScope)
         testSubject.onInstallStatus(PackageInstaller.STATUS_PENDING_USER_ACTION)
-        notifier.notifyInstalling(INSTALL_PROGRESS)
+        notifier.notifyInstalling()
 
         // Act
         testSubject.onInstallStatus(PackageInstaller.STATUS_FAILURE_ABORTED)
@@ -563,6 +564,173 @@ class PackageInstallerAppUpdateInstallerTest {
 
         // Assert
         assertThat(registrar.registered).hasSize(1)
+    }
+
+    @Test
+    fun `the reason why the download waits is reported`() = runTest {
+        // Arrange
+        val testSubject = createInstaller(backgroundScope)
+        downloads.status = SystemDownloadStatus.Running(DOWNLOADED_BYTES, apkSize, DownloadWaiting.NETWORK)
+
+        // Act
+        testSubject.install(createUpdate())
+        testScheduler.advanceTimeBy(POLL_INTERVAL_MILLIS)
+        testScheduler.runCurrent()
+
+        // Assert
+        assertThat(testSubject.state.value).isEqualTo(
+            UpdateInstallState.Downloading(DOWNLOADED_BYTES, apkSize, DownloadWaiting.NETWORK),
+        )
+    }
+
+    @Test
+    fun `the poll continues when the status of the download can't be read`() = runTest {
+        // Arrange
+        val testSubject = createInstaller(backgroundScope)
+        downloads.status = SystemDownloadStatus.Running(DOWNLOADED_BYTES, apkSize)
+        testSubject.install(createUpdate())
+        // The status of the download can't be read the first time.
+        downloads.failingQueries = 1
+
+        // Act
+        testScheduler.advanceTimeBy(POLL_INTERVAL_MILLIS)
+        testScheduler.runCurrent()
+        downloads.status = SystemDownloadStatus.Successful(createDownloadedFile())
+        testScheduler.advanceTimeBy(POLL_INTERVAL_MILLIS)
+        testScheduler.runCurrent()
+
+        // Assert
+        val state = awaitState(testSubject) { it is UpdateInstallState.WaitingForConfirmation }
+        assertThat(state).isEqualTo(UpdateInstallState.WaitingForConfirmation)
+    }
+
+    @Test
+    fun `refresh installs a download that was finished while the app didn't notice it`() = runTest {
+        // Arrange
+        val testSubject = createInstaller(backgroundScope)
+        downloads.status = SystemDownloadStatus.Running(DOWNLOADED_BYTES, apkSize)
+        testSubject.install(createUpdate())
+        // The download manager of the system finished the download, the app didn't notice it.
+        downloads.status = SystemDownloadStatus.Successful(createDownloadedFile())
+
+        // Act
+        testSubject.refresh()
+
+        // Assert
+        assertThat(testSubject.state.value).isEqualTo(UpdateInstallState.WaitingForConfirmation)
+        assertThat(sessionWrites).hasSize(1)
+    }
+
+    @Test
+    fun `refresh reports a download that is gone as failed`() = runTest {
+        // Arrange
+        val testSubject = createInstaller(backgroundScope)
+        downloads.status = SystemDownloadStatus.Running(DOWNLOADED_BYTES, apkSize)
+        testSubject.install(createUpdate())
+        // The download is gone.
+        store.clear()
+
+        // Act
+        testSubject.refresh()
+
+        // Assert
+        assertThat(testSubject.state.value).isEqualTo(
+            UpdateInstallState.Failed(UpdateInstallFailure.DOWNLOAD),
+        )
+    }
+
+    @Test
+    fun `the download of the background is ready to install`() = runTest {
+        // Arrange
+        val testSubject = createInstaller(backgroundScope)
+        downloads.status = SystemDownloadStatus.Successful(createDownloadedFile())
+
+        // Act
+        testSubject.download(createUpdate(), onlyOnWifi = false)
+        testSubject.onDownloadFinished(DOWNLOAD_ID)
+
+        // Assert
+        // The update isn't installed without asking, it waits until it is installed.
+        assertThat(testSubject.state.value).isEqualTo(UpdateInstallState.ReadyToInstall(TAG))
+        assertThat(sessionWrites).isEmpty()
+    }
+
+    @Test
+    fun `the downloaded update is installed when the user asks for it`() = runTest {
+        // Arrange
+        val testSubject = createInstaller(backgroundScope)
+        downloads.status = SystemDownloadStatus.Successful(createDownloadedFile())
+        testSubject.download(createUpdate(), onlyOnWifi = false)
+        testSubject.onDownloadFinished(DOWNLOAD_ID)
+
+        // Act
+        testSubject.installDownloaded()
+
+        // Assert
+        assertThat(sessionWrites).hasSize(1)
+        assertThat(testSubject.state.value).isEqualTo(UpdateInstallState.WaitingForConfirmation)
+    }
+
+    @Test
+    fun `the download of the background only runs over wifi when it is asked for`() = runTest {
+        // Arrange
+        val testSubject = createInstaller(backgroundScope)
+
+        // Act
+        testSubject.download(createUpdate(), onlyOnWifi = true)
+
+        // Assert
+        assertThat(downloads.requests).hasSize(1)
+        assertThat(downloads.requests.first().onlyOnWifi).isEqualTo(true)
+    }
+
+    @Test
+    fun `a failed download of the background is reported to the user`() = runTest {
+        // Arrange
+        val testSubject = createInstaller(backgroundScope)
+        downloads.status = SystemDownloadStatus.Failed
+
+        // Act
+        testSubject.download(createUpdate(), onlyOnWifi = false)
+        testScheduler.advanceTimeBy(POLL_INTERVAL_MILLIS)
+        testScheduler.runCurrent()
+
+        // Assert
+        assertThat(testSubject.state.value).isEqualTo(
+            UpdateInstallState.Failed(UpdateInstallFailure.DOWNLOAD),
+        )
+        assertThat(downloadFailedNotification()).isNotNull()
+    }
+
+    @Test
+    fun `a downloaded update is ready to install after the app was closed`() = runTest {
+        // Arrange
+        val firstInstaller = createInstaller(backgroundScope)
+        downloads.status = SystemDownloadStatus.Successful(createDownloadedFile())
+        firstInstaller.download(createUpdate(), onlyOnWifi = false)
+        firstInstaller.onDownloadFinished(DOWNLOAD_ID)
+
+        // Act
+        val secondInstaller = createInstaller(backgroundScope)
+        testScheduler.runCurrent()
+
+        // Assert
+        assertThat(secondInstaller.state.value).isEqualTo(UpdateInstallState.ReadyToInstall(TAG))
+    }
+
+    @Test
+    fun `the installation of a downloaded update fails without a downloaded update`() = runTest {
+        // Arrange
+        val testSubject = createInstaller(backgroundScope)
+
+        // Act
+        testSubject.installDownloaded()
+
+        // Assert
+        assertThat(testSubject.state.value).isEqualTo(
+            UpdateInstallState.Failed(UpdateInstallFailure.DOWNLOAD),
+        )
+        assertThat(sessionWrites).isEmpty()
     }
 
     private fun createInstaller(
@@ -590,6 +758,13 @@ class PackageInstallerAppUpdateInstallerTest {
         return shadowOf(notificationManager()).getNotification(
             UpdateNotifier.INSTALLING_NOTIFICATION_TAG,
             UpdateNotifier.INSTALLING_NOTIFICATION_ID,
+        )
+    }
+
+    private fun downloadFailedNotification(): Notification? {
+        return shadowOf(notificationManager()).getNotification(
+            UpdateNotifier.FAILED_NOTIFICATION_TAG,
+            UpdateNotifier.FAILED_NOTIFICATION_ID,
         )
     }
 
@@ -634,6 +809,7 @@ class PackageInstallerAppUpdateInstallerTest {
             sha256 = sha256Of(APK_CONTENT),
             sizeBytes = apkSize,
             title = "Test release",
+            installWhenDone = true,
         )
     }
 
@@ -683,6 +859,9 @@ internal class FakeSystemDownloads : SystemDownloads {
     var nextDownloadId: Long? = DOWNLOAD_ID
     var status: SystemDownloadStatus = SystemDownloadStatus.Running(0L, 0L)
 
+    /** The number of queries that fail before the status of the download is read again. */
+    var failingQueries = 0
+
     /** The name of the thread the download was started on. */
     var lastEnqueueThread: String? = null
 
@@ -700,6 +879,10 @@ internal class FakeSystemDownloads : SystemDownloads {
     }
 
     override fun query(downloadId: Long): SystemDownloadStatus {
+        if (failingQueries > 0) {
+            failingQueries--
+            throw IllegalStateException("The status of the download couldn't be read.")
+        }
         return status
     }
 

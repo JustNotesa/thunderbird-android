@@ -27,6 +27,45 @@ internal class PreferencesAppUpdateSettings(context: Context) : AppUpdateSetting
         autoCheckEnabledFlow.value = enabled
     }
 
+    private val backgroundDownloadEnabledFlow = MutableStateFlow(
+        preferences.getBoolean(KEY_BACKGROUND_DOWNLOAD_ENABLED, DEFAULT_BACKGROUND_DOWNLOAD_ENABLED),
+    )
+
+    override val backgroundDownloadEnabled: StateFlow<Boolean> = backgroundDownloadEnabledFlow.asStateFlow()
+
+    override fun setBackgroundDownloadEnabled(enabled: Boolean) {
+        preferences.edit {
+            putBoolean(KEY_BACKGROUND_DOWNLOAD_ENABLED, enabled)
+        }
+        backgroundDownloadEnabledFlow.value = enabled
+    }
+
+    private val downloadOnlyOnWifiFlow = MutableStateFlow(
+        preferences.getBoolean(KEY_DOWNLOAD_ONLY_ON_WIFI, DEFAULT_DOWNLOAD_ONLY_ON_WIFI),
+    )
+
+    override val downloadOnlyOnWifi: StateFlow<Boolean> = downloadOnlyOnWifiFlow.asStateFlow()
+
+    override fun setDownloadOnlyOnWifi(enabled: Boolean) {
+        preferences.edit {
+            putBoolean(KEY_DOWNLOAD_ONLY_ON_WIFI, enabled)
+        }
+        downloadOnlyOnWifiFlow.value = enabled
+    }
+
+    private val autoInstallWhenIdleFlow = MutableStateFlow(
+        preferences.getBoolean(KEY_AUTO_INSTALL_WHEN_IDLE, DEFAULT_AUTO_INSTALL_WHEN_IDLE),
+    )
+
+    override val autoInstallWhenIdle: StateFlow<Boolean> = autoInstallWhenIdleFlow.asStateFlow()
+
+    override fun setAutoInstallWhenIdle(enabled: Boolean) {
+        preferences.edit {
+            putBoolean(KEY_AUTO_INSTALL_WHEN_IDLE, enabled)
+        }
+        autoInstallWhenIdleFlow.value = enabled
+    }
+
     /**
      * Tag of the release the user was told about last. `null` when the user wasn't told about any release yet.
      */
@@ -45,7 +84,13 @@ internal class PreferencesAppUpdateSettings(context: Context) : AppUpdateSetting
     private companion object {
         private const val PREFERENCES_NAME = "updater"
         private const val KEY_AUTO_CHECK_ENABLED = "auto_check_enabled"
+        private const val KEY_BACKGROUND_DOWNLOAD_ENABLED = "background_download_enabled"
+        private const val KEY_DOWNLOAD_ONLY_ON_WIFI = "download_only_on_wifi"
+        private const val KEY_AUTO_INSTALL_WHEN_IDLE = "auto_install_when_idle"
         private const val KEY_LAST_NOTIFIED_TAG = "last_notified_tag"
         private const val DEFAULT_AUTO_CHECK_ENABLED = true
+        private const val DEFAULT_BACKGROUND_DOWNLOAD_ENABLED = false
+        private const val DEFAULT_DOWNLOAD_ONLY_ON_WIFI = true
+        private const val DEFAULT_AUTO_INSTALL_WHEN_IDLE = false
     }
 }

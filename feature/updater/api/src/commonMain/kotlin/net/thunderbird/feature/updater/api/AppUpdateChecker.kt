@@ -10,4 +10,24 @@ interface AppUpdateChecker {
 
     /** Asks GitHub for the newest release. Never throws; failures are returned as [UpdateCheckResult.Failed]. */
     suspend fun check(): UpdateCheckResult
+
+    /**
+     * Asks GitHub for the release notes of the installed release ([currentReleaseTag]). Never throws; failures are
+     * returned as [ReleaseNotesResult.Failed].
+     */
+    suspend fun installedReleaseNotes(): ReleaseNotesResult
+}
+
+sealed interface ReleaseNotesResult {
+    /** The updater is switched off in this build (no release tag). */
+    data object Disabled : ReleaseNotesResult
+
+    /**
+     * @param title the title of the release.
+     * @param notes the full release notes (Markdown as written on GitHub).
+     * @param url the `https://github.com/...` page of the release.
+     */
+    data class Loaded(val title: String, val notes: String, val url: String) : ReleaseNotesResult
+
+    data class Failed(val reason: UpdateCheckFailure) : ReleaseNotesResult
 }

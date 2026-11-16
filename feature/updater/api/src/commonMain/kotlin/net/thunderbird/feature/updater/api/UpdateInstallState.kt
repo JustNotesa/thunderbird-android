@@ -3,8 +3,21 @@ package net.thunderbird.feature.updater.api
 sealed interface UpdateInstallState {
     data object Idle : UpdateInstallState
 
-    /** @param totalBytes total size, or -1 if unknown. */
-    data class Downloading(val downloadedBytes: Long, val totalBytes: Long) : UpdateInstallState
+    /**
+     * @param totalBytes total size, or -1 if unknown.
+     * @param waiting why the download manager of the system doesn't download right now, `null` while it downloads.
+     */
+    data class Downloading(
+        val downloadedBytes: Long,
+        val totalBytes: Long,
+        val waiting: DownloadWaiting? = null,
+    ) : UpdateInstallState
+
+    /**
+     * The update with the release tag [tag] was downloaded and verified in the background and waits until the user
+     * (or the automatic installation) starts the installation with [AppUpdateInstaller.installDownloaded].
+     */
+    data class ReadyToInstall(val tag: String) : UpdateInstallState
 
     /** Checking the SHA-256 of the downloaded file. */
     data object Verifying : UpdateInstallState
@@ -16,11 +29,26 @@ sealed interface UpdateInstallState {
      * The user confirmed the installation and Android is installing the update. Android closes the app when it is
      * done, so this is the last state the user sees in this version of the app.
      *
-     * @param progress progress of the installation from 0 to 1, or -1 if unknown.
+     * Android doesn't report a meaningful progress for this step, so there is none.
      */
-    data class Installing(val progress: Float) : UpdateInstallState
+    data object Installing : UpdateInstallState
 
     data class Failed(val reason: UpdateInstallFailure) : UpdateInstallState
+}
+
+/** Why the download manager of the system is waiting instead of downloading. */
+enum class DownloadWaiting {
+    /** There is no internet connection. */
+    NETWORK,
+
+    /** The download waits for a Wi-Fi connection. */
+    WIFI,
+
+    /** The download failed for a moment and the system tries it again soon. */
+    RETRY,
+
+    /** The system paused the download for another reason. */
+    PAUSED,
 }
 
 enum class UpdateInstallFailure {

@@ -60,6 +60,7 @@ val featureUpdaterModule = module {
             context = androidContext(),
             settings = get(),
             checker = get(),
+            installer = get(),
             coroutineScope = get(named("AppCoroutineScope")),
         )
     }

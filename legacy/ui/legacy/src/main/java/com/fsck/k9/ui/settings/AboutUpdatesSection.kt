@@ -19,7 +19,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.fsck.k9.ui.R
 import net.thunderbird.components.ui.bolt.atom.CircularProgressIndicator
-import net.thunderbird.components.ui.bolt.atom.Switch
 import net.thunderbird.components.ui.bolt.atom.button.ButtonFilled
 import net.thunderbird.components.ui.bolt.atom.button.ButtonOutlined
 import net.thunderbird.components.ui.bolt.atom.text.TextBodyMedium
@@ -27,26 +26,32 @@ import net.thunderbird.components.ui.bolt.atom.text.TextTitleMedium
 import net.thunderbird.components.ui.bolt.theme.BoltTheme
 import net.thunderbird.feature.updater.api.AppUpdate
 import net.thunderbird.feature.updater.api.UpdateCheckFailure
-import net.thunderbird.feature.updater.api.UpdateInstallFailure
 import net.thunderbird.feature.updater.api.UpdateInstallState
 
-private const val MAX_RELEASE_NOTES_LENGTH = 300
-private const val PERCENT = 100
-private const val INDICATOR_SIZE = 24
+internal const val INDICATOR_SIZE = 24
 
 @Composable
 internal fun AboutUpdatesSection(
     state: UpdatesState,
     onAutoCheckChange: (Boolean) -> Unit,
+    onBackgroundDownloadChange: (Boolean) -> Unit,
+    onDownloadOnlyOnWifiChange: (Boolean) -> Unit,
+    onAutoInstallWhenIdleChange: (Boolean) -> Unit,
+    onInstalledVersionClick: () -> Unit,
+    onRetryInstalledNotes: () -> Unit,
     onCheckClick: () -> Unit,
     onInstallClick: () -> Unit,
+    onInstallDownloadedClick: () -> Unit,
     onCancelInstallClick: () -> Unit,
+    onRefreshDownloadClick: () -> Unit,
     onOpenInstallPermissionClick: () -> Unit,
     onInstallFailureDismiss: () -> Unit,
+    onOpenUrl: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val availableUpdate = (state.check as? CheckStatus.Available)?.update
     val installInProgress = state.install !is UpdateInstallState.Idle && state.install !is UpdateInstallState.Failed
+    val updateDownloaded = state.install is UpdateInstallState.ReadyToInstall
 
     SelectionContainer(modifier = modifier) {
         Column(
@@ -55,15 +60,24 @@ internal fun AboutUpdatesSection(
         ) {
             SectionTitle(title = stringResource(R.string.about_updates_title))
 
-            AboutUpdateInfoRow(
-                label = stringResource(R.string.about_updates_installed_version),
-                value = state.currentVersionTag,
+            AboutUpdateInstalledVersionRow(
+                versionTag = state.currentVersionTag,
+                onClick = onInstalledVersionClick,
+            )
+
+            AboutUpdateInstalledNotes(
+                notes = state.installedNotes,
+                onRetryClick = onRetryInstalledNotes,
+                onOpenUrl = onOpenUrl,
             )
 
             DisableSelection {
-                AboutUpdateAutoCheckRow(
-                    enabled = state.autoCheckEnabled,
+                AboutUpdateSettings(
+                    state = state,
                     onAutoCheckChange = onAutoCheckChange,
+                    onBackgroundDownloadChange = onBackgroundDownloadChange,
+                    onDownloadOnlyOnWifiChange = onDownloadOnlyOnWifiChange,
+                    onAutoInstallWhenIdleChange = onAutoInstallWhenIdleChange,
                 )
             }
 
@@ -74,67 +88,24 @@ internal fun AboutUpdatesSection(
 
             AboutUpdateAvailable(
                 update = availableUpdate,
-                showInstallButton = state.install !is UpdateInstallState.Installing,
+                showInstallButton = state.install !is UpdateInstallState.Installing && !updateDownloaded,
                 installEnabled = !installInProgress && state.canInstallPackages,
                 onInstallClick = onInstallClick,
             )
 
             AboutUpdateInstallStatus(
                 install = state.install,
-                canInstallPackages = state.canInstallPackages,
                 onInstallAgainClick = onInstallClick,
+                onInstallDownloadedClick = onInstallDownloadedClick,
                 onCancelInstallClick = onCancelInstallClick,
-                onOpenInstallPermissionClick = onOpenInstallPermissionClick,
+                onRefreshDownloadClick = onRefreshDownloadClick,
                 onInstallFailureDismiss = onInstallFailureDismiss,
             )
+
+            if (!state.canInstallPackages) {
+                AboutUpdateInstallPermission(onOpenInstallPermissionClick = onOpenInstallPermissionClick)
+            }
         }
-    }
-}
-
-@Composable
-private fun AboutUpdateInfoRow(
-    label: String,
-    value: String,
-    modifier: Modifier = Modifier,
-) {
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(
-                horizontal = BoltTheme.spacings.double,
-                vertical = BoltTheme.spacings.half,
-            ),
-        verticalArrangement = Arrangement.spacedBy(BoltTheme.spacings.quarter),
-    ) {
-        TextTitleMedium(text = label)
-        TextBodyMedium(text = value)
-    }
-}
-
-@Composable
-private fun AboutUpdateAutoCheckRow(
-    enabled: Boolean,
-    onAutoCheckChange: (Boolean) -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(
-                horizontal = BoltTheme.spacings.double,
-                vertical = BoltTheme.spacings.half,
-            ),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        TextBodyMedium(
-            text = stringResource(R.string.about_updates_auto_check),
-            modifier = Modifier.weight(1f),
-        )
-        Spacer(modifier = Modifier.width(BoltTheme.spacings.default))
-        Switch(
-            checked = enabled,
-            onCheckedChange = onAutoCheckChange,
-        )
     }
 }
 
@@ -181,7 +152,7 @@ private fun AboutUpdateCheckStatus(
             is CheckStatus.Available -> Unit
 
             is CheckStatus.Failed -> {
-                TextBodyMedium(text = checkFailureMessage(check.reason))
+                TextBodyMedium(text = stringResource(checkFailureMessageRes(check.reason)))
                 DisableSelection {
                     ButtonOutlined(
                         text = stringResource(R.string.about_updates_retry_button),
@@ -229,192 +200,36 @@ private fun AboutUpdateAvailable(
     }
 }
 
+/**
+ * The explanation that the app needs the permission to install apps and the button that opens the system settings.
+ */
 @Composable
-private fun AboutUpdateInstallStatus(
-    install: UpdateInstallState,
-    canInstallPackages: Boolean,
-    onInstallAgainClick: () -> Unit,
-    onCancelInstallClick: () -> Unit,
+private fun AboutUpdateInstallPermission(
     onOpenInstallPermissionClick: () -> Unit,
-    onInstallFailureDismiss: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = BoltTheme.spacings.double),
+        modifier = modifier.padding(horizontal = BoltTheme.spacings.double),
         verticalArrangement = Arrangement.spacedBy(BoltTheme.spacings.half),
     ) {
-        when (install) {
-            UpdateInstallState.Idle -> Unit
-
-            is UpdateInstallState.Downloading -> {
-                AboutUpdateProgress(
-                    install = install,
-                    onCancelClick = onCancelInstallClick,
-                )
-            }
-
-            is UpdateInstallState.Installing -> {
-                AboutUpdateProgress(install = install, onCancelClick = null)
-                TextBodyMedium(text = stringResource(R.string.about_updates_installing_hint))
-            }
-
-            UpdateInstallState.Verifying -> {
-                TextBodyMedium(text = stringResource(R.string.about_updates_verifying))
-            }
-
-            UpdateInstallState.WaitingForConfirmation -> {
-                TextBodyMedium(text = stringResource(R.string.about_updates_waiting_for_confirmation))
-                Row(horizontalArrangement = Arrangement.spacedBy(BoltTheme.spacings.half)) {
-                    DisableSelection {
-                        ButtonFilled(
-                            text = stringResource(R.string.about_updates_install_again_button),
-                            onClick = onInstallAgainClick,
-                        )
-                    }
-                    DisableSelection {
-                        ButtonOutlined(
-                            text = stringResource(R.string.about_updates_cancel_button),
-                            onClick = onCancelInstallClick,
-                        )
-                    }
-                }
-            }
-
-            is UpdateInstallState.Failed -> {
-                TextBodyMedium(text = installFailureMessage(install.reason))
-                DisableSelection {
-                    ButtonOutlined(
-                        text = stringResource(R.string.about_updates_dismiss_button),
-                        onClick = onInstallFailureDismiss,
-                    )
-                }
-            }
-        }
-
-        if (!canInstallPackages) {
-            TextBodyMedium(text = stringResource(R.string.about_updates_install_permission_explanation))
-            DisableSelection {
-                ButtonOutlined(
-                    text = stringResource(R.string.about_updates_open_settings_button),
-                    onClick = onOpenInstallPermissionClick,
-                )
-            }
+        TextBodyMedium(text = stringResource(R.string.about_updates_install_permission_explanation))
+        DisableSelection {
+            ButtonOutlined(
+                text = stringResource(R.string.about_updates_open_settings_button),
+                onClick = onOpenInstallPermissionClick,
+            )
         }
     }
 }
 
 /**
- * Shows the progress of a running [UpdateInstallState.Downloading] or [UpdateInstallState.Installing] step.
- * The cancel button is only shown when [onCancelClick] is not `null`.
+ * The message that explains why the check for a newer release failed.
  */
-@Composable
-private fun AboutUpdateProgress(
-    install: UpdateInstallState,
-    onCancelClick: (() -> Unit)?,
-    modifier: Modifier = Modifier,
-) {
-    val installing = install is UpdateInstallState.Installing
-    val percent = when (install) {
-        is UpdateInstallState.Downloading -> calculateDownloadPercent(
-            downloadedBytes = install.downloadedBytes,
-            totalBytes = install.totalBytes,
-        )
-        is UpdateInstallState.Installing -> install.progress.takeIf { it >= 0f }
-            ?.let { (it * PERCENT).toInt().coerceIn(0, PERCENT) }
-        else -> null
-    }
-
-    Row(
-        modifier = modifier,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        if (percent == null) {
-            CircularProgressIndicator(modifier = Modifier.size(INDICATOR_SIZE.dp))
-        } else {
-            CircularProgressIndicator(
-                progress = { percent / PERCENT.toFloat() },
-                modifier = Modifier.size(INDICATOR_SIZE.dp),
-            )
-        }
-        Spacer(modifier = Modifier.width(BoltTheme.spacings.half))
-        val progressText = if (percent == null) {
-            stringResource(
-                if (installing) {
-                    R.string.about_updates_installing_indeterminate
-                } else {
-                    R.string.about_updates_downloading_indeterminate
-                },
-            )
-        } else {
-            stringResource(
-                if (installing) R.string.about_updates_installing else R.string.about_updates_downloading,
-                percent,
-            )
-        }
-        TextBodyMedium(text = progressText)
-        if (onCancelClick != null) {
-            Spacer(modifier = Modifier.width(BoltTheme.spacings.default))
-            DisableSelection {
-                ButtonOutlined(
-                    text = stringResource(R.string.about_updates_cancel_button),
-                    onClick = onCancelClick,
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun checkFailureMessage(reason: UpdateCheckFailure): String {
-    val stringRes = when (reason) {
+internal fun checkFailureMessageRes(reason: UpdateCheckFailure): Int {
+    return when (reason) {
         UpdateCheckFailure.NETWORK -> R.string.about_updates_check_failed_network
         UpdateCheckFailure.SERVER -> R.string.about_updates_check_failed_server
         UpdateCheckFailure.INVALID_RESPONSE -> R.string.about_updates_check_failed_invalid_response
         UpdateCheckFailure.NO_APK -> R.string.about_updates_check_failed_no_apk
-    }
-
-    return stringResource(stringRes)
-}
-
-@Composable
-private fun installFailureMessage(reason: UpdateInstallFailure): String {
-    val stringRes = when (reason) {
-        UpdateInstallFailure.DOWNLOAD -> R.string.about_updates_install_failed_download
-        UpdateInstallFailure.CHECKSUM -> R.string.about_updates_install_failed_checksum
-        UpdateInstallFailure.PERMISSION_MISSING -> R.string.about_updates_install_failed_permission_missing
-        UpdateInstallFailure.CANCELLED -> R.string.about_updates_install_failed_cancelled
-        UpdateInstallFailure.REJECTED -> R.string.about_updates_install_failed_rejected
-    }
-
-    return stringResource(stringRes)
-}
-
-/**
- * Returns the download progress in percent or `null` when the total size of the download isn't known.
- */
-internal fun calculateDownloadPercent(downloadedBytes: Long, totalBytes: Long): Int? {
-    if (totalBytes <= 0) {
-        return null
-    }
-
-    val percent = (downloadedBytes * PERCENT) / totalBytes
-    return percent.toInt().coerceIn(0, PERCENT)
-}
-
-/**
- * Returns the release notes without Markdown headings, shortened to [MAX_RELEASE_NOTES_LENGTH] characters.
- */
-internal fun formatReleaseNotes(releaseNotes: String): String {
-    val withoutHeadings = releaseNotes.lineSequence()
-        .filterNot { line -> line.trimStart().startsWith("#") }
-        .joinToString(separator = "\n")
-        .trim()
-
-    return if (withoutHeadings.length > MAX_RELEASE_NOTES_LENGTH) {
-        withoutHeadings.take(MAX_RELEASE_NOTES_LENGTH).trimEnd() + "…"
-    } else {
-        withoutHeadings
     }
 }

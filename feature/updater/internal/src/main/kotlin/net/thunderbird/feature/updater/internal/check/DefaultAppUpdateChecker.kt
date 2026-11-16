@@ -5,6 +5,7 @@ import net.thunderbird.components.core.logging.Logger
 import net.thunderbird.feature.updater.api.AppUpdate
 import net.thunderbird.feature.updater.api.AppUpdateChecker
 import net.thunderbird.feature.updater.api.AppUpdateConfig
+import net.thunderbird.feature.updater.api.ReleaseNotesResult
 import net.thunderbird.feature.updater.api.UpdateCheckFailure
 import net.thunderbird.feature.updater.api.UpdateCheckResult
 
@@ -31,6 +32,8 @@ internal class DefaultAppUpdateChecker(
 
     private val currentTag: ReleaseTag? = ReleaseTag.parse(config.currentReleaseTag, config.tagPrefix)
 
+    private val releaseNotes = InstalledReleaseNotes(config, client, logger)
+
     override val isEnabled: Boolean = currentTag != null
 
     override val currentReleaseTag: String = if (isEnabled) config.currentReleaseTag else ""
@@ -45,6 +48,19 @@ internal class DefaultAppUpdateChecker(
             logger.error(TAG, e) { "Checking for a new release failed." }
             UpdateCheckResult.Failed(UpdateCheckFailure.INVALID_RESPONSE)
         }
+    }
+
+    /**
+     * Asks GitHub for the release notes of the release this build was made for.
+     *
+     * Never throws; failures are reported as [ReleaseNotesResult.Failed].
+     */
+    override suspend fun installedReleaseNotes(): ReleaseNotesResult {
+        if (!isEnabled) {
+            return ReleaseNotesResult.Disabled
+        }
+
+        return releaseNotes.load()
     }
 
     private suspend fun checkForUpdate(): UpdateCheckResult {

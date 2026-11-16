@@ -5,6 +5,7 @@ import android.content.Context
 import android.database.Cursor
 import android.net.Uri
 import java.io.File
+import net.thunderbird.feature.updater.api.DownloadWaiting
 
 /**
  * Downloads files with the [DownloadManager] of the system.
@@ -73,16 +74,27 @@ internal class DownloadManagerSystemDownloads(private val context: Context) : Sy
             DownloadManager.STATUS_FAILED -> SystemDownloadStatus.Failed
 
             // A pending, a running and a paused download are all still on their way.
-            else -> runningStatus(cursor)
+            else -> runningStatus(cursor, status)
         }
     }
 
-    private fun runningStatus(cursor: Cursor): SystemDownloadStatus {
+    private fun runningStatus(cursor: Cursor, status: Int): SystemDownloadStatus {
         val downloadedBytes = cursor.getLong(
             cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR),
         )
         val totalBytes = cursor.getLong(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_TOTAL_SIZE_BYTES))
-        return SystemDownloadStatus.Running(downloadedBytes, totalBytes.takeIf { it > 0L } ?: UNKNOWN_TOTAL_BYTES)
+        // The reason of the download is only meaningful while the download is paused.
+        val reasonIndex = cursor.getColumnIndex(DownloadManager.COLUMN_REASON)
+        val waiting = if (status == DownloadManager.STATUS_PAUSED && reasonIndex >= 0) {
+            waitingOf(cursor.getInt(reasonIndex))
+        } else {
+            null
+        }
+        return SystemDownloadStatus.Running(
+            downloadedBytes = downloadedBytes,
+            totalBytes = totalBytes.takeIf { it > 0L } ?: UNKNOWN_TOTAL_BYTES,
+            waiting = waiting,
+        )
     }
 
     private fun downloadedFile(cursor: Cursor): SystemDownloadStatus {
@@ -108,8 +120,8 @@ internal class DownloadManagerSystemDownloads(private val context: Context) : Sy
             .setMimeType(APK_MIME_TYPE)
             .setDestinationUri(Uri.fromFile(target))
             .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE)
-            .setAllowedOverMetered(true)
-            .setAllowedOverRoaming(true)
+            .setAllowedOverMetered(!request.onlyOnWifi)
+            .setAllowedOverRoaming(!request.onlyOnWifi)
     }
 
     private fun targetFile(fileName: String): File? {
@@ -123,10 +135,25 @@ internal class DownloadManagerSystemDownloads(private val context: Context) : Sy
         return context.getSystemService(Context.DOWNLOAD_SERVICE) as? DownloadManager
     }
 
-    private companion object {
+    internal companion object {
         const val HTTPS_SCHEME = "https"
         const val DOWNLOAD_DIR_NAME = "app-updates"
         const val APK_MIME_TYPE = "application/vnd.android.package-archive"
         const val UNKNOWN_TOTAL_BYTES = -1L
+
+        /**
+         * Returns why the download manager of the system waits instead of downloading.
+         *
+         * @param reason the reason of the paused download, one of the `DownloadManager.PAUSED_*` values.
+         * @return the reason why the download waits.
+         */
+        fun waitingOf(reason: Int): DownloadWaiting {
+            return when (reason) {
+                DownloadManager.PAUSED_WAITING_FOR_NETWORK -> DownloadWaiting.NETWORK
+                DownloadManager.PAUSED_QUEUED_FOR_WIFI -> DownloadWaiting.WIFI
+                DownloadManager.PAUSED_WAITING_TO_RETRY -> DownloadWaiting.RETRY
+                else -> DownloadWaiting.PAUSED
+            }
+        }
     }
 }

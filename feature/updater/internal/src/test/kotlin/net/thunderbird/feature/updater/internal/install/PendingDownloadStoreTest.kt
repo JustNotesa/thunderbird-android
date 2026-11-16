@@ -79,13 +79,45 @@ class PendingDownloadStoreTest {
         assertThat(testSubject.load()).isNull()
     }
 
-    private fun createDownload(): PendingDownload {
+    @Test
+    fun `the download of the background isn't installed when it is done`() {
+        // Arrange
+        testSubject.save(createDownload(installWhenDone = false))
+
+        // Act
+        val download = testSubject.load()
+
+        // Assert
+        assertThat(download?.installWhenDone).isEqualTo(false)
+    }
+
+    @Test
+    fun `a download of an older version of the app is installed when it is done`() {
+        // Arrange
+        // The key is missing, because the download was started by an older version of the app.
+        context.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .putLong(KEY_DOWNLOAD_ID, DOWNLOAD_ID)
+            .putString(KEY_TAG, TAG)
+            .putString(KEY_SHA_256, SHA_256)
+            .putString(KEY_TITLE, TITLE)
+            .commit()
+
+        // Act
+        val download = testSubject.load()
+
+        // Assert
+        assertThat(download?.installWhenDone).isEqualTo(true)
+    }
+
+    private fun createDownload(installWhenDone: Boolean = true): PendingDownload {
         return PendingDownload(
             downloadId = DOWNLOAD_ID,
             tag = TAG,
             sha256 = SHA_256,
             sizeBytes = SIZE_BYTES,
             title = TITLE,
+            installWhenDone = installWhenDone,
         )
     }
 
@@ -93,6 +125,8 @@ class PendingDownloadStoreTest {
         private const val PREFERENCES_NAME = "updater_download"
         private const val KEY_DOWNLOAD_ID = "download_id"
         private const val KEY_TAG = "tag"
+        private const val KEY_SHA_256 = "sha256"
+        private const val KEY_TITLE = "title"
         private const val DOWNLOAD_ID = 42L
         private const val TAG = "mein-thunderbird-2026-10-25"
         private const val SHA_256 = "398d0034e0e8ede314aa130243fd47c87bd94bf019515e3d683dd50c3fb8d942"

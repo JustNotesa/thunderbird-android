@@ -1,14 +1,12 @@
 package com.fsck.k9.ui.settings
 
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import net.thunderbird.feature.updater.api.AppUpdateChecker
 import net.thunderbird.feature.updater.api.AppUpdateInstaller
 import net.thunderbird.feature.updater.api.AppUpdateSettings
+import net.thunderbird.feature.updater.api.ReleaseNotesResult
 import net.thunderbird.feature.updater.api.UpdateCheckResult
 import net.thunderbird.feature.updater.api.UpdateInstallState
 
@@ -20,22 +18,32 @@ import net.thunderbird.feature.updater.api.UpdateInstallState
 internal class AboutUpdatesController(
     private val checker: AppUpdateChecker,
     private val settings: AppUpdateSettings,
-    private val installer: AppUpdateInstaller,
+    installer: AppUpdateInstaller,
     private val scope: CoroutineScope,
 ) {
-    private val _state = MutableStateFlow<UpdatesState?>(null)
-    val state: StateFlow<UpdatesState?> = _state.asStateFlow()
+    private val stateHolder = AboutUpdatesStateHolder()
+
+    /** Downloads and installs an update. */
+    val installController: AboutInstallController = AboutInstallController(installer, stateHolder, scope)
+
+    val state: StateFlow<UpdatesState?> = stateHolder.state
 
     fun start() {
-        _state.value = UpdatesState(
-            currentVersionTag = checker.currentReleaseTag,
-            autoCheckEnabled = settings.autoCheckEnabled.value,
-            check = CheckStatus.Idle,
-            install = installer.state.value,
-            canInstallPackages = installer.canInstallPackages(),
+        stateHolder.set(
+            UpdatesState(
+                currentVersionTag = checker.currentReleaseTag,
+                autoCheckEnabled = settings.autoCheckEnabled.value,
+                backgroundDownloadEnabled = settings.backgroundDownloadEnabled.value,
+                downloadOnlyOnWifi = settings.downloadOnlyOnWifi.value,
+                autoInstallWhenIdle = settings.autoInstallWhenIdle.value,
+                check = CheckStatus.Idle,
+                install = UpdateInstallState.Idle,
+                canInstallPackages = false,
+                installedNotes = InstalledNotesStatus.Hidden,
+            ),
         )
-        observeAutoCheckSetting()
-        observeInstallState()
+        observeSettings()
+        installController.start()
         scope.launch { runCheck() }
     }
 
@@ -43,66 +51,81 @@ internal class AboutUpdatesController(
         settings.setAutoCheckEnabled(enabled)
     }
 
+    fun onBackgroundDownloadChanged(enabled: Boolean) {
+        settings.setBackgroundDownloadEnabled(enabled)
+    }
+
+    fun onDownloadOnlyOnWifiChanged(enabled: Boolean) {
+        settings.setDownloadOnlyOnWifi(enabled)
+    }
+
+    fun onAutoInstallWhenIdleChanged(enabled: Boolean) {
+        settings.setAutoInstallWhenIdle(enabled)
+    }
+
+    /**
+     * Shows the release notes of the installed version. Tapping the row again hides them.
+     */
+    fun onInstalledVersionClick() {
+        val current = stateHolder.state.value ?: return
+
+        when (current.installedNotes) {
+            InstalledNotesStatus.Hidden -> {
+                stateHolder.update { it.copy(installedNotes = InstalledNotesStatus.Loading) }
+                scope.launch { loadInstalledNotes() }
+            }
+
+            InstalledNotesStatus.Loading -> Unit
+
+            is InstalledNotesStatus.Loaded, is InstalledNotesStatus.Failed -> {
+                stateHolder.update { it.copy(installedNotes = InstalledNotesStatus.Hidden) }
+            }
+        }
+    }
+
+    /**
+     * Loads the release notes of the installed version again after they couldn't be loaded.
+     */
+    fun onRetryInstalledNotes() {
+        val current = stateHolder.state.value ?: return
+        if (current.installedNotes !is InstalledNotesStatus.Failed) return
+
+        stateHolder.update { it.copy(installedNotes = InstalledNotesStatus.Loading) }
+        scope.launch { loadInstalledNotes() }
+    }
+
     fun onCheckForUpdatesClick() {
-        val current = _state.value ?: return
+        val current = stateHolder.state.value ?: return
         if (current.check is CheckStatus.Checking) return
 
         scope.launch { runCheck() }
     }
 
-    fun onInstallClick() {
-        val current = _state.value
-        val update = (current?.check as? CheckStatus.Available)?.update
-        val installState = current?.install
-        val installPossible = installState is UpdateInstallState.Idle ||
-            installState is UpdateInstallState.Failed ||
-            installState is UpdateInstallState.WaitingForConfirmation
-        if (update == null || !installPossible) {
-            return
-        }
-
-        if (!installer.canInstallPackages()) {
-            _state.update { state -> state?.copy(canInstallPackages = false) }
-            return
-        }
-
-        scope.launch { installer.install(update) }
-    }
-
-    fun onCancelInstallClick() {
-        installer.resetState()
-    }
-
-    fun onOpenInstallPermissionClick() {
-        installer.openInstallPermissionSettings()
-    }
-
-    fun onScreenResumed() {
-        _state.update { state -> state?.copy(canInstallPackages = installer.canInstallPackages()) }
-    }
-
-    fun onInstallFailureDismiss() {
-        installer.resetState()
-    }
-
-    private fun observeAutoCheckSetting() {
+    private fun observeSettings() {
         scope.launch {
             settings.autoCheckEnabled.collect { enabled ->
-                _state.update { state -> state?.copy(autoCheckEnabled = enabled) }
+                stateHolder.update { it.copy(autoCheckEnabled = enabled) }
             }
         }
-    }
-
-    private fun observeInstallState() {
         scope.launch {
-            installer.state.collect { installState ->
-                _state.update { state -> state?.copy(install = installState) }
+            settings.backgroundDownloadEnabled.collect { enabled ->
+                stateHolder.update { it.copy(backgroundDownloadEnabled = enabled) }
+            }
+        }
+        scope.launch {
+            settings.downloadOnlyOnWifi.collect { enabled ->
+                stateHolder.update { it.copy(downloadOnlyOnWifi = enabled) }
+            }
+        }
+        scope.launch {
+            settings.autoInstallWhenIdle.collect { enabled ->
+                stateHolder.update { it.copy(autoInstallWhenIdle = enabled) }
             }
         }
     }
 
     private suspend fun runCheck() {
-        _state.update { state -> state?.copy(check = CheckStatus.Checking) }
+        stateHolder.update { it.copy(check = CheckStatus.Checking) }
 
         val status = when (val result = checker.check()) {
             is UpdateCheckResult.Available -> CheckStatus.Available(result.update)
@@ -112,9 +135,19 @@ internal class AboutUpdatesController(
         }
 
         if (status == null) {
-            _state.value = null
+            stateHolder.clear()
         } else {
-            _state.update { state -> state?.copy(check = status) }
+            stateHolder.update { it.copy(check = status) }
         }
+    }
+
+    private suspend fun loadInstalledNotes() {
+        val status = when (val result = checker.installedReleaseNotes()) {
+            is ReleaseNotesResult.Loaded -> InstalledNotesStatus.Loaded(result.title, result.notes, result.url)
+            is ReleaseNotesResult.Failed -> InstalledNotesStatus.Failed(result.reason)
+            ReleaseNotesResult.Disabled -> InstalledNotesStatus.Hidden
+        }
+
+        stateHolder.update { it.copy(installedNotes = status) }
     }
 }
