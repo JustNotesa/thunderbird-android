@@ -22,10 +22,14 @@ ANDROID_HOME=~/Library/Android/sdk ~/.claude/tools/niedrig.sh ./gradlew :app-thu
 
 Die fertige App liegt danach unter `app-thunderbird/build/outputs/apk/foss/beta/app-thunderbird-foss-beta.apk`.
 
-- **App-Kennung:** `net.thunderbird.android.beta`, im Launcher „Thunderbird Beta“. Sie läuft neben dem offiziellen
-  Thunderbird und neben den bisherigen Debug-Versionen (`net.thunderbird.android.debug`); Konten müssen darin neu
-  eingerichtet oder übertragen werden.
-- **Nicht gleichzeitig mit Mozillas offizieller Beta aus dem Play Store**, weil beide dieselbe Kennung haben.
+- **App-Kennung:** `io.github.justnotesa.thunderbird`, im Launcher „Thunderbird Beta“. Sie läuft neben dem
+  offiziellen Thunderbird, neben Mozillas Beta und neben den Debug-Versionen (`net.thunderbird.android.debug`).
+  Bis 2026-11 hatte die eigene Version Mozillas Kennung `net.thunderbird.android.beta`; Google Play Protect hielt sie
+  deshalb für eine veränderte Mozilla-App und prüfte jedes Update. Konten und Einstellungen der alten Version lassen
+  sich in der neuen über „Einstellungen importieren“ → „Thunderbird Beta“ übernehmen.
+- **OAuth-Anmeldung:** Die Rücksprung-Adressen bleiben die von Mozillas Beta (`net.thunderbird.android.beta://…`),
+  weil nur sie bei den Anbietern eingetragen sind. Ist Mozillas oder die alte eigene Beta noch installiert, fragt
+  Android beim Anmelden, welche App die Anmeldung abschließen soll – dann diese App wählen.
 - **Updates:** Eine neue Version lässt sich über die alte installieren, solange sie mit demselben Schlüssel signiert
   ist. Die App prüft selbst einmal am Tag (und beim Öffnen von Einstellungen → Über die App) auf GitHub, ob es ein
   neueres Release gibt, und installiert es nach Rückfrage. Das geht nur in Builds, die mit

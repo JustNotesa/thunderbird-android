@@ -220,6 +220,12 @@ androidComponents {
             "META-INF/*.version",
         )
     }
+
+    onVariants(selector().withBuildType("beta")) { variant ->
+        // Own build "Mein Thunderbird": its own package name, so Android and Play Protect don't take it for
+        // Mozilla's Thunderbird Beta, which is signed with another key.
+        variant.applicationId.set("io.github.justnotesa.thunderbird")
+    }
 }
 
 // Initialize placeholders for the product flavor and build type combinations needed for dependency declarations.
