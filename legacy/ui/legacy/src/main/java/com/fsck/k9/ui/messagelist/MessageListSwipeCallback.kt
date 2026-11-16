@@ -6,6 +6,8 @@ import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.drawable.Drawable
+import android.os.Build
+import android.view.HapticFeedbackConstants
 import android.view.LayoutInflater
 import android.view.View
 import android.view.View.MeasureSpec
@@ -61,6 +63,7 @@ class MessageListSwipeCallback(
     private var maxSwipeRightDistance: Int = -1
     private var maxSwipeLeftDistance: Int = -1
     private var activeSwipingMessageListItem: MessageListItem? = null
+    private val swipeThresholdTracker = SwipeThresholdTracker()
 
     init {
         val layoutInflater = LayoutInflater.from(context)
@@ -139,6 +142,7 @@ class MessageListSwipeCallback(
 
     override fun onSwipeStarted(viewHolder: ViewHolder, direction: Int) {
         val item = viewHolder.messageListItem ?: return
+        swipeThresholdTracker.reset()
         activeSwipingMessageListItem = item
 
         // Mark view to prevent MessageListItemAnimator from interfering with swipe animations
@@ -188,6 +192,7 @@ class MessageListSwipeCallback(
     override fun clearView(recyclerView: RecyclerView, viewHolder: ViewHolder) {
         super.clearView(recyclerView, viewHolder)
         viewHolder.markAsSwiped(false)
+        swipeThresholdTracker.reset()
     }
 
     override fun getSwipeThreshold(viewHolder: ViewHolder): Float {
@@ -216,6 +221,13 @@ class MessageListSwipeCallback(
                 } else {
                     drawBackground(dX, viewWidth, viewHeight, item)
                 }
+            }
+        }
+
+        if (isCurrentlyActive && dX != 0F) {
+            val change = swipeThresholdTracker.update(abs(dX) > swipeThreshold)
+            if (change != null) {
+                view.performHapticFeedback(change.hapticFeedbackConstant())
             }
         }
 
@@ -431,3 +443,24 @@ private fun ViewHolder.markAsSwiped(value: Boolean) {
 
 val ViewHolder.wasSwiped
     get() = itemView.getTag(R.id.message_list_swipe_tag) == true
+
+private fun SwipeThresholdChange.hapticFeedbackConstant(): Int {
+    return when (this) {
+        SwipeThresholdChange.Reached -> {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                HapticFeedbackConstants.GESTURE_THRESHOLD_ACTIVATE
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                HapticFeedbackConstants.CONFIRM
+            } else {
+                HapticFeedbackConstants.VIRTUAL_KEY
+            }
+        }
+        SwipeThresholdChange.Left -> {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                HapticFeedbackConstants.GESTURE_THRESHOLD_DEACTIVATE
+            } else {
+                HapticFeedbackConstants.CLOCK_TICK
+            }
+        }
+    }
+}
