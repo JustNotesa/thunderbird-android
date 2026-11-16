@@ -208,6 +208,7 @@ class LegacyMessageListFragment :
     private val handler = MessageListHandler(this)
     private val activityListener = MessageListActivityListener()
     private val actionModeCallback = ActionModeCallback()
+    private val pendingMessageAction = PendingMessageAction()
 
     private val contactRepository: ContactRepository by inject()
     private val avatarMonogramCreator: AvatarMonogramCreator by inject()
@@ -216,7 +217,7 @@ class LegacyMessageListFragment :
     private val chooseFolderForMoveLauncher: ActivityResultLauncher<ChooseFolderResultContract.Input> =
         registerForActivityResult(ChooseFolderResultContract(ChooseFolderActivity.Action.MOVE)) { result ->
             handleChooseFolderResult(result) { folderId, messages ->
-                move(messages, folderId)
+                moveWithUndo(messages, folderId)
             }
         }
     private val chooseFolderForCopyLauncher: ActivityResultLauncher<ChooseFolderResultContract.Input> =
@@ -349,6 +350,13 @@ class LegacyMessageListFragment :
     private var error: Error? = null
 
     private var messageListSwipeCallback: MessageListSwipeCallback? = null
+    private var lastMessageListInfo: MessageListInfo? = null
+    private var undoSnackbar: Snackbar? = null
+
+    /**
+     * Messages that were removed from the message list, but that the message list loader hasn't reported as gone yet.
+     */
+    private var hiddenUntilReload: Set<MessageReference> = emptySet()
     private val interactionSettings: InteractionSettings
         get() = generalSettingsManager.getConfig().interaction
     private val messageListSettings: DisplayMessageListSettings
@@ -784,7 +792,7 @@ class LegacyMessageListFragment :
         searchFilters = filters
         searchFilterBar?.bind(filters)
 
-        lastMessageListInfo?.let { setMessageList(it) }
+        lastMessageListInfo?.let { setMessageList(it, fromLoader = false) }
 
         // Results from other folders are no longer wanted, or the search has to find them first.
         legacyViewModel.remoteSearchResults.clear()
@@ -1199,6 +1207,8 @@ class LegacyMessageListFragment :
     }
 
     override fun onDestroyView() {
+        commitPendingMessageAction()
+
         handler.removeCallbacks(stopRemoteSearchRunnable)
         handler.removeCallbacks(loadedMessagesDisplayedRunnable)
         isWaitingForLoadedMessages = false
@@ -1304,6 +1314,8 @@ class LegacyMessageListFragment :
 
     override fun onPause() {
         super.onPause()
+
+        commitPendingMessageAction()
 
         recyclerView?.removeCallbacks(automaticRemoteSearchRunnable)
         isAutomaticRemoteSearchScheduled = false
@@ -1543,11 +1555,93 @@ class LegacyMessageListFragment :
     }
 
     private fun onDeleteConfirmed(messages: List<MessageReference>) {
-        if (showingThreadedList) {
+        val threaded = showingThreadedList
+        removeMessagesWithUndo(messages, MessageRemoval.DELETE) { deleteMessagesNow(messages, threaded) }
+    }
+
+    private fun deleteMessagesNow(messages: List<MessageReference>, threaded: Boolean) {
+        if (threaded) {
             messagingController.deleteThreads(messages)
         } else {
             messagingController.deleteMessages(messages)
         }
+    }
+
+    /**
+     * Remove messages from the message list, but only after the user didn't undo the removal.
+     *
+     * The messages are hidden right away. They're really removed when the snackbar goes away without the user
+     * choosing to undo the removal.
+     */
+    override fun removeMessagesWithUndo(
+        messages: List<MessageReference>,
+        removal: MessageRemoval,
+        perform: () -> Unit,
+    ) {
+        if (messages.isEmpty()) return
+
+        // Only one undo snackbar is shown at a time.
+        undoSnackbar?.dismiss()
+
+        // The pending action is carried out when the new action is started. Its messages stay hidden until the
+        // message list loader delivers a list that doesn't contain them anymore.
+        hiddenUntilReload = hiddenUntilReload + pendingMessageAction.pendingMessages
+
+        val id = pendingMessageAction.start(messages, perform)
+
+        // Hide the messages right away. They only disappear for good when the removal is committed.
+        lastMessageListInfo?.let { setMessageList(it, fromLoader = false) }
+
+        val snackbar = Snackbar
+            .make(
+                undoSnackbarView(),
+                resources.getQuantityString(removal.undoText, messages.size, messages.size),
+                Snackbar.LENGTH_LONG,
+            )
+            .setAction(R.string.message_list_undo_action) { undoMessageRemoval(id) }
+            .addCallback(
+                object : BaseCallback<Snackbar>() {
+                    override fun onDismissed(transientBottomBar: Snackbar?, event: Int) {
+                        if (event != DISMISS_EVENT_ACTION) {
+                            pendingMessageAction.commit(id)
+                        }
+                    }
+                },
+            )
+
+        snackbar.show()
+        undoSnackbar = snackbar
+    }
+
+    /**
+     * The view the undo snackbar is displayed in.
+     *
+     * While a message is shown full screen the message list is hidden. The snackbar is displayed in the activity's
+     * content view in that case.
+     */
+    private fun undoSnackbarView(): View {
+        val coordinatorLayout = requireCoordinatorLayout()
+        return if (coordinatorLayout.isShown) {
+            coordinatorLayout
+        } else {
+            requireActivity().findViewById<View>(android.R.id.content)
+        }
+    }
+
+    private fun undoMessageRemoval(id: Long) {
+        if (pendingMessageAction.undo(id)) {
+            // Bring the messages back.
+            lastMessageListInfo?.let { setMessageList(it, fromLoader = false) }
+        }
+    }
+
+    /**
+     * Carry out the action that is waiting for the user to decide whether to undo it.
+     */
+    private fun commitPendingMessageAction() {
+        pendingMessageAction.commitPending()
+        undoSnackbar?.dismiss()
+        undoSnackbar = null
     }
 
     private fun onExpunge() {
@@ -2281,10 +2375,13 @@ class LegacyMessageListFragment :
     private fun onArchive(messages: List<MessageReference>) {
         if (!checkCopyOrMovePossible(messages, FolderOperation.MOVE)) return
 
-        if (showingThreadedList) {
-            messagingController.archiveThreads(messages)
-        } else {
-            messagingController.archiveMessages(messages)
+        val threaded = showingThreadedList
+        removeMessagesWithUndo(messages, MessageRemoval.ARCHIVE) {
+            if (threaded) {
+                messagingController.archiveThreads(messages)
+            } else {
+                messagingController.archiveMessages(messages)
+            }
         }
     }
 
@@ -2305,9 +2402,17 @@ class LegacyMessageListFragment :
     }
 
     private fun onSpamConfirmed(messages: List<MessageReference>) {
-        for ((account, messagesInAccount) in groupMessagesByAccount(messages)) {
-            account.spamFolderId?.let { spamFolderId ->
-                move(messagesInAccount, spamFolderId)
+        // Only messages that are really moved to the spam folder are removed from the message list.
+        val spamMessages = messages.filter { message ->
+            accountManager.findById(message.accountId)?.spamFolderId
+                .let { spamFolderId -> spamFolderId != null && message.folderId != spamFolderId }
+        }
+
+        removeMessagesWithUndo(spamMessages, MessageRemoval.SPAM) {
+            for ((account, messagesInAccount) in groupMessagesByAccount(spamMessages)) {
+                account.spamFolderId?.let { spamFolderId ->
+                    move(messagesInAccount, spamFolderId)
+                }
             }
         }
     }
@@ -2349,6 +2454,16 @@ class LegacyMessageListFragment :
 
     private fun move(messages: List<MessageReference>, folderId: Long) {
         copyOrMove(messages, folderId, FolderOperation.MOVE)
+    }
+
+    /**
+     * Move messages to another folder, but only after the user didn't undo the move.
+     */
+    private fun moveWithUndo(messages: List<MessageReference>, folderId: Long) {
+        val messagesToMove = messages.filterNot { it.folderId == folderId }
+        if (!checkCopyOrMovePossible(messagesToMove, FolderOperation.MOVE)) return
+
+        removeMessagesWithUndo(messagesToMove, MessageRemoval.MOVE) { move(messagesToMove, folderId) }
     }
 
     private fun copyOrMove(messages: List<MessageReference>, destinationFolderId: Long, operation: FolderOperation) {
@@ -2535,6 +2650,7 @@ class LegacyMessageListFragment :
     }
 
     fun openMessage(messageReference: MessageReference) {
+        commitPendingMessageAction()
         fragmentListener.openMessage(messageReference)
     }
 
@@ -2682,8 +2798,18 @@ class LegacyMessageListFragment :
         return fragmentListener.startSearch(query, account?.id, folderId)
     }
 
-    private fun setMessageList(messageListInfo: MessageListInfo) {
+    /**
+     * Display the messages of the message list.
+     *
+     * @param fromLoader `true` if the messages come from the message list loader, `false` if the list is only
+     *   redrawn, e.g. because messages were removed from it.
+     */
+    private fun setMessageList(messageListInfo: MessageListInfo, fromLoader: Boolean = true) {
         lastMessageListInfo = messageListInfo
+
+        if (fromLoader) {
+            hiddenUntilReload = emptySet()
+        }
 
         val messageListItems = messageListInfo.messageListItems
         if (isThreadDisplay && messageListItems.isEmpty()) {
@@ -2715,7 +2841,9 @@ class LegacyMessageListFragment :
                 add(MessageListViewItem.InAppNotificationBannerList)
             }
             searchStatus?.let { add(MessageListViewItem.SearchStatus(it, searchScope)) }
-            addAll(displayedMessageListItems(messageListItems).map { MessageListViewItem.Message(it) })
+            addAll(displayedMessageListItems(messageListItems).filterNot {
+                pendingMessageAction.isPending(it.messageReference) || it.messageReference in hiddenUntilReload
+            }.map { MessageListViewItem.Message(it) })
             // Keep the current footer (e.g. remote search progress) across list rebuilds.
             // updateFooterText() below recomputes it when no remote search is running.
             adapter.viewItems.filterIsInstance<MessageListViewItem.Footer>().firstOrNull()?.let { add(it) }

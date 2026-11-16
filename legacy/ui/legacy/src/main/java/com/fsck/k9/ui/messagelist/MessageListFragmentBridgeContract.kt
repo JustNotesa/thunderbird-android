@@ -54,6 +54,12 @@ interface MessageListFragmentBridgeContract {
     fun onFullyActive()
     // endregion [ methods used on MessageHomeActivity ]
 
+    /**
+     * Hides the messages right away, shows a snackbar with Undo, and calls [perform] when the snackbar goes away
+     * without Undo.
+     */
+    fun removeMessagesWithUndo(messages: List<MessageReference>, removal: MessageRemoval, perform: () -> Unit)
+
     interface MessageListFragmentListener {
         fun setMessageListProgressEnabled(enable: Boolean)
         fun setMessageListProgress(level: Int)

@@ -65,6 +65,7 @@ import com.fsck.k9.ui.choosefolder.ChooseFolderActivity
 import com.fsck.k9.ui.choosefolder.ChooseFolderResultContract
 import com.fsck.k9.ui.helper.SizeFormatter
 import com.fsck.k9.ui.messagedetails.MessageDetailsFragment
+import com.fsck.k9.ui.messagelist.MessageRemoval
 import com.fsck.k9.ui.messagesource.MessageSourceActivity
 import com.fsck.k9.ui.messageview.MessageCryptoPresenter.MessageCryptoMvpView
 import com.fsck.k9.ui.settings.account.AccountSettingsActivity
@@ -707,9 +708,13 @@ class MessageViewFragment :
     private fun delete() {
         disableDeleteMenuItem()
 
+        val reference = messageReference
+
         fragmentListener.performNavigationAfterMessageRemoval()
 
-        messagingController.deleteMessage(messageReference)
+        fragmentListener.removeMessageWithUndo(reference, MessageRemoval.DELETE) {
+            messagingController.deleteMessage(reference)
+        }
     }
 
     private fun disableDeleteMenuItem() {
@@ -736,10 +741,20 @@ class MessageViewFragment :
     }
 
     private fun refileMessage(destinationFolderId: Long) {
+        val reference = messageReference
+        val accountId = account.id
+        val sourceFolderId = reference.folderId
+        val removal = when (destinationFolderId) {
+            account.spamFolderId -> MessageRemoval.SPAM
+            account.archiveFolderId -> MessageRemoval.ARCHIVE
+            else -> MessageRemoval.MOVE
+        }
+
         fragmentListener.performNavigationAfterMessageRemoval()
 
-        val sourceFolderId = messageReference.folderId
-        messagingController.moveMessage(account.id, sourceFolderId, messageReference, destinationFolderId)
+        fragmentListener.removeMessageWithUndo(reference, removal) {
+            messagingController.moveMessage(accountId, sourceFolderId, reference, destinationFolderId)
+        }
     }
 
     fun onReply(forceReplyAction: Boolean = false) {
@@ -844,8 +859,13 @@ class MessageViewFragment :
             return
         }
 
+        val reference = messageReference
+
         fragmentListener.performNavigationAfterMessageRemoval()
-        messagingController.archiveMessage(messageReference)
+
+        fragmentListener.removeMessageWithUndo(reference, MessageRemoval.ARCHIVE) {
+            messagingController.archiveMessage(reference)
+        }
     }
 
     private fun onSpam() {
@@ -928,9 +948,14 @@ class MessageViewFragment :
 
         setLastSelectedFolderId(destinationFolderId)
 
+        val accountId = account.id
+        val sourceFolderId = this.messageReference.folderId
+
         fragmentListener.performNavigationAfterMessageRemoval()
 
-        moveMessage(messageReference, destinationFolderId)
+        fragmentListener.removeMessageWithUndo(messageReference, MessageRemoval.MOVE) {
+            messagingController.moveMessage(accountId, sourceFolderId, messageReference, destinationFolderId)
+        }
     }
 
     private fun onChooseFolderCopyResult(result: ChooseFolderResultContract.Result?) {
@@ -1012,10 +1037,6 @@ class MessageViewFragment :
         messageTopView.setHeaders(message, account, true)
 
         invalidateMenu()
-    }
-
-    private fun moveMessage(reference: MessageReference?, folderId: Long) {
-        messagingController.moveMessage(account.id, messageReference.folderId, reference, folderId)
     }
 
     private fun copyMessage(reference: MessageReference?, folderId: Long) {
@@ -1205,6 +1226,11 @@ class MessageViewFragment :
         fun performNavigationAfterMessageRemoval()
         fun performNavigationAfterMarkAsUnread()
         fun showMessageFolder(messageReference: MessageReference)
+
+        /**
+         * Removes the message from the message list with a few seconds to undo; [perform] does the actual removal.
+         */
+        fun removeMessageWithUndo(messageReference: MessageReference, removal: MessageRemoval, perform: () -> Unit)
 
         /** Go back to the list the message was opened from and show the message there. */
         fun showMessageInList(messageReference: MessageReference)

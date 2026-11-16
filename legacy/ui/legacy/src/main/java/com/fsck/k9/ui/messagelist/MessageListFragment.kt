@@ -929,6 +929,15 @@ class MessageListFragment :
         }
     }
 
+    override fun removeMessagesWithUndo(
+        messages: List<MessageReference>,
+        removal: MessageRemoval,
+        perform: () -> Unit,
+    ) {
+        // The new message list doesn't offer undo yet.
+        perform()
+    }
+
     private fun onExpunge() {
         currentFolder?.let { folderInfoHolder ->
             account?.id?.let { messagingController.expunge(it, folderInfoHolder.databaseId) }

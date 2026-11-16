@@ -1028,6 +1028,28 @@
     <string name="debug_enable_sync_debug_logging_title">Synchronisation des Fehlerprotokolls aktivieren</string>
     <string name="debug_enable_sync_debug_logging_summary">Diagnoseinformationen zur Synchronisation für 24 Stunden protokollieren</string>
     <string name="archiving_not_available_for_this_account">Archivierung ist für dieses Konto nicht verfügbar.</string>
+    <!-- Shown after messages were removed from the message list by deleting them -->
+    <plurals name="message_list_undo_deleted">
+        <item quantity="one">Nachricht gelöscht</item>
+        <item quantity="other">%d Nachrichten gelöscht</item>
+    </plurals>
+    <!-- Shown after messages were removed from the message list by archiving them -->
+    <plurals name="message_list_undo_archived">
+        <item quantity="one">Nachricht archiviert</item>
+        <item quantity="other">%d Nachrichten archiviert</item>
+    </plurals>
+    <!-- Shown after messages were removed from the message list by moving them to another folder -->
+    <plurals name="message_list_undo_moved">
+        <item quantity="one">Nachricht verschoben</item>
+        <item quantity="other">%d Nachrichten verschoben</item>
+    </plurals>
+    <!-- Shown after messages were removed from the message list by marking them as spam -->
+    <plurals name="message_list_undo_spam">
+        <item quantity="one">Nachricht als Spam markiert</item>
+        <item quantity="other">%d Nachrichten als Spam markiert</item>
+    </plurals>
+    <!-- Undoes the removal of messages from the message list -->
+    <string name="message_list_undo_action">Rückgängig</string>
     <string name="debug_open_secret_debug_screen">Geheime Fehleranalyse-Ansicht öffnen</string>
     <string name="debug_invalidate_access_token">Test: Zugriffstoken ungültig machen</string>
     <string name="debug_invalidate_access_token_local">Test: Zugriffstoken ungültig machen (lokal)</string>

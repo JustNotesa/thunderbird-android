@@ -49,6 +49,7 @@ import com.fsck.k9.ui.messagelist.FolderOrigin
 import com.fsck.k9.ui.messagelist.MessageListFragmentBridgeContract
 import com.fsck.k9.ui.messagelist.MessageListFragmentBridgeContract.MessageListFragmentListener
 import com.fsck.k9.ui.messagelist.MessageListHighlighter
+import com.fsck.k9.ui.messagelist.MessageRemoval
 import com.fsck.k9.ui.messagelist.createManualQuerySearch
 import com.fsck.k9.ui.messagelist.unifiedFolderTitle
 import com.fsck.k9.ui.messageview.MessageViewContainerFragment
@@ -1370,6 +1371,19 @@ open class MessageHomeActivity :
         when (generalSettingsManager.getConfig().interaction.messageViewPostMarkAsUnreadNavigation) {
             PostMarkAsUnreadNavigation.StayOnCurrentMessage -> Unit
             PostMarkAsUnreadNavigation.ReturnToMessageList -> returnToMessageList()
+        }
+    }
+
+    override fun removeMessageWithUndo(
+        messageReference: MessageReference,
+        removal: MessageRemoval,
+        perform: () -> Unit,
+    ) {
+        val messageListFragment = this.messageListFragment
+        if (messageListFragment == null) {
+            perform()
+        } else {
+            messageListFragment.removeMessagesWithUndo(listOf(messageReference), removal, perform)
         }
     }
 
