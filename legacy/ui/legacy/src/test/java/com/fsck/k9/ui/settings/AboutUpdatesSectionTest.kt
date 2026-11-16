@@ -326,22 +326,17 @@ class AboutUpdatesSectionUiTest {
      * The dialog showing the release notes is displayed in its own window. This returns the root view of that window.
      */
     private fun findDialogRootView(): View? {
-        val dialog = ShadowDialog.getLatestDialog() ?: return null
-        val window = dialog.window ?: return null
+        val decorView = ShadowDialog.getLatestDialog()?.window?.decorView ?: return null
 
-        return findRootView(window.decorView)
+        return findRootView(decorView)
     }
 
     private fun findRootView(view: View): View? {
-        if (view is ViewRootForTest) return view
-
-        if (view is ViewGroup) {
-            for (index in 0 until view.childCount) {
-                findRootView(view.getChildAt(index))?.let { return it }
-            }
+        return when (view) {
+            is ViewRootForTest -> view
+            is ViewGroup -> (0 until view.childCount).firstNotNullOfOrNull { findRootView(view.getChildAt(it)) }
+            else -> null
         }
-
-        return null
     }
 
     private fun createComposeView(
