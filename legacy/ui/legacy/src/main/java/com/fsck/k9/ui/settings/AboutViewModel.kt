@@ -58,6 +58,7 @@ internal class AboutViewModel(
             is Event.OnAutoInstallWhenIdleChanged -> controller.onAutoInstallWhenIdleChanged(event.enabled)
             Event.OnInstalledVersionClick -> controller.onInstalledVersionClick()
             Event.OnRetryInstalledNotes -> controller.onRetryInstalledNotes()
+            Event.OnInstalledNotesDismiss -> controller.onInstalledNotesDismiss()
             Event.OnCheckForUpdatesClick -> controller.onCheckForUpdatesClick()
             else -> handleInstallEvent(event)
         }

@@ -141,6 +141,9 @@ class AboutFragment : Fragment() {
                         onRetryInstalledNotes = {
                             dispatch(Event.OnRetryInstalledNotes)
                         },
+                        onInstalledNotesDismiss = {
+                            dispatch(Event.OnInstalledNotesDismiss)
+                        },
                         onCheckForUpdatesClick = {
                             dispatch(Event.OnCheckForUpdatesClick)
                         },
@@ -251,6 +254,7 @@ fun AboutScreen(
     onAutoInstallWhenIdleChange: (Boolean) -> Unit = {},
     onInstalledVersionClick: () -> Unit = {},
     onRetryInstalledNotes: () -> Unit = {},
+    onInstalledNotesDismiss: () -> Unit = {},
     onCheckForUpdatesClick: () -> Unit = {},
     onInstallClick: () -> Unit = {},
     onInstallDownloadedClick: () -> Unit = {},
@@ -285,6 +289,7 @@ fun AboutScreen(
                     onAutoInstallWhenIdleChange = onAutoInstallWhenIdleChange,
                     onInstalledVersionClick = onInstalledVersionClick,
                     onRetryInstalledNotes = onRetryInstalledNotes,
+                    onInstalledNotesDismiss = onInstalledNotesDismiss,
                     onCheckClick = onCheckForUpdatesClick,
                     onInstallClick = onInstallClick,
                     onInstallDownloadedClick = onInstallDownloadedClick,

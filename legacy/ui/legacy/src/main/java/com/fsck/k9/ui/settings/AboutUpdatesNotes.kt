@@ -3,13 +3,16 @@ package com.fsck.k9.ui.settings
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.text.selection.DisableSelection
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -17,9 +20,11 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.fsck.k9.ui.R
 import net.thunderbird.components.ui.bolt.atom.CircularProgressIndicator
-import net.thunderbird.components.ui.bolt.atom.button.ButtonOutlined
+import net.thunderbird.components.ui.bolt.atom.button.ButtonText
 import net.thunderbird.components.ui.bolt.atom.text.TextBodyMedium
+import net.thunderbird.components.ui.bolt.atom.text.TextHeadlineSmall
 import net.thunderbird.components.ui.bolt.atom.text.TextTitleMedium
+import net.thunderbird.components.ui.bolt.organism.BasicDialog
 import net.thunderbird.components.ui.bolt.theme.BoltTheme
 
 private const val GITHUB_URL_PREFIX = "https://github.com/"
@@ -51,21 +56,67 @@ internal fun AboutUpdateInstalledVersionRow(
 }
 
 /**
- * The release notes of the installed version. They are shown below the row with the installed version.
+ * The dialog showing the release notes of the installed version. It is shown as long as the release notes aren't
+ * hidden.
  */
 @Composable
-internal fun AboutUpdateInstalledNotes(
+internal fun AboutUpdateInstalledNotesDialog(
     notes: InstalledNotesStatus,
     onRetryClick: () -> Unit,
     onOpenUrl: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    if (notes is InstalledNotesStatus.Hidden) return
+
+    BasicDialog(
+        onDismissRequest = onDismiss,
+        headline = {
+            TextHeadlineSmall(text = installedNotesHeadline(notes))
+        },
+        content = {
+            AboutUpdateInstalledNotesContent(notes = notes)
+        },
+        buttons = {
+            AboutUpdateInstalledNotesButtons(
+                notes = notes,
+                onRetryClick = onRetryClick,
+                onOpenUrl = onOpenUrl,
+                onDismiss = onDismiss,
+            )
+        },
+        contentPadding = PaddingValues(
+            start = BoltTheme.spacings.triple,
+            top = BoltTheme.spacings.oneHalf,
+            end = BoltTheme.spacings.triple,
+            bottom = BoltTheme.spacings.double,
+        ),
+    )
+}
+
+/**
+ * The title of the dialog. While the release notes are loading or after loading them failed the title of the installed
+ * version is shown.
+ */
+@Composable
+private fun installedNotesHeadline(notes: InstalledNotesStatus): String {
+    return when (notes) {
+        is InstalledNotesStatus.Loaded -> notes.title
+
+        InstalledNotesStatus.Loading, is InstalledNotesStatus.Failed, InstalledNotesStatus.Hidden -> {
+            stringResource(R.string.about_updates_installed_version)
+        }
+    }
+}
+
+/**
+ * The content of the dialog showing the release notes of the installed version.
+ */
+@Composable
+private fun AboutUpdateInstalledNotesContent(
+    notes: InstalledNotesStatus,
     modifier: Modifier = Modifier,
 ) {
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = BoltTheme.spacings.double),
-        verticalArrangement = Arrangement.spacedBy(BoltTheme.spacings.half),
-    ) {
+    Column(modifier = modifier.verticalScroll(rememberScrollState())) {
         when (notes) {
             InstalledNotesStatus.Hidden -> Unit
 
@@ -78,29 +129,49 @@ internal fun AboutUpdateInstalledNotes(
             }
 
             is InstalledNotesStatus.Loaded -> {
-                TextTitleMedium(text = notes.title)
-                TextBodyMedium(text = formatReleaseNotes(notes.notes, shorten = false))
-                if (isGithubReleaseUrl(notes.url)) {
-                    DisableSelection {
-                        ButtonOutlined(
-                            text = stringResource(R.string.about_updates_notes_open_on_github),
-                            onClick = { onOpenUrl(notes.url) },
-                        )
-                    }
+                SelectionContainer {
+                    TextBodyMedium(text = formatReleaseNotes(notes.notes, shorten = false))
                 }
             }
 
             is InstalledNotesStatus.Failed -> {
                 TextBodyMedium(text = stringResource(checkFailureMessageRes(notes.reason)))
-                DisableSelection {
-                    ButtonOutlined(
-                        text = stringResource(R.string.about_updates_retry_button),
-                        onClick = onRetryClick,
-                    )
-                }
             }
         }
     }
+}
+
+/**
+ * The buttons of the dialog showing the release notes of the installed version.
+ */
+@Composable
+private fun AboutUpdateInstalledNotesButtons(
+    notes: InstalledNotesStatus,
+    onRetryClick: () -> Unit,
+    onOpenUrl: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    if (notes is InstalledNotesStatus.Loaded) {
+        val url = notes.url
+        if (isGithubReleaseUrl(url)) {
+            ButtonText(
+                text = stringResource(R.string.about_updates_notes_open_on_github),
+                onClick = { onOpenUrl(url) },
+            )
+        }
+    }
+
+    if (notes is InstalledNotesStatus.Failed) {
+        ButtonText(
+            text = stringResource(R.string.about_updates_retry_button),
+            onClick = onRetryClick,
+        )
+    }
+
+    ButtonText(
+        text = stringResource(R.string.about_updates_notes_close),
+        onClick = onDismiss,
+    )
 }
 
 /**

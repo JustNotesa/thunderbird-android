@@ -30,6 +30,7 @@ internal interface AboutContract {
         data class OnAutoInstallWhenIdleChanged(val enabled: Boolean) : Event
         data object OnInstalledVersionClick : Event
         data object OnRetryInstalledNotes : Event
+        data object OnInstalledNotesDismiss : Event
         data object OnCheckForUpdatesClick : Event
         data object OnInstallClick : Event
         data object OnInstallDownloadedClick : Event

@@ -6,6 +6,7 @@ import android.os.SystemClock
 import android.text.format.Formatter
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewGroup
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.platform.ComposeView
@@ -29,6 +30,7 @@ import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import org.robolectric.shadows.ShadowDialog
 
 class AboutUpdatesSectionTest {
 
@@ -281,6 +283,28 @@ class AboutUpdatesSectionUiTest {
         assertThat(installButtonNode).isNull()
     }
 
+    @Test
+    fun `the release notes of the installed version are shown in a dialog that can be closed`() {
+        val dismissals = mutableListOf<Boolean>()
+        createComposeView(
+            installedNotes = InstalledNotesStatus.Loaded(
+                title = "Thunderbird 9.9.9",
+                notes = RELEASE_NOTES_TEXT,
+                url = RELEASE_NOTES_URL,
+            ),
+            onInstalledNotesDismiss = { dismissals.add(true) },
+        )
+
+        val notesNode = findDialogTextNode(RELEASE_NOTES_TEXT)
+        val closeNode = findDialogTextNode(CLOSE_BUTTON_LABEL)
+        assertThat(notesNode).isNotNull()
+        assertThat(closeNode).isNotNull()
+
+        tapDialog(closeNode!!.boundsInRoot.center)
+
+        assertThat(dismissals).containsExactly(true)
+    }
+
     private fun findTextNode(composeView: ComposeView, text: String): SemanticsNode? {
         return findNode(composeView) { node ->
             node.config.contains(SemanticsProperties.Text) &&
@@ -288,12 +312,46 @@ class AboutUpdatesSectionUiTest {
         }
     }
 
+    private fun findDialogTextNode(text: String): SemanticsNode? {
+        val rootView = findDialogRootView() ?: return null
+        val owner = rootView as ViewRootForTest
+
+        return findNode(owner.semanticsOwner.unmergedRootSemanticsNode) { node ->
+            node.config.contains(SemanticsProperties.Text) &&
+                node.config[SemanticsProperties.Text].joinToString { it.text }.contains(text)
+        }
+    }
+
+    /**
+     * The dialog showing the release notes is displayed in its own window. This returns the root view of that window.
+     */
+    private fun findDialogRootView(): View? {
+        val dialog = ShadowDialog.getLatestDialog() ?: return null
+        val window = dialog.window ?: return null
+
+        return findRootView(window.decorView)
+    }
+
+    private fun findRootView(view: View): View? {
+        if (view is ViewRootForTest) return view
+
+        if (view is ViewGroup) {
+            for (index in 0 until view.childCount) {
+                findRootView(view.getChildAt(index))?.let { return it }
+            }
+        }
+
+        return null
+    }
+
     private fun createComposeView(
         install: UpdateInstallState = UpdateInstallState.Idle,
+        installedNotes: InstalledNotesStatus = InstalledNotesStatus.Hidden,
         onAutoCheckChange: (Boolean) -> Unit = {},
         onCancelInstallClick: () -> Unit = {},
         onRefreshDownloadClick: () -> Unit = {},
         onInstallDownloadedClick: () -> Unit = {},
+        onInstalledNotesDismiss: () -> Unit = {},
     ): ComposeView {
         val activity = Robolectric.buildActivity(ComponentActivity::class.java).setup().get()
         val composeView = ComposeView(activity)
@@ -310,7 +368,7 @@ class AboutUpdatesSectionUiTest {
                         check = CheckStatus.Available(update = createAppUpdate()),
                         install = install,
                         canInstallPackages = true,
-                        installedNotes = InstalledNotesStatus.Hidden,
+                        installedNotes = installedNotes,
                     ),
                     onAutoCheckChange = onAutoCheckChange,
                     onBackgroundDownloadChange = {},
@@ -318,6 +376,7 @@ class AboutUpdatesSectionUiTest {
                     onAutoInstallWhenIdleChange = {},
                     onInstalledVersionClick = {},
                     onRetryInstalledNotes = {},
+                    onInstalledNotesDismiss = onInstalledNotesDismiss,
                     onCheckClick = {},
                     onInstallClick = {},
                     onInstallDownloadedClick = onInstallDownloadedClick,
@@ -360,21 +419,28 @@ class AboutUpdatesSectionUiTest {
         return node.children.firstNotNullOfOrNull { findNode(it, predicate) }
     }
 
-    private fun tap(composeView: ComposeView, position: Offset) {
+    private fun tapDialog(position: Offset) {
+        val rootView = findDialogRootView()
+        assertThat(rootView).isNotNull()
+
+        tap(rootView!!, position)
+    }
+
+    private fun tap(view: View, position: Offset) {
         val downTime = SystemClock.uptimeMillis()
-        dispatchTouchEvent(composeView, MotionEvent.ACTION_DOWN, position, downTime)
-        dispatchTouchEvent(composeView, MotionEvent.ACTION_UP, position, downTime)
+        dispatchTouchEvent(view, MotionEvent.ACTION_DOWN, position, downTime)
+        dispatchTouchEvent(view, MotionEvent.ACTION_UP, position, downTime)
         idle()
     }
 
     private fun dispatchTouchEvent(
-        composeView: ComposeView,
+        view: View,
         action: Int,
         position: Offset,
         downTime: Long,
     ) {
         val event = MotionEvent.obtain(downTime, SystemClock.uptimeMillis(), action, position.x, position.y, 0)
-        composeView.dispatchTouchEvent(event)
+        view.dispatchTouchEvent(event)
         event.recycle()
     }
 
@@ -393,10 +459,13 @@ class AboutUpdatesSectionUiTest {
         const val VERSION_TAG = "mein-thunderbird-2026-10-25"
         const val CANCEL_BUTTON_LABEL = "Cancel"
         const val CHECK_STATUS_BUTTON_LABEL = "Check status"
+        const val CLOSE_BUTTON_LABEL = "Close"
         const val INSTALL_BUTTON_LABEL = "Download and install"
         const val INSTALL_NOW_BUTTON_LABEL = "Install now"
         const val INSTALLING_PROGRESS_TEXT = "Android is installing the update…"
         const val INSTALLING_HINT_TEXT = "tap the notification “Thunderbird updated”"
+        const val RELEASE_NOTES_TEXT = "Some release notes of the installed version"
+        const val RELEASE_NOTES_URL = "https://github.com/JustNotesa/thunderbird-android/releases/tag/1.0"
         const val WAITING_FOR_NETWORK_TEXT = "Waiting for an internet connection…"
         const val MAX_LOOPER_TASKS = 500
         const val WIDTH = 1080

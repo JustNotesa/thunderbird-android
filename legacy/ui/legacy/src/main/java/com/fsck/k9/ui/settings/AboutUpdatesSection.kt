@@ -39,6 +39,7 @@ internal fun AboutUpdatesSection(
     onAutoInstallWhenIdleChange: (Boolean) -> Unit,
     onInstalledVersionClick: () -> Unit,
     onRetryInstalledNotes: () -> Unit,
+    onInstalledNotesDismiss: () -> Unit,
     onCheckClick: () -> Unit,
     onInstallClick: () -> Unit,
     onInstallDownloadedClick: () -> Unit,
@@ -63,12 +64,6 @@ internal fun AboutUpdatesSection(
             AboutUpdateInstalledVersionRow(
                 versionTag = state.currentVersionTag,
                 onClick = onInstalledVersionClick,
-            )
-
-            AboutUpdateInstalledNotes(
-                notes = state.installedNotes,
-                onRetryClick = onRetryInstalledNotes,
-                onOpenUrl = onOpenUrl,
             )
 
             DisableSelection {
@@ -107,6 +102,13 @@ internal fun AboutUpdatesSection(
             }
         }
     }
+
+    AboutUpdateInstalledNotesDialog(
+        notes = state.installedNotes,
+        onRetryClick = onRetryInstalledNotes,
+        onOpenUrl = onOpenUrl,
+        onDismiss = onInstalledNotesDismiss,
+    )
 }
 
 @Composable
