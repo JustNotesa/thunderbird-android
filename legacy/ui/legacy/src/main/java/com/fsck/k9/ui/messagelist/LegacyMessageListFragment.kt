@@ -331,7 +331,8 @@ class LegacyMessageListFragment :
     private var initialMessageListLoad = true
 
     /**
-     * The messages that were loaded last. They are displayed again when the user changes the filters.
+     * The messages that were loaded last. They are displayed again when the user changes the filters or when messages
+     * are removed from the list for an action that can be undone.
      */
     private var lastMessageListInfo: MessageListInfo? = null
 
@@ -350,7 +351,6 @@ class LegacyMessageListFragment :
     private var error: Error? = null
 
     private var messageListSwipeCallback: MessageListSwipeCallback? = null
-    private var lastMessageListInfo: MessageListInfo? = null
     private var undoSnackbar: Snackbar? = null
 
     /**
@@ -2807,9 +2807,7 @@ class LegacyMessageListFragment :
     private fun setMessageList(messageListInfo: MessageListInfo, fromLoader: Boolean = true) {
         lastMessageListInfo = messageListInfo
 
-        if (fromLoader) {
-            hiddenUntilReload = emptySet()
-        }
+        if (fromLoader) hiddenUntilReload = emptySet()
 
         val messageListItems = messageListInfo.messageListItems
         if (isThreadDisplay && messageListItems.isEmpty()) {
@@ -2841,9 +2839,7 @@ class LegacyMessageListFragment :
                 add(MessageListViewItem.InAppNotificationBannerList)
             }
             searchStatus?.let { add(MessageListViewItem.SearchStatus(it, searchScope)) }
-            addAll(displayedMessageListItems(messageListItems).filterNot {
-                pendingMessageAction.isPending(it.messageReference) || it.messageReference in hiddenUntilReload
-            }.map { MessageListViewItem.Message(it) })
+            addAll(visibleMessageListItems(messageListItems).map { MessageListViewItem.Message(it) })
             // Keep the current footer (e.g. remote search progress) across list rebuilds.
             // updateFooterText() below recomputes it when no remote search is running.
             adapter.viewItems.filterIsInstance<MessageListViewItem.Footer>().firstOrNull()?.let { add(it) }
@@ -2888,6 +2884,16 @@ class LegacyMessageListFragment :
     /**
      * Only the messages that match the filters the user has set are displayed.
      */
+    /**
+     * The messages that are shown: those that match the search filters and are not hidden while an action on them can
+     * still be undone.
+     */
+    private fun visibleMessageListItems(messageListItems: List<MessageListItem>): List<MessageListItem> {
+        return displayedMessageListItems(messageListItems).filterNot {
+            pendingMessageAction.isPending(it.messageReference) || it.messageReference in hiddenUntilReload
+        }
+    }
+
     private fun displayedMessageListItems(messageListItems: List<MessageListItem>): List<MessageListItem> {
         if (!isManualSearch || searchFilters.isEmpty) return messageListItems
 
