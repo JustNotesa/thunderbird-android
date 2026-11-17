@@ -73,6 +73,12 @@ internal class PushNotificationManager(
             .setLocalOnly(true)
             .setShowWhen(false)
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
+            .apply {
+                if (notificationState == PushNotificationState.ALARM_PERMISSION_MISSING) {
+                    val explanationText = resourceProvider.pushNotificationAlarmPermissionExplanationText()
+                    setStyle(NotificationCompat.BigTextStyle().bigText(explanationText))
+                }
+            }
             .build()
     }
 

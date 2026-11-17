@@ -49,4 +49,7 @@ class K9CoreResourceProvider(
 
     override fun pushNotificationGrantAlarmPermissionText(): String =
         context.getString(R.string.push_notification_grant_alarm_permission)
+
+    override fun pushNotificationAlarmPermissionExplanationText(): String =
+        context.getString(R.string.push_notification_alarm_permission_explanation)
 }

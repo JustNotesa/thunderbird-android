@@ -990,6 +990,7 @@
     <string name="general_settings_post_mark_as_unread_action_return_to_list">Zurück zur Nachrichtenliste</string>
     <string name="push_notification_state_alarm_permission_missing">Push: Erlaubnis „Wecker &amp; Erinnerungen“ fehlt</string>
     <string name="push_notification_grant_alarm_permission">Antippen und erlauben, damit die App neue E-Mails per Push vom Server erhält.</string>
+    <string name="push_notification_alarm_permission_explanation">Bei Push hält die App eine Verbindung zum Mail-Server offen, damit der Server neue E-Mails sofort melden kann. Damit die Verbindung auch im Ruhezustand des Handys bestehen bleibt, muss die App sich regelmäßig kurz wecken und sie auffrischen. Dafür braucht sie die Erlaubnis „Wecker &amp; Erinnerungen“. Antippen, um sie zu erteilen. Ohne Push prüft die App stattdessen in festen Abständen auf neue E-Mails.</string>
     <string name="dialog_openkeychain_info_text">Die App OpenKeychain ist erforderlich, um die Unterstützung für die Ende-zu-Ende-Verschlüsselung zu aktivieren.</string>
     <string name="account_delete_dlg_instructions_fmt">Das Konto \"<xliff:g id="account">%1$s</xliff:g>\" wird aus <xliff:g id="app_name">%2$s</xliff:g> entfernt.</string>
     <string name="about_title">Über <xliff:g id="app_name">%s</xliff:g></string>

@@ -32,4 +32,6 @@ class TestCoreResourceProvider : CoreResourceProvider {
 
     override fun pushNotificationInfoText(): String = throw UnsupportedOperationException("not implemented")
     override fun pushNotificationGrantAlarmPermissionText() = throw UnsupportedOperationException("not implemented")
+    override fun pushNotificationAlarmPermissionExplanationText() =
+        throw UnsupportedOperationException("not implemented")
 }

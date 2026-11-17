@@ -75,4 +75,8 @@ class FakeCoreResourceProvider : CoreResourceProvider {
     override fun pushNotificationGrantAlarmPermissionText(): String {
         throw UnsupportedOperationException("not implemented")
     }
+
+    override fun pushNotificationAlarmPermissionExplanationText(): String {
+        throw UnsupportedOperationException("not implemented")
+    }
 }

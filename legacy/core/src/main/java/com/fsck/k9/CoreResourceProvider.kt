@@ -27,4 +27,5 @@ interface CoreResourceProvider {
     fun pushNotificationText(notificationState: PushNotificationState): String
     fun pushNotificationInfoText(): String
     fun pushNotificationGrantAlarmPermissionText(): String
+    fun pushNotificationAlarmPermissionExplanationText(): String
 }
