@@ -988,8 +988,8 @@
     <string name="general_settings_post_mark_as_unread_action_stay">Bei der aktuellen Nachricht bleiben</string>
     <string name="general_settings_post_mark_as_unread_action_title">Nachdem eine Nachricht als ungelesen markiert wurde</string>
     <string name="general_settings_post_mark_as_unread_action_return_to_list">Zurück zur Nachrichtenliste</string>
-    <string name="push_notification_state_alarm_permission_missing">Fehlende Berechtigung zur Zeitplanung von Alarmen</string>
-    <string name="push_notification_grant_alarm_permission">Antippen, um die Berechtigung zu erteilen.</string>
+    <string name="push_notification_state_alarm_permission_missing">Push: Erlaubnis „Wecker &amp; Erinnerungen“ fehlt</string>
+    <string name="push_notification_grant_alarm_permission">Antippen und erlauben, damit die App neue E-Mails per Push vom Server erhält.</string>
     <string name="dialog_openkeychain_info_text">Die App OpenKeychain ist erforderlich, um die Unterstützung für die Ende-zu-Ende-Verschlüsselung zu aktivieren.</string>
     <string name="account_delete_dlg_instructions_fmt">Das Konto \"<xliff:g id="account">%1$s</xliff:g>\" wird aus <xliff:g id="app_name">%2$s</xliff:g> entfernt.</string>
     <string name="about_title">Über <xliff:g id="app_name">%s</xliff:g></string>

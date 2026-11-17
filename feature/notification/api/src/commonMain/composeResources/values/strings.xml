@@ -40,9 +40,9 @@
     <string name="push_notification_state_listening">Waiting for new emails</string>
     <string name="push_notification_state_wait_background_sync">Sleeping until background sync is allowed</string>
     <string name="push_notification_state_wait_network">Sleeping until network is available</string>
-    <string name="push_notification_state_alarm_permission_missing">Missing permission to schedule alarms</string>
+    <string name="push_notification_state_alarm_permission_missing">Push: “Alarms &amp; reminders” permission missing</string>
     <string name="push_notification_info">Tap to learn more.</string>
-    <string name="push_notification_grant_alarm_permission">Tap to grant permission.</string>
+    <string name="push_notification_grant_alarm_permission">Tap and allow it so the app can receive new emails from the server via Push.</string>
 
     <string name="push_info_disable_push_action">Disable Push</string>
 

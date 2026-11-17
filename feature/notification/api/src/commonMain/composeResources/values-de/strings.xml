@@ -22,9 +22,9 @@
     <string name="push_notification_state_listening">Warte auf neue E-Mails</string>
     <string name="push_notification_state_wait_background_sync">Wartet, bis die Hintergrundsynchronisation erlaubt ist</string>
     <string name="push_notification_state_wait_network">Wartet, bis ein Netzwerk verfügbar ist</string>
-    <string name="push_notification_state_alarm_permission_missing">Fehlende Berechtigung zur Zeitplanung von Alarmen</string>
+    <string name="push_notification_state_alarm_permission_missing">Push: Erlaubnis „Wecker &amp; Erinnerungen“ fehlt</string>
     <string name="push_notification_info">Antippen, um mehr zu erfahren.</string>
-    <string name="push_notification_grant_alarm_permission">Antippen, um die Berechtigung zu erteilen.</string>
+    <string name="push_notification_grant_alarm_permission">Antippen und erlauben, damit die App neue E-Mails per Push vom Server erhält.</string>
     <string name="push_info_disable_push_action">Push deaktivieren</string>
     <string name="notification_action_reply">Antworten</string>
     <string name="notification_action_mark_as_read">Gelesen</string>
