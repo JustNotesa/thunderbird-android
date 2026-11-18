@@ -88,6 +88,47 @@ class CreateFolderOperationsTest : RobolectricTest() {
         )
     }
 
+    @Test
+    fun `create folder with existing server id does not add a second row`() {
+        createFolderOperations.createFolders(listOf(createCreateFolderInfo(serverId = "folder1", name = "Inbox")))
+
+        createFolderOperations.createFolders(listOf(createCreateFolderInfo(serverId = "folder1", name = "Inbox")))
+
+        val folders = sqliteDatabase.readFolders()
+        assertThat(folders.filter { it.serverId == "folder1" }).hasSize(1)
+        assertThat(folders).hasSize(1)
+    }
+
+    @Test
+    fun `create folder with existing server id returns id of existing folder`() {
+        val firstIds = createFolderOperations.createFolders(
+            listOf(createCreateFolderInfo(serverId = "folder1", name = "Inbox")),
+        )
+
+        val secondIds = createFolderOperations.createFolders(
+            listOf(createCreateFolderInfo(serverId = "folder1", name = "Inbox")),
+        )
+
+        assertThat(firstIds).hasSize(1)
+        assertThat(secondIds).isEqualTo(firstIds)
+    }
+
+    @Test
+    fun `create new folders next to an existing one only adds the new ones`() {
+        createFolderOperations.createFolders(listOf(createCreateFolderInfo(serverId = "folder1", name = "Inbox")))
+
+        val ids = createFolderOperations.createFolders(
+            listOf(
+                createCreateFolderInfo(serverId = "folder1", name = "Inbox"),
+                createCreateFolderInfo(serverId = "folder2", name = "Sent"),
+            ),
+        )
+
+        assertThat(ids).hasSize(2)
+        assertThat(sqliteDatabase.readFolders().mapNotNull { it.serverId }.sorted())
+            .isEqualTo(listOf("folder1", "folder2"))
+    }
+
     fun createCreateFolderInfo(serverId: String, name: String): CreateFolderInfo {
         return CreateFolderInfo(
             serverId = serverId,

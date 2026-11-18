@@ -1,6 +1,7 @@
 package com.fsck.k9.storage.messages
 
 import android.content.ContentValues
+import android.database.sqlite.SQLiteDatabase
 import app.k9mail.legacy.mailstore.CreateFolderInfo
 import com.fsck.k9.mailstore.LockableDatabase
 import com.fsck.k9.mailstore.toDatabaseFolderType
@@ -29,10 +30,23 @@ internal class CreateFolderOperations(
                     put("account_id", accountId.toString())
                 }
 
-                db.insert("folders", null, values)
-                    .takeIf { it != -1L }
-                    ?.let(::add)
+                // Two concurrent folder list refreshes can both try to create the same folders. Inside this
+                // transaction the second one sees the rows of the first one and must not insert duplicates.
+                val existingFolderId = findFolderId(db, folder.serverId)
+                if (existingFolderId != null) {
+                    add(existingFolderId)
+                } else {
+                    db.insert("folders", null, values)
+                        .takeIf { it != -1L }
+                        ?.let(::add)
+                }
             }
+        }
+    }
+
+    private fun findFolderId(db: SQLiteDatabase, serverId: String): Long? {
+        return db.query("folders", arrayOf("id"), "server_id = ?", arrayOf(serverId), null, null, null).use { cursor ->
+            if (cursor.moveToFirst()) cursor.getLong(0) else null
         }
     }
 }
