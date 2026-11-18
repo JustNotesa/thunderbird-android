@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Typeface
 import android.text.SpannableString
+import android.text.SpannableStringBuilder
 import android.text.style.StyleSpan
 import android.util.AttributeSet
 import androidx.core.content.res.TypedArrayUtils
@@ -36,26 +37,27 @@ constructor(
         isEnabled = false
     }
 
-    fun setFolders(folders: List<RemoteFolder>) {
-        entries = (listOf(noFolderSelectedName) + getFolderServerIds(folders)).toTypedArray()
+    fun setFolders(folders: List<RemoteFolder>, folderText: (RemoteFolder) -> CharSequence) {
+        entries = (listOf(noFolderSelectedName) + folders.map(folderText)).toTypedArray()
         entryValues = (listOf(NO_FOLDER_SELECTED_VALUE) + getFolderValues(folders)).toTypedArray()
         isEnabled = true
     }
 
-    fun setFolders(folders: List<RemoteFolder>, automaticFolder: RemoteFolder?) {
+    fun setFolders(
+        folders: List<RemoteFolder>,
+        automaticFolder: RemoteFolder?,
+        folderText: (RemoteFolder) -> CharSequence,
+    ) {
         val automaticFolderName = if (automaticFolder != null) {
-            automaticFolder.serverId
+            folderText(automaticFolder)
         } else {
             context.getString(R.string.account_settings_no_folder_selected)
         }
         val automaticFolderValue = AUTOMATIC_PREFIX + (automaticFolder?.id?.toString() ?: NO_FOLDER_VALUE)
 
-        automaticFolderOption = context.getString(
-            R.string.account_settings_automatic_special_folder,
-            automaticFolderName,
-        ).italicize()
+        automaticFolderOption = formatAutomaticFolderOption(automaticFolderName).italicize()
 
-        entries = (listOf(automaticFolderOption) + noFolderSelectedName + getFolderServerIds(folders)).toTypedArray()
+        entries = (listOf(automaticFolderOption) + noFolderSelectedName + folders.map(folderText)).toTypedArray()
         entryValues =
             (listOf(automaticFolderValue) + NO_FOLDER_SELECTED_VALUE + getFolderValues(folders)).toTypedArray()
 
@@ -70,15 +72,24 @@ constructor(
             entries.isEmpty() -> PLACEHOLDER_SUMMARY
             value == NO_FOLDER_SELECTED_VALUE -> noFolderSelectedName
             value.startsWith(AUTOMATIC_PREFIX) -> automaticFolderOption
-            else -> super.getSummary()
+            else -> entry ?: super.getSummary()
         }
     }
 
-    private fun getFolderServerIds(folders: List<RemoteFolder>) = folders.map { it.serverId }
+    /**
+     * Inserts the folder text into the "Automatic (%s)" template without losing the folder text's spans.
+     */
+    private fun formatAutomaticFolderOption(folderName: CharSequence): CharSequence {
+        val template = context.getString(R.string.account_settings_automatic_special_folder)
+        val placeholder = FORMAT_PLACEHOLDER.find(template) ?: return template
+
+        return SpannableStringBuilder(template)
+            .replace(placeholder.range.first, placeholder.range.last + 1, folderName)
+    }
 
     private fun getFolderValues(folders: List<RemoteFolder>) = folders.map { MANUAL_PREFIX + it.id.toString() }
 
-    private fun String.italicize(): CharSequence {
+    private fun CharSequence.italicize(): CharSequence {
         return SpannableString(this).apply { setSpan(StyleSpan(Typeface.ITALIC), 0, this.length, 0) }
     }
 
@@ -89,5 +100,6 @@ constructor(
         const val NO_FOLDER_VALUE = ""
         private const val NO_FOLDER_SELECTED_VALUE = MANUAL_PREFIX + NO_FOLDER_VALUE
         private const val PLACEHOLDER_SUMMARY = " "
+        private val FORMAT_PLACEHOLDER = Regex("%(1\\$)?s")
     }
 }

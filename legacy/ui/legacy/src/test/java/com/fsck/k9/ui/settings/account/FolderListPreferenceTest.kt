@@ -1,10 +1,15 @@
 package com.fsck.k9.ui.settings.account
 
 import android.content.Context
+import android.graphics.Typeface
+import android.text.SpannableString
+import android.text.Spanned
+import android.text.style.StyleSpan
 import androidx.test.core.app.ApplicationProvider
 import assertk.assertThat
 import assertk.assertions.contains
 import assertk.assertions.containsExactly
+import assertk.assertions.hasSize
 import com.fsck.k9.K9RobolectricTest
 import com.fsck.k9.ui.R
 import net.thunderbird.feature.mail.folder.FolderType
@@ -25,7 +30,7 @@ class FolderListPreferenceTest : K9RobolectricTest() {
         // Arrange
 
         // Act
-        testSubject.setFolders(folders)
+        testSubject.setFolders(folders) { it.serverId }
 
         // Assert
         assertThat(testSubject.entries.map { it.toString() }).containsExactly(
@@ -40,7 +45,7 @@ class FolderListPreferenceTest : K9RobolectricTest() {
         // Arrange
 
         // Act
-        testSubject.setFolders(folders, trash)
+        testSubject.setFolders(folders, trash) { it.serverId }
 
         // Assert
         assertThat(testSubject.entries[0].toString()).contains("INBOX.Trash")
@@ -51,7 +56,7 @@ class FolderListPreferenceTest : K9RobolectricTest() {
         // Arrange
 
         // Act
-        testSubject.setFolders(folders)
+        testSubject.setFolders(folders) { it.serverId }
 
         // Assert
         assertThat(testSubject.entryValues.map { it.toString() }).containsExactly(
@@ -66,7 +71,7 @@ class FolderListPreferenceTest : K9RobolectricTest() {
         // Arrange
 
         // Act
-        testSubject.setFolders(folders, trash)
+        testSubject.setFolders(folders, trash) { it.serverId }
 
         // Assert
         assertThat(testSubject.entryValues.map { it.toString() }).containsExactly(
@@ -75,6 +80,23 @@ class FolderListPreferenceTest : K9RobolectricTest() {
             "MANUAL|1",
             "MANUAL|2",
         )
+    }
+
+    @Test
+    fun `automatic folder option should keep the spans of the folder text`() {
+        // Arrange
+        val boldFolderText: (RemoteFolder) -> CharSequence = { folder ->
+            SpannableString(folder.serverId).apply { setSpan(StyleSpan(Typeface.BOLD), 0, length, 0) }
+        }
+
+        // Act
+        testSubject.setFolders(folders, trash, boldFolderText)
+
+        // Assert
+        val automaticOption = testSubject.entries[0] as Spanned
+        val boldSpans = automaticOption.getSpans(0, automaticOption.length, StyleSpan::class.java)
+            .filter { it.style == Typeface.BOLD }
+        assertThat(boldSpans).hasSize(1)
     }
 
     private fun createRemoteFolder(id: Long, name: String, serverId: String, type: FolderType): RemoteFolder {

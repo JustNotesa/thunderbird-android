@@ -42,6 +42,7 @@ import com.takisoft.preferencex.PreferenceFragmentCompat
 import net.thunderbird.core.android.account.AccountDefaultsProvider.Companion.NO_OPENPGP_KEY
 import net.thunderbird.core.android.account.LegacyAccount
 import net.thunderbird.core.android.account.LegacyAccountManager
+import net.thunderbird.core.common.mail.Protocols
 import net.thunderbird.core.common.provider.AppNameProvider
 import net.thunderbird.feature.account.AccountId
 import net.thunderbird.feature.account.AccountIdFactory
@@ -498,26 +499,43 @@ class AccountSettingsFragment : PreferenceFragmentCompat(), ConfirmationDialogFr
     private fun loadFolders(accountId: AccountId) {
         viewModel.getFolders(accountId).observe(this@AccountSettingsFragment) { remoteFolderInfo ->
             if (remoteFolderInfo != null) {
-                setFolders(PREFERENCE_AUTO_SELECT_FOLDER, remoteFolderInfo.folders)
-                setFolders(PREFERENCE_ARCHIVE_FOLDER, remoteFolderInfo, FolderType.ARCHIVE)
-                setFolders(PREFERENCE_DRAFTS_FOLDER, remoteFolderInfo, FolderType.DRAFTS)
-                setFolders(PREFERENCE_SENT_FOLDER, remoteFolderInfo, FolderType.SENT)
-                setFolders(PREFERENCE_SPAM_FOLDER, remoteFolderInfo, FolderType.SPAM)
-                setFolders(PREFERENCE_TRASH_FOLDER, remoteFolderInfo, FolderType.TRASH)
+                val account = getAccount()
+                val formatter = FolderPathFormatter(
+                    folders = remoteFolderInfo.folders,
+                    pathDelimiter = account.folderPathDelimiter,
+                    useServerPath = account.incomingServerSettings.type == Protocols.IMAP,
+                )
+                val folderText: (RemoteFolder) -> CharSequence = { formatter.buildText(requireContext(), it) }
+
+                setFolders(PREFERENCE_AUTO_SELECT_FOLDER, remoteFolderInfo.folders, folderText)
+                setFolders(PREFERENCE_ARCHIVE_FOLDER, remoteFolderInfo, FolderType.ARCHIVE, folderText)
+                setFolders(PREFERENCE_DRAFTS_FOLDER, remoteFolderInfo, FolderType.DRAFTS, folderText)
+                setFolders(PREFERENCE_SENT_FOLDER, remoteFolderInfo, FolderType.SENT, folderText)
+                setFolders(PREFERENCE_SPAM_FOLDER, remoteFolderInfo, FolderType.SPAM, folderText)
+                setFolders(PREFERENCE_TRASH_FOLDER, remoteFolderInfo, FolderType.TRASH, folderText)
             }
         }
     }
 
-    private fun setFolders(preferenceKey: String, folders: List<RemoteFolder>) {
+    private fun setFolders(
+        preferenceKey: String,
+        folders: List<RemoteFolder>,
+        folderText: (RemoteFolder) -> CharSequence,
+    ) {
         val folderListPreference = findPreference(preferenceKey) as? FolderListPreference ?: return
-        folderListPreference.setFolders(folders)
+        folderListPreference.setFolders(folders, folderText)
     }
 
-    private fun setFolders(preferenceKey: String, remoteFolderInfo: RemoteFolderInfo, type: FolderType?) {
+    private fun setFolders(
+        preferenceKey: String,
+        remoteFolderInfo: RemoteFolderInfo,
+        type: FolderType?,
+        folderText: (RemoteFolder) -> CharSequence,
+    ) {
         val folderListPreference = findPreference(preferenceKey) as? FolderListPreference ?: return
 
         val automaticFolder = remoteFolderInfo.automaticSpecialFolders[type]
-        folderListPreference.setFolders(remoteFolderInfo.folders, automaticFolder)
+        folderListPreference.setFolders(remoteFolderInfo.folders, automaticFolder, folderText)
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
