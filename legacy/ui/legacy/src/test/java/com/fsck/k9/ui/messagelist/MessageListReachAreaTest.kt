@@ -34,4 +34,40 @@ class MessageListReachAreaTest {
 
         assertThat(result).isEqualTo(0)
     }
+
+    @Test
+    fun `extraBottomPadding() with short list should fill up the list height`() {
+        val result = testSubject.extraBottomPadding(
+            listHeight = 2000,
+            topPadding = 100,
+            contentHeight = 600,
+            bottomPadding = 200,
+        )
+
+        assertThat(result).isEqualTo(1100)
+    }
+
+    @Test
+    fun `extraBottomPadding() with long list should be zero`() {
+        val result = testSubject.extraBottomPadding(
+            listHeight = 2000,
+            topPadding = 0,
+            contentHeight = 5000,
+            bottomPadding = 200,
+        )
+
+        assertThat(result).isEqualTo(0)
+    }
+
+    @Test
+    fun `extraBottomPadding() with list that just fills the height should be zero`() {
+        val result = testSubject.extraBottomPadding(
+            listHeight = 2000,
+            topPadding = 0,
+            contentHeight = 1800,
+            bottomPadding = 200,
+        )
+
+        assertThat(result).isEqualTo(0)
+    }
 }

@@ -238,6 +238,7 @@ class LegacyMessageListFragment :
     private var bottomBarHeight = 0
     private var bannerTopPadding = 0
     private var reachAreaHeight = 0
+    private var reachAreaExtraBottomPadding = 0
     private var isReachAreaScrollPending = false
     private var isScrollingPastReachArea = false
 
@@ -989,12 +990,8 @@ class LegacyMessageListFragment :
             bottomMargin = -bottomBarHeight
         }
 
-        val basePadding = if (isShowFloatingActionButton) {
-            resources.getDimensionPixelSize(R.dimen.floatingActionButtonSpacing)
-        } else {
-            0
-        }
-        view.findViewById<RecyclerView>(R.id.message_list).updatePadding(bottom = basePadding + bottomBarHeight)
+        view.findViewById<RecyclerView>(R.id.message_list)
+            .updatePadding(bottom = listBottomPadding() + reachAreaExtraBottomPadding)
     }
 
     private fun applyListTopPadding() {
@@ -1014,7 +1011,43 @@ class LegacyMessageListFragment :
             applyListTopPadding()
             isReachAreaScrollPending = newHeight > 0
         }
-        scrollPastReachAreaIfPending()
+
+        // How much the messages fill the list is only known once it has been laid out.
+        recyclerView.doOnPreDraw {
+            updateReachAreaExtraBottomPadding()
+            scrollPastReachAreaIfPending()
+        }
+    }
+
+    /**
+     * A list with only a few messages can't be scrolled far enough to move the first message to the top. It gets as
+     * much space below the messages as is needed for that, a long list gets none.
+     */
+    private fun updateReachAreaExtraBottomPadding() {
+        val recyclerView = recyclerView ?: return
+        val newExtra = if (reachAreaHeight > 0) {
+            MessageListReachArea.extraBottomPadding(
+                listHeight = recyclerView.height,
+                topPadding = bannerTopPadding,
+                contentHeight = recyclerView.computeVerticalScrollRange(),
+                bottomPadding = listBottomPadding(),
+            )
+        } else {
+            0
+        }
+        if (newExtra == reachAreaExtraBottomPadding) return
+
+        reachAreaExtraBottomPadding = newExtra
+        recyclerView.updatePadding(bottom = listBottomPadding() + newExtra)
+    }
+
+    private fun listBottomPadding(): Int {
+        val basePadding = if (isShowFloatingActionButton) {
+            resources.getDimensionPixelSize(R.dimen.floatingActionButtonSpacing)
+        } else {
+            0
+        }
+        return basePadding + bottomBarHeight
     }
 
     /**
@@ -1024,18 +1057,13 @@ class LegacyMessageListFragment :
         val recyclerView = recyclerView ?: return
         if (!isReachAreaScrollPending || reachAreaHeight <= 0) return
 
-        recyclerView.doOnPreDraw {
-            if (!isReachAreaScrollPending || reachAreaHeight <= 0) return@doOnPreDraw
-
-            isScrollingPastReachArea = true
-            try {
-                recyclerView.scrollBy(0, reachAreaHeight)
-            } finally {
-                isScrollingPastReachArea = false
-            }
-            // A list that is too short to scroll yet keeps trying when more messages arrive.
-            isReachAreaScrollPending = recyclerView.computeVerticalScrollOffset() < reachAreaHeight
+        isScrollingPastReachArea = true
+        try {
+            recyclerView.scrollBy(0, reachAreaHeight)
+        } finally {
+            isScrollingPastReachArea = false
         }
+        isReachAreaScrollPending = recyclerView.computeVerticalScrollOffset() < reachAreaHeight
     }
 
     private fun requireCoordinatorLayout(): CoordinatorLayout {
@@ -1299,6 +1327,7 @@ class LegacyMessageListFragment :
         coordinatorLayout = null
         recyclerView = null
         reachAreaHeight = 0
+        reachAreaExtraBottomPadding = 0
         bannerTopPadding = 0
         isReachAreaScrollPending = false
         messageListSwipeCallback = null

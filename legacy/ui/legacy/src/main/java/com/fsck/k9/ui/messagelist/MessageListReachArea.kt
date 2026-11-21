@@ -19,4 +19,17 @@ internal object MessageListReachArea {
 
         return (listHeight * LIST_HEIGHT_FRACTION).toInt()
     }
+
+    /**
+     * The space needed below the messages so that the list can be scrolled far enough to move the first message to
+     * the top, i.e. past the reach area. A list that is long enough already can, and gets no extra space.
+     *
+     * @param listHeight The height of the message list in pixels.
+     * @param topPadding The part of the top padding that isn't the reach area (the in-app notification banner).
+     * @param contentHeight The height of all messages, without any padding.
+     * @param bottomPadding The bottom padding the list has anyway.
+     */
+    fun extraBottomPadding(listHeight: Int, topPadding: Int, contentHeight: Int, bottomPadding: Int): Int {
+        return (listHeight - topPadding - contentHeight - bottomPadding).coerceAtLeast(0)
+    }
 }
