@@ -114,6 +114,8 @@ class SettingsProvider : ContentProvider(), KoinComponent {
             "net.thunderbird.android.beta" to "056bfafb450249502fd9226228704c2529e1b822da06760d47a85c9557741fbd",
             // Thunderbird for Android (daily)
             "net.thunderbird.android.daily" to "c48d74a75c45cd362b0ff2c1e9756f541dee816163e3684a9fd59f6c3ae949b2",
+            // Mein Thunderbird (own build, own signing key)
+            "io.github.justnotesa.thunderbird" to "5d34ba1d7cf578fca9bcfd2a5f33e473beaad5fa356fe741f6cf18b539be2255",
         )
 
         val callerPackage = callingPackage ?: return false
