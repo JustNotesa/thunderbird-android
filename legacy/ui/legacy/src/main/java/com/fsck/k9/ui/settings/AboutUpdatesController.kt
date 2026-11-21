@@ -32,7 +32,6 @@ internal class AboutUpdatesController(
         stateHolder.set(
             UpdatesState(
                 currentVersionTag = checker.currentReleaseTag,
-                autoCheckEnabled = settings.autoCheckEnabled.value,
                 backgroundDownloadEnabled = settings.backgroundDownloadEnabled.value,
                 downloadOnlyOnWifi = settings.downloadOnlyOnWifi.value,
                 autoInstallWhenIdle = settings.autoInstallWhenIdle.value,
@@ -42,13 +41,9 @@ internal class AboutUpdatesController(
                 installedNotes = InstalledNotesStatus.Hidden,
             ),
         )
-        observeSettings()
+        observeSettings(settings = settings, stateHolder = stateHolder, scope = scope)
         installController.start()
         scope.launch { runCheck() }
-    }
-
-    fun onAutoCheckChanged(enabled: Boolean) {
-        settings.setAutoCheckEnabled(enabled)
     }
 
     fun onBackgroundDownloadChanged(enabled: Boolean) {
@@ -64,23 +59,14 @@ internal class AboutUpdatesController(
     }
 
     /**
-     * Shows the release notes of the installed version. Tapping the row again hides them.
+     * Shows the release notes of the installed version in a dialog. Does nothing when the dialog is already open.
      */
     fun onInstalledVersionClick() {
         val current = stateHolder.state.value ?: return
+        if (current.installedNotes !is InstalledNotesStatus.Hidden) return
 
-        when (current.installedNotes) {
-            InstalledNotesStatus.Hidden -> {
-                stateHolder.update { it.copy(installedNotes = InstalledNotesStatus.Loading) }
-                scope.launch { loadInstalledNotes() }
-            }
-
-            InstalledNotesStatus.Loading -> Unit
-
-            is InstalledNotesStatus.Loaded, is InstalledNotesStatus.Failed -> {
-                stateHolder.update { it.copy(installedNotes = InstalledNotesStatus.Hidden) }
-            }
-        }
+        stateHolder.update { it.copy(installedNotes = InstalledNotesStatus.Loading) }
+        scope.launch { loadInstalledNotes() }
     }
 
     /**
@@ -94,34 +80,18 @@ internal class AboutUpdatesController(
         scope.launch { loadInstalledNotes() }
     }
 
+    /**
+     * Hides the release notes of the installed version and closes the dialog showing them.
+     */
+    fun onInstalledNotesDismiss() {
+        stateHolder.update { it.copy(installedNotes = InstalledNotesStatus.Hidden) }
+    }
+
     fun onCheckForUpdatesClick() {
         val current = stateHolder.state.value ?: return
         if (current.check is CheckStatus.Checking) return
 
         scope.launch { runCheck() }
-    }
-
-    private fun observeSettings() {
-        scope.launch {
-            settings.autoCheckEnabled.collect { enabled ->
-                stateHolder.update { it.copy(autoCheckEnabled = enabled) }
-            }
-        }
-        scope.launch {
-            settings.backgroundDownloadEnabled.collect { enabled ->
-                stateHolder.update { it.copy(backgroundDownloadEnabled = enabled) }
-            }
-        }
-        scope.launch {
-            settings.downloadOnlyOnWifi.collect { enabled ->
-                stateHolder.update { it.copy(downloadOnlyOnWifi = enabled) }
-            }
-        }
-        scope.launch {
-            settings.autoInstallWhenIdle.collect { enabled ->
-                stateHolder.update { it.copy(autoInstallWhenIdle = enabled) }
-            }
-        }
     }
 
     private suspend fun runCheck() {
@@ -148,6 +118,34 @@ internal class AboutUpdatesController(
             ReleaseNotesResult.Disabled -> InstalledNotesStatus.Hidden
         }
 
+        val current = stateHolder.state.value ?: return
+        if (current.installedNotes != InstalledNotesStatus.Loading) return
+
         stateHolder.update { it.copy(installedNotes = status) }
+    }
+}
+
+/**
+ * Keeps the state of the update settings in sync with the values the user selected.
+ */
+private fun observeSettings(
+    settings: AppUpdateSettings,
+    stateHolder: AboutUpdatesStateHolder,
+    scope: CoroutineScope,
+) {
+    scope.launch {
+        settings.backgroundDownloadEnabled.collect { enabled ->
+            stateHolder.update { it.copy(backgroundDownloadEnabled = enabled) }
+        }
+    }
+    scope.launch {
+        settings.downloadOnlyOnWifi.collect { enabled ->
+            stateHolder.update { it.copy(downloadOnlyOnWifi = enabled) }
+        }
+    }
+    scope.launch {
+        settings.autoInstallWhenIdle.collect { enabled ->
+            stateHolder.update { it.copy(autoInstallWhenIdle = enabled) }
+        }
     }
 }

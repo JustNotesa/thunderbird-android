@@ -1194,8 +1194,8 @@
     <string name="about_updates_notes_loading">Versionshinweise werden geladen…</string>
     <!-- Button that opens the release notes of the installed version on GitHub -->
     <string name="about_updates_notes_open_on_github">Auf GitHub öffnen</string>
-    <!-- Label of the switch that enables checking for updates automatically -->
-    <string name="about_updates_auto_check">Automatisch nach Updates suchen</string>
+    <!-- Button that closes the dialog showing the release notes of the installed version -->
+    <string name="about_updates_notes_close">Schließen</string>
     <!-- Label of the switch that enables downloading updates in the background -->
     <string name="about_updates_background_download">Updates im Hintergrund herunterladen</string>
     <!-- Label of the switch that limits the background download to Wi-Fi -->

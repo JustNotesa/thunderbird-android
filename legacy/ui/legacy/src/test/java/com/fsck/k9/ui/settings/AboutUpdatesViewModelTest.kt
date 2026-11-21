@@ -8,6 +8,7 @@ import assertk.assertions.isNull
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.setMain
 import net.thunderbird.feature.updater.api.AppUpdate
@@ -125,16 +126,6 @@ class AboutUpdatesViewModelTest {
     }
 
     @Test
-    fun `changing the auto check switch updates the settings`() {
-        val testSubject = createViewModel()
-
-        testSubject.event(AboutContract.Event.OnAutoCheckChanged(false))
-
-        assertThat(settings.setAutoCheckEnabledCount).isEqualTo(1)
-        assertThat(testSubject.state.value.updates?.autoCheckEnabled).isEqualTo(false)
-    }
-
-    @Test
     fun `changing the background download switch updates the settings`() {
         val testSubject = createViewModel()
 
@@ -182,15 +173,48 @@ class AboutUpdatesViewModelTest {
     }
 
     @Test
-    fun `the release notes of the installed version are hidden when the version is tapped again`() {
+    fun `the release notes of the installed version are hidden when the dialog is dismissed`() {
+        checker.releaseNotesResult = releaseNotes
+        val testSubject = createViewModel()
+
+        testSubject.event(AboutContract.Event.OnInstalledVersionClick)
+        testSubject.event(AboutContract.Event.OnInstalledNotesDismiss)
+
+        assertThat(testSubject.state.value.updates?.installedNotes).isEqualTo(InstalledNotesStatus.Hidden)
+    }
+
+    @Test
+    fun `the release notes of the installed version stay visible when the version is tapped again`() {
         checker.releaseNotesResult = releaseNotes
         val testSubject = createViewModel()
 
         testSubject.event(AboutContract.Event.OnInstalledVersionClick)
         testSubject.event(AboutContract.Event.OnInstalledVersionClick)
 
-        assertThat(testSubject.state.value.updates?.installedNotes).isEqualTo(InstalledNotesStatus.Hidden)
+        assertThat(testSubject.state.value.updates?.installedNotes).isEqualTo(
+            InstalledNotesStatus.Loaded(
+                title = "Mein Thunderbird 2026-10-25",
+                notes = "Some release notes",
+                url = RELEASE_NOTES_URL,
+            ),
+        )
         assertThat(checker.installedReleaseNotesCount).isEqualTo(1)
+    }
+
+    @Test
+    fun `release notes that are loaded after the dialog was dismissed are not shown`() {
+        val dispatcher = StandardTestDispatcher()
+        Dispatchers.setMain(dispatcher)
+        checker.releaseNotesResult = releaseNotes
+        val testSubject = createViewModel()
+
+        testSubject.event(AboutContract.Event.OnInstalledVersionClick)
+        testSubject.event(AboutContract.Event.OnInstalledNotesDismiss)
+
+        dispatcher.scheduler.advanceUntilIdle()
+
+        assertThat(checker.installedReleaseNotesCount).isEqualTo(1)
+        assertThat(testSubject.state.value.updates?.installedNotes).isEqualTo(InstalledNotesStatus.Hidden)
     }
 
     @Test

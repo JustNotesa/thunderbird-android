@@ -33,12 +33,12 @@ internal const val INDICATOR_SIZE = 24
 @Composable
 internal fun AboutUpdatesSection(
     state: UpdatesState,
-    onAutoCheckChange: (Boolean) -> Unit,
     onBackgroundDownloadChange: (Boolean) -> Unit,
     onDownloadOnlyOnWifiChange: (Boolean) -> Unit,
     onAutoInstallWhenIdleChange: (Boolean) -> Unit,
     onInstalledVersionClick: () -> Unit,
     onRetryInstalledNotes: () -> Unit,
+    onInstalledNotesDismiss: () -> Unit,
     onCheckClick: () -> Unit,
     onInstallClick: () -> Unit,
     onInstallDownloadedClick: () -> Unit,
@@ -65,16 +65,9 @@ internal fun AboutUpdatesSection(
                 onClick = onInstalledVersionClick,
             )
 
-            AboutUpdateInstalledNotes(
-                notes = state.installedNotes,
-                onRetryClick = onRetryInstalledNotes,
-                onOpenUrl = onOpenUrl,
-            )
-
             DisableSelection {
                 AboutUpdateSettings(
                     state = state,
-                    onAutoCheckChange = onAutoCheckChange,
                     onBackgroundDownloadChange = onBackgroundDownloadChange,
                     onDownloadOnlyOnWifiChange = onDownloadOnlyOnWifiChange,
                     onAutoInstallWhenIdleChange = onAutoInstallWhenIdleChange,
@@ -107,6 +100,13 @@ internal fun AboutUpdatesSection(
             }
         }
     }
+
+    AboutUpdateInstalledNotesDialog(
+        notes = state.installedNotes,
+        onRetryClick = onRetryInstalledNotes,
+        onOpenUrl = onOpenUrl,
+        onDismiss = onInstalledNotesDismiss,
+    )
 }
 
 @Composable

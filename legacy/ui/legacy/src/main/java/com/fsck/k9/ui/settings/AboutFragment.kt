@@ -123,9 +123,6 @@ class AboutFragment : Fragment() {
                                 ),
                             )
                         },
-                        onAutoCheckChange = { enabled ->
-                            dispatch(Event.OnAutoCheckChanged(enabled))
-                        },
                         onBackgroundDownloadChange = { enabled ->
                             dispatch(Event.OnBackgroundDownloadChanged(enabled))
                         },
@@ -140,6 +137,9 @@ class AboutFragment : Fragment() {
                         },
                         onRetryInstalledNotes = {
                             dispatch(Event.OnRetryInstalledNotes)
+                        },
+                        onInstalledNotesDismiss = {
+                            dispatch(Event.OnInstalledNotesDismiss)
                         },
                         onCheckForUpdatesClick = {
                             dispatch(Event.OnCheckForUpdatesClick)
@@ -245,12 +245,12 @@ fun AboutScreen(
     displayLicense: () -> Unit = {},
     displayWebSite: () -> Unit = {},
     displayForum: () -> Unit = {},
-    onAutoCheckChange: (Boolean) -> Unit = {},
     onBackgroundDownloadChange: (Boolean) -> Unit = {},
     onDownloadOnlyOnWifiChange: (Boolean) -> Unit = {},
     onAutoInstallWhenIdleChange: (Boolean) -> Unit = {},
     onInstalledVersionClick: () -> Unit = {},
     onRetryInstalledNotes: () -> Unit = {},
+    onInstalledNotesDismiss: () -> Unit = {},
     onCheckForUpdatesClick: () -> Unit = {},
     onInstallClick: () -> Unit = {},
     onInstallDownloadedClick: () -> Unit = {},
@@ -279,12 +279,12 @@ fun AboutScreen(
             updates?.let { updatesState ->
                 AboutUpdatesSection(
                     state = updatesState,
-                    onAutoCheckChange = onAutoCheckChange,
                     onBackgroundDownloadChange = onBackgroundDownloadChange,
                     onDownloadOnlyOnWifiChange = onDownloadOnlyOnWifiChange,
                     onAutoInstallWhenIdleChange = onAutoInstallWhenIdleChange,
                     onInstalledVersionClick = onInstalledVersionClick,
                     onRetryInstalledNotes = onRetryInstalledNotes,
+                    onInstalledNotesDismiss = onInstalledNotesDismiss,
                     onCheckClick = onCheckForUpdatesClick,
                     onInstallClick = onInstallClick,
                     onInstallDownloadedClick = onInstallDownloadedClick,

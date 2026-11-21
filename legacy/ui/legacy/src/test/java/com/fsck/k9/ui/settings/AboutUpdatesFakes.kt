@@ -41,14 +41,10 @@ internal class FakeAppUpdateChecker(
 }
 
 internal class FakeAppUpdateSettings(
-    initialAutoCheckEnabled: Boolean = true,
     initialBackgroundDownloadEnabled: Boolean = false,
     initialDownloadOnlyOnWifi: Boolean = true,
     initialAutoInstallWhenIdle: Boolean = false,
 ) : AppUpdateSettings {
-    private val autoCheckEnabledState = MutableStateFlow(initialAutoCheckEnabled)
-    override val autoCheckEnabled: StateFlow<Boolean> = autoCheckEnabledState.asStateFlow()
-
     private val backgroundDownloadEnabledState = MutableStateFlow(initialBackgroundDownloadEnabled)
     override val backgroundDownloadEnabled: StateFlow<Boolean> = backgroundDownloadEnabledState.asStateFlow()
 
@@ -58,19 +54,12 @@ internal class FakeAppUpdateSettings(
     private val autoInstallWhenIdleState = MutableStateFlow(initialAutoInstallWhenIdle)
     override val autoInstallWhenIdle: StateFlow<Boolean> = autoInstallWhenIdleState.asStateFlow()
 
-    var setAutoCheckEnabledCount: Int = 0
-        private set
     var setBackgroundDownloadEnabledCount: Int = 0
         private set
     var setDownloadOnlyOnWifiCount: Int = 0
         private set
     var setAutoInstallWhenIdleCount: Int = 0
         private set
-
-    override fun setAutoCheckEnabled(enabled: Boolean) {
-        setAutoCheckEnabledCount++
-        autoCheckEnabledState.value = enabled
-    }
 
     override fun setBackgroundDownloadEnabled(enabled: Boolean) {
         setBackgroundDownloadEnabledCount++

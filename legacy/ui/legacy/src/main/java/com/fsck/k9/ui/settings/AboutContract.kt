@@ -24,12 +24,12 @@ internal interface AboutContract {
         data object OnChangeLogClick : Event
         data class OnSectionContentClick(val url: String) : Event
         data class OnLibraryClick(val library: Library) : Event
-        data class OnAutoCheckChanged(val enabled: Boolean) : Event
         data class OnBackgroundDownloadChanged(val enabled: Boolean) : Event
         data class OnDownloadOnlyOnWifiChanged(val enabled: Boolean) : Event
         data class OnAutoInstallWhenIdleChanged(val enabled: Boolean) : Event
         data object OnInstalledVersionClick : Event
         data object OnRetryInstalledNotes : Event
+        data object OnInstalledNotesDismiss : Event
         data object OnCheckForUpdatesClick : Event
         data object OnInstallClick : Event
         data object OnInstallDownloadedClick : Event
@@ -50,7 +50,6 @@ internal interface AboutContract {
 @Stable
 data class UpdatesState(
     val currentVersionTag: String,
-    val autoCheckEnabled: Boolean,
     val backgroundDownloadEnabled: Boolean,
     val downloadOnlyOnWifi: Boolean,
     val autoInstallWhenIdle: Boolean,
