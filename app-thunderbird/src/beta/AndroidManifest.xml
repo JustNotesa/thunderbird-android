@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    >
+
+    <application>
+
+        <!-- The OAuth redirect URIs are registered at the providers for the scheme of Mozilla's Thunderbird Beta.
+             The own build "Mein Thunderbird" has a different application ID, so the redirect URIs of the app they
+             were registered for have to be accepted as well. -->
+        <activity
+            android:name="net.openid.appauth.RedirectUriReceiverActivity"
+            android:exported="true"
+            tools:node="merge"
+            >
+
+            <!-- The library's default intent filter with the scheme of Mozilla's Thunderbird Beta -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data android:scheme="net.thunderbird.android.beta" />
+            </intent-filter>
+
+            <!-- Microsoft uses a special redirect URI format for Android apps -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+
+                <data
+                    android:scheme="msauth"
+                    android:host="net.thunderbird.android.beta"
+                    />
+            </intent-filter>
+        </activity>
+
+    </application>
+</manifest>
