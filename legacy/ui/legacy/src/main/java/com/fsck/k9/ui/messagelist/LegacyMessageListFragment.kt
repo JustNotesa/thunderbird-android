@@ -236,6 +236,10 @@ class LegacyMessageListFragment :
     private var swipeRefreshLayout: SwipeRefreshLayout? = null
     private var floatingActionButton: FloatingActionButton? = null
     private var bottomBarHeight = 0
+    private var bannerTopPadding = 0
+    private var reachAreaHeight = 0
+    private var isReachAreaScrollPending = false
+    private var isScrollingPastReachArea = false
 
     private lateinit var adapter: MessageListAdapter
 
@@ -910,18 +914,23 @@ class LegacyMessageListFragment :
                         loadMoreMessagesIfEndIsNear()
                     }
 
-                    if (dy != 0) {
+                    if (dy != 0 && !isScrollingPastReachArea) {
                         fragmentListener.onMessageListScrolled(dy)
                     }
                 }
 
                 override fun onScrollStateChanged(recyclerView: RecyclerView, newState: Int) {
+                    if (newState == RecyclerView.SCROLL_STATE_DRAGGING) {
+                        // The user took over, the list stays where they leave it.
+                        isReachAreaScrollPending = false
+                    }
                     if (newState == RecyclerView.SCROLL_STATE_IDLE) {
                         downloadMissingPreviewsOfVisibleMessages()
                     }
                 }
             },
         )
+        recyclerView.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> updateReachArea() }
 
         val itemTouchHelper = ItemTouchHelper(
             MessageListSwipeCallback(
@@ -956,7 +965,8 @@ class LegacyMessageListFragment :
                             modifier = Modifier
                                 .animateContentSize()
                                 .onSizeChanged { size ->
-                                    recyclerView.updatePadding(top = size.height)
+                                    bannerTopPadding = size.height
+                                    applyListTopPadding()
                                 },
                         )
                     }
@@ -985,6 +995,47 @@ class LegacyMessageListFragment :
             0
         }
         view.findViewById<RecyclerView>(R.id.message_list).updatePadding(bottom = basePadding + bottomBarHeight)
+    }
+
+    private fun applyListTopPadding() {
+        recyclerView?.updatePadding(top = bannerTopPadding + reachAreaHeight)
+    }
+
+    /**
+     * With the toolbar at the bottom the list gets an empty area above the first message. It is part of the list's top
+     * padding (the list doesn't clip to its padding), so the positions of the items stay as they are.
+     */
+    private fun updateReachArea() {
+        val recyclerView = recyclerView ?: return
+        val hasMessages = adapter.viewItems.any { it is MessageListViewItem.Message }
+        val newHeight = MessageListReachArea.height(recyclerView.height, bottomBarHeight, hasMessages)
+        if (newHeight != reachAreaHeight) {
+            reachAreaHeight = newHeight
+            applyListTopPadding()
+            isReachAreaScrollPending = newHeight > 0
+        }
+        scrollPastReachAreaIfPending()
+    }
+
+    /**
+     * Normally the first message sits at the top of the list, the empty area is revealed by pulling the list down.
+     */
+    private fun scrollPastReachAreaIfPending() {
+        val recyclerView = recyclerView ?: return
+        if (!isReachAreaScrollPending || reachAreaHeight <= 0) return
+
+        recyclerView.doOnPreDraw {
+            if (!isReachAreaScrollPending || reachAreaHeight <= 0) return@doOnPreDraw
+
+            isScrollingPastReachArea = true
+            try {
+                recyclerView.scrollBy(0, reachAreaHeight)
+            } finally {
+                isScrollingPastReachArea = false
+            }
+            // A list that is too short to scroll yet keeps trying when more messages arrive.
+            isReachAreaScrollPending = recyclerView.computeVerticalScrollOffset() < reachAreaHeight
+        }
     }
 
     private fun requireCoordinatorLayout(): CoordinatorLayout {
@@ -1115,6 +1166,7 @@ class LegacyMessageListFragment :
 
         bottomBarHeight = height
         view?.let { applyBottomBarHeight(it) }
+        updateReachArea()
     }
 
     private fun setWindowProgress() {
@@ -1246,6 +1298,9 @@ class LegacyMessageListFragment :
         isWaitingForLoadedMessages = false
         coordinatorLayout = null
         recyclerView = null
+        reachAreaHeight = 0
+        bannerTopPadding = 0
+        isReachAreaScrollPending = false
         messageListSwipeCallback = null
         itemTouchHelper = null
         swipeRefreshLayout = null
@@ -2881,6 +2936,8 @@ class LegacyMessageListFragment :
             rememberedSelected = null
             adapter.restoreSelected(it)
         }
+
+        updateReachArea()
 
         // The messages that are visible are only known after the list has been laid out.
         recyclerView?.doOnPreDraw {
