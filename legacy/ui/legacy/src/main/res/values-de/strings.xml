@@ -12,6 +12,10 @@
     <string name="get_help_title">Hilfe erhalten</string>
     <string name="user_forum_title">Anwenderforum</string>
     <string name="about_libraries">Bibliotheken</string>
+    <plurals name="about_show_all_libraries_action">
+        <item quantity="one">Alle <xliff:g id="library_count">%1$d</xliff:g> Bibliotheken anzeigen</item>
+        <item quantity="other">Alle <xliff:g id="library_count">%1$d</xliff:g> Bibliotheken anzeigen</item>
+    </plurals>
     <string name="license">Lizenz</string>
     <string name="changelog_title">Änderungsprotokoll</string>
     <string name="changelog_loading_error">Änderungsprotokoll konnte nicht geladen werden.</string>

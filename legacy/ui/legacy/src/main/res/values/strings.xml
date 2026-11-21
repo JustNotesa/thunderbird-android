@@ -16,6 +16,10 @@
     <string name="get_help_title">Get help</string>
     <string name="user_forum_title">User forum</string>
     <string name="about_libraries">Libraries</string>
+    <plurals name="about_show_all_libraries_action">
+        <item quantity="one">Show all <xliff:g id="library_count">%1$d</xliff:g> libraries</item>
+        <item quantity="other">Show all <xliff:g id="library_count">%1$d</xliff:g> libraries</item>
+    </plurals>
     <string name="license">License</string>
     <string name="changelog_title">Changelog</string>
     <string name="changelog_loading_error">Couldn\'t load the changelog.</string>

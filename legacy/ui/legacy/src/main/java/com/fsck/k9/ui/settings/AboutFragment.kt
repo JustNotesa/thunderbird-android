@@ -25,16 +25,33 @@ import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.unit.dp
 import androidx.fragment.app.Fragment
 import net.thunderbird.components.ui.bolt.atom.Surface
+import net.thunderbird.components.ui.bolt.atom.icon.Icon
+import net.thunderbird.components.ui.bolt.atom.icon.Icons
 import net.thunderbird.components.ui.bolt.atom.text.TextBodyMedium
 import net.thunderbird.components.ui.bolt.atom.text.TextTitleMedium
 import net.thunderbird.components.ui.bolt.atom.text.TextTitleSmall
@@ -186,14 +203,82 @@ private fun Context.openUrl(url: String) {
     }
 }
 
+internal const val PEEK_LIBRARY_ALPHA = 0.35f
+
 @Composable
 private fun LibraryList(
     libraries: ImmutableList<Library>,
 ) {
+    var isExpandedByUser by rememberSaveable { mutableStateOf(false) }
+    val collapse = accountsSectionCollapse(
+        accountCount = libraries.size,
+        isExpandedByUser = isExpandedByUser,
+        isSelectionMode = false,
+    )
+    val showAllText = pluralStringResource(R.plurals.about_show_all_libraries_action, libraries.size, libraries.size)
+    val toggle = { isExpandedByUser = !isExpandedByUser }
+
     Column(modifier = Modifier.fillMaxWidth()) {
-        libraries.forEach { library ->
+        libraries.take(collapse.visibleCount).forEach { library ->
             LibraryItem(library = library)
         }
+
+        if (collapse.hasPeek) {
+            LibraryItem(
+                library = libraries[collapse.visibleCount],
+                modifier = Modifier
+                    .fadeOutTowardsBottom()
+                    .clearAndSetSemantics {
+                        contentDescription = showAllText
+                        onClick { toggle(); true }
+                    },
+                onClick = toggle,
+            )
+        }
+
+        if (collapse.isCollapsible) {
+            LibrariesToggle(
+                text = if (collapse.isExpanded) {
+                    stringResource(R.string.settings_show_fewer_accounts_action)
+                } else {
+                    showAllText
+                },
+                imageVector = if (collapse.isExpanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
+                onClick = toggle,
+            )
+        }
+    }
+}
+
+private fun Modifier.fadeOutTowardsBottom(): Modifier = this
+    .graphicsLayer {
+        alpha = PEEK_LIBRARY_ALPHA
+        compositingStrategy = CompositingStrategy.Offscreen
+    }
+    .drawWithContent {
+        drawContent()
+        drawRect(
+            brush = Brush.verticalGradient(colors = listOf(Color.Black, Color.Transparent)),
+            blendMode = BlendMode.DstIn,
+        )
+    }
+
+@Composable
+private fun LibrariesToggle(
+    text: String,
+    imageVector: ImageVector,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .clickable(onClick = onClick)
+            .padding(horizontal = BoltTheme.spacings.double, vertical = BoltTheme.spacings.oneHalf)
+            .fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(imageVector = imageVector)
+        Spacer(modifier = Modifier.width(BoltTheme.spacings.triple))
+        TextTitleMedium(text = text)
     }
 }
 
@@ -201,12 +286,13 @@ private fun LibraryList(
 fun LibraryItem(
     library: Library,
     modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
     Column(
         modifier = modifier
             .clickable(
-                onClick = { context.openUrl(library.url) },
+                onClick = onClick ?: { context.openUrl(library.url) },
             )
             .padding(
                 horizontal = BoltTheme.spacings.double,
