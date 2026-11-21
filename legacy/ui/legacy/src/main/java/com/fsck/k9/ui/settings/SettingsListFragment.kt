@@ -59,6 +59,7 @@ class SettingsListFragment : Fragment(), ItemTouchCallback {
     private var actionMode: ActionMode? = null
     private var accounts: List<LegacyAccount> = emptyList()
     private var isSelectionMode = false
+    private var isAccountsExpanded = false
 
     private val actionModeCallback = AccountSelectionActionModeCallback(
         onSelectAll = ::selectAllAccounts,
@@ -76,7 +77,13 @@ class SettingsListFragment : Fragment(), ItemTouchCallback {
         return inflater.inflate(R.layout.fragment_settings_list, container, false)
     }
 
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        outState.putBoolean(STATE_ACCOUNTS_EXPANDED, isAccountsExpanded)
+    }
+
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        isAccountsExpanded = savedInstanceState?.getBoolean(STATE_ACCOUNTS_EXPANDED) ?: isAccountsExpanded
         initializeSettingsList(recyclerView = view.findViewById(R.id.settings_list))
         observeAccounts()
         observeAccountSelection()
@@ -201,14 +208,41 @@ class SettingsListFragment : Fragment(), ItemTouchCallback {
 
     private fun SettingsListBuilder.addAccountsSection(accountList: List<LegacyAccount>) {
         addSection(title = getString(R.string.accounts_title)) {
-            val isDraggable = accountList.size > 1 && !isSelectionMode
+            val collapse = accountsSectionCollapse(accountList.size, isAccountsExpanded, isSelectionMode)
+            val isDraggable = accountList.size > 1 && !isSelectionMode && collapse.isExpanded
             val selectedAccountIds = viewModel.selection.value
-            for (account in accountList) {
+            for (account in accountList.take(collapse.visibleCount)) {
                 addAccount(
                     account = account,
                     isDraggable = isDraggable,
                     isSelectionMode = isSelectionMode,
                     selected = account.id in selectedAccountIds,
+                )
+            }
+
+            val showAllText = resources.getQuantityString(
+                R.plurals.settings_show_all_accounts_action,
+                accountList.size,
+                accountList.size,
+            )
+            if (collapse.hasPeek) {
+                addAccount(
+                    account = accountList[collapse.visibleCount],
+                    isDraggable = false,
+                    isSelectionMode = false,
+                    selected = false,
+                    peekDescription = showAllText,
+                )
+            }
+
+            if (collapse.isCollapsible && !isSelectionMode) {
+                addAccountsToggle(
+                    text = if (collapse.isExpanded) {
+                        getString(R.string.settings_show_fewer_accounts_action)
+                    } else {
+                        showAllText
+                    },
+                    icon = if (collapse.isExpanded) Icons.Outlined.ExpandLess else Icons.Outlined.ExpandMore,
                 )
             }
 
@@ -247,11 +281,17 @@ class SettingsListFragment : Fragment(), ItemTouchCallback {
 
     private fun handleItemClick(item: GenericItem) {
         when (item) {
-            is AccountItem -> handleAccountClick(item)
+            is AccountItem -> if (item.peekDescription != null) toggleAccountsExpanded() else handleAccountClick(item)
             is IntentItem -> if (!isSelectionMode) startActivity(item.intent)
             is SettingsActionItem -> if (!isSelectionMode) findNavController().navigate(item.navigationAction)
+            is AccountsToggleItem -> toggleAccountsExpanded()
             is UrlActionItem -> if (!isSelectionMode) openUrl(item.url)
         }
+    }
+
+    private fun toggleAccountsExpanded() {
+        isAccountsExpanded = !isAccountsExpanded
+        populateSettingsList(accounts)
     }
 
     private fun handleAccountClick(item: AccountItem) {
@@ -391,6 +431,11 @@ class SettingsListFragment : Fragment(), ItemTouchCallback {
             settingsList.add(SettingsActionItem(itemId, text, navigationAction, icon))
         }
 
+        fun addAccountsToggle(text: String, @DrawableRes icon: Int) {
+            itemId++
+            settingsList.add(AccountsToggleItem(itemId, text, icon))
+        }
+
         fun addUrlAction(text: String, url: String, @DrawableRes icon: Int) {
             itemId++
             settingsList.add(UrlActionItem(itemId, text, url, icon))
@@ -401,8 +446,9 @@ class SettingsListFragment : Fragment(), ItemTouchCallback {
             isDraggable: Boolean,
             isSelectionMode: Boolean,
             selected: Boolean,
+            peekDescription: String? = null,
         ) {
-            settingsList.add(AccountItem(account, isDraggable, isSelectionMode, selected))
+            settingsList.add(AccountItem(account, isDraggable, isSelectionMode, selected, peekDescription))
         }
 
         fun addIntent(text: String, @DrawableRes icon: Int, intent: Intent) {
@@ -451,5 +497,6 @@ class SettingsListFragment : Fragment(), ItemTouchCallback {
 
     companion object {
         private const val TAG_DELETE_ACCOUNTS = "delete_accounts_confirmation"
+        private const val STATE_ACCOUNTS_EXPANDED = "accounts_expanded"
     }
 }

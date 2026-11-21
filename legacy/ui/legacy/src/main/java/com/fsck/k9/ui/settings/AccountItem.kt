@@ -15,11 +15,14 @@ import com.mikepenz.fastadapter.items.AbstractItem
 import com.mikepenz.fastadapter.listeners.TouchEventHook
 import net.thunderbird.core.android.account.LegacyAccount
 
+internal const val PEEK_ACCOUNT_ALPHA = 0.35f
+
 internal class AccountItem(
     val account: LegacyAccount,
     override var isDraggable: Boolean,
     val isSelectionMode: Boolean = false,
     val selected: Boolean = false,
+    val peekDescription: String? = null,
 ) : AbstractItem<AccountItem.ViewHolder>(), IDraggable {
     override var identifier = 200L + account.accountNumber
 
@@ -49,12 +52,18 @@ internal class AccountItem(
             dragHandle.isGone = !item.isDraggable
             checkBox.isVisible = item.isSelectionMode
             checkBox.isChecked = item.selected
+
+            val isPeek = item.peekDescription != null
+            itemView.alpha = if (isPeek) PEEK_ACCOUNT_ALPHA else 1f
+            itemView.contentDescription = item.peekDescription
         }
 
         override fun unbindView(item: AccountItem) {
             name.text = null
             email.text = null
             checkBox.isChecked = false
+            itemView.alpha = 1f
+            itemView.contentDescription = null
         }
     }
 }

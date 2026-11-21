@@ -1007,6 +1007,11 @@
     <string name="settings_list_action_support">Support <xliff:g id="app_name">%s</xliff:g></string>
 
     <string name="settings_select_accounts_action">Konten auswählen</string>
+    <plurals name="settings_show_all_accounts_action">
+        <item quantity="one">Alle <xliff:g id="account_count">%1$d</xliff:g> Konten anzeigen</item>
+        <item quantity="other">Alle <xliff:g id="account_count">%1$d</xliff:g> Konten anzeigen</item>
+    </plurals>
+    <string name="settings_show_fewer_accounts_action">Weniger anzeigen</string>
     <plurals name="settings_selected_accounts_count">
         <item quantity="one"><xliff:g id="account_count">%1$d</xliff:g> ausgewählt</item>
         <item quantity="other"><xliff:g id="account_count">%1$d</xliff:g> ausgewählt</item>

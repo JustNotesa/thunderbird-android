@@ -1021,6 +1021,11 @@
     <string name="settings_list_action_support">Support <xliff:g id="app_name">%s</xliff:g></string>
 
     <string name="settings_select_accounts_action">Select accounts</string>
+    <plurals name="settings_show_all_accounts_action">
+        <item quantity="one">Show all <xliff:g id="account_count">%1$d</xliff:g> accounts</item>
+        <item quantity="other">Show all <xliff:g id="account_count">%1$d</xliff:g> accounts</item>
+    </plurals>
+    <string name="settings_show_fewer_accounts_action">Show fewer</string>
     <plurals name="settings_selected_accounts_count">
         <item quantity="one"><xliff:g id="account_count">%1$d</xliff:g> selected</item>
         <item quantity="other"><xliff:g id="account_count">%1$d</xliff:g> selected</item>
