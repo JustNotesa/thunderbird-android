@@ -7,16 +7,21 @@ import android.content.Intent
 import android.content.res.Configuration
 import android.os.Bundle
 import android.os.Parcelable
+import android.view.Gravity
 import android.view.KeyEvent
 import android.view.MenuItem
 import android.view.View
 import android.view.animation.AnimationUtils
+import android.widget.FrameLayout
 import android.widget.ProgressBar
+import android.widget.RelativeLayout
 import android.widget.Toast
 import androidx.activity.OnBackPressedCallback
 import androidx.appcompat.app.ActionBar
 import androidx.appcompat.view.ActionMode
+import androidx.core.view.ViewCompat
 import androidx.core.view.isGone
+import androidx.core.view.isInvisible
 import androidx.drawerlayout.widget.DrawerLayout
 import androidx.drawerlayout.widget.DrawerLayout.DrawerListener
 import androidx.fragment.app.Fragment
@@ -176,6 +181,14 @@ open class MessageHomeActivity :
     private var messageListWasDisplayed = false
     private var viewSwitcher: ViewSwitcher? = null
 
+    /**
+     * `true` when the toolbar of the message list should be displayed at the bottom of the screen.
+     */
+    private var isBottomAppBarEnabled = false
+    private var bottomBarScrollHider: BottomBarScrollHider? = null
+    private var isActionModeActive = false
+    private var isAppBarPositionApplied: Boolean? = null
+
     private val isShowAccountIndicator: Boolean
         get() = messageListFragment?.isShowAccountIndicator ?: true
 
@@ -199,6 +212,9 @@ open class MessageHomeActivity :
         openedFrom = FolderOrigin.entries.find { it.name == openedFromName }
         isOriginFolderDisplayed = savedInstanceState?.getBoolean(STATE_ORIGIN_FOLDER_DISPLAYED) ?: (openedFrom != null)
 
+        isBottomAppBarEnabled = !useSplitView() &&
+            generalSettingsManager.getConfig().display.inboxSettings.isMessageListBottomAppBar
+
         if (useSplitView()) {
             setLayout(R.layout.split_message_list)
         } else {
@@ -213,6 +229,7 @@ open class MessageHomeActivity :
         }
 
         initializeActionBar()
+        initializeBottomBar()
         initializeDrawer()
 
         if (!decodeExtras(intent)) {
@@ -681,6 +698,108 @@ open class MessageHomeActivity :
         actionBar.setDisplayShowTitleEnabled(false)
     }
 
+    /**
+     * Prepares the toolbar to be displayed at the bottom of the screen.
+     *
+     * The bar hides the lower edge of the message list, so the list needs to know how much space the bar takes up.
+     */
+    private fun initializeBottomBar() {
+        if (!isBottomAppBarEnabled) return
+
+        val appBar = findViewById<View>(R.id.app_bar_layout)
+        bottomBarScrollHider = BottomBarScrollHider(appBar)
+
+        appBar.addOnLayoutChangeListener { _, _, top, _, bottom, _, oldTop, _, oldBottom ->
+            if (bottom - top != oldBottom - oldTop) {
+                updateBottomBarHeight()
+            }
+        }
+
+        supportFragmentManager.registerFragmentLifecycleCallbacks(
+            object : FragmentManager.FragmentLifecycleCallbacks() {
+                override fun onFragmentViewCreated(
+                    fm: FragmentManager,
+                    f: Fragment,
+                    v: View,
+                    savedInstanceState: Bundle?,
+                ) {
+                    (f as? MessageListFragmentBridgeContract)?.setBottomBarHeight(currentBottomBarHeight())
+                }
+            },
+            false,
+        )
+    }
+
+    private fun currentBottomBarHeight(): Int {
+        return if (isAppBarAtBottom) findViewById<View>(R.id.app_bar_layout).height else 0
+    }
+
+    private fun updateBottomBarHeight() {
+        messageListFragment?.setBottomBarHeight(currentBottomBarHeight())
+    }
+
+    /**
+     * Moves the toolbar to the bottom of the screen, or back to the top, depending on what's displayed.
+     */
+    private fun updateAppBarPosition() {
+        if (!isBottomAppBarEnabled) return
+
+        val atBottom = isAppBarAtBottom
+        bottomBarScrollHider?.reset()
+
+        if (isAppBarPositionApplied == atBottom) {
+            updateBottomBarHeight()
+            return
+        }
+
+        isAppBarPositionApplied = atBottom
+
+        val appBarLayout = findViewById<View>(R.id.app_bar_layout)
+        val appBarLayoutParams = appBarLayout.layoutParams as RelativeLayout.LayoutParams
+        if (atBottom) {
+            appBarLayoutParams.removeRule(RelativeLayout.ALIGN_PARENT_TOP)
+            appBarLayoutParams.addRule(RelativeLayout.ALIGN_PARENT_BOTTOM)
+        } else {
+            appBarLayoutParams.removeRule(RelativeLayout.ALIGN_PARENT_BOTTOM)
+            appBarLayoutParams.addRule(RelativeLayout.ALIGN_PARENT_TOP)
+        }
+        appBarLayout.layoutParams = appBarLayoutParams
+
+        val contentContainer = findViewById<View>(R.id.content_container)
+        val contentContainerLayoutParams = contentContainer.layoutParams as RelativeLayout.LayoutParams
+        if (atBottom) {
+            contentContainerLayoutParams.removeRule(RelativeLayout.BELOW)
+        } else {
+            contentContainerLayoutParams.addRule(RelativeLayout.BELOW, R.id.app_bar_layout)
+        }
+        contentContainer.layoutParams = contentContainerLayoutParams
+
+        // Let the base activity pad the app bar and the content for the correct edges.
+        ViewCompat.requestApplyInsets(findViewById(R.id.coordinator_layout))
+
+        updateBottomBarHeight()
+    }
+
+    /**
+     * Moves the contextual action mode bar to the bottom of the screen, where the toolbar it replaces is.
+     *
+     * This keeps the selection actions within thumb reach and in the same place as the toolbar they take the place
+     * of. AppCompat only adds a top margin for the status bar, which a bottom gravity ignores.
+     */
+    private fun placeActionModeBar(atBottom: Boolean) {
+        val actionModeBar = findViewById<View>(androidx.appcompat.R.id.action_mode_bar) ?: return
+        val layoutParams = actionModeBar.layoutParams as? FrameLayout.LayoutParams ?: return
+
+        layoutParams.gravity = if (atBottom) Gravity.BOTTOM else Gravity.TOP
+        layoutParams.bottomMargin = if (atBottom) {
+            findViewById<View>(R.id.app_bar_layout).paddingBottom
+        } else {
+            0
+        }
+
+        actionModeBar.layoutParams = layoutParams
+    }
+
     private fun initializeDrawer() {
         if (!isDrawerEnabled) {
             val drawerLayout = findViewById<DrawerLayout>(R.id.navigation_drawer_layout)
@@ -807,6 +926,9 @@ open class MessageHomeActivity :
     }
 
     protected open val isDrawerEnabled: Boolean = true
+
+    override val isAppBarAtBottom: Boolean
+        get() = isBottomAppBarEnabled && displayMode == DisplayMode.MESSAGE_LIST
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         var eventHandled = false
@@ -1233,6 +1355,8 @@ open class MessageHomeActivity :
         if (displayMode == DisplayMode.SPLIT_VIEW) {
             showMessageViewPlaceHolder()
         }
+
+        updateAppBarPosition()
     }
 
     private fun addMessageListFragment(fragment: MessageListFragmentBridgeContract) {
@@ -1292,6 +1416,33 @@ open class MessageHomeActivity :
     override fun startSupportActionMode(callback: ActionMode.Callback): ActionMode? {
         collapseSearchView()
         return super.startSupportActionMode(callback)
+    }
+
+    override fun onSupportActionModeStarted(mode: ActionMode) {
+        super.onSupportActionModeStarted(mode)
+
+        isActionModeActive = true
+
+        if (!isAppBarAtBottom) return
+
+        bottomBarScrollHider?.reset()
+        findViewById<View>(R.id.toolbar).isInvisible = true
+        placeActionModeBar(atBottom = true)
+    }
+
+    override fun onSupportActionModeFinished(mode: ActionMode) {
+        super.onSupportActionModeFinished(mode)
+
+        isActionModeActive = false
+
+        findViewById<View>(R.id.toolbar).isInvisible = false
+        placeActionModeBar(atBottom = false)
+    }
+
+    override fun onMessageListScrolled(dy: Int) {
+        if (!isAppBarAtBottom || isActionModeActive || !isSearchViewCollapsed()) return
+
+        bottomBarScrollHider?.onScrolled(dy)
     }
 
     override fun showThread(accountId: AccountId, threadRootId: Long) {
@@ -1439,6 +1590,8 @@ open class MessageHomeActivity :
         showDefaultTitleView()
 
         onMessageListDisplayed()
+
+        updateAppBarPosition()
     }
 
     private fun setDrawerLockState() {
@@ -1468,6 +1621,8 @@ open class MessageHomeActivity :
         }
 
         showMessageTitleView()
+
+        updateAppBarPosition()
     }
 
     private fun showDefaultTitleView() {

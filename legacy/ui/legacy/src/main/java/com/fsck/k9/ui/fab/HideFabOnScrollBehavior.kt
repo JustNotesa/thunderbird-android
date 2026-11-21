@@ -19,9 +19,14 @@ import com.google.android.material.snackbar.Snackbar.SnackbarLayout
  * [HideBottomViewOnScrollBehavior]. The code in this class adjusts the vertical position of the FAB when a [Snackbar]
  * is visible. This is necessary because we (like many others) deliberately ignore the
  * [guideline](https://m3.material.io/components/snackbar/guidelines) to display a `Snackbar` above the FAB.
+ *
+ * The hidden FAB is also moved down by the bottom padding of the [CoordinatorLayout], so it ends up below a toolbar
+ * that overlays the bottom of the list.
  */
 class HideFabOnScrollBehavior(context: Context, attributes: AttributeSet) :
     HideBottomViewOnScrollBehavior<FloatingActionButton>(context, attributes) {
+
+    private var snackbarOffsetY = 0
 
     override fun onAttachedToLayoutParams(lp: CoordinatorLayout.LayoutParams) {
         if (lp.dodgeInsetEdges == Gravity.NO_GRAVITY) {
@@ -36,14 +41,21 @@ class HideFabOnScrollBehavior(context: Context, attributes: AttributeSet) :
         return dependency.isSnackbarLayout() || super.layoutDependsOn(parent, child, dependency)
     }
 
+    override fun onLayoutChild(parent: CoordinatorLayout, child: FloatingActionButton, layoutDirection: Int): Boolean {
+        val result = super.onLayoutChild(parent, child, layoutDirection)
+        updateHiddenOffset(parent, child)
+
+        return result
+    }
+
     override fun onDependentViewChanged(
         parent: CoordinatorLayout,
         child: FloatingActionButton,
         dependency: View,
     ): Boolean {
         if (dependency.isSnackbarLayout()) {
-            val additionalHiddenOffsetY = dependency.height + dependency.marginBottom
-            setAdditionalHiddenOffsetY(child, additionalHiddenOffsetY)
+            snackbarOffsetY = dependency.height + dependency.marginBottom
+            updateHiddenOffset(parent, child)
         }
 
         return false
@@ -53,8 +65,13 @@ class HideFabOnScrollBehavior(context: Context, attributes: AttributeSet) :
         super.onDependentViewRemoved(parent, child, dependency)
 
         if (dependency.isSnackbarLayout()) {
-            setAdditionalHiddenOffsetY(child, 0)
+            snackbarOffsetY = 0
+            updateHiddenOffset(parent, child)
         }
+    }
+
+    private fun updateHiddenOffset(parent: CoordinatorLayout, child: FloatingActionButton) {
+        setAdditionalHiddenOffsetY(child, parent.paddingBottom + snackbarOffsetY)
     }
 
     // SnackbarLayout is a restricted type that shouldn't be accessed from outside of its library. However, there
