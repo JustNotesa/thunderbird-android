@@ -9,6 +9,7 @@ import androidx.test.core.app.ApplicationProvider
 import assertk.assertThat
 import assertk.assertions.contains
 import assertk.assertions.containsExactly
+import assertk.assertions.doesNotContain
 import assertk.assertions.hasSize
 import com.fsck.k9.K9RobolectricTest
 import com.fsck.k9.ui.R
@@ -97,6 +98,35 @@ class FolderListPreferenceTest : K9RobolectricTest() {
         val boldSpans = automaticOption.getSpans(0, automaticOption.length, StyleSpan::class.java)
             .filter { it.style == Typeface.BOLD }
         assertThat(boldSpans).hasSize(1)
+    }
+
+    @Test
+    fun `summary should contain the folder text and the hint when a hint is set`() {
+        // Arrange
+        testSubject.setFolders(folders) { it.serverId }
+        testSubject.value = "MANUAL|2"
+
+        // Act
+        testSubject.summaryHint = "Hint text"
+
+        // Assert
+        val summary = testSubject.summary.toString()
+        assertThat(summary).contains("INBOX.Trash")
+        assertThat(summary).contains("Hint text")
+    }
+
+    @Test
+    fun `summary should not contain a hint when no hint is set`() {
+        // Arrange
+        testSubject.setFolders(folders) { it.serverId }
+        testSubject.value = "MANUAL|2"
+
+        // Act
+        val summary = testSubject.summary.toString()
+
+        // Assert
+        assertThat(summary).contains("INBOX.Trash")
+        assertThat(summary).doesNotContain("\n")
     }
 
     private fun createRemoteFolder(id: Long, name: String, serverId: String, type: FolderType): RemoteFolder {

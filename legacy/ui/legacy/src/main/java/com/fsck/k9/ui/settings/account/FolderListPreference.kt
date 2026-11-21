@@ -5,8 +5,12 @@ import android.content.Context
 import android.graphics.Typeface
 import android.text.SpannableString
 import android.text.SpannableStringBuilder
+import android.text.Spanned
+import android.text.style.ForegroundColorSpan
+import android.text.style.RelativeSizeSpan
 import android.text.style.StyleSpan
 import android.util.AttributeSet
+import android.util.TypedValue
 import androidx.core.content.res.TypedArrayUtils
 import androidx.preference.ListPreference
 import com.fsck.k9.ui.R
@@ -30,6 +34,15 @@ constructor(
 ) : ListPreference(context, attrs, defStyleAttr, defStyleRes) {
     private val noFolderSelectedName = context.getString(R.string.account_settings_no_folder_selected).italicize()
     private lateinit var automaticFolderOption: CharSequence
+
+    /**
+     * Optional explanation shown in a smaller, secondary-colored line below the summary.
+     */
+    var summaryHint: CharSequence? = null
+        set(value) {
+            field = value
+            notifyChanged()
+        }
 
     init {
         entries = emptyArray()
@@ -68,11 +81,40 @@ constructor(
         // While folders are being loaded the summary returned by ListPreference will be empty. This leads to the
         // summary view being hidden. Once folders are loaded the summary updates and the list height changes. This
         // adds quite a bit of visual clutter. We avoid that by returning a placeholder summary value.
-        return when {
-            entries.isEmpty() -> PLACEHOLDER_SUMMARY
+        if (entries.isEmpty()) return PLACEHOLDER_SUMMARY
+
+        val folderSummary = when {
             value == NO_FOLDER_SELECTED_VALUE -> noFolderSelectedName
             value.startsWith(AUTOMATIC_PREFIX) -> automaticFolderOption
             else -> entry ?: super.getSummary()
+        }
+
+        val hint = summaryHint
+        return if (hint.isNullOrEmpty()) folderSummary else appendHint(folderSummary, hint)
+    }
+
+    private fun appendHint(summary: CharSequence?, hint: CharSequence): CharSequence {
+        val hintStart = (summary?.length ?: 0) + 1
+        return SpannableStringBuilder().apply {
+            if (summary != null) append(summary)
+            append("\n")
+            append(hint)
+            setSpan(RelativeSizeSpan(HINT_RELATIVE_SIZE), hintStart, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            resolveSecondaryTextColor()?.let {
+                setSpan(ForegroundColorSpan(it), hintStart, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+            }
+        }
+    }
+
+    private fun resolveSecondaryTextColor(): Int? {
+        val typedValue = TypedValue()
+        if (!context.theme.resolveAttribute(android.R.attr.textColorSecondary, typedValue, true)) return null
+
+        return when {
+            typedValue.type in TypedValue.TYPE_FIRST_COLOR_INT..TypedValue.TYPE_LAST_COLOR_INT -> typedValue.data
+            typedValue.resourceId != 0 -> runCatching { context.getColorStateList(typedValue.resourceId).defaultColor }
+                .getOrNull()
+            else -> null
         }
     }
 
@@ -100,6 +142,7 @@ constructor(
         const val NO_FOLDER_VALUE = ""
         private const val NO_FOLDER_SELECTED_VALUE = MANUAL_PREFIX + NO_FOLDER_VALUE
         private const val PLACEHOLDER_SUMMARY = " "
+        private const val HINT_RELATIVE_SIZE = 0.9f
         private val FORMAT_PLACEHOLDER = Regex("%(1\\$)?s")
     }
 }

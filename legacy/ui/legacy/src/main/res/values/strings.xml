@@ -548,7 +548,8 @@
 
     <string name="account_setup_visibility_and_syncing">Visibility &amp; syncing</string>
     <string name="account_setup_incoming_subscribed_folders_only_label">Show only subscribed folders</string>
-    <string name="account_setup_auto_select_folder">Auto-select folder</string>
+    <string name="account_setup_auto_select_folder">Start folder</string>
+    <string name="account_settings_start_folder_hint">Opens when you open this account via its picture in the account list, from a notification or when the app starts.</string>
 
     <string name="account_setup_options_mail_check_frequency_never">Never</string>
     <string name="account_setup_options_mail_check_frequency_15min">Every 15 minutes</string>

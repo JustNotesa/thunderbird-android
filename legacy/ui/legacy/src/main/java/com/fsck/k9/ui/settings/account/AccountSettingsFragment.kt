@@ -523,6 +523,9 @@ class AccountSettingsFragment : PreferenceFragmentCompat(), ConfirmationDialogFr
         folderText: (RemoteFolder) -> CharSequence,
     ) {
         val folderListPreference = findPreference(preferenceKey) as? FolderListPreference ?: return
+        if (preferenceKey == PREFERENCE_AUTO_SELECT_FOLDER) {
+            folderListPreference.summaryHint = getString(R.string.account_settings_start_folder_hint)
+        }
         folderListPreference.setFolders(folders, folderText)
     }
 
