@@ -30,6 +30,11 @@ import net.thunderbird.components.ui.bolt.theme.BoltTheme
 private const val GITHUB_URL_PREFIX = "https://github.com/"
 private const val MAX_RELEASE_NOTES_LENGTH = 300
 
+private val MARKDOWN_BOLD_ASTERISKS = Regex("""\*\*(.+?)\*\*""")
+private val MARKDOWN_BOLD_UNDERSCORES = Regex("""__(.+?)__""")
+private val MARKDOWN_CODE = Regex("""`([^`]+)`""")
+private val MARKDOWN_LINK = Regex("""\[([^\]]+)]\([^)]*\)""")
+
 /**
  * The row showing the release tag of the installed version. Tapping it shows the release notes of that version.
  */
@@ -129,9 +134,7 @@ private fun AboutUpdateInstalledNotesContent(
             }
 
             is InstalledNotesStatus.Loaded -> {
-                SelectionContainer {
-                    TextBodyMedium(text = formatReleaseNotes(notes.notes, shorten = false))
-                }
+                SelectableReleaseNotes(releaseNotes = notes.notes)
             }
 
             is InstalledNotesStatus.Failed -> {
@@ -139,6 +142,50 @@ private fun AboutUpdateInstalledNotesContent(
             }
         }
     }
+}
+
+/**
+ * The full release notes as text that can be selected.
+ */
+@Composable
+private fun SelectableReleaseNotes(releaseNotes: String) {
+    SelectionContainer {
+        TextBodyMedium(text = formatReleaseNotes(releaseNotes, shorten = false))
+    }
+}
+
+/**
+ * The dialog showing the full release notes of an available update.
+ */
+@Composable
+internal fun AboutUpdateReleaseNotesDialog(
+    title: String,
+    releaseNotes: String,
+    onDismiss: () -> Unit,
+) {
+    BasicDialog(
+        onDismissRequest = onDismiss,
+        headline = {
+            TextHeadlineSmall(text = title)
+        },
+        content = {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                SelectableReleaseNotes(releaseNotes = releaseNotes)
+            }
+        },
+        buttons = {
+            ButtonText(
+                text = stringResource(R.string.about_updates_notes_close),
+                onClick = onDismiss,
+            )
+        },
+        contentPadding = PaddingValues(
+            start = BoltTheme.spacings.triple,
+            top = BoltTheme.spacings.oneHalf,
+            end = BoltTheme.spacings.triple,
+            bottom = BoltTheme.spacings.double,
+        ),
+    )
 }
 
 /**
@@ -182,13 +229,18 @@ internal fun isGithubReleaseUrl(url: String): Boolean {
 }
 
 /**
- * Returns the release notes without Markdown headings. When [shorten] is `true` the notes are shortened to
+ * Returns the release notes without Markdown headings and without inline Markdown (bold, code and links, of which only
+ * the text is kept). List markers and line breaks are kept. When [shorten] is `true` the notes are shortened to
  * [MAX_RELEASE_NOTES_LENGTH] characters.
  */
 internal fun formatReleaseNotes(releaseNotes: String, shorten: Boolean = true): String {
     val withoutHeadings = releaseNotes.lineSequence()
         .filterNot { line -> line.trimStart().startsWith("#") }
         .joinToString(separator = "\n")
+        .replace(MARKDOWN_BOLD_ASTERISKS, "$1")
+        .replace(MARKDOWN_BOLD_UNDERSCORES, "$1")
+        .replace(MARKDOWN_CODE, "$1")
+        .replace(MARKDOWN_LINK, "$1")
         .trim()
 
     return if (shorten && withoutHeadings.length > MAX_RELEASE_NOTES_LENGTH) {

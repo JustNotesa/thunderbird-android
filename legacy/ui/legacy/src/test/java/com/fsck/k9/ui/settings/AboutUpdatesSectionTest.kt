@@ -114,6 +114,42 @@ class AboutUpdatesSectionTest {
     }
 
     @Test
+    fun `release notes don't contain markdown bold markers`() {
+        val releaseNotes = "A **bold** and __strong__ text"
+
+        val result = formatReleaseNotes(releaseNotes)
+
+        assertThat(result).isEqualTo("A bold and strong text")
+    }
+
+    @Test
+    fun `release notes don't contain markdown code markers`() {
+        val releaseNotes = "Use the `fossBeta` variant"
+
+        val result = formatReleaseNotes(releaseNotes)
+
+        assertThat(result).isEqualTo("Use the fossBeta variant")
+    }
+
+    @Test
+    fun `release notes only keep the text of markdown links`() {
+        val releaseNotes = "See [the changelog](https://github.com/example/repo/releases) now"
+
+        val result = formatReleaseNotes(releaseNotes)
+
+        assertThat(result).isEqualTo("See the changelog now")
+    }
+
+    @Test
+    fun `release notes keep list markers and line breaks`() {
+        val releaseNotes = "- **First** change\n1. Second `change`"
+
+        val result = formatReleaseNotes(releaseNotes)
+
+        assertThat(result).isEqualTo("- First change\n1. Second change")
+    }
+
+    @Test
     fun `long release notes are shortened`() {
         val releaseNotes = "a".repeat(400)
 
@@ -305,6 +341,44 @@ class AboutUpdatesSectionUiTest {
         assertThat(dismissals).containsExactly(true)
     }
 
+    @Test
+    fun `the release notes of an available update are only shown after tapping the button`() {
+        val composeView = createComposeView(availableReleaseNotes = LONG_RELEASE_NOTES)
+
+        val notesNode = findTextNode(composeView, LONG_RELEASE_NOTES_END)
+        val buttonNode = findTextNode(composeView, SHOW_NOTES_BUTTON_LABEL)
+
+        assertThat(notesNode).isNull()
+        assertThat(buttonNode).isNotNull()
+    }
+
+    @Test
+    fun `the button to show the release notes is hidden when there are no release notes`() {
+        val composeView = createComposeView(availableReleaseNotes = "# Only a heading")
+
+        val buttonNode = findTextNode(composeView, SHOW_NOTES_BUTTON_LABEL)
+
+        assertThat(buttonNode).isNull()
+    }
+
+    @Test
+    fun `the full release notes of an available update are shown in a dialog that can be closed`() {
+        val composeView = createComposeView(availableReleaseNotes = LONG_RELEASE_NOTES)
+        val buttonNode = findTextNode(composeView, SHOW_NOTES_BUTTON_LABEL)
+        assertThat(buttonNode).isNotNull()
+
+        tap(composeView, buttonNode!!.boundsInRoot.center)
+
+        val notesNode = findDialogTextNode(LONG_RELEASE_NOTES_END)
+        val closeNode = findDialogTextNode(CLOSE_BUTTON_LABEL)
+        assertThat(notesNode).isNotNull()
+        assertThat(closeNode).isNotNull()
+
+        tapDialog(closeNode!!.boundsInRoot.center)
+
+        assertThat(findDialogTextNode(LONG_RELEASE_NOTES_END)).isNull()
+    }
+
     private fun findTextNode(composeView: ComposeView, text: String): SemanticsNode? {
         return findNode(composeView) { node ->
             node.config.contains(SemanticsProperties.Text) &&
@@ -342,6 +416,7 @@ class AboutUpdatesSectionUiTest {
     private fun createComposeView(
         install: UpdateInstallState = UpdateInstallState.Idle,
         installedNotes: InstalledNotesStatus = InstalledNotesStatus.Hidden,
+        availableReleaseNotes: String = "Release notes",
         onBackgroundDownloadChange: (Boolean) -> Unit = {},
         onCancelInstallClick: () -> Unit = {},
         onRefreshDownloadClick: () -> Unit = {},
@@ -359,7 +434,7 @@ class AboutUpdatesSectionUiTest {
                         backgroundDownloadEnabled = false,
                         downloadOnlyOnWifi = true,
                         autoInstallWhenIdle = false,
-                        check = CheckStatus.Available(update = createAppUpdate()),
+                        check = CheckStatus.Available(update = createAppUpdate(availableReleaseNotes)),
                         install = install,
                         canInstallPackages = true,
                         installedNotes = installedNotes,
@@ -392,10 +467,10 @@ class AboutUpdatesSectionUiTest {
         return composeView
     }
 
-    private fun createAppUpdate() = AppUpdate(
+    private fun createAppUpdate(releaseNotes: String) = AppUpdate(
         tag = VERSION_TAG,
         title = "Thunderbird 9.9.9",
-        releaseNotes = "Release notes",
+        releaseNotes = releaseNotes,
         apkUrl = "https://example.com/thunderbird.apk",
         apkSizeBytes = 1024L,
         apkSha256 = null,
@@ -457,6 +532,9 @@ class AboutUpdatesSectionUiTest {
         const val INSTALL_NOW_BUTTON_LABEL = "Install now"
         const val INSTALLING_PROGRESS_TEXT = "Android is installing the update…"
         const val INSTALLING_HINT_TEXT = "tap the notification “Thunderbird updated”"
+        const val SHOW_NOTES_BUTTON_LABEL = "Show release notes"
+        const val LONG_RELEASE_NOTES_END = "The very end of the long release notes"
+        val LONG_RELEASE_NOTES = "Fixed: ".padEnd(400, 'x') + "\n\n" + LONG_RELEASE_NOTES_END
         const val RELEASE_NOTES_TEXT = "Some release notes of the installed version"
         const val RELEASE_NOTES_URL = "https://github.com/JustNotesa/thunderbird-android/releases/tag/1.0"
         const val WAITING_FOR_NETWORK_TEXT = "Waiting for an internet connection…"

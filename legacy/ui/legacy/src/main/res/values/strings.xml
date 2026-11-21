@@ -1510,8 +1510,8 @@ You can keep this message and use it as a backup for your secret key. If you wan
     <string name="about_updates_check_failed_no_apk">The new version does not contain an installable file.</string>
     <!-- Headline shown when a newer release is available -->
     <string name="about_updates_available_headline">A new version is available</string>
-    <!-- Label of the release notes of a newer release -->
-    <string name="about_updates_release_notes_label">Release notes</string>
+    <!-- Button that shows the release notes of a newer release in a dialog -->
+    <string name="about_updates_show_release_notes">Show release notes</string>
     <!-- Size of the download of a newer release -->
     <string name="about_updates_size">Size: %1$s</string>
     <!-- Button that downloads and installs a newer release -->

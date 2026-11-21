@@ -12,6 +12,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.selection.DisableSelection
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -21,6 +25,7 @@ import com.fsck.k9.ui.R
 import net.thunderbird.components.ui.bolt.atom.CircularProgressIndicator
 import net.thunderbird.components.ui.bolt.atom.button.ButtonFilled
 import net.thunderbird.components.ui.bolt.atom.button.ButtonOutlined
+import net.thunderbird.components.ui.bolt.atom.button.ButtonText
 import net.thunderbird.components.ui.bolt.atom.text.TextBodyMedium
 import net.thunderbird.components.ui.bolt.atom.text.TextTitleMedium
 import net.thunderbird.components.ui.bolt.theme.BoltTheme
@@ -176,6 +181,7 @@ private fun AboutUpdateAvailable(
 
     val context = LocalContext.current
     val size = Formatter.formatShortFileSize(context, update.apkSizeBytes)
+    var showNotes by rememberSaveable { mutableStateOf(false) }
 
     Column(
         modifier = modifier
@@ -185,9 +191,15 @@ private fun AboutUpdateAvailable(
     ) {
         TextTitleMedium(text = stringResource(R.string.about_updates_available_headline))
         TextTitleMedium(text = update.title)
-        TextBodyMedium(text = stringResource(R.string.about_updates_release_notes_label))
-        TextBodyMedium(text = formatReleaseNotes(update.releaseNotes))
         TextBodyMedium(text = stringResource(R.string.about_updates_size, size))
+        if (formatReleaseNotes(update.releaseNotes, shorten = false).isNotBlank()) {
+            DisableSelection {
+                ButtonText(
+                    text = stringResource(R.string.about_updates_show_release_notes),
+                    onClick = { showNotes = true },
+                )
+            }
+        }
         if (showInstallButton) {
             DisableSelection {
                 ButtonFilled(
@@ -197,6 +209,14 @@ private fun AboutUpdateAvailable(
                 )
             }
         }
+    }
+
+    if (showNotes) {
+        AboutUpdateReleaseNotesDialog(
+            title = update.title,
+            releaseNotes = update.releaseNotes,
+            onDismiss = { showNotes = false },
+        )
     }
 }
 
