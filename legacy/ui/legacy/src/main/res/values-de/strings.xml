@@ -948,9 +948,9 @@
     <!--Name of setting to configure whether to show a "compose" floating action button on top of the message list-->
     <string name="general_settings_show_compose_button_title">Schwebendes Verfassen anzeigen</string>
     <!--Name of setting to configure whether to show the message list toolbar at the bottom of the screen-->
-    <string name="general_settings_bottom_app_bar_title">Einhandmodus/Bottombar</string>
+    <string name="general_settings_bottom_app_bar_title">Einhandmodus/Such- und Menüleiste unten</string>
     <!--Description of the setting to configure whether to show the message list toolbar at the bottom of the screen-->
-    <string name="general_settings_bottom_app_bar_summary">Leiste der Nachrichtenliste unten am Bildschirmrand, und die Liste lässt sich über die oberste Mail hinaus nach unten ziehen – alles in Reichweite des Daumens</string>
+    <string name="general_settings_bottom_app_bar_summary">Die Leiste der Nachrichtenliste mit Ordnername, Menü, Suche und Filter sitzt unten am Bildschirmrand, und die Liste lässt sich über die oberste Mail hinaus nach unten ziehen – alles in Reichweite des Daumens</string>
     <!--Displayed in the toolbar when there was an error loading the message list, e.g. because the folder no longer exists.-->
     <string name="message_list_error_title">Fehler</string>
     <!--Displayed instead of the message list when a folder couldn't be found, e.g. due to an outdated home screen shortcut.-->
