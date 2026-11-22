@@ -14,7 +14,7 @@ import org.junit.Test
 class SendCountdownTest {
     private val scheduler = FakeScheduler()
     private val listener = FakeListener()
-    private val testSubject = SendCountdown(seconds = SendCountdown.DEFAULT_SECONDS, scheduler = scheduler)
+    private val testSubject = SendCountdown(seconds = 3, scheduler = scheduler)
 
     @Test
     fun `start ticks the full number of seconds right away`() {

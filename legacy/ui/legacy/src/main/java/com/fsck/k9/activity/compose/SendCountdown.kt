@@ -135,6 +135,6 @@ class SendCountdown(private val seconds: Int, private val scheduler: Scheduler) 
 
     companion object {
         /** Default number of seconds the countdown runs for. */
-        const val DEFAULT_SECONDS = 3
+        const val DEFAULT_SECONDS = 5
     }
 }
