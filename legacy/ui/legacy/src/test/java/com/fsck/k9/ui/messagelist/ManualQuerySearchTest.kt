@@ -55,6 +55,19 @@ class ManualQuerySearchTest {
         assertThat(conditions.values()).containsOnly("alice example")
     }
 
+    @Test
+    fun `search without message contents should only look at the headers`() {
+        val testSubject = createManualQuerySearch("invoice", searchMessageContents = false)
+
+        assertThat(testSubject.conditions.fields()).containsExactlyInAnyOrder(
+            MessageSearchField.SENDER,
+            MessageSearchField.TO,
+            MessageSearchField.CC,
+            MessageSearchField.BCC,
+            MessageSearchField.SUBJECT,
+        )
+    }
+
     private fun SearchConditionTreeNode.values(): List<String> = getLeafSet().mapNotNull { it.condition?.value }
 
     private fun SearchConditionTreeNode.fields() = getLeafSet().mapNotNull { it.condition?.field }

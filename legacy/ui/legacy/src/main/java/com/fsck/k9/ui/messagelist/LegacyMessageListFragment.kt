@@ -1628,7 +1628,11 @@ class LegacyMessageListFragment :
         val startAccount = account
         val startFolder = currentFolder
         val isLimitedToFolder = searchScope == SearchScope.FOLDER && startAccount != null && startFolder != null
-        localSearch = createManualQuerySearch(queryString).apply {
+        val searchCriteria = createSearchCriteria(queryString, searchMessageContents)
+        localSearch = createManualQuerySearch(
+            queryString,
+            searchMessageContents = searchCriteria.textScope != ServerSearchCriteria.TextScope.HEADERS,
+        ).apply {
             if (isLimitedToFolder) {
                 addAccountId(startAccount!!.id)
                 addAllowedFolder(startFolder!!.databaseId)
@@ -1641,7 +1645,7 @@ class LegacyMessageListFragment :
         remoteSearchFuture = messagingController.searchRemoteMessagesCascading(
             account?.id,
             currentFolder?.databaseId,
-            createSearchCriteria(queryString, searchMessageContents),
+            searchCriteria,
             isLimitedToFolder,
             remoteSearchSearchedFolders.toSet(),
             RemoteSearchListener().also { remoteSearchListener = it },
