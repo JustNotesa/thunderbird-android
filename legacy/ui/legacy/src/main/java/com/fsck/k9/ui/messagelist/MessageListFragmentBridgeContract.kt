@@ -57,6 +57,12 @@ interface MessageListFragmentBridgeContract {
      * Height in pixels of the toolbar that overlays the bottom of the list, or 0 when the toolbar is at the top.
      */
     fun setBottomBarHeight(height: Int) = Unit
+
+    /**
+     * Whether the search filter bar and the back banner are displayed directly above the toolbar at the bottom
+     * instead of above the list.
+     */
+    fun setBannersAtBottom(atBottom: Boolean) = Unit
     // endregion [ methods used on MessageHomeActivity ]
 
     /**

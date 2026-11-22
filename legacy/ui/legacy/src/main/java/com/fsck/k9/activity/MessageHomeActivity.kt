@@ -723,7 +723,10 @@ open class MessageHomeActivity :
                     v: View,
                     savedInstanceState: Bundle?,
                 ) {
-                    (f as? MessageListFragmentBridgeContract)?.setBottomBarHeight(currentBottomBarHeight())
+                    (f as? MessageListFragmentBridgeContract)?.let {
+                        it.setBannersAtBottom(isBottomAppBarEnabled)
+                        it.setBottomBarHeight(currentBottomBarHeight())
+                    }
                 }
             },
             false,
@@ -740,6 +743,7 @@ open class MessageHomeActivity :
     }
 
     private fun updateBottomBarHeight() {
+        messageListFragment?.setBannersAtBottom(isBottomAppBarEnabled)
         messageListFragment?.setBottomBarHeight(currentBottomBarHeight())
     }
 

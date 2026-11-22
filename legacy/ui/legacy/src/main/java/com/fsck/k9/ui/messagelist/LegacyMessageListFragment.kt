@@ -34,6 +34,7 @@ import androidx.core.view.MenuProvider
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsCompat.Type.systemBars
+import androidx.core.view.children
 import androidx.core.view.isGone
 import androidx.core.view.doOnPreDraw
 import androidx.core.view.isVisible
@@ -241,6 +242,8 @@ class LegacyMessageListFragment :
     private var swipeRefreshLayout: SwipeRefreshLayout? = null
     private var floatingActionButton: FloatingActionButton? = null
     private var bottomBarHeight = 0
+    private var areBannersAtBottom = false
+    private var bottomBannersHeight = 0
     private var bannerTopPadding = 0
     private var reachAreaHeight = 0
     private var reachAreaExtraBottomPadding = 0
@@ -606,6 +609,7 @@ class LegacyMessageListFragment :
         initializeSearchFilterBar(view)
         initializeFloatingActionButton(view)
         initializeRecyclerView(view)
+        initializeBottomBanners(view)
         applyBottomBarHeight(view)
         initializeRecentChangesSnackbar()
 
@@ -922,7 +926,8 @@ class LegacyMessageListFragment :
                     }
 
                     if (dy != 0) {
-                        if (!isSnappingToTop) fragmentListener.onMessageListScrolled(dy)
+                        // The banners above the toolbar stay put, so the toolbar stays with them.
+                        if (!isSnappingToTop && !hasBottomBanners()) fragmentListener.onMessageListScrolled(dy)
                         if (recyclerView.scrollState != RecyclerView.SCROLL_STATE_IDLE) {
                             updateReachAreaRevealedByUser()
                         }
@@ -1008,6 +1013,58 @@ class LegacyMessageListFragment :
 
         view.findViewById<RecyclerView>(R.id.message_list)
             .updatePadding(bottom = listBottomPadding() + reachAreaExtraBottomPadding)
+
+        floatingActionButton?.updateLayoutParams<ViewGroup.MarginLayoutParams> {
+            bottomMargin = resources.getDimensionPixelSize(R.dimen.floatingActionButtonMargin) + bottomBannersHeight
+        }
+    }
+
+    private fun initializeBottomBanners(view: View) {
+        val container = view.findViewById<ViewGroup>(R.id.bottom_banners)
+        container.addOnLayoutChangeListener { _, _, top, _, bottom, _, oldTop, _, oldBottom ->
+            if (bottom - top == oldBottom - oldTop) return@addOnLayoutChangeListener
+
+            bottomBannersHeight = bottom - top
+            view.findViewById<RecyclerView>(R.id.message_list).let { list ->
+                list.updatePadding(bottom = listBottomPadding() + reachAreaExtraBottomPadding)
+            }
+            floatingActionButton?.updateLayoutParams<ViewGroup.MarginLayoutParams> {
+                bottomMargin = resources.getDimensionPixelSize(R.dimen.floatingActionButtonMargin) + bottomBannersHeight
+            }
+            updateReachArea()
+        }
+        applyBannerPlacement(view)
+    }
+
+    /**
+     * Puts the search filter bar and the back banner above the list, or directly above the toolbar at the bottom.
+     */
+    private fun applyBannerPlacement(view: View) {
+        val container = view.findViewById<ViewGroup>(R.id.bottom_banners) ?: return
+        val filterBar = view.findViewById<View>(R.id.search_filter_bar)
+        val backBanner = view.findViewById<View>(R.id.back_to_search_results)
+        val isAtBottom = container.indexOfChild(backBanner) >= 0
+
+        if (areBannersAtBottom == isAtBottom) return
+
+        listOf(backBanner, filterBar).forEach { (it.parent as? ViewGroup)?.removeView(it) }
+        if (areBannersAtBottom) {
+            container.addView(backBanner)
+            container.addView(filterBar)
+        } else {
+            val top = view.findViewById<RecyclerView>(R.id.message_list).parent as ViewGroup
+            top.addView(filterBar, 0)
+            top.addView(backBanner, 1)
+        }
+        if (!areBannersAtBottom) {
+            bottomBannersHeight = 0
+            applyBottomBarHeight(view)
+        }
+    }
+
+    private fun hasBottomBanners(): Boolean {
+        return areBannersAtBottom &&
+            view?.findViewById<ViewGroup>(R.id.bottom_banners)?.children?.any { it.isVisible } == true
     }
 
     private fun applyListTopPadding() {
@@ -1130,7 +1187,7 @@ class LegacyMessageListFragment :
         } else {
             0
         }
-        return basePadding + bottomBarHeight
+        return basePadding + bottomBarHeight + bottomBannersHeight
     }
 
     private fun requireCoordinatorLayout(): CoordinatorLayout {
@@ -1262,6 +1319,13 @@ class LegacyMessageListFragment :
         bottomBarHeight = height
         view?.let { applyBottomBarHeight(it) }
         updateReachArea()
+    }
+
+    override fun setBannersAtBottom(atBottom: Boolean) {
+        if (areBannersAtBottom == atBottom) return
+
+        areBannersAtBottom = atBottom
+        view?.let { applyBannerPlacement(it) }
     }
 
     private fun setWindowProgress() {

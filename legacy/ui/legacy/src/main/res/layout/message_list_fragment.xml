@@ -91,6 +91,18 @@
 
     </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
 
+    <!-- With the toolbar at the bottom the search filter bar and the back banner are moved in here, directly above the
+         toolbar. The CoordinatorLayout's bottom padding keeps this container above the toolbar. -->
+    <LinearLayout
+        android:id="@+id/bottom_banners"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:background="?attr/colorSurface"
+        android:elevation="4dp"
+        android:orientation="vertical"
+        />
+
 
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>
