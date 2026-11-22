@@ -84,6 +84,7 @@
         <activity
             android:name="com.fsck.k9.activity.MessageHomeActivity"
             android:launchMode="singleTop"
+            android:windowSoftInputMode="adjustResize"
             android:exported="true"
             >
             <intent-filter>
@@ -141,6 +142,7 @@
         <activity
             android:name="com.fsck.k9.activity.MessageSearchActivity"
             android:label="@string/search_action"
+            android:windowSoftInputMode="adjustResize"
             android:exported="false"
             />
 
