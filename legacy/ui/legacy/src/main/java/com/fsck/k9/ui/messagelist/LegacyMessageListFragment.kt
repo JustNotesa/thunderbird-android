@@ -3,8 +3,10 @@ package com.fsck.k9.ui.messagelist
 import android.app.SearchManager
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import android.os.SystemClock
+import android.view.HapticFeedbackConstants
 import android.view.LayoutInflater
 import android.view.Menu
 import android.view.MenuInflater
@@ -242,8 +244,9 @@ class LegacyMessageListFragment :
     private var bannerTopPadding = 0
     private var reachAreaHeight = 0
     private var reachAreaExtraBottomPadding = 0
-    private var isReachAreaScrollPending = false
-    private var isScrollingPastReachArea = false
+    private var isReachAreaRevealedByUser = false
+    private var isUserScrollGesture = false
+    private var isSnappingToTop = false
 
     private lateinit var adapter: MessageListAdapter
 
@@ -918,17 +921,26 @@ class LegacyMessageListFragment :
                         loadMoreMessagesIfEndIsNear()
                     }
 
-                    if (dy != 0 && !isScrollingPastReachArea) {
-                        fragmentListener.onMessageListScrolled(dy)
+                    if (dy != 0) {
+                        if (!isSnappingToTop) fragmentListener.onMessageListScrolled(dy)
+                        if (recyclerView.scrollState != RecyclerView.SCROLL_STATE_IDLE) {
+                            updateReachAreaRevealedByUser()
+                        }
                     }
                 }
 
                 override fun onScrollStateChanged(recyclerView: RecyclerView, newState: Int) {
                     if (newState == RecyclerView.SCROLL_STATE_DRAGGING) {
-                        // The user took over, the list stays where they leave it.
-                        isReachAreaScrollPending = false
+                        isUserScrollGesture = true
+                        isSnappingToTop = false
                     }
                     if (newState == RecyclerView.SCROLL_STATE_IDLE) {
+                        if (isUserScrollGesture) {
+                            isUserScrollGesture = false
+                            snapToTopIfCloseToIt()
+                        } else {
+                            isSnappingToTop = false
+                        }
                         downloadMissingPreviewsOfVisibleMessages()
                     }
                 }
@@ -971,6 +983,7 @@ class LegacyMessageListFragment :
                                 .onSizeChanged { size ->
                                     bannerTopPadding = size.height
                                     applyListTopPadding()
+                                    updateReachArea()
                                 },
                         )
                     }
@@ -1012,13 +1025,80 @@ class LegacyMessageListFragment :
         if (newHeight != reachAreaHeight) {
             reachAreaHeight = newHeight
             applyListTopPadding()
-            isReachAreaScrollPending = newHeight > 0
         }
 
         // How much the messages fill the list is only known once it has been laid out.
         recyclerView.doOnPreDraw {
             updateReachAreaExtraBottomPadding()
-            scrollPastReachAreaIfPending()
+            anchorListBelowReachAreaIfNeeded()
+        }
+    }
+
+    /**
+     * The first message is shown at the top of the list, unless the user pulled the list down into the reach area.
+     * Whenever the list changed under them (messages arrive, padding changes) it is put back there, but only while the
+     * list is at its start, so a user who scrolled down to a later message is never moved.
+     */
+    private fun anchorListBelowReachAreaIfNeeded() {
+        val recyclerView = recyclerView ?: return
+        val layoutManager = recyclerView.layoutManager as? LinearLayoutManager ?: return
+        val firstItemOffset = layoutManager.findViewByPosition(0)?.let { it.top - recyclerView.paddingTop }
+
+        val shouldAnchor = MessageListReachArea.shouldAnchorBelowReachArea(
+            isRevealedByUser = isReachAreaRevealedByUser,
+            firstVisiblePosition = layoutManager.findFirstVisibleItemPosition(),
+            firstItemOffset = firstItemOffset,
+            reachHeight = reachAreaHeight,
+        )
+        if (shouldAnchor) {
+            // Takes effect with the next layout, which doesn't report a scroll, so the bottom bar stays as it is.
+            layoutManager.scrollToPositionWithOffset(0, -reachAreaHeight)
+        }
+    }
+
+    private fun updateReachAreaRevealedByUser() {
+        val recyclerView = recyclerView ?: return
+        val layoutManager = recyclerView.layoutManager as? LinearLayoutManager ?: return
+        val firstItemOffset = layoutManager.findViewByPosition(0)?.let { it.top - recyclerView.paddingTop }
+
+        val wasRevealed = isReachAreaRevealedByUser
+        isReachAreaRevealedByUser = MessageListReachArea.isRevealed(
+            firstVisiblePosition = layoutManager.findFirstVisibleItemPosition(),
+            firstItemOffset = firstItemOffset,
+            reachHeight = reachAreaHeight,
+        )
+        if (wasRevealed && !isReachAreaRevealedByUser) {
+            recyclerView.performHapticFeedback(dockedHapticFeedbackConstant())
+        }
+    }
+
+    /**
+     * When the user lets go of the list shortly before the first message is back at its normal place, the list
+     * snaps there.
+     */
+    private fun snapToTopIfCloseToIt() {
+        val recyclerView = recyclerView ?: return
+        val layoutManager = recyclerView.layoutManager as? LinearLayoutManager ?: return
+        val firstItemOffset = layoutManager.findViewByPosition(0)?.let { it.top - recyclerView.paddingTop }
+
+        val shouldSnap = MessageListReachArea.shouldSnapToTop(
+            firstVisiblePosition = layoutManager.findFirstVisibleItemPosition(),
+            firstItemOffset = firstItemOffset,
+            reachHeight = reachAreaHeight,
+        )
+        if (shouldSnap && firstItemOffset != null) {
+            isSnappingToTop = true
+            recyclerView.smoothScrollBy(0, firstItemOffset + reachAreaHeight)
+        }
+    }
+
+    private fun dockedHapticFeedbackConstant(): Int {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            HapticFeedbackConstants.GESTURE_THRESHOLD_ACTIVATE
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            HapticFeedbackConstants.CONFIRM
+        } else {
+            HapticFeedbackConstants.VIRTUAL_KEY
         }
     }
 
@@ -1051,22 +1131,6 @@ class LegacyMessageListFragment :
             0
         }
         return basePadding + bottomBarHeight
-    }
-
-    /**
-     * Normally the first message sits at the top of the list, the empty area is revealed by pulling the list down.
-     */
-    private fun scrollPastReachAreaIfPending() {
-        val recyclerView = recyclerView ?: return
-        if (!isReachAreaScrollPending || reachAreaHeight <= 0) return
-
-        isScrollingPastReachArea = true
-        try {
-            recyclerView.scrollBy(0, reachAreaHeight)
-        } finally {
-            isScrollingPastReachArea = false
-        }
-        isReachAreaScrollPending = recyclerView.computeVerticalScrollOffset() < reachAreaHeight
     }
 
     private fun requireCoordinatorLayout(): CoordinatorLayout {
@@ -1332,7 +1396,9 @@ class LegacyMessageListFragment :
         reachAreaHeight = 0
         reachAreaExtraBottomPadding = 0
         bannerTopPadding = 0
-        isReachAreaScrollPending = false
+        isReachAreaRevealedByUser = false
+        isUserScrollGesture = false
+        isSnappingToTop = false
         messageListSwipeCallback = null
         itemTouchHelper = null
         swipeRefreshLayout = null
