@@ -1099,11 +1099,10 @@ class LegacyMessageListFragment :
     private fun anchorListBelowReachAreaIfNeeded() {
         val recyclerView = recyclerView ?: return
         val layoutManager = recyclerView.layoutManager as? LinearLayoutManager ?: return
-        val firstItemOffset = layoutManager.findViewByPosition(0)?.let { it.top - recyclerView.paddingTop }
+        val firstItemOffset = firstItemOffset(recyclerView, layoutManager)
 
         val shouldAnchor = MessageListReachArea.shouldAnchorBelowReachArea(
             isRevealedByUser = isReachAreaRevealedByUser,
-            firstVisiblePosition = layoutManager.findFirstVisibleItemPosition(),
             firstItemOffset = firstItemOffset,
             reachHeight = reachAreaHeight,
         )
@@ -1113,14 +1112,19 @@ class LegacyMessageListFragment :
         }
     }
 
+    private fun firstItemOffset(recyclerView: RecyclerView, layoutManager: LinearLayoutManager): Int? {
+        return MessageListReachArea.firstItemOffset(adapter.itemCount, recyclerView.paddingTop) { position ->
+            layoutManager.findViewByPosition(position)?.let { ItemBounds(top = it.top, height = it.height) }
+        }
+    }
+
     private fun updateReachAreaRevealedByUser() {
         val recyclerView = recyclerView ?: return
         val layoutManager = recyclerView.layoutManager as? LinearLayoutManager ?: return
-        val firstItemOffset = layoutManager.findViewByPosition(0)?.let { it.top - recyclerView.paddingTop }
+        val firstItemOffset = firstItemOffset(recyclerView, layoutManager)
 
         val wasRevealed = isReachAreaRevealedByUser
         isReachAreaRevealedByUser = MessageListReachArea.isRevealed(
-            firstVisiblePosition = layoutManager.findFirstVisibleItemPosition(),
             firstItemOffset = firstItemOffset,
             reachHeight = reachAreaHeight,
         )
@@ -1136,10 +1140,9 @@ class LegacyMessageListFragment :
     private fun snapToTopIfCloseToIt() {
         val recyclerView = recyclerView ?: return
         val layoutManager = recyclerView.layoutManager as? LinearLayoutManager ?: return
-        val firstItemOffset = layoutManager.findViewByPosition(0)?.let { it.top - recyclerView.paddingTop }
+        val firstItemOffset = firstItemOffset(recyclerView, layoutManager)
 
         val shouldSnap = MessageListReachArea.shouldSnapToTop(
-            firstVisiblePosition = layoutManager.findFirstVisibleItemPosition(),
             firstItemOffset = firstItemOffset,
             reachHeight = reachAreaHeight,
         )

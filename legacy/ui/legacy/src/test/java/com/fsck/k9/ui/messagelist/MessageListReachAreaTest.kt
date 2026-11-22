@@ -2,6 +2,7 @@ package com.fsck.k9.ui.messagelist
 
 import assertk.assertThat
 import assertk.assertions.isEqualTo
+import assertk.assertions.isNull
 import org.junit.Test
 
 class MessageListReachAreaTest {
@@ -73,27 +74,27 @@ class MessageListReachAreaTest {
 
     @Test
     fun `isRevealed() with first item pulled down should be true`() {
-        assertThat(testSubject.isRevealed(firstVisiblePosition = 0, firstItemOffset = -100, reachHeight = 900))
+        assertThat(testSubject.isRevealed(firstItemOffset = -100, reachHeight = 900))
             .isEqualTo(true)
     }
 
     @Test
     fun `isRevealed() with first item at its normal place should be false`() {
-        assertThat(testSubject.isRevealed(firstVisiblePosition = 0, firstItemOffset = -900, reachHeight = 900))
+        assertThat(testSubject.isRevealed(firstItemOffset = -900, reachHeight = 900))
             .isEqualTo(false)
     }
 
     @Test
     fun `isRevealed() with list scrolled down should be false`() {
-        assertThat(testSubject.isRevealed(firstVisiblePosition = 3, firstItemOffset = null, reachHeight = 900))
+        assertThat(testSubject.isRevealed(firstItemOffset = null, reachHeight = 900))
             .isEqualTo(false)
-        assertThat(testSubject.isRevealed(firstVisiblePosition = 0, firstItemOffset = -1200, reachHeight = 900))
+        assertThat(testSubject.isRevealed(firstItemOffset = -1200, reachHeight = 900))
             .isEqualTo(false)
     }
 
     @Test
     fun `isRevealed() without reach area should be false`() {
-        assertThat(testSubject.isRevealed(firstVisiblePosition = 0, firstItemOffset = 0, reachHeight = 0))
+        assertThat(testSubject.isRevealed(firstItemOffset = 0, reachHeight = 0))
             .isEqualTo(false)
     }
 
@@ -101,7 +102,6 @@ class MessageListReachAreaTest {
     fun `shouldAnchorBelowReachArea() with reach area shown by the list itself should be true`() {
         val result = testSubject.shouldAnchorBelowReachArea(
             isRevealedByUser = false,
-            firstVisiblePosition = 0,
             firstItemOffset = 0,
             reachHeight = 900,
         )
@@ -113,7 +113,6 @@ class MessageListReachAreaTest {
     fun `shouldAnchorBelowReachArea() with reach area revealed by user should be false`() {
         val result = testSubject.shouldAnchorBelowReachArea(
             isRevealedByUser = true,
-            firstVisiblePosition = 0,
             firstItemOffset = -300,
             reachHeight = 900,
         )
@@ -125,7 +124,6 @@ class MessageListReachAreaTest {
     fun `shouldAnchorBelowReachArea() with list scrolled down should be false`() {
         val result = testSubject.shouldAnchorBelowReachArea(
             isRevealedByUser = false,
-            firstVisiblePosition = 50,
             firstItemOffset = null,
             reachHeight = 900,
         )
@@ -137,7 +135,6 @@ class MessageListReachAreaTest {
     fun `shouldAnchorBelowReachArea() with first item already at its normal place should be false`() {
         val result = testSubject.shouldAnchorBelowReachArea(
             isRevealedByUser = false,
-            firstVisiblePosition = 0,
             firstItemOffset = -900,
             reachHeight = 900,
         )
@@ -148,35 +145,70 @@ class MessageListReachAreaTest {
     @Test
     fun `shouldSnapToTop() close to the normal top should be true`() {
         // 300 of 1000 pixels revealed
-        assertThat(testSubject.shouldSnapToTop(firstVisiblePosition = 0, firstItemOffset = -700, reachHeight = 1000))
+        assertThat(testSubject.shouldSnapToTop(firstItemOffset = -700, reachHeight = 1000))
             .isEqualTo(true)
     }
 
     @Test
     fun `shouldSnapToTop() exactly at the snap limit should be true`() {
-        assertThat(testSubject.shouldSnapToTop(firstVisiblePosition = 0, firstItemOffset = -600, reachHeight = 1000))
+        assertThat(testSubject.shouldSnapToTop(firstItemOffset = -600, reachHeight = 1000))
             .isEqualTo(true)
     }
 
     @Test
     fun `shouldSnapToTop() further down than the snap limit should be false`() {
-        assertThat(testSubject.shouldSnapToTop(firstVisiblePosition = 0, firstItemOffset = -500, reachHeight = 1000))
+        assertThat(testSubject.shouldSnapToTop(firstItemOffset = -500, reachHeight = 1000))
             .isEqualTo(false)
-        assertThat(testSubject.shouldSnapToTop(firstVisiblePosition = 0, firstItemOffset = 0, reachHeight = 1000))
+        assertThat(testSubject.shouldSnapToTop(firstItemOffset = 0, reachHeight = 1000))
             .isEqualTo(false)
     }
 
     @Test
     fun `shouldSnapToTop() at the normal top should be false`() {
-        assertThat(testSubject.shouldSnapToTop(firstVisiblePosition = 0, firstItemOffset = -1000, reachHeight = 1000))
+        assertThat(testSubject.shouldSnapToTop(firstItemOffset = -1000, reachHeight = 1000))
             .isEqualTo(false)
     }
 
     @Test
     fun `shouldSnapToTop() with list scrolled down or without reach area should be false`() {
-        assertThat(testSubject.shouldSnapToTop(firstVisiblePosition = 4, firstItemOffset = null, reachHeight = 1000))
+        assertThat(testSubject.shouldSnapToTop(firstItemOffset = null, reachHeight = 1000))
             .isEqualTo(false)
-        assertThat(testSubject.shouldSnapToTop(firstVisiblePosition = 0, firstItemOffset = 0, reachHeight = 0))
+        assertThat(testSubject.shouldSnapToTop(firstItemOffset = 0, reachHeight = 0))
             .isEqualTo(false)
+    }
+
+    @Test
+    fun `firstItemOffset() should skip items without height`() {
+        // The in-app notification banner list is the first item of the list. It is empty, so it has no height.
+        val bounds = listOf(ItemBounds(top = 1000, height = 0), ItemBounds(top = 1000, height = 200))
+
+        val result = testSubject.firstItemOffset(itemCount = 2, paddingTop = 1000) { bounds[it] }
+
+        assertThat(result).isEqualTo(0)
+    }
+
+    @Test
+    fun `firstItemOffset() should be relative to the top padding`() {
+        val bounds = listOf(ItemBounds(top = 100, height = 200))
+
+        val result = testSubject.firstItemOffset(itemCount = 1, paddingTop = 1000) { bounds[it] }
+
+        assertThat(result).isEqualTo(-900)
+    }
+
+    @Test
+    fun `firstItemOffset() with item that isn't displayed should be null`() {
+        val bounds = listOf(ItemBounds(top = 1000, height = 0), null)
+
+        val result = testSubject.firstItemOffset(itemCount = 2, paddingTop = 1000) { bounds[it] }
+
+        assertThat(result).isNull()
+    }
+
+    @Test
+    fun `firstItemOffset() without items should be null`() {
+        val result = testSubject.firstItemOffset(itemCount = 0, paddingTop = 1000) { null }
+
+        assertThat(result).isNull()
     }
 }

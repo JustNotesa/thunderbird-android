@@ -37,15 +37,33 @@ internal object MessageListReachArea {
     }
 
     /**
+     * The top of the first item that takes up space, relative to the top padding of the list. Items without height
+     * are skipped: the list starts with the (usually empty) list of in-app notification banners, which would
+     * otherwise be taken for the first item, although the first message is the item after it.
+     *
+     * @param itemCount The number of items in the list.
+     * @param paddingTop The top padding of the list.
+     * @param boundsOf The position and height of the item at the given adapter position, or null when the item isn't
+     *   displayed. That is the case when the list was scrolled so far that the item has left it.
+     * @return The offset, or null when the start of the list isn't displayed.
+     */
+    fun firstItemOffset(itemCount: Int, paddingTop: Int, boundsOf: (position: Int) -> ItemBounds?): Int? {
+        for (position in 0 until itemCount) {
+            val bounds = boundsOf(position)
+            if (bounds == null || bounds.height > 0) return bounds?.let { it.top - paddingTop }
+        }
+        return null
+    }
+
+    /**
      * Whether the list shows the reach area, i.e. the first message sits lower than its normal place at the top.
      *
-     * @param firstVisiblePosition The adapter position of the first visible item.
      * @param firstItemOffset The top of the first item relative to the top padding edge of the list, or null when the
      *   first item isn't displayed. Pulled all the way down it is 0, at its normal place it is `-reachHeight`.
      * @param reachHeight The height of the reach area.
      */
-    fun isRevealed(firstVisiblePosition: Int, firstItemOffset: Int?, reachHeight: Int): Boolean {
-        return reachHeight > 0 && firstVisiblePosition == 0 && firstItemOffset != null && firstItemOffset > -reachHeight
+    fun isRevealed(firstItemOffset: Int?, reachHeight: Int): Boolean {
+        return reachHeight > 0 && firstItemOffset != null && firstItemOffset > -reachHeight
     }
 
     /**
@@ -55,12 +73,11 @@ internal object MessageListReachArea {
      */
     fun shouldAnchorBelowReachArea(
         isRevealedByUser: Boolean,
-        firstVisiblePosition: Int,
         firstItemOffset: Int?,
         reachHeight: Int,
     ): Boolean {
         return reachHeight > 0 && !isRevealedByUser &&
-            isRevealed(firstVisiblePosition, firstItemOffset, reachHeight)
+            isRevealed(firstItemOffset, reachHeight)
     }
 
     /**
@@ -68,10 +85,13 @@ internal object MessageListReachArea {
      * is the case when the reach area is shown but only its lower part, [SNAP_FRACTION] of it or less, is left above
      * the normal place.
      */
-    fun shouldSnapToTop(firstVisiblePosition: Int, firstItemOffset: Int?, reachHeight: Int): Boolean {
-        if (!isRevealed(firstVisiblePosition, firstItemOffset, reachHeight) || firstItemOffset == null) return false
+    fun shouldSnapToTop(firstItemOffset: Int?, reachHeight: Int): Boolean {
+        if (!isRevealed(firstItemOffset, reachHeight) || firstItemOffset == null) return false
 
         val distanceToTop = firstItemOffset + reachHeight
         return distanceToTop <= reachHeight * SNAP_FRACTION
     }
 }
+
+/** The top edge and the height of an item of the list, in pixels. */
+internal data class ItemBounds(val top: Int, val height: Int)
