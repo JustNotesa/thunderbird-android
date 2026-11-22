@@ -153,6 +153,9 @@ private const val LOADED_MESSAGES_SETTLING_TIME = 1000L
 private const val REMOTE_SEARCH_READING_TIME = 8_000L
 private const val ADDITIONAL_FIRST_MESSAGES = 2
 private const val MILLISECONDS_PER_SECOND = 1000L
+
+/** How long the undo snackbar stays; Material's LENGTH_LONG (about 2.75 s) is too short to react in time. */
+private const val UNDO_SNACKBAR_DURATION_MS = 7_000
 const val RECENT_CHANGES_SNACKBAR_DURATION = 10 * 1000
 
 private const val TAG = "BaseMessageListFragment"
@@ -1712,7 +1715,7 @@ class LegacyMessageListFragment :
             .make(
                 undoSnackbarView(),
                 resources.getQuantityString(removal.undoText, messages.size, messages.size),
-                Snackbar.LENGTH_LONG,
+                UNDO_SNACKBAR_DURATION_MS,
             )
             .setAction(R.string.message_list_undo_action) { undoMessageRemoval(id) }
             .addCallback(
