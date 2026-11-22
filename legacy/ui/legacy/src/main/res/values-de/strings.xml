@@ -1291,4 +1291,38 @@
     <string name="about_updates_open_settings_button">Einstellungen öffnen</string>
     <!-- Button that dismisses a message about a failed installation -->
     <string name="about_updates_dismiss_button">Ausblenden</string>
+
+    <!-- Search -->
+    <string name="back_to_search_results">Zurück zu den Suchergebnissen</string>
+    <string name="global_settings_privacy_search_history">Letzte Suchen merken</string>
+    <string name="global_settings_privacy_search_history_detail">Beim Suchen werden deine letzten Suchbegriffe vorgeschlagen. Sie werden nur auf diesem Gerät gespeichert</string>
+    <string name="search_history_remove_content_description">%s aus den letzten Suchen entfernen</string>
+    <string name="local_search_status">Suche auf diesem Gerät</string>
+    <string name="search_scope_folder">Nur dieser Ordner</string>
+    <string name="search_scope_everywhere">Alle Ordner</string>
+    <string name="remote_search_status_progress">Serversuche: Ordner %1$d von %2$d</string>
+    <string name="remote_search_contents_status_progress">Inhaltssuche: Ordner %1$d von %2$d</string>
+    <string name="remote_search_contents_action">Auch Nachrichtentexte durchsuchen</string>
+    <string name="remote_search_contents_skip_action">Jetzt Inhalte durchsuchen</string>
+    <string name="remote_search_finished">Serversuche beendet</string>
+    <string name="remote_search_contents_finished">Inhaltssuche beendet</string>
+    <string name="remote_search_stopped">Serversuche angehalten</string>
+    <string name="remote_search_stopped_details">Zum erneuten Suchen nach unten ziehen.</string>
+    <plurals name="remote_search_results_limited">
+        <item quantity="one">%d weiteres Ergebnis auf dem Server wurde wegen des Server-Suchlimits nicht geladen</item>
+        <item quantity="other">%d weitere Ergebnisse auf dem Server wurden wegen des Server-Suchlimits nicht geladen</item>
+    </plurals>
+    <string name="remote_search_step_connecting">Verbinde mit dem Server… %1$d s</string>
+    <string name="remote_search_step_waiting">Anfrage gesendet. Warte auf die Antwort… %1$d s</string>
+    <string name="remote_search_status_downloading">Lade Ergebnis %1$d von %2$d herunter</string>
+    <plurals name="remote_search_status_found">
+        <item quantity="one">%1$d Nachricht gefunden. Neueste: %2$s</item>
+        <item quantity="other">%1$d Nachrichten gefunden. Neueste: %2$s</item>
+    </plurals>
+    <string name="remote_search_incomplete">Serversuche unvollständig</string>
+    <string name="remote_search_incomplete_details">%1$d von %2$d Ordnern konnten nicht durchsucht werden.</string>
+    <string name="remote_search_unavailable">Serversuche nicht verfügbar</string>
+    <string name="search_no_results">Keine Nachrichten gefunden</string>
+    <string name="remote_search_no_results">Keine Nachrichten auf dem Server gefunden</string>
+    <string name="search_no_results_search_server_prompt">Keine Nachrichten auf diesem Gerät gefunden. Tippe, um auf dem Server zu suchen.</string>
 </resources>
