@@ -211,4 +211,30 @@ class MessageListReachAreaTest {
 
         assertThat(result).isNull()
     }
+
+    @Test
+    fun `shouldKeepFirstItemOnTop() with first item at its normal place should be true`() {
+        assertThat(testSubject.shouldKeepFirstItemOnTop(false, firstItemOffset = -900, reachHeight = 900))
+            .isEqualTo(true)
+    }
+
+    @Test
+    fun `shouldKeepFirstItemOnTop() with reach area revealed by user should be false`() {
+        assertThat(testSubject.shouldKeepFirstItemOnTop(true, firstItemOffset = -300, reachHeight = 900))
+            .isEqualTo(false)
+    }
+
+    @Test
+    fun `shouldKeepFirstItemOnTop() with list scrolled down should be false`() {
+        assertThat(testSubject.shouldKeepFirstItemOnTop(false, firstItemOffset = -1000, reachHeight = 900))
+            .isEqualTo(false)
+        assertThat(testSubject.shouldKeepFirstItemOnTop(false, firstItemOffset = null, reachHeight = 900))
+            .isEqualTo(false)
+    }
+
+    @Test
+    fun `shouldKeepFirstItemOnTop() without reach area should be false`() {
+        assertThat(testSubject.shouldKeepFirstItemOnTop(false, firstItemOffset = 0, reachHeight = 0))
+            .isEqualTo(false)
+    }
 }

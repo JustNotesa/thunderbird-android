@@ -968,6 +968,13 @@ class LegacyMessageListFragment :
         itemTouchHelper.attachToRecyclerView(recyclerView)
 
         recyclerView.adapter = adapter
+        adapter.registerAdapterDataObserver(
+            object : RecyclerView.AdapterDataObserver() {
+                override fun onItemRangeInserted(positionStart: Int, itemCount: Int) {
+                    keepFirstMessageOnTopWhenMessagesAreInserted(positionStart)
+                }
+            },
+        )
 
         val isDisplayInAppNotificationEnabled = featureFlagProvider
             .provide(GeneratedFeatureFlagKey.DISPLAY_IN_APP_NOTIFICATIONS) == FeatureFlagResult.Enabled
@@ -1108,6 +1115,25 @@ class LegacyMessageListFragment :
         )
         if (shouldAnchor) {
             // Takes effect with the next layout, which doesn't report a scroll, so the bottom bar stays as it is.
+            layoutManager.scrollToPositionWithOffset(0, -reachAreaHeight)
+        }
+    }
+
+    /**
+     * Messages that arrive while the first message is shown at the top are shown at the top, too. Without this the
+     * list stays at the message that was the first one, and the new messages are above the edge of the list.
+     */
+    private fun keepFirstMessageOnTopWhenMessagesAreInserted(positionStart: Int) {
+        if (positionStart > 1) return
+
+        val recyclerView = recyclerView ?: return
+        val layoutManager = recyclerView.layoutManager as? LinearLayoutManager ?: return
+        val shouldKeepOnTop = MessageListReachArea.shouldKeepFirstItemOnTop(
+            isRevealedByUser = isReachAreaRevealedByUser,
+            firstItemOffset = firstItemOffset(recyclerView, layoutManager),
+            reachHeight = reachAreaHeight,
+        )
+        if (shouldKeepOnTop) {
             layoutManager.scrollToPositionWithOffset(0, -reachAreaHeight)
         }
     }

@@ -12,6 +12,9 @@ internal object MessageListReachArea {
     /** The part of the reach area, counted from the normal top, in which the list snaps to the top. */
     const val SNAP_FRACTION = 0.4f
 
+    /** How far, in pixels, the first message may be from its normal place and still count as being there. */
+    private const val AT_TOP_TOLERANCE = 2
+
     /**
      * @param listHeight The height of the message list in pixels.
      * @param bottomBarHeight The height of the toolbar at the bottom, or 0 when the toolbar is at the top.
@@ -78,6 +81,17 @@ internal object MessageListReachArea {
     ): Boolean {
         return reachHeight > 0 && !isRevealedByUser &&
             isRevealed(firstItemOffset, reachHeight)
+    }
+
+    /**
+     * Whether the list has to stay at the first message when items are inserted in front of it. RecyclerView keeps
+     * the item that was displayed at the top where it is, so new messages would appear above the top edge of the
+     * list, out of sight. That is only wanted when the first message sits at its normal place, i.e. the user neither
+     * revealed the reach area nor scrolled down.
+     */
+    fun shouldKeepFirstItemOnTop(isRevealedByUser: Boolean, firstItemOffset: Int?, reachHeight: Int): Boolean {
+        return reachHeight > 0 && !isRevealedByUser && firstItemOffset != null &&
+            kotlin.math.abs(firstItemOffset + reachHeight) <= AT_TOP_TOLERANCE
     }
 
     /**
