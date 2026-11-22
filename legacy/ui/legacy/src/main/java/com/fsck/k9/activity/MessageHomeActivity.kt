@@ -187,7 +187,7 @@ open class MessageHomeActivity :
     private var isBottomAppBarEnabled = false
     private var bottomBarScrollHider: BottomBarScrollHider? = null
     private var isActionModeActive = false
-    private var isAppBarPositionApplied: Boolean? = null
+    private var appliedAppBarPlacement: AppBarPlacement? = null
 
     private val isShowAccountIndicator: Boolean
         get() = messageListFragment?.isShowAccountIndicator ?: true
@@ -731,7 +731,12 @@ open class MessageHomeActivity :
     }
 
     private fun currentBottomBarHeight(): Int {
-        return if (isAppBarAtBottom) findViewById<View>(R.id.app_bar_layout).height else 0
+        // Only the message list scrolls underneath the bar. The message view ends above it.
+        return if (currentAppBarPlacement == AppBarPlacement.BOTTOM_OVER_CONTENT) {
+            findViewById<View>(R.id.app_bar_layout).height
+        } else {
+            0
+        }
     }
 
     private fun updateBottomBarHeight() {
@@ -744,15 +749,16 @@ open class MessageHomeActivity :
     private fun updateAppBarPosition() {
         if (!isBottomAppBarEnabled) return
 
-        val atBottom = isAppBarAtBottom
+        val placement = currentAppBarPlacement
+        val atBottom = placement.isAtBottom
         bottomBarScrollHider?.reset()
 
-        if (isAppBarPositionApplied == atBottom) {
+        if (appliedAppBarPlacement == placement) {
             updateBottomBarHeight()
             return
         }
 
-        isAppBarPositionApplied = atBottom
+        appliedAppBarPlacement = placement
 
         val appBarLayout = findViewById<View>(R.id.app_bar_layout)
         val appBarLayoutParams = appBarLayout.layoutParams as RelativeLayout.LayoutParams
@@ -767,10 +773,13 @@ open class MessageHomeActivity :
 
         val contentContainer = findViewById<View>(R.id.content_container)
         val contentContainerLayoutParams = contentContainer.layoutParams as RelativeLayout.LayoutParams
-        if (atBottom) {
-            contentContainerLayoutParams.removeRule(RelativeLayout.BELOW)
-        } else {
-            contentContainerLayoutParams.addRule(RelativeLayout.BELOW, R.id.app_bar_layout)
+        contentContainerLayoutParams.removeRule(RelativeLayout.BELOW)
+        contentContainerLayoutParams.removeRule(RelativeLayout.ABOVE)
+        when (placement) {
+            AppBarPlacement.TOP -> contentContainerLayoutParams.addRule(RelativeLayout.BELOW, R.id.app_bar_layout)
+            AppBarPlacement.BOTTOM_BELOW_CONTENT ->
+                contentContainerLayoutParams.addRule(RelativeLayout.ABOVE, R.id.app_bar_layout)
+            AppBarPlacement.BOTTOM_OVER_CONTENT -> Unit
         }
         contentContainer.layoutParams = contentContainerLayoutParams
 
@@ -927,8 +936,18 @@ open class MessageHomeActivity :
 
     protected open val isDrawerEnabled: Boolean = true
 
+    private val currentAppBarPlacement: AppBarPlacement
+        get() = appBarPlacement(
+            isBottomAppBarEnabled = isBottomAppBarEnabled,
+            screen = when (displayMode) {
+                DisplayMode.MESSAGE_LIST -> AppBarScreen.MESSAGE_LIST
+                DisplayMode.MESSAGE_VIEW -> AppBarScreen.MESSAGE_VIEW
+                DisplayMode.SPLIT_VIEW -> AppBarScreen.SPLIT_VIEW
+            },
+        )
+
     override val isAppBarAtBottom: Boolean
-        get() = isBottomAppBarEnabled && displayMode == DisplayMode.MESSAGE_LIST
+        get() = currentAppBarPlacement.isAtBottom
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         var eventHandled = false

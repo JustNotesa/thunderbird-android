@@ -1,0 +1,43 @@
+package com.fsck.k9.activity
+
+/**
+ * The screens of the message home activity that differ in where the toolbar belongs.
+ *
+ * The search results and the expanded search field are part of [MESSAGE_LIST]: the search field lives in the toolbar.
+ */
+internal enum class AppBarScreen {
+    MESSAGE_LIST,
+    MESSAGE_VIEW,
+    SPLIT_VIEW,
+}
+
+/**
+ * Where the toolbar is displayed.
+ */
+internal enum class AppBarPlacement {
+    /** At the top edge, above the content. */
+    TOP,
+
+    /** At the bottom edge, drawn over the lower end of the content so the content can scroll underneath. */
+    BOTTOM_OVER_CONTENT,
+
+    /** At the bottom edge, with the content ending above it. */
+    BOTTOM_BELOW_CONTENT,
+}
+
+internal val AppBarPlacement.isAtBottom: Boolean
+    get() = this != AppBarPlacement.TOP
+
+/**
+ * Decides where the toolbar goes for the given [screen]. With the setting off, or in the split view, it stays at the
+ * top.
+ */
+internal fun appBarPlacement(isBottomAppBarEnabled: Boolean, screen: AppBarScreen): AppBarPlacement {
+    if (!isBottomAppBarEnabled) return AppBarPlacement.TOP
+
+    return when (screen) {
+        AppBarScreen.MESSAGE_LIST -> AppBarPlacement.BOTTOM_OVER_CONTENT
+        AppBarScreen.MESSAGE_VIEW -> AppBarPlacement.BOTTOM_BELOW_CONTENT
+        AppBarScreen.SPLIT_VIEW -> AppBarPlacement.TOP
+    }
+}
