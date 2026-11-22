@@ -346,6 +346,7 @@
                 android:key="messagelist_bottom_app_bar"
                 android:summary="@string/general_settings_bottom_app_bar_summary"
                 android:title="@string/general_settings_bottom_app_bar_title"
+                app:singleLineTitle="false"
                 />
 
             <ListPreference
