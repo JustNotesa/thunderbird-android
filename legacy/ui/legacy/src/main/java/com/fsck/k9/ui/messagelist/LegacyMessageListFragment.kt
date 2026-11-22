@@ -248,6 +248,7 @@ class LegacyMessageListFragment :
     private var reachAreaHeight = 0
     private var reachAreaExtraBottomPadding = 0
     private var isReachAreaRevealedByUser = false
+    private var isReachAreaScrolledAwayByUser = false
     private var isUserScrollGesture = false
     private var isSnappingToTop = false
 
@@ -1110,6 +1111,7 @@ class LegacyMessageListFragment :
 
         val shouldAnchor = MessageListReachArea.shouldAnchorBelowReachArea(
             isRevealedByUser = isReachAreaRevealedByUser,
+            isScrolledAwayByUser = isReachAreaScrolledAwayByUser,
             firstItemOffset = firstItemOffset,
             reachHeight = reachAreaHeight,
         )
@@ -1150,6 +1152,7 @@ class LegacyMessageListFragment :
         val firstItemOffset = firstItemOffset(recyclerView, layoutManager)
 
         val wasRevealed = isReachAreaRevealedByUser
+        isReachAreaScrolledAwayByUser = MessageListReachArea.isScrolledAway(firstItemOffset, reachAreaHeight)
         isReachAreaRevealedByUser = MessageListReachArea.isRevealed(
             firstItemOffset = firstItemOffset,
             reachHeight = reachAreaHeight,
@@ -1490,6 +1493,7 @@ class LegacyMessageListFragment :
         reachAreaExtraBottomPadding = 0
         bannerTopPadding = 0
         isReachAreaRevealedByUser = false
+        isReachAreaScrolledAwayByUser = false
         isUserScrollGesture = false
         isSnappingToTop = false
         messageListSwipeCallback = null

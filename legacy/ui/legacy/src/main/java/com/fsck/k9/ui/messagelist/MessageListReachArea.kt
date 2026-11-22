@@ -70,17 +70,28 @@ internal object MessageListReachArea {
     }
 
     /**
+     * Whether the user scrolled the list away from its start, so the first item isn't at its normal place or lower.
+     * Something that changes the list under the user, e.g. the status row of a search growing, can push the first
+     * item out of place as well, but only a scroll of the user is meant to keep it there.
+     */
+    fun isScrolledAway(firstItemOffset: Int?, reachHeight: Int): Boolean {
+        return reachHeight > 0 && (firstItemOffset == null || firstItemOffset < -reachHeight - AT_TOP_TOLERANCE)
+    }
+
+    /**
      * Whether the list has to be moved so the first message sits at its normal place at the top. That is the case when
-     * the user didn't reveal the reach area themselves, the list is at its start, and the first message is lower than
-     * its normal place.
+     * the user neither revealed the reach area nor scrolled away from the start, and the first message isn't at its
+     * normal place: because it is lower (reach area shown by the layout), or because the layout moved it up, e.g.
+     * when items above the first message grew. Then it might not even be displayed any more ([firstItemOffset] null).
      */
     fun shouldAnchorBelowReachArea(
         isRevealedByUser: Boolean,
+        isScrolledAwayByUser: Boolean,
         firstItemOffset: Int?,
         reachHeight: Int,
     ): Boolean {
-        return reachHeight > 0 && !isRevealedByUser &&
-            isRevealed(firstItemOffset, reachHeight)
+        return reachHeight > 0 && !isRevealedByUser && !isScrolledAwayByUser &&
+            (firstItemOffset == null || kotlin.math.abs(firstItemOffset + reachHeight) > AT_TOP_TOLERANCE)
     }
 
     /**

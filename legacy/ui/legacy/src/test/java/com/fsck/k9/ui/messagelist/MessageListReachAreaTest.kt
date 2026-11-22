@@ -102,6 +102,7 @@ class MessageListReachAreaTest {
     fun `shouldAnchorBelowReachArea() with reach area shown by the list itself should be true`() {
         val result = testSubject.shouldAnchorBelowReachArea(
             isRevealedByUser = false,
+            isScrolledAwayByUser = false,
             firstItemOffset = 0,
             reachHeight = 900,
         )
@@ -113,6 +114,7 @@ class MessageListReachAreaTest {
     fun `shouldAnchorBelowReachArea() with reach area revealed by user should be false`() {
         val result = testSubject.shouldAnchorBelowReachArea(
             isRevealedByUser = true,
+            isScrolledAwayByUser = false,
             firstItemOffset = -300,
             reachHeight = 900,
         )
@@ -121,9 +123,10 @@ class MessageListReachAreaTest {
     }
 
     @Test
-    fun `shouldAnchorBelowReachArea() with list scrolled down should be false`() {
+    fun `shouldAnchorBelowReachArea() with list scrolled down by the user should be false`() {
         val result = testSubject.shouldAnchorBelowReachArea(
             isRevealedByUser = false,
+            isScrolledAwayByUser = true,
             firstItemOffset = null,
             reachHeight = 900,
         )
@@ -135,6 +138,7 @@ class MessageListReachAreaTest {
     fun `shouldAnchorBelowReachArea() with first item already at its normal place should be false`() {
         val result = testSubject.shouldAnchorBelowReachArea(
             isRevealedByUser = false,
+            isScrolledAwayByUser = false,
             firstItemOffset = -900,
             reachHeight = 900,
         )
@@ -236,5 +240,43 @@ class MessageListReachAreaTest {
     fun `shouldKeepFirstItemOnTop() without reach area should be false`() {
         assertThat(testSubject.shouldKeepFirstItemOnTop(false, firstItemOffset = 0, reachHeight = 0))
             .isEqualTo(false)
+    }
+
+    @Test
+    fun `shouldAnchorBelowReachArea() with first item pushed above its normal place by the layout should be true`() {
+        // The search status row above the first message grew, which moved the list up.
+        val result = testSubject.shouldAnchorBelowReachArea(
+            isRevealedByUser = false,
+            isScrolledAwayByUser = false,
+            firstItemOffset = -1172,
+            reachHeight = 1046,
+        )
+
+        assertThat(result).isEqualTo(true)
+    }
+
+    @Test
+    fun `shouldAnchorBelowReachArea() with first item that left the list should be true`() {
+        val result = testSubject.shouldAnchorBelowReachArea(
+            isRevealedByUser = false,
+            isScrolledAwayByUser = false,
+            firstItemOffset = null,
+            reachHeight = 1046,
+        )
+
+        assertThat(result).isEqualTo(true)
+    }
+
+    @Test
+    fun `isScrolledAway() with first item above its normal place should be true`() {
+        assertThat(testSubject.isScrolledAway(firstItemOffset = -1100, reachHeight = 1046)).isEqualTo(true)
+        assertThat(testSubject.isScrolledAway(firstItemOffset = null, reachHeight = 1046)).isEqualTo(true)
+    }
+
+    @Test
+    fun `isScrolledAway() with first item at its normal place or lower should be false`() {
+        assertThat(testSubject.isScrolledAway(firstItemOffset = -1046, reachHeight = 1046)).isEqualTo(false)
+        assertThat(testSubject.isScrolledAway(firstItemOffset = -500, reachHeight = 1046)).isEqualTo(false)
+        assertThat(testSubject.isScrolledAway(firstItemOffset = null, reachHeight = 0)).isEqualTo(false)
     }
 }
