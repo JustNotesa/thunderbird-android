@@ -2,7 +2,9 @@ package com.fsck.k9.ui.settings
 
 import android.view.MotionEvent
 import android.view.View
+import android.view.ViewGroup
 import android.widget.ImageView
+import androidx.core.view.children
 import androidx.core.view.isGone
 import androidx.core.view.isVisible
 import androidx.recyclerview.widget.RecyclerView
@@ -54,7 +56,7 @@ internal class AccountItem(
             checkBox.isChecked = item.selected
 
             val isPeek = item.peekDescription != null
-            itemView.alpha = if (isPeek) PEEK_ACCOUNT_ALPHA else 1f
+            setContentAlpha(if (isPeek) PEEK_ACCOUNT_ALPHA else 1f)
             itemView.contentDescription = item.peekDescription
         }
 
@@ -62,8 +64,17 @@ internal class AccountItem(
             name.text = null
             email.text = null
             checkBox.isChecked = false
-            itemView.alpha = 1f
+            setContentAlpha(1f)
             itemView.contentDescription = null
+        }
+
+        /**
+         * Fades the row's content instead of the row itself: RecyclerView's item animator animates the alpha of the
+         * row view and resets it to 1 at the end, which would undo the faded peek row.
+         */
+        private fun setContentAlpha(alpha: Float) {
+            val row = itemView as? ViewGroup ?: return
+            row.children.forEach { it.alpha = alpha }
         }
     }
 }
