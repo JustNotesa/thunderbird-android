@@ -85,6 +85,14 @@ fun LocalMessageSearch.conditionsForAccount(account: LegacyAccount): SearchCondi
 }
 
 /**
+ * The folder of [account] that a unified special folder search shows, or `null` if the search isn't such a search or
+ * the account doesn't have that special folder.
+ */
+fun LocalMessageSearch.unifiedSpecialFolderId(account: LegacyAccount): Long? {
+    return unifiedSpecialFolderType?.let(account::specialFolderId)
+}
+
+/**
  * Which accounts a search is evaluated for and, for a unified special folder search, the folder each of them
  * contributes (`null` if an account has none).
  *

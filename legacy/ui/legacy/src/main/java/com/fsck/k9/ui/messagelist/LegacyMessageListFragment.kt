@@ -75,6 +75,7 @@ import com.fsck.k9.mailstore.LocalStoreProvider
 import com.fsck.k9.search.getLegacyAccounts
 import com.fsck.k9.search.isNewMessages
 import com.fsck.k9.search.isUnified
+import com.fsck.k9.search.unifiedSpecialFolderId
 import com.fsck.k9.search.unifiedSpecialFolderType
 import com.fsck.k9.ui.BuildConfig
 import com.fsck.k9.ui.R
@@ -628,6 +629,7 @@ class LegacyMessageListFragment :
         initializeSortSettings()
 
         loadMessageList()
+        synchronizeUnifiedSpecialFolders()
     }
 
     /**
@@ -3044,7 +3046,22 @@ class LegacyMessageListFragment :
         doNegativeClick(dialogId)
     }
 
+    /**
+     * Special folders other than the inbox usually aren't synchronized in the background, so a unified Trash, Sent,
+     * Drafts, Archive or Spam would stay empty until the folder of each account has been opened.
+     */
+    private fun synchronizeUnifiedSpecialFolders() {
+        if (localSearch.unifiedSpecialFolderType == null) return
+
+        for (account in localSearch.getLegacyAccounts(accountManager)) {
+            val folderId = localSearch.unifiedSpecialFolderId(account) ?: continue
+            messagingController.synchronizeMailbox(account.id, folderId, false, activityListener)
+        }
+    }
+
     private fun checkMail() {
+        synchronizeUnifiedSpecialFolders()
+
         if (isSingleAccountMode && isSingleFolderMode) {
             val folderId = currentFolder!!.databaseId
             account?.id?.let { messagingController.synchronizeMailbox(it, folderId, false, activityListener) }

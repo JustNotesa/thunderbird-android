@@ -224,6 +224,22 @@ class LocalSearchExtensionsTest {
         assertThat(emissions).containsExactly(mapOf(accountWithTrash.id to null))
     }
 
+    @Test
+    fun `unifiedSpecialFolderId should return the special folder of the account`() {
+        // Arrange
+        val search = createUnifiedSearch(FolderType.TRASH)
+
+        // Act & Assert
+        assertThat(search.unifiedSpecialFolderId(accountWithTrash)).isEqualTo(TRASH_FOLDER_ID)
+        assertThat(search.unifiedSpecialFolderId(accountWithSent)).isNull()
+    }
+
+    @Test
+    fun `unifiedSpecialFolderId with a regular search should be null`() {
+        // Act & Assert
+        assertThat(LocalMessageSearch().unifiedSpecialFolderId(accountWithTrash)).isNull()
+    }
+
     private fun createUnifiedSearch(folderType: FolderType) = LocalMessageSearch().apply {
         type = LocalMessageSearchType.Unified(UnifiedFolderSelection.Special(folderType))
     }
