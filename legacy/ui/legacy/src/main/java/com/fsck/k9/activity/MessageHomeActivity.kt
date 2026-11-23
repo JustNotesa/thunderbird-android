@@ -55,6 +55,7 @@ import com.fsck.k9.ui.messagelist.MessageListFragmentBridgeContract
 import com.fsck.k9.ui.messagelist.MessageListFragmentBridgeContract.MessageListFragmentListener
 import com.fsck.k9.ui.messagelist.MessageListHighlighter
 import com.fsck.k9.ui.messagelist.MessageRemoval
+import com.fsck.k9.ui.messagelist.ReadStateChange
 import com.fsck.k9.ui.messagelist.createManualQuerySearch
 import com.fsck.k9.ui.messagelist.unifiedFolderTitle
 import com.fsck.k9.ui.messageview.MessageViewContainerFragment
@@ -1598,6 +1599,15 @@ open class MessageHomeActivity :
         when (generalSettingsManager.getConfig().interaction.messageViewPostMarkAsUnreadNavigation) {
             PostMarkAsUnreadNavigation.StayOnCurrentMessage -> Unit
             PostMarkAsUnreadNavigation.ReturnToMessageList -> returnToMessageList()
+        }
+    }
+
+    override fun offerReadStateUndo(change: ReadStateChange, markedRead: Boolean) {
+        // Undoing while the message stays open would leave the message view showing the wrong state.
+        val returnsToList = generalSettingsManager.getConfig().interaction.messageViewPostMarkAsUnreadNavigation ==
+            PostMarkAsUnreadNavigation.ReturnToMessageList
+        if (returnsToList) {
+            messageListFragment?.offerReadStateUndo(listOf(change), markedRead)
         }
     }
 

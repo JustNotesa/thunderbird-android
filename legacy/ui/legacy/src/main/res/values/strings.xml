@@ -1473,6 +1473,16 @@ You can keep this message and use it as a backup for your secret key. If you wan
         <item quantity="one">Message marked as spam</item>
         <item quantity="other">%d messages marked as spam</item>
     </plurals>
+    <!-- Shown after messages were marked as read -->
+    <plurals name="message_list_undo_marked_read">
+        <item quantity="one">Message marked as read</item>
+        <item quantity="other">%d messages marked as read</item>
+    </plurals>
+    <!-- Shown after messages were marked as unread -->
+    <plurals name="message_list_undo_marked_unread">
+        <item quantity="one">Message marked as unread</item>
+        <item quantity="other">%d messages marked as unread</item>
+    </plurals>
     <!-- Undoes the removal of messages from the message list -->
     <string name="message_list_undo_action">Undo</string>
     <!-- Debug/testing menu items -->
