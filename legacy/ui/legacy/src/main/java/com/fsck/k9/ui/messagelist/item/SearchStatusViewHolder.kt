@@ -47,17 +47,15 @@ class SearchStatusViewHolder(
     private val contentsButton: View = view.findViewById(R.id.search_contents_button)
     private val attachmentsButton: View = view.findViewById(R.id.search_attachments_button)
     private val skipToContentsButton: View = view.findViewById(R.id.search_contents_skip_button)
-    private val buttonHeight: Int
-    private val reservedHeight: Int
 
     init {
-        // Reserve the space for the button and one line of text above it.
+        // Reserve the space for the buttons and one line of text above them.
         val unspecified = MeasureSpec.makeMeasureSpec(0, MeasureSpec.UNSPECIFIED)
         contentsButton.measure(unspecified, unspecified)
         attachmentsButton.measure(unspecified, unspecified)
-        buttonHeight = maxOf(contentsButton.measuredHeight, attachmentsButton.measuredHeight)
-        reservedHeight = buttonHeight + message.lineHeight + message.paddingBottom
-        details.minHeight = reservedHeight
+        // The buttons are side by side, so the row is as high as the higher one, however many are displayed.
+        val buttonHeight = maxOf(contentsButton.measuredHeight, attachmentsButton.measuredHeight)
+        details.minHeight = buttonHeight + message.lineHeight + message.paddingBottom
 
         // Display as many lines of the message as fit into the space that is available.
         scopeFolder.setOnClickListener { onScopeSelected(SearchScope.FOLDER) }
@@ -79,18 +77,6 @@ class SearchStatusViewHolder(
             is ServerSearchStatus.Running -> bindRunning(status)
             is ServerSearchStatus.Ended -> bindEnded(status)
         }
-
-        reserveSpaceForButtons()
-    }
-
-    /**
-     * Reserve the space for the buttons that are displayed and one line of text above them. That way the height of
-     * the row doesn't depend on which buttons are displayed.
-     */
-    private fun reserveSpaceForButtons() {
-        val visibleButtonCount = listOf(contentsButton, attachmentsButton).count { it.isVisible }
-        val height = visibleButtonCount * buttonHeight + message.lineHeight + message.paddingBottom
-        details.minHeight = maxOf(reservedHeight, height)
     }
 
     /**

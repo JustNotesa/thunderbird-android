@@ -1306,6 +1306,8 @@
     <string name="remote_search_contents_status_progress">Inhaltssuche: Ordner %1$d von %2$d</string>
     <string name="remote_search_contents_action">Auch Nachrichtentexte durchsuchen</string>
     <string name="remote_search_contents_skip_action">Jetzt Inhalte durchsuchen</string>
+    <string name="remote_search_contents_action_short">Nachrichtentexte</string>
+    <string name="remote_search_attachments_action_short">Anhänge</string>
     <string name="remote_search_finished">Serversuche beendet</string>
     <string name="remote_search_contents_finished">Inhaltssuche beendet</string>
     <string name="remote_search_stopped">Serversuche angehalten</string>

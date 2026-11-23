@@ -13,35 +13,12 @@
     android:paddingVertical="12dp"
     >
 
-    <!-- Only for a search that was started from a folder: where to look for messages -->
-    <com.google.android.material.chip.ChipGroup
-        android:id="@+id/search_scope"
+    <include
+        layout="@layout/message_list_search_scope"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginBottom="4dp"
-        android:visibility="gone"
-        app:chipSpacingHorizontal="8dp"
-        app:singleLine="true"
-        tools:visibility="visible"
-        >
-
-        <com.google.android.material.chip.Chip
-            android:id="@+id/search_scope_folder"
-            style="@style/Widget.Material3.Chip.Filter"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/search_scope_folder"
-            />
-
-        <com.google.android.material.chip.Chip
-            android:id="@+id/search_scope_everywhere"
-            style="@style/Widget.Material3.Chip.Filter"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/search_scope_everywhere"
-            />
-
-    </com.google.android.material.chip.ChipGroup>
+        />
 
     <!-- Always as high as the button, so the height doesn't depend on whether the button is displayed -->
     <LinearLayout
@@ -174,43 +151,14 @@
             app:layout_constraintTop_toTopOf="parent"
             />
 
-        <!-- The buttons that start a search for the contents or the attachments of the messages. They are side by side
-             as long as they fit, otherwise the second one moves to a second row. -->
-        <androidx.constraintlayout.helper.widget.Flow
-            android:id="@+id/search_status_buttons"
+        <!-- The buttons that start a search for the contents or the attachments of the messages, side by side -->
+        <include
+            layout="@layout/message_list_search_buttons"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
-            android:orientation="horizontal"
-            app:constraint_referenced_ids="search_contents_button,search_attachments_button"
-            app:flow_horizontalBias="0"
-            app:flow_horizontalGap="8dp"
-            app:flow_horizontalStyle="packed"
-            app:flow_verticalGap="4dp"
-            app:flow_wrapMode="chain"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
-            />
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/search_contents_button"
-            style="@style/Widget.Material3.Button.TonalButton.Icon"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/remote_search_contents_action"
-            android:visibility="gone"
-            app:icon="@drawable/ic_find_in_page"
-            />
-
-        <!-- Downloads the messages with attachments, so the words of the search can be found in them -->
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/search_attachments_button"
-            style="@style/Widget.Material3.Button.OutlinedButton.Icon"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="@string/remote_search_attachments_action"
-            android:visibility="gone"
-            app:icon="@drawable/ic_attachment"
             />
 
     </androidx.constraintlayout.widget.ConstraintLayout>

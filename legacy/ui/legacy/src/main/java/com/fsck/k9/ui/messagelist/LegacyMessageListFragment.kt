@@ -84,6 +84,7 @@ import com.fsck.k9.ui.messagelist.MessageListFragmentBridgeContract.MessageListF
 import com.fsck.k9.ui.messagelist.MessageListFragmentBridgeContract.MessageListFragmentListener.Companion.MAX_PROGRESS
 import com.fsck.k9.ui.messagelist.debug.AuthDebugActions
 import com.fsck.k9.ui.messagelist.item.MessageViewHolder
+import com.fsck.k9.ui.messagelist.item.SearchStatusPanel
 import com.fsck.k9.ui.messagelist.search.SearchFilterBar
 import com.fsck.k9.ui.messagelist.search.SearchFilters
 import com.fsck.k9.ui.messagelist.search.matches
@@ -308,6 +309,7 @@ class LegacyMessageListFragment :
     @Volatile
     private var loadingMessagesFailureReason: String? = null
     private var searchStatus: ServerSearchStatus? = null
+    private var searchStatusPanel: SearchStatusPanel? = null
     private var searchScope: SearchScope? = null
 
     /**
@@ -672,19 +674,56 @@ class LegacyMessageListFragment :
     }
 
     /**
-     * Display the state of the server search as the first row of the search results.
+     * Display the state of the server search, either as the first row of the search results or, with one-handed mode,
+     * in the bottom area above the search filters.
      *
      * The row is there right from the start and always has the same height. And because it is part of the list, it
      * only moves when the user scrolls the list. So the messages never move on their own.
      */
     private fun showSearchStatus(status: ServerSearchStatus) {
         searchStatus = status
+        updateSearchStatusPlacement()
+    }
+
+    private fun searchStatusItem(status: ServerSearchStatus) = MessageListViewItem.SearchStatus(status, searchScope)
+
+    private fun isSearchStatusInBottomPanel(): Boolean {
+        return searchStatusPanel != null &&
+            SearchStatusPlacement.of(areBannersAtBottom) == SearchStatusPlacement.BOTTOM_PANEL
+    }
+
+    /**
+     * Put the state of the search where it belongs, and display its current state there.
+     */
+    private fun updateSearchStatusPlacement() {
+        val status = searchStatus
+        val isInPanel = isSearchStatusInBottomPanel()
+
+        if (isInPanel && status != null) {
+            searchStatusPanel?.bind(status, searchScope)
+        } else {
+            searchStatusPanel?.hide()
+        }
 
         val viewItems = adapter.viewItems.filterNot { it is MessageListViewItem.SearchStatus }.toMutableList()
-        val index = viewItems.indexOfFirst { it !is MessageListViewItem.InAppNotificationBannerList }
-        val viewItem = MessageListViewItem.SearchStatus(status, searchScope)
-        viewItems.add(if (index == -1) viewItems.size else index, viewItem)
+        if (status != null && !isInPanel) {
+            val index = viewItems.indexOfFirst { it !is MessageListViewItem.InAppNotificationBannerList }
+            viewItems.add(if (index == -1) viewItems.size else index, searchStatusItem(status))
+        }
         adapter.viewItems = viewItems
+    }
+
+    private fun initializeSearchStatusPanel(view: View) {
+        val container = view.findViewById<ViewGroup>(R.id.bottom_banners)
+        val panel = SearchStatusPanel.create(
+            layoutInflater = layoutInflater,
+            parent = container,
+            onSearchMessageContentsClickListener = { onSearchMessageContentsClicked() },
+            onSearchAttachmentsClickListener = { onSearchAttachmentsClicked() },
+            onScopeSelected = { scope -> onSearchScopeSelected(scope) },
+        )
+        container.addView(panel.view, 0)
+        searchStatusPanel = panel
     }
 
     /**
@@ -1049,7 +1088,9 @@ class LegacyMessageListFragment :
             }
             updateReachArea()
         }
+        initializeSearchStatusPanel(view)
         applyBannerPlacement(view)
+        updateSearchStatusPlacement()
     }
 
     /**
@@ -1065,7 +1106,8 @@ class LegacyMessageListFragment :
 
         listOf(backBanner, filterBar).forEach { (it.parent as? ViewGroup)?.removeView(it) }
         if (areBannersAtBottom) {
-            container.addView(backBanner)
+            // The panel with the state of the search is already in the container, between these two.
+            container.addView(backBanner, 0)
             container.addView(filterBar)
         } else {
             val top = view.findViewById<RecyclerView>(R.id.message_list).parent as ViewGroup
@@ -1423,6 +1465,7 @@ class LegacyMessageListFragment :
 
         areBannersAtBottom = atBottom
         view?.let { applyBannerPlacement(it) }
+        updateSearchStatusPlacement()
     }
 
     private fun setWindowProgress() {
@@ -1554,6 +1597,7 @@ class LegacyMessageListFragment :
         isWaitingForLoadedMessages = false
         coordinatorLayout = null
         recyclerView = null
+        searchStatusPanel = null
         reachAreaHeight = 0
         reachAreaExtraBottomPadding = 0
         bannerTopPadding = 0
@@ -3190,7 +3234,7 @@ class LegacyMessageListFragment :
             if (featureFlagProvider.provide(GeneratedFeatureFlagKey.DISPLAY_IN_APP_NOTIFICATIONS).isEnabled()) {
                 add(MessageListViewItem.InAppNotificationBannerList)
             }
-            searchStatus?.let { add(MessageListViewItem.SearchStatus(it, searchScope)) }
+            searchStatus?.takeUnless { isSearchStatusInBottomPanel() }?.let { add(searchStatusItem(it)) }
             addAll(visibleMessageListItems(messageListItems).map { MessageListViewItem.Message(it) })
             // Keep the current footer (e.g. remote search progress) across list rebuilds.
             // updateFooterText() below recomputes it when no remote search is running.

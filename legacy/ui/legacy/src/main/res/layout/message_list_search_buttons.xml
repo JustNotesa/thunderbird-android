@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The buttons that start a search for the contents or the attachments of the messages. They are side by side and
+     equally wide. If only one of them is displayed, it takes up the whole width. The labels may use two lines when the
+     text is scaled up. -->
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/search_status_buttons"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:baselineAligned="false"
+    android:divider="@drawable/search_buttons_divider"
+    android:orientation="horizontal"
+    android:showDividers="middle"
+    >
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/search_contents_button"
+        style="@style/Widget.Material3.Button.TonalButton.Icon"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:contentDescription="@string/remote_search_contents_action"
+        android:insetTop="4dp"
+        android:insetBottom="4dp"
+        android:maxLines="2"
+        android:minHeight="48dp"
+        android:text="@string/remote_search_contents_action_short"
+        android:visibility="gone"
+        app:icon="@drawable/ic_find_in_page"
+        />
+
+    <!-- Downloads the messages with attachments, so the words of the search can be found in them -->
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/search_attachments_button"
+        style="@style/Widget.Material3.Button.OutlinedButton.Icon"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:contentDescription="@string/remote_search_attachments_action"
+        android:insetTop="4dp"
+        android:insetBottom="4dp"
+        android:maxLines="2"
+        android:minHeight="48dp"
+        android:text="@string/remote_search_attachments_action_short"
+        android:visibility="gone"
+        app:icon="@drawable/ic_attachment"
+        />
+
+</LinearLayout>

@@ -1098,6 +1098,8 @@
     <string name="remote_search_contents_action">Also search message contents</string>
     <string name="remote_search_contents_skip_action">Search contents now</string>
     <string name="remote_search_attachments_action">Search in attachments</string>
+    <string name="remote_search_contents_action_short">Message texts</string>
+    <string name="remote_search_attachments_action_short">Attachments</string>
     <string name="remote_search_finished">Server search finished</string>
     <string name="remote_search_contents_finished">Content search finished</string>
     <string name="remote_search_attachments_finished">Attachment search finished</string>
