@@ -12,6 +12,12 @@ internal object MessageListReachArea {
     /** The part of the reach area, counted from the normal top, in which the list snaps to the top. */
     const val SNAP_FRACTION = 0.4f
 
+    /** How far, in dp, the finger has to pull down from the first message's normal place before the list gives way. */
+    const val DETENT_PULL_DP = 64
+
+    /** The part of the finger's movement the list follows while it resists. */
+    const val DETENT_DAMPING = 0.35f
+
     /** How far, in pixels, the first message may be from its normal place and still count as being there. */
     private const val AT_TOP_TOLERANCE = 2
 
@@ -109,14 +115,74 @@ internal object MessageListReachArea {
      * Whether the list should snap to the first message's normal place at the top after the user let go of it. That
      * is the case when the reach area is shown but only its lower part, [SNAP_FRACTION] of it or less, is left above
      * the normal place.
+     *
+     * When the user pulled the list through the detent ([pullThroughDetent]) in this gesture, the list stays wherever
+     * it is, unless it was pushed back up to within the distance the detent let it move ([detentDistance]).
      */
-    fun shouldSnapToTop(firstItemOffset: Int?, reachHeight: Int): Boolean {
+    fun shouldSnapToTop(
+        firstItemOffset: Int?,
+        reachHeight: Int,
+        brokeThroughDetent: Boolean = false,
+        detentDistance: Int = 0,
+    ): Boolean {
         if (!isRevealed(firstItemOffset, reachHeight) || firstItemOffset == null) return false
 
         val distanceToTop = firstItemOffset + reachHeight
-        return distanceToTop <= reachHeight * SNAP_FRACTION
+        val snapDistance = if (brokeThroughDetent) detentDistance.toFloat() else reachHeight * SNAP_FRACTION
+        return distanceToTop <= snapDistance
     }
+
+    /**
+     * How far the finger has to pull before the list gives way: [DETENT_PULL_DP], but no more than half the reach
+     * area.
+     */
+    fun detentThreshold(reachHeight: Int, density: Float): Float {
+        return minOf(DETENT_PULL_DP * density, reachHeight * DETENT_FRACTION_LIMIT)
+    }
+
+    /**
+     * How far the list has moved when the finger pulled [pull] pixels from the first message's normal place: only
+     * [DETENT_DAMPING] of the finger's movement up to [threshold], the full movement after that.
+     */
+    fun detentDistance(pull: Float, threshold: Float): Float {
+        val clamped = pull.coerceAtLeast(0f)
+        return if (clamped <= threshold) {
+            clamped * DETENT_DAMPING
+        } else {
+            threshold * DETENT_DAMPING + (clamped - threshold)
+        }
+    }
+
+    /**
+     * Applies a movement of the finger to the list while it is held back by the detent at the top.
+     *
+     * @param pull How far the finger has pulled down so far, never negative.
+     * @param fingerDelta How far the finger moved now, positive when it moves down.
+     * @param threshold The pull at which the list gives way, see [detentThreshold].
+     */
+    fun pullThroughDetent(pull: Float, fingerDelta: Float, threshold: Float): DetentStep {
+        val newPull = pull + fingerDelta
+        // Pushing up beyond the start scrolls the list as usual, so the part below zero is passed on in full.
+        val beyondStart = newPull.coerceAtMost(0f)
+        val contentDelta = detentDistance(newPull, threshold) - detentDistance(pull, threshold) + beyondStart
+        return DetentStep(
+            pull = newPull.coerceAtLeast(0f),
+            contentDelta = contentDelta,
+            brokeThrough = pull <= threshold && newPull > threshold,
+        )
+    }
+
+    private const val DETENT_FRACTION_LIMIT = 0.5f
 }
+
+/**
+ * The result of a movement of the finger against the detent.
+ *
+ * @property pull How far the finger has pulled down from the start.
+ * @property contentDelta How far the list moves, positive when the messages move down.
+ * @property brokeThrough Whether this movement took the pull past the threshold.
+ */
+internal data class DetentStep(val pull: Float, val contentDelta: Float, val brokeThrough: Boolean)
 
 /** The top edge and the height of an item of the list, in pixels. */
 internal data class ItemBounds(val top: Int, val height: Int)

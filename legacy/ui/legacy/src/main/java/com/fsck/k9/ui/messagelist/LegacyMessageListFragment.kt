@@ -252,6 +252,12 @@ class LegacyMessageListFragment :
     private var isUserScrollGesture = false
     private var isSnappingToTop = false
 
+    // The detent that holds the list back when it is pulled down from the first message's normal place
+    private var isDetentArmed = false
+    private var detentPull = 0f
+    private var detentCarry = 0f
+    private var brokeThroughDetent = false
+
     private lateinit var adapter: MessageListAdapter
 
     private var searchView: SearchView? = null
@@ -917,7 +923,7 @@ class LegacyMessageListFragment :
             recyclerView.setPadding(0)
         }
 
-        recyclerView.layoutManager = LinearLayoutManager()
+        recyclerView.layoutManager = ReachAreaLayoutManager().apply { scrollAdjuster = ::adjustScrollForDetent }
         recyclerView.itemAnimator = MessageListItemAnimator()
         recyclerView.addOnScrollListener(
             object : RecyclerView.OnScrollListener() {
@@ -939,11 +945,13 @@ class LegacyMessageListFragment :
                     if (newState == RecyclerView.SCROLL_STATE_DRAGGING) {
                         isUserScrollGesture = true
                         isSnappingToTop = false
+                        armDetentIfAtTop()
                     }
                     if (newState == RecyclerView.SCROLL_STATE_IDLE) {
                         if (isUserScrollGesture) {
                             isUserScrollGesture = false
                             snapToTopIfCloseToIt()
+                            disarmDetent()
                         } else {
                             isSnappingToTop = false
                         }
@@ -1174,11 +1182,68 @@ class LegacyMessageListFragment :
         val shouldSnap = MessageListReachArea.shouldSnapToTop(
             firstItemOffset = firstItemOffset,
             reachHeight = reachAreaHeight,
+            brokeThroughDetent = brokeThroughDetent,
+            detentDistance = MessageListReachArea.detentDistance(detentThreshold(), detentThreshold()).toInt(),
         )
         if (shouldSnap && firstItemOffset != null) {
             isSnappingToTop = true
             recyclerView.smoothScrollBy(0, firstItemOffset + reachAreaHeight)
         }
+    }
+
+    private fun detentThreshold(): Float {
+        return MessageListReachArea.detentThreshold(reachAreaHeight, resources.displayMetrics.density)
+    }
+
+    /**
+     * Arms the detent when a drag starts while the first message is at its normal place. A drag that starts in the
+     * reach area, or further down the list, isn't held back.
+     */
+    private fun armDetentIfAtTop() {
+        val recyclerView = recyclerView ?: return
+        val layoutManager = recyclerView.layoutManager as? LinearLayoutManager ?: return
+        val firstItemOffset = firstItemOffset(recyclerView, layoutManager)
+
+        isDetentArmed = reachAreaHeight > 0 && firstItemOffset != null &&
+            !MessageListReachArea.isRevealed(firstItemOffset, reachAreaHeight) &&
+            !MessageListReachArea.isScrolledAway(firstItemOffset, reachAreaHeight)
+        detentPull = 0f
+        detentCarry = 0f
+        brokeThroughDetent = false
+    }
+
+    private fun disarmDetent() {
+        isDetentArmed = false
+        detentPull = 0f
+        detentCarry = 0f
+        brokeThroughDetent = false
+    }
+
+    /**
+     * Holds back the list while the finger pulls it down from the first message's normal place. It follows only a
+     * part of the finger until the pull passes the threshold; then it gives way with a tick and follows the finger.
+     */
+    private fun adjustScrollForDetent(dy: Int): Int {
+        val recyclerView = recyclerView ?: return dy
+        if (!isDetentArmed || brokeThroughDetent || recyclerView.scrollState != RecyclerView.SCROLL_STATE_DRAGGING) {
+            return dy
+        }
+
+        val step = MessageListReachArea.pullThroughDetent(
+            pull = detentPull,
+            fingerDelta = -dy.toFloat(),
+            threshold = detentThreshold(),
+        )
+        detentPull = step.pull
+        if (step.brokeThrough) {
+            brokeThroughDetent = true
+            recyclerView.performHapticFeedback(dockedHapticFeedbackConstant())
+        }
+
+        val wanted = -step.contentDelta + detentCarry
+        val whole = wanted.toInt()
+        detentCarry = wanted - whole
+        return whole
     }
 
     private fun dockedHapticFeedbackConstant(): Int {
@@ -1496,6 +1561,7 @@ class LegacyMessageListFragment :
         isReachAreaScrolledAwayByUser = false
         isUserScrollGesture = false
         isSnappingToTop = false
+        disarmDetent()
         messageListSwipeCallback = null
         itemTouchHelper = null
         swipeRefreshLayout = null
