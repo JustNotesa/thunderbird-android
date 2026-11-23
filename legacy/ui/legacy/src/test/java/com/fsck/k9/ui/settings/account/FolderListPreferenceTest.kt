@@ -32,6 +32,21 @@ class FolderListPreferenceTest : K9RobolectricTest() {
     private val testSubject = FolderListPreference(context)
 
     @Test
+    fun `listener should be notified when folders are set after a dialog was restored`() {
+        // Arrange
+        var notifications = 0
+        testSubject.onFoldersChanged = { notifications++ }
+
+        // Act
+        testSubject.setFolders(folders) { it.serverId }
+        testSubject.setFolders(folders, trash) { it.serverId }
+
+        // Assert
+        assertThat(notifications).isEqualTo(2)
+        assertThat(testSubject.dialogRows).hasSize(3)
+    }
+
+    @Test
     fun `folders should be displayed with their server id`() {
         // Arrange
 

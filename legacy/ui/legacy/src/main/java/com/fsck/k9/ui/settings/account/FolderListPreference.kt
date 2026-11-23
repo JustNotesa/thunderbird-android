@@ -51,6 +51,12 @@ constructor(
         }
 
     /**
+     * Called after the folders were (re)set. A dialog that is restored while the folders are still loading (e.g. after
+     * a configuration change) uses this to fill itself in once they arrive.
+     */
+    var onFoldersChanged: (() -> Unit)? = null
+
+    /**
      * Optional explanation shown in a smaller, secondary-colored line below the summary.
      */
     var summaryHint: CharSequence? = null
@@ -69,6 +75,7 @@ constructor(
         entries = (listOf(noFolderSelectedName) + folders.map(folderText)).toTypedArray()
         entryValues = (listOf(NO_FOLDER_SELECTED_VALUE) + getFolderValues(folders)).toTypedArray()
         isEnabled = true
+        onFoldersChanged?.invoke()
     }
 
     fun setFolders(
@@ -91,6 +98,7 @@ constructor(
             (listOf(automaticFolderValue) + NO_FOLDER_SELECTED_VALUE + getFolderValues(folders)).toTypedArray()
 
         isEnabled = true
+        onFoldersChanged?.invoke()
     }
 
     override fun getSummary(): CharSequence? {

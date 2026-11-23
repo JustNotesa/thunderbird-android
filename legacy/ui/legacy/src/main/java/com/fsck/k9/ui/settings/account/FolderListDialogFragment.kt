@@ -22,18 +22,28 @@ class FolderListDialogFragment : PreferenceDialogFragmentCompat() {
 
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog {
         adapter = FolderAdapter()
+        // After a configuration change the dialog is restored before the settings fragment has loaded the folders.
+        folderPreference.onFoldersChanged = { adapter.notifyDataSetChanged() }
         return MaterialAlertDialogBuilder(requireContext())
             .setTitle(folderPreference.dialogTitle)
             .setAdapter(adapter, null)
             .create()
     }
 
+    override fun onDestroyView() {
+        (preference as? FolderListPreference)?.onFoldersChanged = null
+        super.onDestroyView()
+    }
+
     override fun onDialogClosed(positiveResult: Boolean) = Unit
 
     private inner class FolderAdapter : BaseAdapter() {
-        private val hasSwitch = folderPreference.automaticValue != null
-        private val rows = folderPreference.dialogRows
-        private val offset = if (hasSwitch) 1 else 0
+        private val hasSwitch: Boolean
+            get() = folderPreference.automaticValue != null
+        private val rows: List<Pair<String, CharSequence>>
+            get() = folderPreference.dialogRows
+        private val offset: Int
+            get() = if (hasSwitch) 1 else 0
 
         override fun hasStableIds(): Boolean = true
 
