@@ -8,10 +8,13 @@ import android.content.Context
 import android.graphics.drawable.Drawable
 import android.os.Parcel
 import android.os.Parcelable
+import android.transition.AutoTransition
+import android.transition.TransitionManager
 import android.util.AttributeSet
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.ScrollView
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ProgressBar
@@ -72,6 +75,13 @@ class MessageTopView(
 
     private var messageCryptoPresenter: MessageCryptoPresenter? = null
 
+    private lateinit var scrollView: ScrollView
+    private lateinit var headerDivider: View
+    private lateinit var headerBottomPanel: ViewGroup
+    private lateinit var headerCompactBar: View
+    private var isHeaderAtBottom = false
+    private var headerCollapseState = initialHeaderCollapseState(0)
+
     public override fun onFinishInflate() {
         super.onFinishInflate()
 
@@ -97,7 +107,81 @@ class MessageTopView(
 
         renderPlainFormat = visualSettingsPrefManager.getConfig().bodyContentType == BodyContentType.TEXT_PLAIN
 
+        scrollView = findViewById(R.id.message_scrollview)
+        headerDivider = findViewById(R.id.header_divider)
+        headerBottomPanel = findViewById(R.id.header_bottom_panel)
+        headerCompactBar = findViewById(R.id.header_compact_bar)
+        headerCompactBar.setOnClickListener { unfoldHeaderByUser() }
+        messageHeaderView.attachCompactBar(headerCompactBar)
+        headerCollapseState = initialHeaderCollapseState(collapseThresholdPx())
+
         hideHeaderView()
+    }
+
+    /**
+     * Pins the message header above the toolbar, below the message, instead of leaving it at the top of the scrolling
+     * message. While the message is scrolled the header folds into one line. Does nothing when it already is as
+     * asked.
+     */
+    fun setHeaderAtBottom(atBottom: Boolean) {
+        if (atBottom == isHeaderAtBottom) return
+        isHeaderAtBottom = atBottom
+
+        val scrolledContent = scrollView.getChildAt(0) as ViewGroup
+        detachFromParent(messageHeaderView)
+        detachFromParent(headerDivider)
+        if (atBottom) {
+            headerBottomPanel.addView(headerDivider, 0)
+            headerBottomPanel.addView(messageHeaderView)
+            headerBottomPanel.visibility = VISIBLE
+            scrollView.setOnScrollChangeListener { _, _, scrollY, _, _ -> onMessageScrolled(scrollY) }
+        } else {
+            scrolledContent.addView(messageHeaderView, 0)
+            scrolledContent.addView(headerDivider, 1)
+            headerBottomPanel.visibility = GONE
+            scrollView.setOnScrollChangeListener(null)
+            headerCollapseState = initialHeaderCollapseState(collapseThresholdPx())
+            applyHeaderCollapsed(collapsed = false, animate = false)
+        }
+    }
+
+    private fun detachFromParent(view: View) {
+        (view.parent as? ViewGroup)?.removeView(view)
+    }
+
+    private fun collapseThresholdPx() = (COLLAPSE_THRESHOLD_DP * resources.displayMetrics.density).toInt()
+
+    private fun onMessageScrolled(scrollY: Int) {
+        val child = scrollView.getChildAt(0) ?: return
+        val scrollRange = child.height - (scrollView.height - scrollView.paddingTop - scrollView.paddingBottom)
+        val collapseDelta = (messageHeaderView.height - headerCompactBar.layoutParams.height).coerceAtLeast(0)
+
+        val newState = nextHeaderCollapseState(
+            state = headerCollapseState,
+            scrollY = scrollY,
+            scrollRange = scrollRange,
+            collapseDelta = collapseDelta,
+            threshold = collapseThresholdPx(),
+        )
+        val wasCollapsed = headerCollapseState.isCollapsed
+        headerCollapseState = newState
+        if (newState.isCollapsed != wasCollapsed) {
+            applyHeaderCollapsed(newState.isCollapsed, animate = true)
+        }
+    }
+
+    private fun unfoldHeaderByUser() {
+        headerCollapseState = headerUnfoldedByUser(scrollView.scrollY, collapseThresholdPx())
+        applyHeaderCollapsed(collapsed = false, animate = true)
+    }
+
+    private fun applyHeaderCollapsed(collapsed: Boolean, animate: Boolean) {
+        if (animate && animationManager.shouldShowAnimations()) {
+            // The message body is resized along with the header, so the whole view takes part in the transition.
+            TransitionManager.beginDelayedTransition(this, AutoTransition().setDuration(HEADER_ANIMATION_DURATION))
+        }
+        messageHeaderView.visibility = if (collapsed) GONE else VISIBLE
+        headerCompactBar.visibility = if (collapsed) VISIBLE else GONE
     }
 
     fun setShowAccountIndicator(showAccountIndicator: Boolean) {
@@ -269,7 +353,7 @@ class MessageTopView(
 
     fun setHeaders(message: Message?, account: LegacyAccount?, showStar: Boolean) {
         messageHeaderView.populate(message, account, showStar, showAccountIndicator, folderName)
-        messageHeaderView.visibility = VISIBLE
+        messageHeaderView.visibility = if (headerCollapseState.isCollapsed) GONE else VISIBLE
     }
 
     fun setSubject(subject: String) {
@@ -448,5 +532,7 @@ class MessageTopView(
         const val PROGRESS_MAX = 1000
         const val PROGRESS_MAX_WITH_MARGIN = 950
         const val PROGRESS_STEP_DURATION = 180
+        private const val COLLAPSE_THRESHOLD_DP = 24
+        private const val HEADER_ANIMATION_DURATION = 180L
     }
 }

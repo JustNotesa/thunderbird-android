@@ -80,6 +80,10 @@ public class MessageHeader extends LinearLayout implements OnClickListener, OnLo
     private MaterialTextView attachmentSummaryText;
     private MaterialTextView viewAllAttachmentsButton;
 
+    // The one line the header folds into when it is pinned above the toolbar. It lives outside of this view.
+    private MaterialTextView compactSubjectView;
+    private ImageView compactReplyView;
+
     private RelativeDateTimeFormatter relativeDateTimeFormatter;
 
     private MessageHeaderClickListener messageHeaderClickListener;
@@ -161,9 +165,9 @@ public class MessageHeader extends LinearLayout implements OnClickListener, OnLo
         int id = view.getId();
         if (id == R.id.subject) {
             onSubjectClick();
-        } else if (id == R.id.menu_primary_action) {
+        } else if (id == R.id.menu_primary_action || id == R.id.header_compact_reply) {
             performPrimaryReplyAction();
-        } else if (id == R.id.menu_overflow) {
+        } else if (id == R.id.menu_overflow || id == R.id.header_compact_overflow) {
             showOverflowMenu(view);
         } else if (id == R.id.participants_container) {
             messageHeaderClickListener.onParticipantsContainerClick();
@@ -280,6 +284,45 @@ public class MessageHeader extends LinearLayout implements OnClickListener, OnLo
         return getResources().getString(R.string.copy_subject_to_clipboard);
     }
 
+    /**
+     * Lets the one line [compactBar] show the subject and offer the reply action and the overflow menu, like this
+     * header does.
+     */
+    public void attachCompactBar(@NonNull View compactBar) {
+        compactSubjectView = compactBar.findViewById(R.id.header_compact_subject);
+        compactReplyView = compactBar.findViewById(R.id.header_compact_reply);
+        compactReplyView.setOnClickListener(this);
+
+        View compactOverflowView = compactBar.findViewById(R.id.header_compact_overflow);
+        compactOverflowView.setOnClickListener(this);
+        TooltipCompat.setTooltipText(compactOverflowView, getContext().getString(
+            androidx.appcompat.R.string.abc_action_menu_overflow_description));
+
+        updateCompactSubject();
+        updateCompactReplyAction();
+    }
+
+    private void updateCompactSubject() {
+        if (compactSubjectView != null) {
+            compactSubjectView.setText(subjectText.clipboardText());
+        }
+    }
+
+    private void updateCompactReplyAction() {
+        if (compactReplyView == null || replyActions == null) {
+            return;
+        }
+
+        ReplyAction defaultAction = replyActions.getDefaultAction();
+        if (defaultAction == null) {
+            compactReplyView.setVisibility(View.GONE);
+        } else {
+            compactReplyView.setImageResource(getReplyImageResource(defaultAction));
+            TooltipCompat.setTooltipText(compactReplyView, getReplyActionName(defaultAction));
+            compactReplyView.setVisibility(View.VISIBLE);
+        }
+    }
+
     public void setOnFlagListener(OnClickListener listener) {
         starView.setOnClickListener(listener);
     }
@@ -366,6 +409,7 @@ public class MessageHeader extends LinearLayout implements OnClickListener, OnLo
         this.replyActions = replyActions;
 
         setDefaultReplyAction(replyActions.getDefaultAction());
+        updateCompactReplyAction();
     }
 
     private void setDefaultReplyAction(ReplyAction defaultAction) {
@@ -429,6 +473,7 @@ public class MessageHeader extends LinearLayout implements OnClickListener, OnLo
     }
 
     private void updateSubjectView() {
+        updateCompactSubject();
         updateSubjectText();
         updateLocationLabelAccessibilityAction();
     }

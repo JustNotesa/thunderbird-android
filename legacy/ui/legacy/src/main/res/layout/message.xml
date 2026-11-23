@@ -134,6 +134,71 @@ the 'message view theme' setting).
         tools:visibility="visible"
         />
 
+    <!--
+    Where the message header goes when the one-handed mode pins it above the toolbar: its divider and the header are
+    moved in here at runtime (see MessageTopView.setHeaderAtBottom).
+    -->
+    <LinearLayout
+        android:id="@+id/header_bottom_panel"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:background="?attr/colorSurfaceContainerLowest"
+        android:visibility="gone"
+        >
+
+        <!-- The one line the header folds into while the message is scrolled -->
+        <LinearLayout
+            android:id="@+id/header_compact_bar"
+            android:layout_width="match_parent"
+            android:layout_height="@dimen/message_header_compact_height"
+            android:background="?attr/selectableItemBackground"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:visibility="gone"
+            >
+
+            <com.google.android.material.textview.MaterialTextView
+                android:id="@+id/header_compact_subject"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="16dp"
+                android:layout_marginEnd="8dp"
+                android:layout_weight="1"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textAppearance="?attr/textAppearanceTitleMedium"
+                tools:text="Message subject"
+                />
+
+            <ImageView
+                android:id="@+id/header_compact_reply"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:background="?attr/controlBackground"
+                android:contentDescription="@string/reply_action"
+                android:paddingHorizontal="12dp"
+                tools:srcCompat="@drawable/ic_reply_all"
+                />
+
+            <ImageView
+                android:id="@+id/header_compact_overflow"
+                android:layout_width="40dp"
+                android:layout_height="48dp"
+                android:background="?attr/controlBackground"
+                android:clickable="true"
+                android:contentDescription="@string/abc_action_menu_overflow_description"
+                android:focusable="true"
+                android:paddingStart="6dp"
+                android:paddingEnd="10dp"
+                android:layout_marginEnd="6dp"
+                app:srcCompat="@drawable/ic_more_vert"
+                />
+
+        </LinearLayout>
+
+    </LinearLayout>
+
     <androidx.compose.ui.platform.ComposeView
         android:id="@+id/bottom_sheet_compose_view"
         android:layout_width="match_parent"
