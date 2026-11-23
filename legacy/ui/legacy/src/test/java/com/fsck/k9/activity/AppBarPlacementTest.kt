@@ -65,4 +65,24 @@ class AppBarPlacementTest {
 
         assertThat(result).isFalse()
     }
+
+    @Test
+    fun `list should keep the toolbar height reserved while a message is displayed`() {
+        val result = listBottomBarHeight(true, AppBarScreen.MESSAGE_VIEW, appBarHeight = 240)
+
+        assertThat(result).isEqualTo(240)
+    }
+
+    @Test
+    fun `list should reserve the toolbar height in the message list`() {
+        val result = listBottomBarHeight(true, AppBarScreen.MESSAGE_LIST, appBarHeight = 240)
+
+        assertThat(result).isEqualTo(240)
+    }
+
+    @Test
+    fun `list should reserve nothing with the toolbar at the top or in the split view`() {
+        assertThat(listBottomBarHeight(false, AppBarScreen.MESSAGE_LIST, appBarHeight = 240)).isEqualTo(0)
+        assertThat(listBottomBarHeight(true, AppBarScreen.SPLIT_VIEW, appBarHeight = 240)).isEqualTo(0)
+    }
 }

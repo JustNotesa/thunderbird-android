@@ -785,12 +785,11 @@ open class MessageHomeActivity :
     }
 
     private fun currentBottomBarHeight(): Int {
-        // Only the message list scrolls underneath the bar. The message view ends above it.
-        return if (currentAppBarPlacement == AppBarPlacement.BOTTOM_OVER_CONTENT) {
-            findViewById<View>(R.id.app_bar_layout).height
-        } else {
-            0
-        }
+        return listBottomBarHeight(
+            isBottomAppBarEnabled = isBottomAppBarEnabled,
+            screen = currentAppBarScreen,
+            appBarHeight = findViewById<View>(R.id.app_bar_layout).height,
+        )
     }
 
     private fun updateBottomBarHeight() {
@@ -991,15 +990,15 @@ open class MessageHomeActivity :
 
     protected open val isDrawerEnabled: Boolean = true
 
+    private val currentAppBarScreen: AppBarScreen
+        get() = when (displayMode) {
+            DisplayMode.MESSAGE_LIST -> AppBarScreen.MESSAGE_LIST
+            DisplayMode.MESSAGE_VIEW -> AppBarScreen.MESSAGE_VIEW
+            DisplayMode.SPLIT_VIEW -> AppBarScreen.SPLIT_VIEW
+        }
+
     private val currentAppBarPlacement: AppBarPlacement
-        get() = appBarPlacement(
-            isBottomAppBarEnabled = isBottomAppBarEnabled,
-            screen = when (displayMode) {
-                DisplayMode.MESSAGE_LIST -> AppBarScreen.MESSAGE_LIST
-                DisplayMode.MESSAGE_VIEW -> AppBarScreen.MESSAGE_VIEW
-                DisplayMode.SPLIT_VIEW -> AppBarScreen.SPLIT_VIEW
-            },
-        )
+        get() = appBarPlacement(isBottomAppBarEnabled = isBottomAppBarEnabled, screen = currentAppBarScreen)
 
     override val isAppBarAtBottom: Boolean
         get() = currentAppBarPlacement.isAtBottom

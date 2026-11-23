@@ -49,3 +49,19 @@ internal fun appBarPlacement(isBottomAppBarEnabled: Boolean, screen: AppBarScree
 internal fun shouldPinMessageHeaderAtBottom(isBottomAppBarEnabled: Boolean, screen: AppBarScreen): Boolean {
     return appBarPlacement(isBottomAppBarEnabled, screen) == AppBarPlacement.BOTTOM_BELOW_CONTENT
 }
+
+/**
+ * The height the message list reserves for the toolbar at the bottom.
+ *
+ * The list stays alive, but hidden, while a message is displayed. It keeps its reserved height then, as changing it
+ * would throw the list's layout (the reach area above the first message and the space below the messages) out of
+ * order, which showed as a blank gap above the first message after going back to the list.
+ */
+internal fun listBottomBarHeight(isBottomAppBarEnabled: Boolean, screen: AppBarScreen, appBarHeight: Int): Int {
+    if (!isBottomAppBarEnabled) return 0
+
+    return when (screen) {
+        AppBarScreen.MESSAGE_LIST, AppBarScreen.MESSAGE_VIEW -> appBarHeight
+        AppBarScreen.SPLIT_VIEW -> 0
+    }
+}
