@@ -14,6 +14,7 @@ import android.util.TypedValue
 import androidx.core.content.res.TypedArrayUtils
 import androidx.preference.ListPreference
 import com.fsck.k9.ui.R
+import com.takisoft.preferencex.PreferenceFragmentCompat
 import net.thunderbird.feature.mail.folder.api.RemoteFolder
 
 /**
@@ -34,6 +35,20 @@ constructor(
 ) : ListPreference(context, attrs, defStyleAttr, defStyleRes) {
     private val noFolderSelectedName = context.getString(R.string.account_settings_no_folder_selected).italicize()
     private lateinit var automaticFolderOption: CharSequence
+
+    /**
+     * The value that selects "automatic" for the folder it currently resolves to, or `null` when this preference has
+     * no automatic option (e.g. the start folder).
+     */
+    var automaticValue: String? = null
+        private set
+
+    /** The selectable rows of the folder dialog: "None" and all folders, without the automatic entry. */
+    val dialogRows: List<Pair<String, CharSequence>>
+        get() {
+            val firstRow = if (automaticValue != null) 1 else 0
+            return entryValues.indices.drop(firstRow).map { entryValues[it].toString() to entries[it] }
+        }
 
     /**
      * Optional explanation shown in a smaller, secondary-colored line below the summary.
@@ -68,7 +83,8 @@ constructor(
         }
         val automaticFolderValue = AUTOMATIC_PREFIX + (automaticFolder?.id?.toString() ?: NO_FOLDER_VALUE)
 
-        automaticFolderOption = formatAutomaticFolderOption(automaticFolderName).italicize()
+        automaticFolderOption = formatAutomaticFolderOption(automaticFolderName)
+        automaticValue = automaticFolderValue
 
         entries = (listOf(automaticFolderOption) + noFolderSelectedName + folders.map(folderText)).toTypedArray()
         entryValues =
@@ -119,14 +135,18 @@ constructor(
     }
 
     /**
-     * Inserts the folder text into the "Automatic (%s)" template without losing the folder text's spans.
+     * One compact line, "Automatic · <folder>", used as the summary. The folder text keeps its spans.
      */
     private fun formatAutomaticFolderOption(folderName: CharSequence): CharSequence {
-        val template = context.getString(R.string.account_settings_automatic_special_folder)
-        val placeholder = FORMAT_PLACEHOLDER.find(template) ?: return template
+        val label = context.getString(R.string.account_settings_automatic_folder)
+        return SpannableStringBuilder(label.italicize()).append(SUMMARY_SEPARATOR).append(folderName)
+    }
 
-        return SpannableStringBuilder(template)
-            .replace(placeholder.range.first, placeholder.range.last + 1, folderName)
+    /** Stores [newValue] like a selection in the plain list dialog would. */
+    fun select(newValue: String) {
+        if (newValue != value && callChangeListener(newValue)) {
+            value = newValue
+        }
     }
 
     private fun getFolderValues(folders: List<RemoteFolder>) = folders.map { MANUAL_PREFIX + it.id.toString() }
@@ -143,6 +163,38 @@ constructor(
         private const val NO_FOLDER_SELECTED_VALUE = MANUAL_PREFIX + NO_FOLDER_VALUE
         private const val PLACEHOLDER_SUMMARY = " "
         private const val HINT_RELATIVE_SIZE = 0.9f
-        private val FORMAT_PLACEHOLDER = Regex("%(1\\$)?s")
+        private const val SUMMARY_SEPARATOR = " \u00B7 "
+
+        init {
+            PreferenceFragmentCompat.registerPreferenceFragment(
+                FolderListPreference::class.java,
+                FolderListDialogFragment::class.java,
+            )
+        }
     }
+}
+
+/**
+ * The state logic of the folder dialog: an "automatic" switch above a radio list. With the switch on, the radio dot
+ * sits on the folder automatic resolves to; stored values stay in the [FolderListPreference] format.
+ */
+internal object FolderSelection {
+    fun isAutomatic(value: String?): Boolean = value?.startsWith(FolderListPreference.AUTOMATIC_PREFIX) == true
+
+    /** The value of the row that carries the radio dot for the stored [value]. */
+    fun rowValue(value: String?): String? {
+        if (!isAutomatic(value)) return value
+
+        val folderValue = value!!.substringAfter(FolderListPreference.FOLDER_VALUE_DELIMITER)
+        return FolderListPreference.MANUAL_PREFIX + folderValue
+    }
+
+    /** Switch turned on: automatic again. */
+    fun switchedOn(automaticValue: String): String = automaticValue
+
+    /** Switch turned off without picking a row: the dot stays, the selection becomes manual. */
+    fun switchedOff(value: String?): String? = rowValue(value)
+
+    /** A row was tapped: always a manual selection (the switch turns off). */
+    fun rowSelected(rowValue: String): String = rowValue
 }
