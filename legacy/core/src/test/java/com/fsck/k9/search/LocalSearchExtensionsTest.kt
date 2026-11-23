@@ -16,11 +16,19 @@ import net.thunderbird.feature.search.legacy.UnifiedFolderSelection
 import net.thunderbird.feature.search.legacy.api.MessageSearchField
 import net.thunderbird.feature.search.legacy.api.SearchAttribute
 import net.thunderbird.feature.search.legacy.sql.SqlWhereClause
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.runTest
+import net.thunderbird.core.android.account.fake.FakeLegacyAccountManager
+import net.thunderbird.feature.account.AccountId
 import org.junit.Test
 
 private const val SENT_FOLDER_ID = 7L
 private const val TRASH_FOLDER_ID = 42L
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class LocalSearchExtensionsTest {
 
     private val accountWithSent = FakeLegacyAccount.create(sentFolderId = SENT_FOLDER_ID)
@@ -147,6 +155,73 @@ class LocalSearchExtensionsTest {
 
         // Act & Assert
         assertThat(search.unifiedSpecialFolderType).isNull()
+    }
+
+    @Test
+    fun `observeSearchedFolders() should emit again when a special folder gets assigned`() = runTest(
+        UnconfinedTestDispatcher(),
+    ) {
+        // Arrange
+        val accountManager = FakeLegacyAccountManager(listOf(accountWithoutSpecialFolders))
+        val search = createUnifiedSearch(FolderType.TRASH)
+        val emissions = mutableListOf<Map<AccountId, Long?>>()
+        search.observeSearchedFolders(accountManager).onEach { emissions += it }.launchIn(backgroundScope)
+
+        // Act
+        accountManager.replace(accountWithoutSpecialFolders.copy(trashFolderId = TRASH_FOLDER_ID))
+
+        // Assert
+        assertThat(emissions).containsExactly(
+            mapOf(accountWithoutSpecialFolders.id to null),
+            mapOf(accountWithoutSpecialFolders.id to TRASH_FOLDER_ID),
+        )
+    }
+
+    @Test
+    fun `observeSearchedFolders() should emit again when an account is added`() = runTest(UnconfinedTestDispatcher()) {
+        // Arrange
+        val accountManager = FakeLegacyAccountManager(listOf(accountWithSent))
+        val search = createUnifiedSearch(FolderType.SENT)
+        val emissions = mutableListOf<Map<AccountId, Long?>>()
+        search.observeSearchedFolders(accountManager).onEach { emissions += it }.launchIn(backgroundScope)
+
+        // Act
+        accountManager.replace(accountWithTrash)
+
+        // Assert
+        assertThat(emissions).hasSize(2)
+        assertThat(emissions.last()).isEqualTo(mapOf(accountWithSent.id to SENT_FOLDER_ID, accountWithTrash.id to null))
+    }
+
+    @Test
+    fun `observeSearchedFolders() should not emit for changes unrelated to the searched folder`() = runTest(
+        UnconfinedTestDispatcher(),
+    ) {
+        // Arrange
+        val accountManager = FakeLegacyAccountManager(listOf(accountWithSent))
+        val search = createUnifiedSearch(FolderType.SENT)
+        val emissions = mutableListOf<Map<AccountId, Long?>>()
+        search.observeSearchedFolders(accountManager).onEach { emissions += it }.launchIn(backgroundScope)
+
+        // Act
+        accountManager.replace(accountWithSent.copy(trashFolderId = TRASH_FOLDER_ID))
+
+        // Assert
+        assertThat(emissions).hasSize(1)
+    }
+
+    @Test
+    fun `observeSearchedFolders() should only contain the accounts of the search`() = runTest(
+        UnconfinedTestDispatcher(),
+    ) {
+        // Arrange
+        val accountManager = FakeLegacyAccountManager(listOf(accountWithSent, accountWithTrash))
+        val search = LocalMessageSearch().apply { addAccountId(accountWithTrash.id) }
+        val emissions = mutableListOf<Map<AccountId, Long?>>()
+        search.observeSearchedFolders(accountManager).onEach { emissions += it }.launchIn(backgroundScope)
+
+        // Assert
+        assertThat(emissions).containsExactly(mapOf(accountWithTrash.id to null))
     }
 
     private fun createUnifiedSearch(folderType: FolderType) = LocalMessageSearch().apply {

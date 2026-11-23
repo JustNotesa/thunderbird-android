@@ -2,8 +2,12 @@
 
 package com.fsck.k9.search
 
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import net.thunderbird.core.android.account.LegacyAccount
 import net.thunderbird.core.android.account.LegacyAccountManager
+import net.thunderbird.feature.account.AccountId
 import net.thunderbird.feature.mail.folder.FolderType
 import net.thunderbird.feature.search.legacy.LocalMessageSearch
 import net.thunderbird.feature.search.legacy.LocalMessageSearchType
@@ -78,6 +82,28 @@ fun LocalMessageSearch.conditionsForAccount(account: LegacyAccount): SearchCondi
     } else {
         SearchConditionTreeNode.Builder(folderCondition).and(conditions).build()
     }
+}
+
+/**
+ * Which accounts a search is evaluated for and, for a unified special folder search, the folder each of them
+ * contributes (`null` if an account has none).
+ *
+ * Results only change when this changes, so it tells a message list when it has to be loaded again: the accounts'
+ * special folders are assigned after an import or a folder list refresh, which doesn't change any message.
+ */
+fun LocalMessageSearch.observeSearchedFolders(accountManager: LegacyAccountManager): Flow<Map<AccountId, Long?>> {
+    val folderType = unifiedSpecialFolderType
+    return accountManager.observeAll()
+        .map { allAccounts ->
+            val searchedAccounts = if (searchAllAccounts()) {
+                allAccounts
+            } else {
+                val searchAccountIds = accountIds.toSet()
+                allAccounts.filter { it.id in searchAccountIds }
+            }
+            searchedAccounts.associate { account -> account.id to folderType?.let(account::specialFolderId) }
+        }
+        .distinctUntilChanged()
 }
 
 private fun LegacyAccount.specialFolderId(folderType: FolderType): Long? = when (folderType) {
