@@ -43,4 +43,26 @@ class AppBarPlacementTest {
         assertThat(AppBarPlacement.BOTTOM_OVER_CONTENT.isAtBottom).isTrue()
         assertThat(AppBarPlacement.BOTTOM_BELOW_CONTENT.isAtBottom).isTrue()
     }
+
+    @Test
+    fun `message header should be at the bottom only in the message view with the setting on`() {
+        val results = AppBarScreen.entries.associateWith { screen ->
+            shouldPinMessageHeaderAtBottom(isBottomAppBarEnabled = true, screen = screen)
+        }
+
+        assertThat(results).isEqualTo(
+            mapOf(
+                AppBarScreen.MESSAGE_LIST to false,
+                AppBarScreen.MESSAGE_VIEW to true,
+                AppBarScreen.SPLIT_VIEW to false,
+            ),
+        )
+    }
+
+    @Test
+    fun `message header should stay at the top with the setting off`() {
+        val result = shouldPinMessageHeaderAtBottom(isBottomAppBarEnabled = false, screen = AppBarScreen.MESSAGE_VIEW)
+
+        assertThat(result).isFalse()
+    }
 }

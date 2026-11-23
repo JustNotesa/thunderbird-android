@@ -1004,6 +1004,9 @@ open class MessageHomeActivity :
     override val isAppBarAtBottom: Boolean
         get() = currentAppBarPlacement.isAtBottom
 
+    override val isMessageHeaderAtBottom: Boolean
+        get() = shouldPinMessageHeaderAtBottom(isBottomAppBarEnabled, AppBarScreen.MESSAGE_VIEW)
+
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         var eventHandled = false
         if (event.action == KeyEvent.ACTION_DOWN && isSearchViewCollapsed()) {

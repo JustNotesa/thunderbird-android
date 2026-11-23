@@ -244,6 +244,7 @@ class MessageViewFragment :
         messageTopView = view.findViewById(R.id.message_view)
 
         initializeMessageTopView(messageTopView)
+        messageTopView.setHeaderAtBottom(fragmentListener.isMessageHeaderAtBottom)
 
         return view
     }
@@ -1234,6 +1235,9 @@ class MessageViewFragment :
 
         /** Go back to the list the message was opened from and show the message there. */
         fun showMessageInList(messageReference: MessageReference)
+
+        /** Whether the message header is pinned above the toolbar at the bottom instead of scrolling at the top. */
+        val isMessageHeaderAtBottom: Boolean
     }
 
     private val messageLoaderCallbacks: MessageLoaderCallbacks = object : MessageLoaderCallbacks {

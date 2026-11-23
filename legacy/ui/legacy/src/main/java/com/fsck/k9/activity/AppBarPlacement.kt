@@ -41,3 +41,11 @@ internal fun appBarPlacement(isBottomAppBarEnabled: Boolean, screen: AppBarScree
         AppBarScreen.SPLIT_VIEW -> AppBarPlacement.TOP
     }
 }
+
+/**
+ * Whether the message header sits at the bottom, pinned above the toolbar, instead of scrolling with the message at
+ * the top. That goes along with the toolbar at the bottom, and only in the message view of the single pane layout.
+ */
+internal fun shouldPinMessageHeaderAtBottom(isBottomAppBarEnabled: Boolean, screen: AppBarScreen): Boolean {
+    return appBarPlacement(isBottomAppBarEnabled, screen) == AppBarPlacement.BOTTOM_BELOW_CONTENT
+}
