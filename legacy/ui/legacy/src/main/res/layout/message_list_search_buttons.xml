@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- The buttons that start a search for the contents or the attachments of the messages. They are side by side and
-     equally wide. If only one of them is displayed, it takes up the whole width. The labels may use two lines when the
-     text is scaled up. -->
+     equally wide (width 0dp with the same weight) and as high as the higher one. If only one of them is displayed, it
+     takes up the whole width. The labels may use two lines when the text is scaled up, but words are never broken:
+     no hyphenation, and the padding is small so that the longest label fits. -->
 <LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
@@ -18,16 +19,21 @@
         android:id="@+id/search_contents_button"
         style="@style/Widget.Material3.Button.TonalButton.Icon"
         android:layout_width="0dp"
-        android:layout_height="wrap_content"
+        android:layout_height="match_parent"
         android:layout_weight="1"
         android:contentDescription="@string/remote_search_contents_action"
         android:insetTop="4dp"
+        android:breakStrategy="simple"
+        android:hyphenationFrequency="none"
         android:insetBottom="4dp"
         android:maxLines="2"
         android:minHeight="48dp"
+        android:paddingHorizontal="10dp"
+        android:textSize="13sp"
         android:text="@string/remote_search_contents_action_short"
         android:visibility="gone"
         app:icon="@drawable/ic_find_in_page"
+        app:iconPadding="4dp"
         />
 
     <!-- Downloads the messages with attachments, so the words of the search can be found in them -->
@@ -35,16 +41,21 @@
         android:id="@+id/search_attachments_button"
         style="@style/Widget.Material3.Button.OutlinedButton.Icon"
         android:layout_width="0dp"
-        android:layout_height="wrap_content"
+        android:layout_height="match_parent"
         android:layout_weight="1"
         android:contentDescription="@string/remote_search_attachments_action"
         android:insetTop="4dp"
+        android:breakStrategy="simple"
+        android:hyphenationFrequency="none"
         android:insetBottom="4dp"
         android:maxLines="2"
         android:minHeight="48dp"
+        android:paddingHorizontal="10dp"
+        android:textSize="13sp"
         android:text="@string/remote_search_attachments_action_short"
         android:visibility="gone"
         app:icon="@drawable/ic_attachment"
+        app:iconPadding="4dp"
         />
 
 </LinearLayout>
