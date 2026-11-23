@@ -158,11 +158,13 @@ class MessageTopView(
 
     /**
      * A vertical swipe that starts on the pinned header folds or unfolds it, too. The touches are only watched, not
-     * taken away, so the header's own buttons and scrolling keep working.
+     * taken away, so the header's own buttons and scrolling keep working. They are watched here and not in
+     * onInterceptTouchEvent(): the scrolling header asks its parents not to intercept, which stops the calls to that
+     * method, while every touch still passes through here.
      */
-    override fun onInterceptTouchEvent(ev: MotionEvent): Boolean {
+    override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
         if (isHeaderAtBottom) watchHeaderSwipe(ev)
-        return super.onInterceptTouchEvent(ev)
+        return super.dispatchTouchEvent(ev)
     }
 
     private fun watchHeaderSwipe(ev: MotionEvent) {
