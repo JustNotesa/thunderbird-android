@@ -1,5 +1,15 @@
 package com.fsck.k9.ui.settings
 
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.ColorFilter
+import android.graphics.LinearGradient
+import android.graphics.Paint
+import android.graphics.PixelFormat
+import android.graphics.PorterDuff
+import android.graphics.PorterDuffXfermode
+import android.graphics.Shader
+import android.graphics.drawable.Drawable
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
@@ -17,7 +27,8 @@ import com.mikepenz.fastadapter.items.AbstractItem
 import com.mikepenz.fastadapter.listeners.TouchEventHook
 import net.thunderbird.core.android.account.LegacyAccount
 
-internal const val PEEK_ACCOUNT_ALPHA = 0.35f
+/** Opacity of the peek row's content at its top; it fades out further towards the bottom (see [peekFade]). */
+internal const val PEEK_ACCOUNT_ALPHA = 0.7f
 
 internal class AccountItem(
     val account: LegacyAccount,
@@ -57,6 +68,7 @@ internal class AccountItem(
 
             val isPeek = item.peekDescription != null
             setContentAlpha(if (isPeek) PEEK_ACCOUNT_ALPHA else 1f)
+            setPeekFade(isPeek)
             itemView.contentDescription = item.peekDescription
         }
 
@@ -65,7 +77,22 @@ internal class AccountItem(
             email.text = null
             checkBox.isChecked = false
             setContentAlpha(1f)
+            setPeekFade(false)
             itemView.contentDescription = null
+        }
+
+        /**
+         * Lets the peek row fade out towards the bottom, like the faded item on the About screen. The row is drawn into
+         * its own layer and the gradient masks it (DST_IN), so it works on any background.
+         */
+        private fun setPeekFade(enabled: Boolean) {
+            if (enabled) {
+                itemView.setLayerType(View.LAYER_TYPE_HARDWARE, null)
+                itemView.foreground = FadeOutMask()
+            } else {
+                itemView.foreground = null
+                itemView.setLayerType(View.LAYER_TYPE_NONE, null)
+            }
         }
 
         /**
@@ -98,4 +125,32 @@ internal class DragHandleTouchEvent(val action: (position: Int) -> Unit) : Touch
             false
         }
     }
+}
+
+/** Mask that keeps the top of whatever is drawn below it and lets it fade out to transparent at the bottom. */
+private class FadeOutMask : Drawable() {
+    private val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+        xfermode = PorterDuffXfermode(PorterDuff.Mode.DST_IN)
+    }
+
+    override fun draw(canvas: Canvas) {
+        val area = bounds
+        paint.shader = LinearGradient(
+            0f,
+            area.top.toFloat(),
+            0f,
+            area.bottom.toFloat(),
+            Color.BLACK,
+            Color.TRANSPARENT,
+            Shader.TileMode.CLAMP,
+        )
+        canvas.drawRect(area, paint)
+    }
+
+    override fun setAlpha(alpha: Int) = Unit
+
+    override fun setColorFilter(colorFilter: ColorFilter?) = Unit
+
+    @Deprecated("Deprecated in Java")
+    override fun getOpacity(): Int = PixelFormat.TRANSLUCENT
 }
