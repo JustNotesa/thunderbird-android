@@ -84,12 +84,11 @@
 
     </LinearLayout>
 
-    <!-- Starts below the text of the title, next to the icon -->
+    <!-- Full width like the rest of the row, so the buttons are as wide as in the bottom panel -->
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/search_status_details"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginStart="32dp"
         android:layout_marginTop="8dp"
         >
 

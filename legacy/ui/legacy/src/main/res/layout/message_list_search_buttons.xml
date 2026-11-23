@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- The buttons that start a search for the contents or the attachments of the messages. They are side by side and
      equally wide (width 0dp with the same weight) and as high as the higher one. If only one of them is displayed, it
-     takes up the whole width. The labels may use two lines when the text is scaled up, but words are never broken:
-     no hyphenation, and the padding is small so that the longest label fits. -->
+     takes up the whole width. The labels use one line, so a word is never broken in the middle: the text shrinks (down to
+     11sp) until it fits, and is cut off with an ellipsis only if it still doesn't. -->
 <LinearLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
@@ -26,10 +26,15 @@
         android:breakStrategy="simple"
         android:hyphenationFrequency="none"
         android:insetBottom="4dp"
-        android:maxLines="2"
+        android:maxLines="1"
         android:minHeight="48dp"
         android:paddingHorizontal="10dp"
+        android:ellipsize="end"
         android:textSize="13sp"
+        app:autoSizeMaxTextSize="13sp"
+        app:autoSizeMinTextSize="11sp"
+        app:autoSizeStepGranularity="0.5sp"
+        app:autoSizeTextType="uniform"
         android:text="@string/remote_search_contents_action_short"
         android:visibility="gone"
         app:icon="@drawable/ic_find_in_page"
@@ -48,10 +53,15 @@
         android:breakStrategy="simple"
         android:hyphenationFrequency="none"
         android:insetBottom="4dp"
-        android:maxLines="2"
+        android:maxLines="1"
         android:minHeight="48dp"
         android:paddingHorizontal="10dp"
+        android:ellipsize="end"
         android:textSize="13sp"
+        app:autoSizeMaxTextSize="13sp"
+        app:autoSizeMinTextSize="11sp"
+        app:autoSizeStepGranularity="0.5sp"
+        app:autoSizeTextType="uniform"
         android:text="@string/remote_search_attachments_action_short"
         android:visibility="gone"
         app:icon="@drawable/ic_attachment"
