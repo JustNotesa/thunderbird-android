@@ -239,6 +239,7 @@ sealed class SettingsListItem {
         var displayName: String,
         val isAlreadySetUp: Boolean = false,
         var connectionStatus: ConnectionStatus = ConnectionStatus.NOT_CHECKED,
+        val color: Int? = null,
     ) : SettingsListItem() {
         init {
             selected = !isAlreadySetUp

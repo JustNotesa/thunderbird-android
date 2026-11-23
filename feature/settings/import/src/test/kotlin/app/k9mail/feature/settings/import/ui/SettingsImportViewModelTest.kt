@@ -17,6 +17,7 @@ import assertk.assertions.isEmpty
 import assertk.assertions.isEqualTo
 import assertk.assertions.isFalse
 import assertk.assertions.isInstanceOf
+import assertk.assertions.isNull
 import assertk.assertions.isTrue
 import assertk.assertions.prop
 import com.fsck.k9.preferences.AccountDescription
@@ -210,6 +211,41 @@ class SettingsImportViewModelTest {
                 .prop(SettingsListItem.Account::displayName).isEqualTo("Account 1")
             index(1).isInstanceOf<SettingsListItem.Account>()
                 .prop(SettingsListItem.Account::displayName).isEqualTo("Account 2")
+        }
+    }
+
+    @Test
+    fun `account colors from the settings file should be shown in the settings list`() {
+        importAppFetcher.stub {
+            on { isAtLeastOneAppInstalled() } doReturn true
+        }
+        viewModel.initialize()
+        val uiModelLiveData = viewModel.getUiModel()
+        testScope.testScheduler.advanceUntilIdle()
+        viewModel.onPickAppButtonClicked()
+        viewModel.onAppPicked("net.thunderbird.android")
+        val inputStream = "".byteInputStream()
+        contentResolver.stub {
+            on { openInputStream("content://net.thunderbird.android.settings/".toUri()) } doReturn inputStream
+        }
+        settingsImporter.stub {
+            on { getImportStreamContents(inputStream) } doReturn ImportContents(
+                globalSettings = true,
+                accounts = listOf(
+                    AccountDescription(name = "Account 1", uuid = "uuid-1", color = 0xFFFF8800.toInt()),
+                    AccountDescription(name = "Account 2", uuid = "uuid-2"),
+                ),
+            )
+        }
+
+        testScope.testScheduler.advanceUntilIdle()
+
+        assertThat(uiModelLiveData.value!!.settingsList).all {
+            hasSize(3)
+            index(1).isInstanceOf<SettingsListItem.Account>()
+                .prop(SettingsListItem.Account::color).isEqualTo(0xFFFF8800.toInt())
+            index(2).isInstanceOf<SettingsListItem.Account>()
+                .prop(SettingsListItem.Account::color).isNull()
         }
     }
 

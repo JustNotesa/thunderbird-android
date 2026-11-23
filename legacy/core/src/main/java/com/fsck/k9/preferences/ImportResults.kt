@@ -22,4 +22,5 @@ data class AccountDescription(
     val email: String? = null,
     val incomingServerHost: String? = null,
     val incomingServerUsername: String? = null,
+    val color: Int? = null,
 )

@@ -187,6 +187,7 @@ internal class SettingsImportViewModel(
                     displayName = saved.displayName,
                     isAlreadySetUp = saved.isAlreadySetUp,
                     connectionStatus = saved.connectionStatus,
+                    color = saved.color,
                 ).apply {
                     selected = saved.selected
                     importStatus = saved.importStatus
@@ -426,6 +427,7 @@ internal class SettingsImportViewModel(
                         accountIndex = index,
                         displayName = accountDescription.name,
                         isAlreadySetUp = existingAccountMatcher.isAlreadySetUp(accountDescription),
+                        color = accountDescription.color,
                     )
                 }
 
@@ -636,6 +638,7 @@ internal class SettingsImportViewModel(
                     isAlreadySetUp = accountItem.isAlreadySetUp,
                     importStatus = accountItem.importStatus,
                     connectionStatus = accountItem.connectionStatus,
+                    color = accountItem.color,
                     incomingServerName = accountState?.incomingServerName,
                     outgoingServerName = accountState?.outgoingServerName,
                     incomingServerPasswordNeeded = accountState?.incomingServerPasswordNeeded ?: false,
@@ -707,6 +710,7 @@ private class SavedAccountState(
     val isAlreadySetUp: Boolean,
     val importStatus: ImportStatus,
     val connectionStatus: ConnectionStatus,
+    val color: Int?,
     val incomingServerName: String?,
     val outgoingServerName: String?,
     val incomingServerPasswordNeeded: Boolean,
