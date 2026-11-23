@@ -1519,6 +1519,13 @@ open class MessageHomeActivity :
     override fun onMessageListScrolled(dy: Int) {
         if (!isAppBarAtBottom || isActionModeActive || !isSearchViewCollapsed()) return
 
+        // The list stays alive behind the message view and can still report scrolling (e.g. a fling that ends after a
+        // message was opened). The toolbar must not slide out then: the message view reserves its space.
+        if (displayMode != DisplayMode.MESSAGE_LIST) {
+            bottomBarScrollHider?.show()
+            return
+        }
+
         bottomBarScrollHider?.onScrolled(dy)
     }
 
