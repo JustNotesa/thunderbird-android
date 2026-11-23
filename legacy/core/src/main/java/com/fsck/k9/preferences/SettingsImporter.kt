@@ -48,6 +48,7 @@ class SettingsImporter internal constructor(
                     email = importedAccount.identities?.firstOrNull()?.email,
                     incomingServerHost = importedAccount.incoming?.host,
                     incomingServerUsername = importedAccount.incoming?.username,
+                    color = parseAccountColor(importedAccount.settings?.get(ACCOUNT_COLOR_KEY)),
                 )
             }
 

@@ -37,6 +37,19 @@
         app:layout_constraintTop_toTopOf="parent"
         />
 
+    <View
+        android:id="@+id/accountColorBar"
+        android:layout_width="3dp"
+        android:layout_height="0dp"
+        android:layout_marginEnd="8dp"
+        android:background="@drawable/settings_import_account_color"
+        android:importantForAccessibility="no"
+        app:layout_constraintBottom_toBottomOf="@+id/accountConnectionStatus"
+        app:layout_constraintEnd_toStartOf="@+id/guideline"
+        app:layout_constraintTop_toTopOf="@+id/accountDisplayName"
+        tools:backgroundTint="@color/material_blue_700"
+        />
+
     <com.google.android.material.textview.MaterialTextView
         android:id="@+id/accountDisplayName"
         android:layout_width="0dp"

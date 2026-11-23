@@ -1,7 +1,9 @@
 package app.k9mail.feature.settings.import.ui
 
+import android.content.res.ColorStateList
 import android.view.View
 import android.widget.ImageView
+import androidx.core.view.isInvisible
 import androidx.core.view.isVisible
 import androidx.recyclerview.widget.RecyclerView
 import app.k9mail.feature.settings.importing.R
@@ -85,6 +87,7 @@ internal class GeneralSettingsItem(importStatus: ImportStatus) :
 }
 
 internal class AccountViewHolder(view: View) : ImportCheckBoxViewHolder(view) {
+    val accountColorBar: View = view.findViewById(R.id.accountColorBar)
     val accountDisplayName: MaterialTextView = view.findViewById(R.id.accountDisplayName)
     val accountSecondaryInfo: MaterialTextView = view.findViewById(R.id.accountSecondaryInfo)
     val accountConnectionStatus: MaterialTextView = view.findViewById(R.id.accountConnectionStatus)
@@ -96,6 +99,7 @@ internal class AccountItem(account: SettingsListItem.Account) :
     private val displayName = account.displayName
     private val isAlreadySetUp = account.isAlreadySetUp
     private val connectionStatus = account.connectionStatus
+    private val color = account.color
 
     override val type = R.id.settings_import_list_account_item
     override val layoutRes = R.layout.settings_import_account_list_item
@@ -104,12 +108,21 @@ internal class AccountItem(account: SettingsListItem.Account) :
 
     override fun bindView(holder: AccountViewHolder, payloads: List<Any>) {
         super.bindView(holder, payloads)
+        bindColorBar(holder.accountColorBar)
         holder.accountDisplayName.text = displayName
         holder.accountSecondaryInfo.isVisible = isAlreadySetUp
         if (isAlreadySetUp) {
             holder.accountSecondaryInfo.setText(R.string.settings_import_account_already_set_up)
         }
         bindConnectionStatus(holder.accountConnectionStatus)
+    }
+
+    private fun bindColorBar(colorBar: View) {
+        val accountColor = color
+        colorBar.isInvisible = accountColor == null
+        if (accountColor != null) {
+            colorBar.backgroundTintList = ColorStateList.valueOf(accountColor)
+        }
     }
 
     private fun bindConnectionStatus(connectionStatusText: MaterialTextView) {
