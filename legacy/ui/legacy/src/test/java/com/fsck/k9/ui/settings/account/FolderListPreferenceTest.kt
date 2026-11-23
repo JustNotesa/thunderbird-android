@@ -11,6 +11,11 @@ import assertk.assertions.contains
 import assertk.assertions.containsExactly
 import assertk.assertions.doesNotContain
 import assertk.assertions.hasSize
+import assertk.assertions.isEqualTo
+import assertk.assertions.isFalse
+import assertk.assertions.isNull
+import assertk.assertions.isTrue
+import assertk.assertions.isEqualTo
 import com.fsck.k9.K9RobolectricTest
 import com.fsck.k9.ui.R
 import net.thunderbird.feature.mail.folder.FolderType
@@ -51,7 +56,6 @@ class FolderListPreferenceTest : K9RobolectricTest() {
         // Assert
         assertThat(testSubject.entries[0].toString()).contains("INBOX.Trash")
     }
-
     @Test
     fun `entry values should be unchanged when no automatic folder is selected`() {
         // Arrange
@@ -127,6 +131,90 @@ class FolderListPreferenceTest : K9RobolectricTest() {
         // Assert
         assertThat(summary).contains("INBOX.Trash")
         assertThat(summary).doesNotContain("\n")
+    }
+
+    @Test
+    fun `automatic option and summary should show the label and the folder on one line`() {
+        // Arrange
+        testSubject.setFolders(folders, trash) { it.serverId }
+        testSubject.value = "AUTOMATIC|2"
+
+        // Act
+        val summary = testSubject.summary.toString()
+
+        // Assert
+        val label = context.getString(R.string.account_settings_automatic_folder)
+        assertThat(summary).isEqualTo("$label \u00B7 INBOX.Trash")
+    }
+
+    @Test
+    fun `dialog rows should not contain the automatic entry`() {
+        // Arrange
+
+        // Act
+        testSubject.setFolders(folders, trash) { it.serverId }
+
+        // Assert
+        assertThat(testSubject.dialogRows.map { it.first }).containsExactly("MANUAL|", "MANUAL|1", "MANUAL|2")
+        assertThat(testSubject.automaticValue).isEqualTo("AUTOMATIC|2")
+    }
+
+    @Test
+    fun `dialog rows should contain all entries and no automatic value without automatic option`() {
+        // Arrange
+
+        // Act
+        testSubject.setFolders(folders) { it.serverId }
+
+        // Assert
+        assertThat(testSubject.dialogRows).hasSize(3)
+        assertThat(testSubject.automaticValue).isNull()
+    }
+
+    @Test
+    fun `radio dot should sit on the automatic folder while automatic is selected`() {
+        assertThat(FolderSelection.rowValue("AUTOMATIC|2")).isEqualTo("MANUAL|2")
+    }
+
+    @Test
+    fun `radio dot should sit on none when automatic resolves to no folder`() {
+        assertThat(FolderSelection.rowValue("AUTOMATIC|")).isEqualTo("MANUAL|")
+    }
+
+    @Test
+    fun `radio dot should sit on the manual selection`() {
+        assertThat(FolderSelection.rowValue("MANUAL|1")).isEqualTo("MANUAL|1")
+    }
+
+    @Test
+    fun `switching off should keep the folder as a manual selection`() {
+        assertThat(FolderSelection.switchedOff("AUTOMATIC|2")).isEqualTo("MANUAL|2")
+        assertThat(FolderSelection.switchedOff("AUTOMATIC|")).isEqualTo("MANUAL|")
+    }
+
+    @Test
+    fun `switching on should select the automatic value`() {
+        assertThat(FolderSelection.switchedOn("AUTOMATIC|2")).isEqualTo("AUTOMATIC|2")
+        assertThat(FolderSelection.isAutomatic("AUTOMATIC|2")).isTrue()
+        assertThat(FolderSelection.isAutomatic("MANUAL|2")).isFalse()
+    }
+
+    @Test
+    fun `tapping a row should select it manually`() {
+        assertThat(FolderSelection.rowSelected("MANUAL|1")).isEqualTo("MANUAL|1")
+    }
+
+    @Test
+    fun `select should store the value`() {
+        // Arrange
+        testSubject.setFolders(folders, trash) { it.serverId }
+        testSubject.value = "AUTOMATIC|2"
+
+        // Act
+        testSubject.select("MANUAL|1")
+
+        // Assert
+        assertThat(testSubject.value).isEqualTo("MANUAL|1")
     }
 
     private fun createRemoteFolder(id: Long, name: String, serverId: String, type: FolderType): RemoteFolder {
