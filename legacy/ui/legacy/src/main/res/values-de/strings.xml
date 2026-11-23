@@ -951,6 +951,8 @@
     <string name="general_settings_bottom_app_bar_title">Einhandmodus/Such- und Menüleiste unten</string>
     <!--Description of the setting to configure whether to show the message list toolbar at the bottom of the screen-->
     <string name="general_settings_bottom_app_bar_summary">Die Leiste von Nachrichtenliste, Nachrichtenansicht und Suche sitzt unten am Bildschirmrand, und die Liste lässt sich über die oberste Mail hinaus nach unten ziehen – alles in Reichweite des Daumens</string>
+    <string name="one_handed_mode_on">Einhandmodus an</string>
+    <string name="one_handed_mode_off">Einhandmodus aus</string>
     <!--Displayed in the toolbar when there was an error loading the message list, e.g. because the folder no longer exists.-->
     <string name="message_list_error_title">Fehler</string>
     <!--Displayed instead of the message list when a folder couldn't be found, e.g. due to an outdated home screen shortcut.-->

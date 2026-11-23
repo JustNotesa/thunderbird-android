@@ -64,6 +64,7 @@ import com.fsck.k9.ui.messageview.PlaceholderFragment
 import com.fsck.k9.ui.settings.SettingsActivity
 import com.fsck.k9.view.ViewSwitcher
 import com.fsck.k9.view.ViewSwitcher.OnSwitchCompleteListener
+import com.google.android.material.snackbar.Snackbar
 import com.google.android.material.textview.MaterialTextView
 import kotlinx.coroutines.launch
 import net.thunderbird.core.android.account.LegacyAccount
@@ -77,6 +78,7 @@ import net.thunderbird.core.preference.SplitViewMode
 import net.thunderbird.core.preference.interaction.PostMarkAsUnreadNavigation
 import net.thunderbird.core.preference.interaction.PostRemoveNavigation
 import net.thunderbird.core.preference.storage.StorageProvider
+import net.thunderbird.core.preference.update
 import net.thunderbird.feature.account.AccountIdFactory
 import net.thunderbird.feature.account.usecase.GetDefaultAccountId
 import net.thunderbird.feature.account.AccountId
@@ -230,6 +232,7 @@ open class MessageHomeActivity :
 
         initializeActionBar()
         initializeBottomBar()
+        initializeToolbarTitleSwipe()
         initializeDrawer()
 
         if (!decodeExtras(intent)) {
@@ -704,7 +707,7 @@ open class MessageHomeActivity :
      * The bar hides the lower edge of the message list, so the list needs to know how much space the bar takes up.
      */
     private fun initializeBottomBar() {
-        if (!isBottomAppBarEnabled) return
+        if (useSplitView()) return
 
         val appBar = findViewById<View>(R.id.app_bar_layout)
         bottomBarScrollHider = BottomBarScrollHider(appBar)
@@ -733,6 +736,54 @@ open class MessageHomeActivity :
         )
     }
 
+    /**
+     * Swiping the title of the toolbar switches the one-handed mode: down moves the toolbar to the bottom, up moves it
+     * back to the top.
+     */
+    private fun initializeToolbarTitleSwipe() {
+        if (useSplitView()) return
+
+        val appBar = findViewById<View>(R.id.app_bar_layout)
+        ToolbarTitleSwipeController(
+            appBar = appBar,
+            titleView = findViewById(R.id.toolbarTitleContainer),
+            canToggle = { displayMode == DisplayMode.MESSAGE_LIST && !isActionModeActive },
+            isAtBottom = { isAppBarAtBottom },
+            toggle = { turnOn -> setOneHandedMode(turnOn) },
+            onDocked = { turnedOn ->
+                appBar.performHapticFeedback(ToolbarTitleSwipeController.dockedHapticFeedbackConstant())
+                showOneHandedModeSnackbar(turnedOn)
+            },
+        ).attach()
+    }
+
+    private fun setOneHandedMode(enabled: Boolean) {
+        generalSettingsManager.update { settings ->
+            settings.copy(
+                display = settings.display.copy(
+                    inboxSettings = settings.display.inboxSettings.copy(isMessageListBottomAppBar = enabled),
+                ),
+            )
+        }
+        // The new value must not make onResume think the settings changed and rebuild the screen
+        messageListActivityConfig = MessageListActivityConfig.create(generalSettingsManager)
+
+        isBottomAppBarEnabled = enabled
+        updateAppBarPosition()
+    }
+
+    private fun showOneHandedModeSnackbar(enabled: Boolean) {
+        val snackbar = Snackbar.make(
+            findViewById(R.id.coordinator_layout),
+            if (enabled) R.string.one_handed_mode_on else R.string.one_handed_mode_off,
+            Snackbar.LENGTH_SHORT,
+        )
+        if (enabled) {
+            snackbar.setAnchorView(R.id.app_bar_layout)
+        }
+        snackbar.show()
+    }
+
     private fun currentBottomBarHeight(): Int {
         // Only the message list scrolls underneath the bar. The message view ends above it.
         return if (currentAppBarPlacement == AppBarPlacement.BOTTOM_OVER_CONTENT) {
@@ -751,7 +802,7 @@ open class MessageHomeActivity :
      * Moves the toolbar to the bottom of the screen, or back to the top, depending on what's displayed.
      */
     private fun updateAppBarPosition() {
-        if (!isBottomAppBarEnabled) return
+        if (!isBottomAppBarEnabled && appliedAppBarPlacement == null) return
 
         val placement = currentAppBarPlacement
         val atBottom = placement.isAtBottom

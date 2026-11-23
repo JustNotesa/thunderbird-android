@@ -14,6 +14,7 @@
     <!-- We're not using MaterialToolbar's title/subtitle support because it is broken when using large system
          font sizes. See https://issuetracker.google.com/issues/135865267 -->
     <LinearLayout
+        android:id="@+id/toolbarTitleContainer"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginVertical="@dimen/toolbarTitleMarginVertical"

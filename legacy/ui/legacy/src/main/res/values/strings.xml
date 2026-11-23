@@ -1392,6 +1392,10 @@ You can keep this message and use it as a backup for your secret key. If you wan
     <string name="general_settings_bottom_app_bar_title">One-handed mode/Search and menu bar at the bottom</string>
     <!-- Description of the setting to configure whether to show the message list toolbar at the bottom of the screen -->
     <string name="general_settings_bottom_app_bar_summary">The bar of the message list, the message view and the search sits at the bottom of the screen, and the list can be pulled down past the first message – all within reach of your thumb</string>
+    <!-- Shown briefly after the one-handed mode was switched on by swiping the toolbar title -->
+    <string name="one_handed_mode_on">One-handed mode on</string>
+    <!-- Shown briefly after the one-handed mode was switched off by swiping the toolbar title -->
+    <string name="one_handed_mode_off">One-handed mode off</string>
 
     <!-- Displayed in the toolbar when there was an error loading the message list, e.g. because the folder no longer exists. -->
     <string name="message_list_error_title">Error</string>
