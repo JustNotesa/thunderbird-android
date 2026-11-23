@@ -7,6 +7,7 @@ import app.k9mail.core.ui.compose.testing.mvi.turbinesWithInitialStateCheck
 import assertk.assertThat
 import assertk.assertions.containsExactly
 import assertk.assertions.isEqualTo
+import assertk.assertions.isNull
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
@@ -15,6 +16,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
@@ -24,7 +26,9 @@ import net.thunderbird.feature.account.AccountIdFactory
 import net.thunderbird.feature.account.UnifiedAccountId
 import net.thunderbird.feature.mail.folder.FolderType
 import net.thunderbird.feature.navigation.drawer.dropdown.domain.entity.MailDisplayAccount
+import net.thunderbird.feature.navigation.drawer.dropdown.domain.entity.MailDisplayFolder
 import net.thunderbird.feature.navigation.drawer.dropdown.domain.entity.UnifiedDisplayAccount
+import net.thunderbird.feature.navigation.drawer.dropdown.domain.entity.UnifiedDisplayFolder
 import net.thunderbird.feature.navigation.drawer.dropdown.domain.entity.UnifiedDisplayFolderType
 import net.thunderbird.feature.navigation.drawer.dropdown.ui.DrawerContract.Effect
 import net.thunderbird.feature.navigation.drawer.dropdown.ui.DrawerContract.Event
@@ -509,8 +513,6 @@ internal class DrawerViewModelTest {
             accounts = displayAccounts.toImmutableList(),
             selectedAccountId = displayAccounts[0].id,
             folders = displayFoldersMap[displayAccounts[0].id]!!.toImmutableList(),
-            selectedFolderId = displayFoldersMap[displayAccounts[0].id]!![0].folderId,
-            selectedFolder = displayFoldersMap[displayAccounts[0].id]!![0],
         )
         val testSubject = createTestSubject(
             displayAccountsFlow = getDisplayAccountsFlow,
@@ -555,8 +557,6 @@ internal class DrawerViewModelTest {
                 accounts = displayAccounts.toImmutableList(),
                 selectedAccountId = displayAccounts[0].id,
                 folders = displayFoldersMap[displayAccounts[0].id]!!.toImmutableList(),
-                selectedFolderId = displayFoldersMap[displayAccounts[0].id]!![0].folderId,
-                selectedFolder = displayFoldersMap[displayAccounts[0].id]!![0],
             )
             val testSubject = createTestSubject(
                 displayAccountsFlow = getDisplayAccountsFlow,
@@ -578,6 +578,102 @@ internal class DrawerViewModelTest {
                 isEqualTo(Effect.CloseDrawer)
             }
         }
+
+    @Test
+    fun `should highlight no folder of an account that is only browsed while a unified folder is displayed`() =
+        runTest {
+            val fixture = createUnifiedDisplayedFixture()
+            val testSubject = fixture.testSubject
+
+            testSubject.event(Event.OnAccountClick(fixture.account))
+            advanceUntilIdle()
+
+            assertThat(testSubject.state.value.selectedAccountId).isEqualTo(fixture.account.id)
+            assertThat(testSubject.state.value.folders).isEqualTo(fixture.accountFolders)
+            assertThat(testSubject.state.value.selectedFolderId).isEqualTo(UnifiedDisplayFolderType.TRASH.id)
+            assertThat(testSubject.state.value.selectedFolder).isNull()
+        }
+
+    @Test
+    fun `should highlight a folder of the browsed account once it is tapped`() = runTest {
+        val fixture = createUnifiedDisplayedFixture()
+        val testSubject = fixture.testSubject
+        testSubject.event(Event.OnAccountClick(fixture.account))
+        advanceUntilIdle()
+
+        testSubject.event(Event.OnFolderClick(fixture.accountFolders[1]))
+        advanceUntilIdle()
+
+        assertThat(testSubject.state.value.selectedFolderId).isEqualTo(fixture.accountFolders[1].folderId)
+        assertThat(testSubject.state.value.selectedFolder).isEqualTo(fixture.accountFolders[1])
+    }
+
+    @Test
+    fun `should highlight the displayed unified folder again when switching back to the unified account`() = runTest {
+        val fixture = createUnifiedDisplayedFixture()
+        val testSubject = fixture.testSubject
+        testSubject.event(Event.OnAccountClick(fixture.account))
+        advanceUntilIdle()
+
+        testSubject.event(Event.SelectAccount(UnifiedAccountId))
+        advanceUntilIdle()
+
+        assertThat(testSubject.state.value.selectedAccountId).isEqualTo(UnifiedAccountId)
+        assertThat(testSubject.state.value.selectedFolderId).isEqualTo(UnifiedDisplayFolderType.TRASH.id)
+        assertThat(testSubject.state.value.selectedFolder).isEqualTo(fixture.unifiedFolders[1])
+    }
+
+    @Test
+    fun `should highlight the start folder after the account avatar was tapped`() = runTest {
+        val fixture = createUnifiedDisplayedFixture()
+        val testSubject = fixture.testSubject
+        testSubject.event(Event.OnAccountClick(fixture.account))
+        advanceUntilIdle()
+
+        // The activity opens the start folder and tells the drawer about it.
+        testSubject.event(Event.OnAccountAvatarClick(fixture.account))
+        testSubject.event(Event.SelectAccount(fixture.account.id))
+        testSubject.event(Event.SelectFolder(fixture.accountFolders[0].folderId))
+        advanceUntilIdle()
+
+        assertThat(testSubject.state.value.selectedFolder).isEqualTo(fixture.accountFolders[0])
+    }
+
+    private class UnifiedDisplayedFixture(
+        val testSubject: DrawerViewModel,
+        val account: MailDisplayAccount,
+        val accountFolders: List<MailDisplayFolder>,
+        val unifiedFolders: List<UnifiedDisplayFolder>,
+    )
+
+    /** The unified trash folder is displayed in the message list, the drawer shows the unified account. */
+    private fun TestScope.createUnifiedDisplayedFixture(): UnifiedDisplayedFixture {
+        val account = createDisplayAccount()
+        val accountFolders = listOf(
+            createDisplayFolder(accountId = account.id, id = 1, type = FolderType.INBOX),
+            createDisplayFolder(accountId = account.id, id = 2, type = FolderType.TRASH),
+        )
+        val unifiedFolders = listOf(
+            createDisplayUnifiedFolder(),
+            createDisplayUnifiedFolder(
+                id = UnifiedDisplayFolderType.TRASH.id,
+                unifiedType = UnifiedDisplayFolderType.TRASH,
+            ),
+        )
+        val testSubject = createTestSubject(
+            drawerConfigFlow = MutableStateFlow(createDrawerConfig(showUnifiedInbox = true)),
+            displayAccountsFlow = MutableStateFlow(listOf(account)),
+            displayFoldersFlow = MutableStateFlow(
+                mapOf(account.id to accountFolders, UnifiedAccountId to unifiedFolders),
+            ),
+        )
+        advanceUntilIdle()
+        testSubject.event(Event.SelectAccount(UnifiedAccountId))
+        testSubject.event(Event.SelectFolder(UnifiedDisplayFolderType.TRASH.id))
+        advanceUntilIdle()
+
+        return UnifiedDisplayedFixture(testSubject, account, accountFolders, unifiedFolders)
+    }
 
     @Test
     fun `should emit OpenSettings effect when OnSettingsClick event is received`() = runMviTest {
