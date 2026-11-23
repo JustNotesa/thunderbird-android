@@ -520,6 +520,7 @@ class LegacyMessageListFragment :
         }
 
         isSingleFolderMode = false
+        currentFolder = null
         if (isSingleAccountMode && localSearch.folderIds.size == 1) {
             try {
                 val account = checkNotNull(account)
@@ -661,9 +662,9 @@ class LegacyMessageListFragment :
         if (!isRemoteSearchSupported) return
 
         // A search that was started from a folder can be limited to that folder.
-        if (searchScope == null && account != null && currentFolder != null) {
-            searchScope = SearchScope.EVERYWHERE
-        }
+        // The scope always comes from the search this list displays, never from an earlier one.
+        searchScope = searchScope.takeIf { it != null && isSearchStartedFromSingleFolder() }
+            ?: initialSearchScope(isSearchStartedFromSingleFolder(), isUnifiedFoldersView)
 
         if (isRemoteSearch && remoteSearchFuture == null) {
             // The server search has ended while the message list wasn't displayed, e.g. while reading a message.
@@ -684,6 +685,8 @@ class LegacyMessageListFragment :
         searchStatus = status
         updateSearchStatusPlacement()
     }
+
+    private fun isSearchStartedFromSingleFolder() = isSingleFolderMode && account != null && currentFolder != null
 
     private fun searchStatusItem(status: ServerSearchStatus) = MessageListViewItem.SearchStatus(status, searchScope)
 

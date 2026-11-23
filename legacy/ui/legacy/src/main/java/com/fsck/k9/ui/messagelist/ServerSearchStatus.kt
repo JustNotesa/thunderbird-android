@@ -53,3 +53,11 @@ enum class SearchScope {
     FOLDER,
     EVERYWHERE,
 }
+
+/**
+ * The scope a search starts with. Only a search that was started from a single folder can be limited to it, so the
+ * choice is not offered ([null]) for a search from the unified folders or from several folders or accounts.
+ */
+internal fun initialSearchScope(isSingleFolderMode: Boolean, isUnifiedFolders: Boolean): SearchScope? {
+    return if (isSingleFolderMode && !isUnifiedFolders) SearchScope.EVERYWHERE else null
+}
