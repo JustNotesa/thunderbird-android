@@ -42,3 +42,31 @@ internal fun nextHeaderCollapseState(
  */
 internal fun headerUnfoldedByUser(scrollY: Int, threshold: Int) =
     HeaderCollapseState(isCollapsed = false, collapseFromY = scrollY + threshold)
+
+/** The part of the screen's height the header pinned above the toolbar may take up when it is unfolded. */
+internal const val PINNED_HEADER_MAX_HEIGHT_FRACTION = 0.4f
+
+/** The height the unfolded header pinned above the toolbar is capped at. A taller header scrolls within the cap. */
+internal fun pinnedHeaderMaxHeight(screenHeight: Int): Int = (screenHeight * PINNED_HEADER_MAX_HEIGHT_FRACTION).toInt()
+
+/** Which way a vertical swipe on the pinned header moved the finger. */
+internal enum class HeaderSwipe { FOLD, UNFOLD, NONE }
+
+/**
+ * What a vertical swipe on the pinned header does: swiping up folds it, like scrolling the message down, and swiping
+ * down unfolds it again. A header that scrolls within its cap keeps the swipe as long as it can scroll that way.
+ *
+ * @param deltaY How far the finger moved, negative for up.
+ * @param canScrollHeaderUp Whether the header's own content has more to show when the finger moves up.
+ */
+internal fun headerSwipeAction(
+    deltaY: Float,
+    isCollapsed: Boolean,
+    canScrollHeaderUp: Boolean,
+): HeaderSwipe {
+    return when {
+        deltaY < 0 && !isCollapsed && !canScrollHeaderUp -> HeaderSwipe.FOLD
+        deltaY > 0 && isCollapsed -> HeaderSwipe.UNFOLD
+        else -> HeaderSwipe.NONE
+    }
+}

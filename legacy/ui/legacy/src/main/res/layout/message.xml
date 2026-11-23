@@ -197,6 +197,14 @@ the 'message view theme' setting).
 
         </LinearLayout>
 
+        <!-- Caps the height of the unfolded header, see MessageTopView.setHeaderAtBottom -->
+        <com.fsck.k9.view.MaxHeightScrollView
+            android:id="@+id/header_bottom_scroll"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:overScrollMode="never"
+            />
+
     </LinearLayout>
 
     <androidx.compose.ui.platform.ComposeView

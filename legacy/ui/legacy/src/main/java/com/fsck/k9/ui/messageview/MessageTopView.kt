@@ -12,8 +12,11 @@ import android.transition.AutoTransition
 import android.transition.TransitionManager
 import android.util.AttributeSet
 import android.view.LayoutInflater
+import android.view.MotionEvent
 import android.view.View
+import android.view.ViewConfiguration
 import android.view.ViewGroup
+import androidx.core.view.isVisible
 import android.widget.ScrollView
 import android.widget.ImageView
 import android.widget.LinearLayout
@@ -26,6 +29,7 @@ import com.fsck.k9.mailstore.MessageViewInfo
 import com.fsck.k9.ui.R
 import com.fsck.k9.ui.helper.SizeFormatter
 import com.fsck.k9.ui.messageview.MessageContainerView.OnRenderingFinishedListener
+import com.fsck.k9.view.MaxHeightScrollView
 import com.fsck.k9.view.MessageHeader
 import com.fsck.k9.view.ThemeUtils
 import com.fsck.k9.view.ToolableViewAnimator
@@ -41,6 +45,7 @@ import net.thunderbird.core.ui.animation.manager.AnimationManager
 import net.thunderbird.feature.mail.message.reader.api.ui.MessageReaderViewContract
 import org.koin.core.component.KoinComponent
 import org.koin.core.component.inject
+import kotlin.math.abs
 
 class MessageTopView(
     context: Context,
@@ -79,6 +84,10 @@ class MessageTopView(
     private lateinit var headerDivider: View
     private lateinit var headerBottomPanel: ViewGroup
     private lateinit var headerCompactBar: View
+    private lateinit var headerBottomScroll: MaxHeightScrollView
+    private var swipeStartX = 0f
+    private var swipeStartY = 0f
+    private var isSwipeTracked = false
     private var isHeaderAtBottom = false
     private var headerCollapseState = initialHeaderCollapseState(0)
 
@@ -111,6 +120,7 @@ class MessageTopView(
         headerDivider = findViewById(R.id.header_divider)
         headerBottomPanel = findViewById(R.id.header_bottom_panel)
         headerCompactBar = findViewById(R.id.header_compact_bar)
+        headerBottomScroll = findViewById(R.id.header_bottom_scroll)
         headerCompactBar.setOnClickListener { unfoldHeaderByUser() }
         messageHeaderView.attachCompactBar(headerCompactBar)
         headerCollapseState = initialHeaderCollapseState(collapseThresholdPx())
@@ -132,7 +142,8 @@ class MessageTopView(
         detachFromParent(headerDivider)
         if (atBottom) {
             headerBottomPanel.addView(headerDivider, 0)
-            headerBottomPanel.addView(messageHeaderView)
+            headerBottomScroll.maxHeight = pinnedHeaderMaxHeight(resources.displayMetrics.heightPixels)
+            headerBottomScroll.addView(messageHeaderView)
             headerBottomPanel.visibility = VISIBLE
             scrollView.setOnScrollChangeListener { _, _, scrollY, _, _ -> onMessageScrolled(scrollY) }
         } else {
@@ -142,6 +153,54 @@ class MessageTopView(
             scrollView.setOnScrollChangeListener(null)
             headerCollapseState = initialHeaderCollapseState(collapseThresholdPx())
             applyHeaderCollapsed(collapsed = false, animate = false)
+        }
+    }
+
+    /**
+     * A vertical swipe that starts on the pinned header folds or unfolds it, too. The touches are only watched, not
+     * taken away, so the header's own buttons and scrolling keep working.
+     */
+    override fun onInterceptTouchEvent(ev: MotionEvent): Boolean {
+        if (isHeaderAtBottom) watchHeaderSwipe(ev)
+        return super.onInterceptTouchEvent(ev)
+    }
+
+    private fun watchHeaderSwipe(ev: MotionEvent) {
+        when (ev.actionMasked) {
+            MotionEvent.ACTION_DOWN -> {
+                isSwipeTracked = headerBottomPanel.isVisible && ev.y >= headerBottomPanel.top &&
+                    ev.y <= headerBottomPanel.bottom
+                swipeStartX = ev.x
+                swipeStartY = ev.y
+            }
+
+            MotionEvent.ACTION_MOVE -> if (isSwipeTracked) {
+                val deltaX = ev.x - swipeStartX
+                val deltaY = ev.y - swipeStartY
+                if (abs(deltaY) < ViewConfiguration.get(context).scaledTouchSlop || abs(deltaY) < abs(deltaX)) return
+
+                isSwipeTracked = false
+                onHeaderSwiped(deltaY)
+            }
+
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> isSwipeTracked = false
+        }
+    }
+
+    private fun onHeaderSwiped(deltaY: Float) {
+        val action = headerSwipeAction(
+            deltaY = deltaY,
+            isCollapsed = headerCollapseState.isCollapsed,
+            canScrollHeaderUp = headerBottomScroll.canScrollVertically(1),
+        )
+        when (action) {
+            HeaderSwipe.FOLD -> {
+                headerCollapseState = headerCollapseState.copy(isCollapsed = true)
+                applyHeaderCollapsed(collapsed = true, animate = true)
+            }
+
+            HeaderSwipe.UNFOLD -> unfoldHeaderByUser()
+            HeaderSwipe.NONE -> Unit
         }
     }
 
