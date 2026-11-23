@@ -116,6 +116,12 @@ internal class DrawerViewModel(
             }
     }
 
+    /**
+     * [State.selectedFolderId] identifies the folder that is displayed in the message list. Folder ids include the
+     * account (or the unified marker), so the folder is only highlighted when it is part of the folders currently
+     * shown in the drawer. The id must not fall back to another folder, e.g. the inbox of the account that is merely
+     * being browsed.
+     */
     private fun updateFolders(displayFolders: List<DisplayFolder>, rootFolder: DisplayTreeFolder) {
         // A pinned unified folder is selected, but it isn't part of the account's folders.
         var selectedFolder = state.value.pinnedFolders
@@ -134,16 +140,10 @@ internal class DrawerViewModel(
             selectedFolder = findFolderById(rootFolder, state.value.selectedFolderId)
         }
 
-        // If still not found, default to the first folder
-        if (selectedFolder == null) {
-            selectedFolder = displayFolders.firstOrNull() ?: rootFolder.children.firstOrNull()?.displayFolder
-        }
-
         updateState {
             it.copy(
                 rootFolder = rootFolder,
                 folders = displayFolders.toImmutableList(),
-                selectedFolderId = selectedFolder?.folderId,
                 selectedFolder = selectedFolder,
             )
         }
