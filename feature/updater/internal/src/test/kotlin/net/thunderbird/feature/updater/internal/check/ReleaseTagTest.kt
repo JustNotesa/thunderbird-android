@@ -2,10 +2,13 @@ package net.thunderbird.feature.updater.internal.check
 
 import assertk.assertThat
 import assertk.assertions.isEqualTo
+import assertk.assertions.isFalse
 import assertk.assertions.isGreaterThan
 import assertk.assertions.isLessThan
 import assertk.assertions.isNull
+import assertk.assertions.isTrue
 import kotlin.test.Test
+import net.thunderbird.feature.updater.api.AppUpdateConfig
 
 private const val PREFIX = "mein-thunderbird-"
 
@@ -177,6 +180,33 @@ class ReleaseTagTest {
 
         assertThat(result).isNull()
     }
+
+    @Test
+    fun `a newer tag is newer than the installed release`() {
+        assertThat(isNewerThanInstalled("mein-thunderbird-2026-10-26", config("mein-thunderbird-2026-10-25"))).isTrue()
+    }
+
+    @Test
+    fun `the installed tag and an older tag are not newer than the installed release`() {
+        val config = config("mein-thunderbird-2026-10-25-3")
+
+        assertThat(isNewerThanInstalled("mein-thunderbird-2026-10-25-3", config)).isFalse()
+        assertThat(isNewerThanInstalled("mein-thunderbird-2026-10-25-2", config)).isFalse()
+    }
+
+    @Test
+    fun `an invalid tag is stale when the installed release is known`() {
+        assertThat(isNewerThanInstalled("test-tag", config("mein-thunderbird-2026-10-25"))).isFalse()
+    }
+
+    @Test
+    fun `nothing is stale when the installed release has no valid tag`() {
+        assertThat(isNewerThanInstalled("mein-thunderbird-2026-10-25", config(""))).isTrue()
+        assertThat(isNewerThanInstalled("test-tag", config(""))).isTrue()
+    }
+
+    private fun config(currentReleaseTag: String) =
+        AppUpdateConfig(repository = "owner/name", currentReleaseTag = currentReleaseTag, tagPrefix = PREFIX)
 
     private fun parseTag(tag: String): ReleaseTag = requireNotNull(testSubject.parse(tag, PREFIX))
 }

@@ -28,6 +28,8 @@ import org.robolectric.RuntimeEnvironment
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
 
+private const val NOW_MILLIS = 1_700_000_000_000L
+
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class InstallResultReceiverTest {
@@ -51,6 +53,7 @@ class InstallResultReceiverTest {
             notifier = UpdateNotifier(application),
             coroutineScope = installerScope,
             sessionRegistrar = FakeInstallSessionRegistrar(),
+            clock = { NOW_MILLIS },
         )
         notifier = UpdateNotifier(application)
         testSubject = InstallResultReceiver()
@@ -145,7 +148,7 @@ class InstallResultReceiverTest {
 
         // Assert
         assertThat(installer.state.value).isEqualTo(
-            UpdateInstallState.Failed(UpdateInstallFailure.CANCELLED),
+            UpdateInstallState.Failed(UpdateInstallFailure.CANCELLED, null, NOW_MILLIS),
         )
     }
 
@@ -162,7 +165,7 @@ class InstallResultReceiverTest {
 
         // Assert
         assertThat(installer.state.value).isEqualTo(
-            UpdateInstallState.Failed(UpdateInstallFailure.REJECTED),
+            UpdateInstallState.Failed(UpdateInstallFailure.REJECTED, null, NOW_MILLIS),
         )
     }
 

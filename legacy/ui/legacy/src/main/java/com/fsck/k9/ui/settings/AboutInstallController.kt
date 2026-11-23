@@ -54,6 +54,15 @@ internal class AboutInstallController(
         installer.resetState()
     }
 
+    /**
+     * Clears the failure of an earlier installation. A download or an installation that is in progress is kept.
+     */
+    fun resetFailedInstall() {
+        if (installer.state.value is UpdateInstallState.Failed) {
+            installer.resetState()
+        }
+    }
+
     fun onOpenInstallPermissionClick() {
         installer.openInstallPermissionSettings()
     }

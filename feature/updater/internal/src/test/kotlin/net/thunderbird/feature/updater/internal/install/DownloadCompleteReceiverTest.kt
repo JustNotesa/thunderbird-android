@@ -38,6 +38,7 @@ private const val TITLE = "Test release"
 private const val APK_CONTENT = "apk content"
 private const val TIMEOUT_MILLIS = 30_000L
 private const val SESSION_ID = 7
+private const val NOW_MILLIS = 1_700_000_000_000L
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
@@ -95,7 +96,7 @@ class DownloadCompleteReceiverTest {
 
         // Assert
         assertThat(installer.state.value).isEqualTo(
-            UpdateInstallState.Failed(UpdateInstallFailure.DOWNLOAD),
+            UpdateInstallState.Failed(UpdateInstallFailure.DOWNLOAD, TAG, NOW_MILLIS),
         )
     }
 
@@ -180,6 +181,7 @@ class DownloadCompleteReceiverTest {
             coroutineScope = coroutineScope,
             writeSession = writeSession,
             sessionRegistrar = FakeInstallSessionRegistrar(),
+            clock = { NOW_MILLIS },
         )
     }
 

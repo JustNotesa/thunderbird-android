@@ -107,6 +107,10 @@ internal class AboutUpdatesController(
         if (status == null) {
             stateHolder.clear()
         } else {
+            if (status == CheckStatus.UpToDate) {
+                // The installed app is current, so a failure of an earlier attempt would only contradict that.
+                installController.resetFailedInstall()
+            }
             stateHolder.update { it.copy(check = status) }
         }
     }

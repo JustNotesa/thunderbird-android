@@ -25,17 +25,20 @@ internal class AppUpdateWorkflow(
     private val finisher: ApkFinisher,
     private val backgroundDownload: BackgroundDownload,
     private val state: MutableStateFlow<UpdateInstallState>,
+    private val failures: InstallFailures,
     private val logger: Logger,
+    private val isNewerThanInstalled: (String) -> Boolean = { true },
 ) {
 
     /**
      * Downloads, verifies and installs [update].
      */
     suspend fun install(update: AppUpdate) {
+        failures.tag = update.tag
         val sha256 = update.apkSha256
         if (sha256 == null) {
             // Without a checksum the APK can't be verified, so it isn't downloaded at all.
-            state.value = UpdateInstallState.Failed(UpdateInstallFailure.CHECKSUM)
+            state.value = failures.create(UpdateInstallFailure.CHECKSUM)
             return
         }
 
@@ -57,7 +60,7 @@ internal class AppUpdateWorkflow(
             throw cancellation
         } catch (_: Exception) {
             logger.error(TAG) { "Installing the app update failed." }
-            state.value = UpdateInstallState.Failed(UpdateInstallFailure.REJECTED)
+            state.value = failures.create(UpdateInstallFailure.REJECTED)
         }
     }
 
@@ -67,10 +70,11 @@ internal class AppUpdateWorkflow(
      * The update waits until it is installed with [installDownloaded].
      */
     suspend fun download(update: AppUpdate, onlyOnWifi: Boolean) {
+        failures.tag = update.tag
         val sha256 = update.apkSha256
         if (sha256 == null) {
             // Without a checksum the APK can't be verified, so it isn't downloaded at all.
-            state.value = UpdateInstallState.Failed(UpdateInstallFailure.CHECKSUM)
+            state.value = failures.create(UpdateInstallFailure.CHECKSUM)
             return
         }
 
@@ -92,7 +96,7 @@ internal class AppUpdateWorkflow(
             throw cancellation
         } catch (_: Exception) {
             logger.error(TAG) { "Downloading the app update failed." }
-            state.value = UpdateInstallState.Failed(UpdateInstallFailure.DOWNLOAD)
+            state.value = failures.create(UpdateInstallFailure.DOWNLOAD)
         }
     }
 
@@ -103,14 +107,15 @@ internal class AppUpdateWorkflow(
         val kept = keptApks.load()
         if (kept == null) {
             logger.warn(TAG) { "There is no downloaded app update that could be installed." }
-            state.value = UpdateInstallState.Failed(UpdateInstallFailure.DOWNLOAD)
+            state.value = failures.create(UpdateInstallFailure.DOWNLOAD)
             return
         }
 
+        failures.tag = kept.tag
         val file = keptApks.verifiedFile(apkVerifier, kept.tag, kept.sha256)
         if (file == null) {
             logger.warn(TAG) { "The downloaded app update couldn't be verified." }
-            state.value = UpdateInstallState.Failed(UpdateInstallFailure.DOWNLOAD)
+            state.value = failures.create(UpdateInstallFailure.DOWNLOAD)
             return
         }
 
@@ -122,11 +127,16 @@ internal class AppUpdateWorkflow(
      */
     fun restoreKeptUpdate() {
         val kept = keptApks.load() ?: return
-        if (keptApks.existingFile(kept.tag) == null) {
-            // The file of the downloaded update is gone, so it has to be downloaded again.
-            return
+        if (isNewerThanInstalled(kept.tag)) {
+            // When the file of the downloaded update is gone, the update has to be downloaded again.
+            if (keptApks.existingFile(kept.tag) != null) {
+                logger.info(TAG) { "The downloaded app update is ready to be installed." }
+                state.value = UpdateInstallState.ReadyToInstall(kept.tag)
+            }
+        } else {
+            // The release is installed already (or is older), so there is nothing to install.
+            logger.info(TAG) { "The downloaded app update isn't newer than the installed app and is removed." }
+            keptApks.clear()
         }
-        logger.info(TAG) { "The downloaded app update is ready to be installed." }
-        state.value = UpdateInstallState.ReadyToInstall(kept.tag)
     }
 }

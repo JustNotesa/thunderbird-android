@@ -57,6 +57,7 @@ private const val POLL_INTERVAL_MILLIS = 500L
 private const val SESSION_ID = 7
 private const val TIMEOUT_MILLIS = 30_000L
 private const val WAIT_INTERVAL_MILLIS = 10L
+private const val NOW_MILLIS = 1_700_000_000_000L
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
@@ -104,7 +105,7 @@ class PackageInstallerAppUpdateInstallerTest {
 
         // Assert
         assertThat(testSubject.state.value).isEqualTo(
-            UpdateInstallState.Failed(UpdateInstallFailure.PERMISSION_MISSING),
+            UpdateInstallState.Failed(UpdateInstallFailure.PERMISSION_MISSING, TAG, NOW_MILLIS),
         )
         assertThat(downloads.requests).isEmpty()
     }
@@ -119,7 +120,7 @@ class PackageInstallerAppUpdateInstallerTest {
 
         // Assert
         assertThat(testSubject.state.value).isEqualTo(
-            UpdateInstallState.Failed(UpdateInstallFailure.CHECKSUM),
+            UpdateInstallState.Failed(UpdateInstallFailure.CHECKSUM, TAG, NOW_MILLIS),
         )
         assertThat(downloads.requests).isEmpty()
     }
@@ -293,7 +294,7 @@ class PackageInstallerAppUpdateInstallerTest {
         // Assert
         val state = awaitState(testSubject) { it is UpdateInstallState.Failed }
         caller.join()
-        assertThat(state).isEqualTo(UpdateInstallState.Failed(UpdateInstallFailure.DOWNLOAD))
+        assertThat(state).isEqualTo(UpdateInstallState.Failed(UpdateInstallFailure.DOWNLOAD, TAG, NOW_MILLIS))
     }
 
     @Test
@@ -311,7 +312,7 @@ class PackageInstallerAppUpdateInstallerTest {
 
         // Assert
         assertThat(testSubject.state.value).isEqualTo(
-            UpdateInstallState.Failed(UpdateInstallFailure.DOWNLOAD),
+            UpdateInstallState.Failed(UpdateInstallFailure.DOWNLOAD, TAG, NOW_MILLIS),
         )
     }
 
@@ -347,7 +348,7 @@ class PackageInstallerAppUpdateInstallerTest {
 
         // Assert
         assertThat(testSubject.state.value).isEqualTo(
-            UpdateInstallState.Failed(UpdateInstallFailure.CHECKSUM),
+            UpdateInstallState.Failed(UpdateInstallFailure.CHECKSUM, TAG, NOW_MILLIS),
         )
         assertThat(downloads.removedDownloadIds).contains(DOWNLOAD_ID)
         assertThat(keptApkFiles()).isEmpty()
@@ -367,7 +368,7 @@ class PackageInstallerAppUpdateInstallerTest {
 
         // Assert
         assertThat(testSubject.state.value).isEqualTo(
-            UpdateInstallState.Failed(UpdateInstallFailure.DOWNLOAD),
+            UpdateInstallState.Failed(UpdateInstallFailure.DOWNLOAD, TAG, NOW_MILLIS),
         )
         assertThat(downloads.removedDownloadIds).contains(DOWNLOAD_ID)
     }
@@ -493,7 +494,7 @@ class PackageInstallerAppUpdateInstallerTest {
 
         // Assert
         assertThat(testSubject.state.value).isEqualTo(
-            UpdateInstallState.Failed(UpdateInstallFailure.CANCELLED),
+            UpdateInstallState.Failed(UpdateInstallFailure.CANCELLED, null, NOW_MILLIS),
         )
     }
 
@@ -507,7 +508,7 @@ class PackageInstallerAppUpdateInstallerTest {
 
         // Assert
         assertThat(testSubject.state.value).isEqualTo(
-            UpdateInstallState.Failed(UpdateInstallFailure.REJECTED),
+            UpdateInstallState.Failed(UpdateInstallFailure.REJECTED, null, NOW_MILLIS),
         )
     }
 
@@ -635,7 +636,7 @@ class PackageInstallerAppUpdateInstallerTest {
 
         // Assert
         assertThat(testSubject.state.value).isEqualTo(
-            UpdateInstallState.Failed(UpdateInstallFailure.DOWNLOAD),
+            UpdateInstallState.Failed(UpdateInstallFailure.DOWNLOAD, TAG, NOW_MILLIS),
         )
     }
 
@@ -697,7 +698,7 @@ class PackageInstallerAppUpdateInstallerTest {
 
         // Assert
         assertThat(testSubject.state.value).isEqualTo(
-            UpdateInstallState.Failed(UpdateInstallFailure.DOWNLOAD),
+            UpdateInstallState.Failed(UpdateInstallFailure.DOWNLOAD, TAG, NOW_MILLIS),
         )
         assertThat(downloadFailedNotification()).isNotNull()
     }
@@ -728,9 +729,112 @@ class PackageInstallerAppUpdateInstallerTest {
 
         // Assert
         assertThat(testSubject.state.value).isEqualTo(
-            UpdateInstallState.Failed(UpdateInstallFailure.DOWNLOAD),
+            UpdateInstallState.Failed(UpdateInstallFailure.DOWNLOAD, null, NOW_MILLIS),
         )
         assertThat(sessionWrites).isEmpty()
+    }
+
+    @Test
+    fun `a stale pending download is dropped silently when the app starts`() = runTest {
+        // Arrange
+        downloads.status = SystemDownloadStatus.Failed
+        store.save(createPendingDownload().copy(installWhenDone = false))
+
+        // Act
+        val testSubject = createInstaller(backgroundScope, isNewerThanInstalled = { false })
+        testScheduler.runCurrent()
+
+        // Assert
+        assertThat(testSubject.state.value).isEqualTo(UpdateInstallState.Idle)
+        assertThat(downloads.removedDownloadIds).containsExactly(DOWNLOAD_ID)
+        assertThat(store.load()).isNull()
+        assertThat(downloadFailedNotification()).isNull()
+    }
+
+    @Test
+    fun `a newer pending download is continued when the app starts`() = runTest {
+        // Arrange
+        downloads.status = SystemDownloadStatus.Running(DOWNLOADED_BYTES, apkSize)
+        store.save(createPendingDownload())
+
+        // Act
+        val testSubject = createInstaller(backgroundScope, isNewerThanInstalled = { true })
+        testScheduler.runCurrent()
+
+        // Assert
+        assertThat(testSubject.state.value).isEqualTo(UpdateInstallState.Downloading(DOWNLOADED_BYTES, apkSize))
+        assertThat(downloads.removedDownloadIds).isEmpty()
+        assertThat(store.load()).isNotNull()
+    }
+
+    @Test
+    fun `a failed newer pending download is still reported when the app starts`() = runTest {
+        // Arrange
+        downloads.status = SystemDownloadStatus.Failed
+        store.save(createPendingDownload())
+
+        // Act
+        val testSubject = createInstaller(backgroundScope, isNewerThanInstalled = { true })
+        testScheduler.runCurrent()
+
+        // Assert
+        assertThat(testSubject.state.value).isEqualTo(
+            UpdateInstallState.Failed(UpdateInstallFailure.DOWNLOAD, TAG, NOW_MILLIS),
+        )
+    }
+
+    @Test
+    fun `refresh drops a stale pending download silently`() = runTest {
+        // Arrange
+        var newer = true
+        val testSubject = createInstaller(backgroundScope, isNewerThanInstalled = { newer })
+        testScheduler.runCurrent()
+        downloads.status = SystemDownloadStatus.Failed
+        store.save(createPendingDownload().copy(installWhenDone = false))
+        // The release became stale in the meantime, e.g. it was installed another way.
+        newer = false
+
+        // Act
+        testSubject.refresh()
+
+        // Assert
+        assertThat(testSubject.state.value).isEqualTo(UpdateInstallState.Idle)
+        assertThat(downloads.removedDownloadIds).containsExactly(DOWNLOAD_ID)
+        assertThat(store.load()).isNull()
+        assertThat(downloadFailedNotification()).isNull()
+    }
+
+    @Test
+    fun `a stale kept update isn't offered when the app starts`() = runTest {
+        // Arrange
+        val firstInstaller = createInstaller(backgroundScope)
+        downloads.status = SystemDownloadStatus.Successful(createDownloadedFile())
+        firstInstaller.download(createUpdate(), onlyOnWifi = false)
+        firstInstaller.onDownloadFinished(DOWNLOAD_ID)
+
+        // Act
+        val secondInstaller = createInstaller(backgroundScope, isNewerThanInstalled = { false })
+        testScheduler.runCurrent()
+
+        // Assert
+        assertThat(secondInstaller.state.value).isEqualTo(UpdateInstallState.Idle)
+        assertThat(KeptApkStore(application).load()).isNull()
+        assertThat(keptApkFiles()).isEmpty()
+    }
+
+    @Test
+    fun `a failed installation names the version and the time`() = runTest {
+        // Arrange
+        val testSubject = createInstaller(backgroundScope)
+        testSubject.install(createUpdate())
+
+        // Act
+        testSubject.onInstallStatus(PackageInstaller.STATUS_FAILURE_ABORTED)
+
+        // Assert
+        val state = testSubject.state.value as UpdateInstallState.Failed
+        assertThat(state.tag).isEqualTo(TAG)
+        assertThat(state.failedAtMillis).isEqualTo(NOW_MILLIS)
     }
 
     private fun createInstaller(
@@ -739,6 +843,7 @@ class PackageInstallerAppUpdateInstallerTest {
             sessionWrites.add(file)
             SESSION_ID
         },
+        isNewerThanInstalled: (String) -> Boolean = { true },
     ): PackageInstallerAppUpdateInstaller {
         return PackageInstallerAppUpdateInstaller(
             context = application,
@@ -751,6 +856,8 @@ class PackageInstallerAppUpdateInstallerTest {
             pollIntervalMillis = POLL_INTERVAL_MILLIS,
             writeSession = writeSession,
             sessionRegistrar = registrar,
+            isNewerThanInstalled = isNewerThanInstalled,
+            clock = { NOW_MILLIS },
         )
     }
 

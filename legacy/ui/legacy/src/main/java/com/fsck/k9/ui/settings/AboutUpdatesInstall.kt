@@ -1,5 +1,7 @@
 package com.fsck.k9.ui.settings
 
+import android.content.Context
+import android.text.format.DateUtils
 import android.text.format.Formatter
 import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Arrangement
@@ -110,6 +112,8 @@ internal fun AboutUpdateInstallStatus(
             is UpdateInstallState.Failed -> {
                 AboutUpdateInstallFailure(
                     reason = install.reason,
+                    tag = install.tag,
+                    failedAtMillis = install.failedAtMillis,
                     onDismissClick = onInstallFailureDismiss,
                 )
             }
@@ -146,6 +150,8 @@ private fun AboutUpdateReadyToInstall(
 @Composable
 private fun AboutUpdateInstallFailure(
     reason: UpdateInstallFailure,
+    tag: String?,
+    failedAtMillis: Long?,
     onDismissClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -154,6 +160,9 @@ private fun AboutUpdateInstallFailure(
         verticalArrangement = Arrangement.spacedBy(BoltTheme.spacings.half),
     ) {
         TextBodyMedium(text = stringResource(installFailureMessageRes(reason)))
+        installFailureDetails(LocalContext.current, tag, failedAtMillis)?.let { details ->
+            TextBodyMedium(text = details)
+        }
         DisableSelection {
             ButtonOutlined(
                 text = stringResource(R.string.about_updates_dismiss_button),
@@ -258,6 +267,24 @@ internal fun installFailureMessageRes(reason: UpdateInstallFailure): Int {
         UpdateInstallFailure.PERMISSION_MISSING -> R.string.about_updates_install_failed_permission_missing
         UpdateInstallFailure.CANCELLED -> R.string.about_updates_install_failed_cancelled
         UpdateInstallFailure.REJECTED -> R.string.about_updates_install_failed_rejected
+    }
+}
+
+/**
+ * The line that names the version and the time of a failed installation, or `null` when neither is known.
+ */
+internal fun installFailureDetails(context: Context, tag: String?, failedAtMillis: Long?): String? {
+    val time = failedAtMillis?.let { millis ->
+        DateUtils.formatDateTime(
+            context,
+            millis,
+            DateUtils.FORMAT_SHOW_DATE or DateUtils.FORMAT_SHOW_TIME or DateUtils.FORMAT_ABBREV_MONTH,
+        )
+    }
+    return when {
+        tag != null && time != null -> context.getString(R.string.about_updates_install_failed_details, tag, time)
+        tag != null -> context.getString(R.string.about_updates_install_failed_version, tag)
+        else -> time
     }
 }
 

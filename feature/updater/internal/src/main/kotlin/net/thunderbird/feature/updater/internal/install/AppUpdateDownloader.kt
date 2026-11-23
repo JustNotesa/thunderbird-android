@@ -26,6 +26,7 @@ internal class AppUpdateDownloader(
     private val apkVerifier: ApkVerifier,
     private val poll: DownloadPoll,
     private val state: MutableStateFlow<UpdateInstallState>,
+    private val failures: InstallFailures,
     private val logger: Logger,
 ) {
 
@@ -89,7 +90,7 @@ internal class AppUpdateDownloader(
         )
         if (downloadId == null) {
             logger.error(TAG) { "The download of the app update couldn't be started." }
-            state.value = UpdateInstallState.Failed(UpdateInstallFailure.DOWNLOAD)
+            state.value = failures.create(UpdateInstallFailure.DOWNLOAD, update.tag)
             return
         }
         logger.info(TAG) { "The download $downloadId of the app update was started." }

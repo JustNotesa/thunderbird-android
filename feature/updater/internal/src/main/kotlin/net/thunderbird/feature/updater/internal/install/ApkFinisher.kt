@@ -36,6 +36,7 @@ internal class ApkFinisher(
     private val backgroundDownload: BackgroundDownload,
     private val logger: Logger,
     private val state: MutableStateFlow<UpdateInstallState>,
+    private val failures: InstallFailures,
     private val writeSession: (File) -> Int?,
     private val onSessionCommitted: (Int) -> Unit = {},
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
@@ -80,6 +81,7 @@ internal class ApkFinisher(
      * Hands the kept APK [file] over to the package installer.
      */
     fun installKeptApk(file: File, tag: String, sha256: String) {
+        failures.tag = tag
         state.value = UpdateInstallState.Verifying
         writeInstallSession(file, tag, sha256)
     }
@@ -90,7 +92,7 @@ internal class ApkFinisher(
     fun fail(reason: UpdateInstallFailure, downloadId: Long) {
         pendingDownloadStore.clear()
         systemDownloads.remove(downloadId)
-        state.value = UpdateInstallState.Failed(reason)
+        state.value = failures.create(reason)
     }
 
     /**
@@ -103,6 +105,7 @@ internal class ApkFinisher(
         workMutex.withLock {
             val pending = pendingDownloadStore.load()
             if (pending?.downloadId == downloadId) {
+                failures.tag = pending.tag
                 backgroundDownload.failed(pending)
                 fail(reason, downloadId)
             }
@@ -117,7 +120,7 @@ internal class ApkFinisher(
     fun failUnfinished() {
         val current = state.value
         if (current is UpdateInstallState.Downloading || current is UpdateInstallState.Verifying) {
-            state.value = UpdateInstallState.Failed(UpdateInstallFailure.DOWNLOAD)
+            state.value = failures.create(UpdateInstallFailure.DOWNLOAD)
         }
     }
 
@@ -127,6 +130,7 @@ internal class ApkFinisher(
             // The download isn't the one the app is waiting for.
             return
         }
+        failures.tag = pending.tag
         logger.info(TAG) { "The download of the app update is finished." }
         val downloaded = downloadedFile(downloadId)
         if (downloaded == null) {
@@ -163,7 +167,7 @@ internal class ApkFinisher(
             logger.warn(TAG) { "The downloaded APK of the app update wasn't verified." }
             copy.delete()
             backgroundDownload.failed(pending)
-            state.value = UpdateInstallState.Failed(failureOf(verification))
+            state.value = failures.create(failureOf(verification))
             return
         }
         logger.info(TAG) { "The downloaded APK of the app update was verified." }
@@ -181,7 +185,7 @@ internal class ApkFinisher(
         val sessionId = writeSession(file)
         if (sessionId == null) {
             logger.error(TAG) { "Writing the APK into the install session failed." }
-            state.value = UpdateInstallState.Failed(UpdateInstallFailure.REJECTED)
+            state.value = failures.create(UpdateInstallFailure.REJECTED, tag)
             return
         }
         logger.info(TAG) { "The install session $sessionId of the app update was committed." }

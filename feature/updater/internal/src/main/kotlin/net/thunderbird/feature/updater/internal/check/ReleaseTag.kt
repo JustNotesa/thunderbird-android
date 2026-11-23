@@ -1,5 +1,7 @@
 package net.thunderbird.feature.updater.internal.check
 
+import net.thunderbird.feature.updater.api.AppUpdateConfig
+
 /**
  * A release tag of the app, e.g. `mein-thunderbird-2026-10-26-2`.
  *
@@ -85,5 +87,23 @@ internal data class ReleaseTag(
 
         private fun isLeapYear(year: Int): Boolean =
             year % LEAP_YEAR_DIVISOR == 0 && (year % CENTURY_YEARS != 0 || year % FOUR_CENTURY_YEARS == 0)
+    }
+}
+
+/**
+ * Tells whether the release [tag] is newer than the release this build was made for, which is
+ * [AppUpdateConfig.currentReleaseTag].
+ *
+ * A tag that can't be compared isn't treated as stale, unless the installed release is known: when the installed
+ * release has no valid tag (debug builds), nothing can be compared and the tag is kept; when the installed release is
+ * known but [tag] is not a valid release tag, it can't be a newer release of this app, so it counts as stale.
+ */
+internal fun isNewerThanInstalled(tag: String, config: AppUpdateConfig): Boolean {
+    val installed = ReleaseTag.parse(config.currentReleaseTag, config.tagPrefix)
+    val candidate = ReleaseTag.parse(tag, config.tagPrefix)
+    return when {
+        installed == null -> true
+        candidate == null -> false
+        else -> candidate > installed
     }
 }

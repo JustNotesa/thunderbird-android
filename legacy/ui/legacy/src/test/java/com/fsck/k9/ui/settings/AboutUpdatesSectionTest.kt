@@ -23,6 +23,7 @@ import java.util.Locale
 import net.thunderbird.components.ui.bolt.theme.thunderbird.ThunderbirdBoltTheme
 import net.thunderbird.feature.updater.api.AppUpdate
 import net.thunderbird.feature.updater.api.DownloadWaiting
+import net.thunderbird.feature.updater.api.UpdateInstallFailure
 import net.thunderbird.feature.updater.api.UpdateInstallState
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -311,6 +312,30 @@ class AboutUpdatesSectionUiTest {
     }
 
     @Test
+    fun `the failure of an installation shows the version and the time`() {
+        val composeView = createComposeView(
+            install = UpdateInstallState.Failed(
+                reason = UpdateInstallFailure.DOWNLOAD,
+                tag = FAILED_TAG,
+                failedAtMillis = FAILED_AT_MILLIS,
+            ),
+        )
+
+        val detailsNode = findTextNode(composeView, "Version $FAILED_TAG, ")
+
+        assertThat(detailsNode).isNotNull()
+    }
+
+    @Test
+    fun `the failure of an installation without a version and time shows no details line`() {
+        val composeView = createComposeView(install = UpdateInstallState.Failed(UpdateInstallFailure.DOWNLOAD))
+
+        val detailsNode = findTextNode(composeView, "Version $FAILED_TAG")
+
+        assertThat(detailsNode).isNull()
+    }
+
+    @Test
     fun `the update isn't downloaded again while it is ready to install`() {
         val composeView = createComposeView(install = UpdateInstallState.ReadyToInstall(tag = VERSION_TAG))
 
@@ -525,6 +550,8 @@ class AboutUpdatesSectionUiTest {
 
     companion object {
         const val VERSION_TAG = "mein-thunderbird-2026-10-25"
+        const val FAILED_TAG = "mein-thunderbird-2026-11-21"
+        const val FAILED_AT_MILLIS = 1_700_000_000_000L
         const val CANCEL_BUTTON_LABEL = "Cancel"
         const val CHECK_STATUS_BUTTON_LABEL = "Check status"
         const val CLOSE_BUTTON_LABEL = "Close"

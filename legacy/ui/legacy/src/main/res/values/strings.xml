@@ -1588,6 +1588,10 @@ You can keep this message and use it as a backup for your secret key. If you wan
     <string name="about_updates_install_failed_cancelled">The installation was cancelled.</string>
     <!-- Message shown when Android rejected the update -->
     <string name="about_updates_install_failed_rejected">Android rejected the update. This happens when the app was signed with a different key or when there is not enough storage space.</string>
+    <!-- Line below a failure message: the version the failure belongs to and when it happened, e.g. "Version mein-thunderbird-2026-11-22, Nov 22, 10:15" -->
+    <string name="about_updates_install_failed_details">Version %1$s, %2$s</string>
+    <!-- Line below a failure message when only the version is known -->
+    <string name="about_updates_install_failed_version">Version %1$s</string>
     <!-- Explanation shown when the app isn't allowed to install apps -->
     <string name="about_updates_install_permission_explanation">To install an update, Thunderbird needs permission to install apps from unknown sources.</string>
     <!-- Button that opens the system settings where the install permission can be granted -->

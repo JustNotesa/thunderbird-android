@@ -55,7 +55,11 @@ internal class PackageInstallerAppUpdateInstaller(
     private val pollIntervalMillis: Long = DEFAULT_POLL_INTERVAL_MILLIS,
     private val writeSession: (File) -> Int? = { ApkSessionWriter(context).write(it) },
     private val sessionRegistrar: InstallSessionRegistrar = PackageInstallerSessionRegistrar(context),
+    private val isNewerThanInstalled: (String) -> Boolean = { true },
+    private val clock: () -> Long = System::currentTimeMillis,
 ) : AppUpdateInstaller {
+
+    private val failures = InstallFailures(clock)
 
     private val keptApks = KeptApkStore(context)
 
@@ -79,6 +83,7 @@ internal class PackageInstallerAppUpdateInstaller(
         backgroundDownload = backgroundDownload,
         logger = logger,
         state = _state,
+        failures = failures,
         writeSession = writeSession,
         onSessionCommitted = { sessionId -> progressObserver.watch(sessionId) },
     )
@@ -97,6 +102,17 @@ internal class PackageInstallerAppUpdateInstaller(
         onDownloadFailed = { downloadId -> finisher.failPending(UpdateInstallFailure.DOWNLOAD, downloadId) },
     )
 
+    /** Removes the downloads of releases that aren't newer than the installed one. */
+    internal val staleDownloads = StaleDownloads(
+        systemDownloads = systemDownloads,
+        pendingDownloadStore = pendingDownloadStore,
+        keptApks = keptApks,
+        poll = poll,
+        state = _state,
+        logger = logger,
+        isNewerThanInstalled = isNewerThanInstalled,
+    )
+
     private val downloader = AppUpdateDownloader(
         context = context,
         systemDownloads = systemDownloads,
@@ -105,6 +121,7 @@ internal class PackageInstallerAppUpdateInstaller(
         apkVerifier = apkVerifier,
         poll = poll,
         state = _state,
+        failures = failures,
         logger = logger,
     )
 
@@ -115,17 +132,22 @@ internal class PackageInstallerAppUpdateInstaller(
         finisher = finisher,
         backgroundDownload = backgroundDownload,
         state = _state,
+        failures = failures,
         logger = logger,
+        isNewerThanInstalled = isNewerThanInstalled,
     )
 
     init {
         // The download of an update that was started before the app was closed is continued.
         coroutineScope.launch {
+            // A download of a release that is installed already isn't continued and isn't reported as failed.
+            staleDownloads.drop()
             val pending = pendingDownloadStore.load()
             if (pending == null) {
                 // An update that was downloaded and verified before is ready to be installed.
                 workflow.restoreKeptUpdate()
             } else {
+                failures.tag = pending.tag
                 poll.resume(pending)
             }
         }
@@ -165,8 +187,9 @@ internal class PackageInstallerAppUpdateInstaller(
     override suspend fun install(update: AppUpdate) {
         // A new installation replaces the old one, so the old session isn't watched anymore.
         progressObserver.stopWatching()
+        failures.tag = update.tag
         if (!canInstallPackages()) {
-            _state.value = UpdateInstallState.Failed(UpdateInstallFailure.PERMISSION_MISSING)
+            _state.value = failures.create(UpdateInstallFailure.PERMISSION_MISSING, update.tag)
             return
         }
         startWork { workflow.install(update) }
@@ -192,14 +215,17 @@ internal class PackageInstallerAppUpdateInstaller(
         withContext(Dispatchers.IO) {
             try {
                 logger.debug(TAG) { "The download of the app update is refreshed." }
+                // A download of a release that is installed already is dropped, not reported as failed.
+                staleDownloads.drop()
                 val pending = pendingDownloadStore.load()
                 if (pending != null) {
                     logger.debug(TAG) { "The pending download of the app update was found." }
+                    failures.tag = pending.tag
                     poll.resume(pending)
                 } else if (_state.value is UpdateInstallState.Downloading) {
                     // The download is gone, so it can't be continued.
                     logger.warn(TAG) { "The download of the app update was lost." }
-                    _state.value = UpdateInstallState.Failed(UpdateInstallFailure.DOWNLOAD)
+                    _state.value = failures.create(UpdateInstallFailure.DOWNLOAD)
                 } else {
                     logger.debug(TAG) { "There is no download of the app update." }
                 }
@@ -234,7 +260,7 @@ internal class PackageInstallerAppUpdateInstaller(
         if (failure == null) return
 
         // The installation failed, so the session isn't watched anymore and the user is told about it.
-        _state.value = UpdateInstallState.Failed(failure)
+        _state.value = failures.create(failure)
         progressObserver.stopWatching()
         notifier.cancelInstalling()
     }

@@ -312,6 +312,39 @@ class AboutUpdatesViewModelTest {
     }
 
     @Test
+    fun `an up to date check clears the failure of an earlier installation`() {
+        installer.setInstallState(UpdateInstallState.Failed(UpdateInstallFailure.DOWNLOAD))
+        checker.checkResult = UpdateCheckResult.UpToDate
+
+        val testSubject = createViewModel()
+
+        assertThat(installer.resetStateCount).isEqualTo(1)
+        assertThat(testSubject.state.value.updates?.install).isEqualTo(UpdateInstallState.Idle)
+    }
+
+    @Test
+    fun `an up to date check keeps a download that is in progress`() {
+        val downloading = UpdateInstallState.Downloading(downloadedBytes = 50, totalBytes = 100)
+        installer.setInstallState(downloading)
+        checker.checkResult = UpdateCheckResult.UpToDate
+
+        val testSubject = createViewModel()
+
+        assertThat(installer.resetStateCount).isEqualTo(0)
+        assertThat(testSubject.state.value.updates?.install).isEqualTo(downloading)
+    }
+
+    @Test
+    fun `a check that finds an update keeps the failure of an earlier installation`() {
+        installer.setInstallState(UpdateInstallState.Failed(UpdateInstallFailure.DOWNLOAD))
+        checker.checkResult = UpdateCheckResult.Available(update)
+
+        createViewModel()
+
+        assertThat(installer.resetStateCount).isEqualTo(0)
+    }
+
+    @Test
     fun `installing is not possible while the update is being downloaded`() {
         checker.checkResult = UpdateCheckResult.Available(update)
         val testSubject = createViewModel()
@@ -374,6 +407,7 @@ class AboutUpdatesViewModelTest {
 
     @Test
     fun `dismissing a failed installation resets the state of the installer`() {
+        checker.checkResult = UpdateCheckResult.Failed(UpdateCheckFailure.NETWORK)
         installer.setInstallState(UpdateInstallState.Failed(UpdateInstallFailure.DOWNLOAD))
         val testSubject = createViewModel()
 

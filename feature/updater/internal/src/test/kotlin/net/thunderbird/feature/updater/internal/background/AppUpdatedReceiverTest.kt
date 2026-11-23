@@ -6,11 +6,17 @@ import android.app.Notification
 import android.app.NotificationManager
 import android.content.Intent
 import assertk.assertThat
+import assertk.assertions.containsExactly
 import assertk.assertions.isEqualTo
 import assertk.assertions.isNotNull
 import assertk.assertions.isNull
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import net.thunderbird.components.core.logging.testing.TestLogger
 import net.thunderbird.feature.updater.api.AppUpdate
 import net.thunderbird.feature.updater.api.AppUpdateChecker
 import net.thunderbird.feature.updater.api.AppUpdateInstaller
@@ -18,6 +24,13 @@ import net.thunderbird.feature.updater.api.ReleaseNotesResult
 import net.thunderbird.feature.updater.api.UpdateCheckResult
 import net.thunderbird.feature.updater.api.UpdateInstallState
 import net.thunderbird.feature.updater.internal.R
+import net.thunderbird.feature.updater.internal.install.ApkVerifier
+import net.thunderbird.feature.updater.internal.install.FakeInstallSessionRegistrar
+import net.thunderbird.feature.updater.internal.install.FakeSystemDownloads
+import net.thunderbird.feature.updater.internal.install.KeptApkStore
+import net.thunderbird.feature.updater.internal.install.PackageInstallerAppUpdateInstaller
+import net.thunderbird.feature.updater.internal.install.PendingDownload
+import net.thunderbird.feature.updater.internal.install.PendingDownloadStore
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -37,6 +50,7 @@ class AppUpdatedReceiverTest {
 
     private lateinit var checker: FakeUpdatedAppChecker
     private lateinit var testSubject: AppUpdatedReceiver
+    private val installerScope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
 
     @Before
     fun setUp() {
@@ -58,6 +72,7 @@ class AppUpdatedReceiverTest {
 
     @After
     fun tearDown() {
+        installerScope.cancel()
         stopKoin()
     }
 
@@ -110,6 +125,60 @@ class AppUpdatedReceiverTest {
     }
 
     @Test
+    fun `a stale pending download is cleared silently`() {
+        // Arrange
+        val downloads = FakeSystemDownloads()
+        val store = PendingDownloadStore(application)
+        store.clear()
+        KeptApkStore(application).clear()
+        val realInstaller = PackageInstallerAppUpdateInstaller(
+            context = application,
+            systemDownloads = downloads,
+            pendingDownloadStore = store,
+            apkVerifier = ApkVerifier(),
+            logger = TestLogger(),
+            notifier = UpdateNotifier(application),
+            coroutineScope = installerScope,
+            sessionRegistrar = FakeInstallSessionRegistrar(),
+            isNewerThanInstalled = { false },
+        )
+        stopKoin()
+        startKoin {
+            modules(
+                module {
+                    single<AppUpdateChecker> { checker }
+                    single { UpdateNotifier(application) }
+                    single<AppUpdateInstaller> { realInstaller }
+                },
+            )
+        }
+        store.save(
+            PendingDownload(
+                downloadId = STALE_DOWNLOAD_ID,
+                tag = RELEASE_TAG,
+                sha256 = "sha",
+                sizeBytes = 1L,
+                title = "Mein Thunderbird",
+                installWhenDone = false,
+            ),
+        )
+
+        // Act
+        AppUpdatedReceiver().onReceive(application, Intent(Intent.ACTION_MY_PACKAGE_REPLACED))
+
+        // Assert
+        assertThat(store.load()).isNull()
+        assertThat(downloads.removedDownloadIds).containsExactly(STALE_DOWNLOAD_ID)
+        assertThat(realInstaller.state.value).isEqualTo(UpdateInstallState.Idle)
+        assertThat(
+            shadowOf(notificationManager()).getNotification(
+                UpdateNotifier.FAILED_NOTIFICATION_TAG,
+                UpdateNotifier.FAILED_NOTIFICATION_ID,
+            ),
+        ).isNull()
+    }
+
+    @Test
     fun `the notification about the installation is cancelled`() {
         // Arrange
         val notifier = UpdateNotifier(application)
@@ -146,6 +215,7 @@ class AppUpdatedReceiverTest {
 
     private companion object {
         const val RELEASE_TAG = "mein-thunderbird-2026-10-25"
+        const val STALE_DOWNLOAD_ID = 42L
     }
 }
 

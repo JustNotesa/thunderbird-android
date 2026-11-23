@@ -2,12 +2,14 @@ package net.thunderbird.feature.updater.internal
 
 import java.util.concurrent.TimeUnit
 import net.thunderbird.feature.updater.api.AppUpdateChecker
+import net.thunderbird.feature.updater.api.AppUpdateConfig
 import net.thunderbird.feature.updater.api.AppUpdateInstaller
 import net.thunderbird.feature.updater.api.AppUpdateSettings
 import net.thunderbird.feature.updater.internal.background.AppUpdateScheduler
 import net.thunderbird.feature.updater.internal.background.UpdateNotifier
 import net.thunderbird.feature.updater.internal.check.DefaultAppUpdateChecker
 import net.thunderbird.feature.updater.internal.check.GithubReleaseClient
+import net.thunderbird.feature.updater.internal.check.isNewerThanInstalled
 import net.thunderbird.feature.updater.internal.install.ApkVerifier
 import net.thunderbird.feature.updater.internal.install.DownloadManagerSystemDownloads
 import net.thunderbird.feature.updater.internal.install.PackageInstallerAppUpdateInstaller
@@ -23,6 +25,10 @@ private const val TIMEOUT_SECONDS = 30L
 
 // Own client under a qualifier so the updater never replaces or depends on another module's OkHttpClient binding.
 private val updaterHttpClient = named("UpdaterOkHttpClient")
+
+private fun newerThanInstalled(config: AppUpdateConfig): (String) -> Boolean = { tag ->
+    isNewerThanInstalled(tag, config)
+}
 
 val featureUpdaterModule = module {
     single(updaterHttpClient) {
@@ -52,6 +58,7 @@ val featureUpdaterModule = module {
             // The download runs in an app wide scope, so that it isn't stopped when the screen that started the
             // installation is closed.
             coroutineScope = get(named("AppCoroutineScope")),
+            isNewerThanInstalled = newerThanInstalled(get()),
         )
     }
     single { UpdateNotifier(androidContext()) }

@@ -32,6 +32,10 @@ internal class AppUpdatedReceiver : BroadcastReceiver(), KoinComponent {
             notifier.cancelInstalling()
         }
         // The kept APK of the installed version isn't needed anymore.
-        (installer as? PackageInstallerAppUpdateInstaller)?.clearKeptApk()
+        (installer as? PackageInstallerAppUpdateInstaller)?.let { packageInstaller ->
+            packageInstaller.clearKeptApk()
+            // A download of an older release can be left over, it isn't continued and isn't reported as failed.
+            packageInstaller.staleDownloads.drop()
+        }
     }
 }

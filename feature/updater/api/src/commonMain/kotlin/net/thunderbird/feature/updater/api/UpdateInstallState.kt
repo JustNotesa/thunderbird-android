@@ -33,7 +33,18 @@ sealed interface UpdateInstallState {
      */
     data object Installing : UpdateInstallState
 
-    data class Failed(val reason: UpdateInstallFailure) : UpdateInstallState
+    /**
+     * The update failed.
+     *
+     * @param reason why it failed.
+     * @param tag release tag of the update that failed, `null` when it isn't known.
+     * @param failedAtMillis time of the failure in milliseconds since the epoch, `null` when it isn't known.
+     */
+    data class Failed(
+        val reason: UpdateInstallFailure,
+        val tag: String? = null,
+        val failedAtMillis: Long? = null,
+    ) : UpdateInstallState
 }
 
 /** Why the download manager of the system is waiting instead of downloading. */
