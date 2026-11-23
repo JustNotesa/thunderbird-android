@@ -938,6 +938,10 @@ class MessageListFragment :
         perform()
     }
 
+    override fun offerReadStateUndo(changes: List<ReadStateChange>, markedRead: Boolean) {
+        // The new message list doesn't offer undo yet.
+    }
+
     private fun onExpunge() {
         currentFolder?.let { folderInfoHolder ->
             account?.id?.let { messagingController.expunge(it, folderInfoHolder.databaseId) }

@@ -1068,6 +1068,16 @@
         <item quantity="one">Nachricht als Spam markiert</item>
         <item quantity="other">%d Nachrichten als Spam markiert</item>
     </plurals>
+    <!-- Shown after messages were marked as read -->
+    <plurals name="message_list_undo_marked_read">
+        <item quantity="one">Als gelesen markiert</item>
+        <item quantity="other">%d Nachrichten als gelesen markiert</item>
+    </plurals>
+    <!-- Shown after messages were marked as unread -->
+    <plurals name="message_list_undo_marked_unread">
+        <item quantity="one">Als ungelesen markiert</item>
+        <item quantity="other">%d Nachrichten als ungelesen markiert</item>
+    </plurals>
     <!-- Undoes the removal of messages from the message list -->
     <string name="message_list_undo_action">Rückgängig</string>
     <string name="debug_open_secret_debug_screen">Geheime Fehleranalyse-Ansicht öffnen</string>

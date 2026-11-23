@@ -2014,6 +2014,68 @@ class LegacyMessageListFragment :
     }
 
     /**
+     * Show a snackbar after messages were marked as read or unread. Undo sets every message back to the state it had
+     * before. The new state is applied right away, so there's nothing to commit when the snackbar goes away.
+     */
+    override fun offerReadStateUndo(changes: List<ReadStateChange>, markedRead: Boolean) {
+        val restoreActions = restoreReadStateActions(changes, markedRead)
+        if (restoreActions.isEmpty()) return
+
+        // Only one undo snackbar is shown at a time. Dismissing it carries out a pending removal.
+        undoSnackbar?.dismiss()
+
+        val textResId = if (markedRead) {
+            R.plurals.message_list_undo_marked_read
+        } else {
+            R.plurals.message_list_undo_marked_unread
+        }
+        val snackbar = Snackbar
+            .make(
+                undoSnackbarView(),
+                resources.getQuantityString(textResId, changes.size, changes.size),
+                UNDO_SNACKBAR_DURATION_MS,
+            )
+            .setAction(R.string.message_list_undo_action) { restoreReadState(restoreActions) }
+
+        snackbar.show()
+        undoSnackbar = snackbar
+    }
+
+    private fun restoreReadState(actions: List<ReadStateRestoreAction>) {
+        for (action in actions) {
+            if (action.isThread) {
+                messagingController.setFlagForThreads(action.accountId, action.ids, Flag.SEEN, action.read)
+            } else {
+                messagingController.setFlag(action.accountId, action.ids, Flag.SEEN, action.read)
+            }
+        }
+
+        computeBatchDirection()
+    }
+
+    private fun readStateChangeOf(item: MessageListItem): ReadStateChange {
+        val isThread = showingThreadedList && item.threadCount > 1
+        return ReadStateChange(
+            accountId = item.account.id,
+            id = if (isThread) item.threadRoot else item.databaseId,
+            isThread = isThread,
+            wasRead = item.isRead,
+        )
+    }
+
+    private fun markReadWithUndo(item: MessageListItem, read: Boolean) {
+        val change = readStateChangeOf(item)
+        setFlag(item, Flag.SEEN, read)
+        offerReadStateUndo(listOf(change), read)
+    }
+
+    private fun markSelectedReadWithUndo(read: Boolean) {
+        val changes = adapter.selectedMessages.map(::readStateChangeOf)
+        setFlagForSelected(Flag.SEEN, read)
+        offerReadStateUndo(changes, read)
+    }
+
+    /**
      * The view the undo snackbar is displayed in.
      *
      * While a message is shown full screen the message list is hidden. The snackbar is displayed in the activity's
@@ -3095,7 +3157,7 @@ class LegacyMessageListFragment :
 
     override fun onToggleRead() {
         selectedMessageListItem?.let { messageListItem ->
-            setFlag(messageListItem, Flag.SEEN, !messageListItem.isRead)
+            markReadWithUndo(messageListItem, !messageListItem.isRead)
         }
     }
 
@@ -3648,7 +3710,7 @@ class LegacyMessageListFragment :
                 }
 
                 SwipeAction.ToggleRead -> {
-                    setFlag(item, Flag.SEEN, !item.isRead)
+                    markReadWithUndo(item, !item.isRead)
                 }
 
                 SwipeAction.ToggleStar -> {
@@ -4216,12 +4278,12 @@ class LegacyMessageListFragment :
                 }
 
                 R.id.mark_as_read -> {
-                    setFlagForSelected(Flag.SEEN, true)
+                    markSelectedReadWithUndo(true)
                     false
                 }
 
                 R.id.mark_as_unread -> {
-                    setFlagForSelected(Flag.SEEN, false)
+                    markSelectedReadWithUndo(false)
                     false
                 }
 

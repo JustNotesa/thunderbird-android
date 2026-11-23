@@ -66,6 +66,7 @@ import com.fsck.k9.ui.choosefolder.ChooseFolderResultContract
 import com.fsck.k9.ui.helper.SizeFormatter
 import com.fsck.k9.ui.messagedetails.MessageDetailsFragment
 import com.fsck.k9.ui.messagelist.MessageRemoval
+import com.fsck.k9.ui.messagelist.ReadStateChange
 import com.fsck.k9.ui.messagesource.MessageSourceActivity
 import com.fsck.k9.ui.messageview.MessageCryptoPresenter.MessageCryptoMvpView
 import com.fsck.k9.ui.settings.account.AccountSettingsActivity
@@ -1021,6 +1022,8 @@ class MessageViewFragment :
 
         if (isMarkAsUnreadAction) {
             fragmentListener.performNavigationAfterMarkAsUnread()
+            val change = ReadStateChange(account.id, message.databaseId, isThread = false, wasRead = true)
+            fragmentListener.offerReadStateUndo(change, markedRead = false)
         }
     }
 
@@ -1226,6 +1229,12 @@ class MessageViewFragment :
         fun setProgress(enable: Boolean)
         fun performNavigationAfterMessageRemoval()
         fun performNavigationAfterMarkAsUnread()
+
+        /**
+         * Offers to undo marking the message as unread, if the user is taken back to the message list. Undo marks
+         * the message as read again.
+         */
+        fun offerReadStateUndo(change: ReadStateChange, markedRead: Boolean)
         fun showMessageFolder(messageReference: MessageReference)
 
         /**

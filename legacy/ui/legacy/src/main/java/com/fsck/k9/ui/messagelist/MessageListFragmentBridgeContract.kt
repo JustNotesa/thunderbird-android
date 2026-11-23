@@ -71,6 +71,12 @@ interface MessageListFragmentBridgeContract {
      */
     fun removeMessagesWithUndo(messages: List<MessageReference>, removal: MessageRemoval, perform: () -> Unit)
 
+    /**
+     * Shows a snackbar with Undo after the user marked messages as read or unread. Undo brings every message back to
+     * the read state described by [changes].
+     */
+    fun offerReadStateUndo(changes: List<ReadStateChange>, markedRead: Boolean)
+
     @Suppress("TooManyFunctions")
     interface MessageListFragmentListener {
         fun setMessageListProgressEnabled(enable: Boolean)
