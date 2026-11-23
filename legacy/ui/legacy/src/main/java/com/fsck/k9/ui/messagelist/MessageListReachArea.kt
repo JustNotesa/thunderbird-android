@@ -186,3 +186,19 @@ internal data class DetentStep(val pull: Float, val contentDelta: Float, val bro
 
 /** The top edge and the height of an item of the list, in pixels. */
 internal data class ItemBounds(val top: Int, val height: Int)
+
+/**
+ * How far the list has to scroll so an item is displayed completely in the part of the list that shows messages,
+ * which doesn't include the reach area above the first message. Positive when the items have to move down, like
+ * the result of `LinearSmoothScroller.calculateDyToMakeVisible()`. 0 when the item is displayed already.
+ *
+ * Not counting the reach area as part of the list's top padding, as the default does, is what keeps the list from
+ * being pulled down into it just because a message that is displayed already is to be brought into view.
+ */
+internal fun dyToMakeVisible(itemTop: Int, itemBottom: Int, viewportTop: Int, viewportBottom: Int): Int {
+    val toStart = viewportTop - itemTop
+    if (toStart > 0) return toStart
+
+    val toEnd = viewportBottom - itemBottom
+    return if (toEnd < 0) toEnd else 0
+}

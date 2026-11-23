@@ -47,6 +47,7 @@ import androidx.fragment.app.setFragmentResultListener
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.Observer
 import androidx.lifecycle.lifecycleScope
+import androidx.recyclerview.widget.LinearSmoothScroller
 import androidx.recyclerview.widget.RecyclerView
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import app.k9mail.core.android.common.contact.ContactRepository
@@ -3560,12 +3561,20 @@ class LegacyMessageListFragment :
         val messageListItem = adapter.getItem(messageReference) ?: return
         val position = adapter.getPosition(messageListItem) ?: return
 
-        val linearLayoutManager = recyclerView.layoutManager as LinearLayoutManager
-        val firstVisiblePosition = linearLayoutManager.findFirstCompletelyVisibleItemPosition()
-        val lastVisiblePosition = linearLayoutManager.findLastCompletelyVisibleItemPosition()
-        if (position !in firstVisiblePosition..lastVisiblePosition) {
-            recyclerView.smoothScrollToPosition(position)
+        val scroller = object : LinearSmoothScroller(recyclerView.context) {
+            override fun calculateDyToMakeVisible(view: View, snapPreference: Int): Int {
+                // The reach area is part of the list's padding. The default would treat it as space to scroll the
+                // message into, and so pull the list down into the reach area although the message is on screen.
+                return dyToMakeVisible(
+                    itemTop = view.top,
+                    itemBottom = view.bottom,
+                    viewportTop = bannerTopPadding,
+                    viewportBottom = recyclerView.height - recyclerView.paddingBottom,
+                )
+            }
         }
+        scroller.targetPosition = position
+        recyclerView.layoutManager?.startSmoothScroll(scroller)
     }
 
     /**

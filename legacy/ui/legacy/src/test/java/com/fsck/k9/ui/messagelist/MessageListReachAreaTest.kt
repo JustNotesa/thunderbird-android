@@ -368,4 +368,36 @@ class MessageListReachAreaTest {
 
         assertThat(result).isEqualTo(true)
     }
+
+    @Test
+    fun `dyToMakeVisible() with item at the top of the viewport should not scroll into the reach area`() {
+        // The list has 1000 px of reach area as top padding; the first message sits at its normal place at the top.
+        val result = dyToMakeVisible(itemTop = 0, itemBottom = 200, viewportTop = 0, viewportBottom = 2000)
+
+        assertThat(result).isEqualTo(0)
+    }
+
+    @Test
+    fun `dyToMakeVisible() with item above the viewport should scroll it down to the top`() {
+        val result = dyToMakeVisible(
+            itemTop = -150,
+            itemBottom = 50,
+            viewportTop = 0,
+            viewportBottom = 2000,
+        )
+
+        assertThat(result).isEqualTo(150)
+    }
+
+    @Test
+    fun `dyToMakeVisible() with item below the viewport should scroll it up to the bottom`() {
+        val result = dyToMakeVisible(
+            itemTop = 1900,
+            itemBottom = 2100,
+            viewportTop = 0,
+            viewportBottom = 2000,
+        )
+
+        assertThat(result).isEqualTo(-100)
+    }
 }
