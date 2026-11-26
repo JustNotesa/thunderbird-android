@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The information area at the top of a screen in one-handed mode. -->
+<LinearLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/thumb_zone_header"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingHorizontal="24dp"
+    android:paddingTop="32dp"
+    android:paddingBottom="16dp"
+    android:visibility="gone"
+    >
+
+    <com.google.android.material.textview.MaterialTextView
+        android:id="@+id/thumb_zone_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:accessibilityHeading="true"
+        android:textAppearance="?attr/textAppearanceHeadlineMedium"
+        android:textColor="?android:attr/textColorPrimary"
+        />
+
+    <com.google.android.material.textview.MaterialTextView
+        android:id="@+id/thumb_zone_description"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        android:textAppearance="?attr/textAppearanceBodyMedium"
+        android:textColor="?android:attr/textColorSecondary"
+        android:visibility="gone"
+        />
+
+</LinearLayout>

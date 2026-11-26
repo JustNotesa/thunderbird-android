@@ -11,6 +11,8 @@ import com.fsck.k9.ui.base.extensions.fragmentTransaction
  * Hosts the notification action configuration screen.
  */
 class NotificationActionsSettingsActivity : BaseActivity() {
+    override val supportsOneHandedMode = true
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setLayout(R.layout.general_settings)

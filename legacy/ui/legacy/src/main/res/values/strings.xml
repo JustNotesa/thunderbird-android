@@ -55,6 +55,8 @@
     <string name="choose_folder_title">Choose Folder</string>
     <string name="choose_folder_move_title">Move to…</string>
     <string name="choose_folder_copy_title">Copy to…</string>
+    <string name="choose_folder_recent">Recent</string>
+    <string name="choose_folder_source">From: %1$s</string>
 
     <string name="send_action">Send</string>
     <string name="empty_subject">Subject is empty, click again to send anyway</string>

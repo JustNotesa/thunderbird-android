@@ -28,14 +28,73 @@
         app:layout_behavior="@string/appbar_scrolling_view_behavior"
         >
 
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/folderList"
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:scrollbars="vertical"
-            app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
-            tools:listitem="@layout/folder_list_item"
-            />
+            android:orientation="vertical"
+            >
+
+            <FrameLayout
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                >
+
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/folderList"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:scrollbars="vertical"
+                    app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
+                    tools:listitem="@layout/folder_list_item"
+                    />
+
+            </FrameLayout>
+
+            <!-- One-handed mode: the recently used folders and the filter field sit right above the toolbar. -->
+            <LinearLayout
+                android:id="@+id/folderBottomPanel"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:visibility="gone"
+                >
+
+                <com.google.android.material.textview.MaterialTextView
+                    android:id="@+id/recentFoldersLabel"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingHorizontal="16dp"
+                    android:paddingTop="8dp"
+                    android:text="@string/choose_folder_recent"
+                    android:textAppearance="?attr/textAppearanceLabelLarge"
+                    android:visibility="gone"
+                    />
+
+                <LinearLayout
+                    android:id="@+id/recentFolders"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    />
+
+                <EditText
+                    android:id="@+id/folderFilter"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginHorizontal="16dp"
+                    android:layout_marginVertical="8dp"
+                    android:hint="@string/folder_list_filter_hint"
+                    android:imeOptions="actionDone|flagNoExtractUi"
+                    android:importantForAutofill="no"
+                    android:inputType="text"
+                    android:maxLines="1"
+                    android:minHeight="48dp"
+                    />
+
+            </LinearLayout>
+
+        </LinearLayout>
 
     </FrameLayout>
 

@@ -1,6 +1,7 @@
 package com.fsck.k9.ui.settings
 
 import com.fsck.k9.helper.NamedThreadFactory
+import com.fsck.k9.ui.base.onehanded.OneHandedModeSetting
 import com.fsck.k9.ui.settings.account.AccountSettingsDataStoreFactory
 import com.fsck.k9.ui.settings.account.AccountSettingsViewModel
 import com.fsck.k9.ui.settings.account.getSystemVibrator
@@ -9,11 +10,17 @@ import com.fsck.k9.ui.settings.general.GeneralSettingsDataStore
 import com.fsck.k9.ui.settings.general.GeneralSettingsViewModel
 import com.fsck.k9.ui.settings.offline.OfflineSettingsViewModel
 import java.util.concurrent.Executors
+import net.thunderbird.core.preference.GeneralSettingsManager
 import org.koin.core.module.dsl.viewModel
 import org.koin.core.qualifier.named
 import org.koin.dsl.module
 
 val settingsUiModule = module {
+    single<OneHandedModeSetting> {
+        val generalSettingsManager = get<GeneralSettingsManager>()
+        OneHandedModeSetting { generalSettingsManager.getConfig().display.inboxSettings.isMessageListBottomAppBar }
+    }
+
     viewModel { SettingsViewModel(accountManager = get(), accountRemover = get()) }
 
     viewModel {

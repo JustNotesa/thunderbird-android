@@ -42,6 +42,8 @@ class EditIdentity : BaseActivity() {
     private var identityIndex: Int = 0
     private var isSaveActionEnabled = false
 
+    override val supportsOneHandedMode = true
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setLayout(R.layout.edit_identity)

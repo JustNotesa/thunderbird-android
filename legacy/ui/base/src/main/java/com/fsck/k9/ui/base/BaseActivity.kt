@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
+import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import androidx.activity.enableEdgeToEdge
@@ -19,8 +20,14 @@ import androidx.core.view.WindowInsetsCompat.Type.ime
 import androidx.core.view.WindowInsetsCompat.Type.systemBars
 import androidx.core.view.children
 import androidx.core.view.updatePadding
+import androidx.coordinatorlayout.widget.CoordinatorLayout
+import androidx.fragment.app.DialogFragment
+import androidx.fragment.app.Fragment
+import androidx.fragment.app.FragmentManager
 import androidx.lifecycle.asLiveData
 import com.fsck.k9.controller.push.PushController
+import com.fsck.k9.ui.base.onehanded.OneHandedModeSetting
+import com.fsck.k9.ui.base.onehanded.ThumbZoneController
 import java.util.Locale
 import kotlin.math.max
 import net.thunderbird.core.ui.theme.api.Theme
@@ -96,7 +103,31 @@ abstract class BaseActivity(
      * When true, setLayout() pads the app bar for the navigation bar and the content for the status bar, because the
      * app bar sits at the bottom.
      */
-    protected open val isAppBarAtBottom: Boolean get() = false
+    protected open val isAppBarAtBottom: Boolean get() = isOneHandedModeActive
+
+    /**
+     * Screens that take part in the one-handed mode return `true`. With the mode switched on, [setLayout] then moves
+     * their toolbar to the bottom edge and shows a header with the title above the content (the thumb zone layout).
+     * The screen needs the layout contract of [setLayout] with a `CoordinatorLayout` as its root.
+     */
+    protected open val supportsOneHandedMode: Boolean get() = false
+
+    private val oneHandedModeSetting: OneHandedModeSetting by inject()
+    private val isOneHandedModeActive: Boolean by lazy(LazyThreadSafetyMode.NONE) {
+        supportsOneHandedMode && oneHandedModeSetting.isEnabled()
+    }
+    private var thumbZone: ThumbZoneController? = null
+
+    /**
+     * Sets title and explanation of the thumb zone header explicitly instead of taking them from the toolbar. Does
+     * nothing when the one-handed mode is off.
+     */
+    protected fun setThumbZoneTexts(title: CharSequence?, description: CharSequence?) {
+        thumbZone?.setTexts(title, description)
+    }
+
+    /** Whether this screen shows the toolbar at the bottom because of the one-handed mode. */
+    protected val isInOneHandedMode: Boolean get() = thumbZone != null
 
     /**
      * Sets the activity's content view to the specified layout resource and configures
@@ -168,6 +199,59 @@ abstract class BaseActivity(
 
             WindowInsetsCompat.CONSUMED
         }
+
+        if (isOneHandedModeActive && coordinatorLayout is CoordinatorLayout) {
+            setUpOneHandedLayout(appBarLayout, toolbar, contentContainer)
+        }
+    }
+
+    /**
+     * Moves the app bar to the bottom edge of the coordinator layout, with the content ending above it, and adds the
+     * header for the thumb zone layout. The insets are already handled by [setLayout] for an app bar at the bottom.
+     */
+    private fun setUpOneHandedLayout(
+        appBarLayout: com.google.android.material.appbar.AppBarLayout,
+        toolbar: Toolbar,
+        contentContainer: ViewGroup,
+    ) {
+        (appBarLayout.layoutParams as CoordinatorLayout.LayoutParams).gravity = Gravity.BOTTOM
+
+        val contentParams = contentContainer.layoutParams as CoordinatorLayout.LayoutParams
+        contentParams.behavior = null
+        contentContainer.layoutParams = contentParams
+
+        // The height of the app bar includes the padding for the navigation bar or the keyboard.
+        appBarLayout.addOnLayoutChangeListener { view, _, _, _, _, _, _, _, _ ->
+            val params = contentContainer.layoutParams as CoordinatorLayout.LayoutParams
+            if (params.bottomMargin != view.height) {
+                params.bottomMargin = view.height
+                contentContainer.layoutParams = params
+            }
+        }
+
+        val controller = ThumbZoneController(contentContainer)
+        thumbZone = controller
+
+        toolbar.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+            controller.syncFromToolbar(supportActionBar?.title, supportActionBar?.subtitle)
+        }
+        controller.syncFromToolbar(supportActionBar?.title, supportActionBar?.subtitle)
+
+        supportFragmentManager.registerFragmentLifecycleCallbacks(
+            object : FragmentManager.FragmentLifecycleCallbacks() {
+                override fun onFragmentViewCreated(fm: FragmentManager, f: Fragment, v: View, state: Bundle?) {
+                    if (f !is DialogFragment) controller.attach(v)
+                }
+
+                override fun onFragmentViewDestroyed(fm: FragmentManager, f: Fragment) {
+                    controller.detach(f.view)
+                }
+            },
+            true,
+        )
+
+        // Screens that have their list in the layout itself, not in a fragment
+        controller.attach(contentContainer)
     }
 
     /**

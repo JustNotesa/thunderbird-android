@@ -32,6 +32,11 @@ public class ChooseIdentity extends BaseListActivity {
     protected List<Identity> identities = null;
 
     @Override
+    protected boolean getSupportsOneHandedMode() {
+        return true;
+    }
+
+    @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 

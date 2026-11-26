@@ -17,6 +17,7 @@ dependencies {
     api(libs.androidx.lifecycle.livedata.ktx)
 
     implementation(libs.androidx.biometric)
+    implementation(libs.androidx.recyclerview)
 }
 
 android {
