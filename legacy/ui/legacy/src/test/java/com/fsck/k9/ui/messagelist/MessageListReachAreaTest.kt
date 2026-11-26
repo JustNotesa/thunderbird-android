@@ -74,7 +74,7 @@ class MessageListReachAreaTest {
 
     @Test
     fun `estimateContentHeight() with all items laid out should be their height`() {
-        val result = testSubject.estimateContentHeight(
+        val result = estimateContentHeight(
             itemCount = 5,
             firstLaidOut = 0,
             lastLaidOut = 4,
@@ -86,7 +86,7 @@ class MessageListReachAreaTest {
 
     @Test
     fun `estimateContentHeight() with some items laid out should extrapolate to all items`() {
-        val result = testSubject.estimateContentHeight(
+        val result = estimateContentHeight(
             itemCount = 20,
             firstLaidOut = 5,
             lastLaidOut = 9,
@@ -98,7 +98,7 @@ class MessageListReachAreaTest {
 
     @Test
     fun `estimateContentHeight() with no items laid out should be zero`() {
-        val result = testSubject.estimateContentHeight(
+        val result = estimateContentHeight(
             itemCount = 20,
             firstLaidOut = 0,
             lastLaidOut = -1,
@@ -110,7 +110,7 @@ class MessageListReachAreaTest {
 
     @Test
     fun `extraBottomPadding() with long list measured by its laid out items should be zero`() {
-        val contentHeight = testSubject.estimateContentHeight(
+        val contentHeight = estimateContentHeight(
             itemCount = 22,
             firstLaidOut = 18,
             lastLaidOut = 21,

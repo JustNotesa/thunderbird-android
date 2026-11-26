@@ -1394,7 +1394,7 @@ class LegacyMessageListFragment :
         val firstChild = layoutManager.getChildAt(0) ?: return 0
         val lastChild = layoutManager.getChildAt(layoutManager.childCount - 1) ?: return 0
 
-        return MessageListReachArea.estimateContentHeight(
+        return estimateContentHeight(
             itemCount = adapter.itemCount,
             firstLaidOut = layoutManager.getPosition(firstChild),
             lastLaidOut = layoutManager.getPosition(lastChild),

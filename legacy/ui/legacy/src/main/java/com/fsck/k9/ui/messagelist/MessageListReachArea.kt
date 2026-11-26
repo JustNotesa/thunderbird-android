@@ -43,26 +43,6 @@ internal object MessageListReachArea {
     }
 
     /**
-     * The height of all messages, estimated from the items that are laid out. It is exact when all of them are.
-     *
-     * The scroll range of the list can't be used for this: it only counts items that are visible within the padding of
-     * the list, and the extra padding below the messages can be as high as the list itself. Then no item counts as
-     * visible, the range is 0, the list is taken for empty and keeps all of its padding for good.
-     *
-     * @param itemCount The number of items in the list.
-     * @param firstLaidOut The adapter position of the first item that is laid out.
-     * @param lastLaidOut The adapter position of the last item that is laid out.
-     * @param laidOutHeight The distance from the top of the first to the bottom of the last item that is laid out.
-     */
-    fun estimateContentHeight(itemCount: Int, firstLaidOut: Int, lastLaidOut: Int, laidOutHeight: Int): Int {
-        val laidOutCount = lastLaidOut - firstLaidOut + 1
-        if (itemCount <= 0 || laidOutCount <= 0) return 0
-        if (laidOutCount >= itemCount) return laidOutHeight
-
-        return (laidOutHeight.toFloat() / laidOutCount * itemCount).toInt()
-    }
-
-    /**
      * The top of the first item that takes up space, relative to the top padding of the list. Items without height
      * are skipped: the list starts with the (usually empty) list of in-app notification banners, which would
      * otherwise be taken for the first item, although the first message is the item after it.
@@ -230,4 +210,26 @@ internal fun dyToMakeVisible(itemTop: Int, itemBottom: Int, viewportTop: Int, vi
 
     val toEnd = viewportBottom - itemBottom
     return if (toEnd < 0) toEnd else 0
+}
+
+/**
+ * The height of all messages, estimated from the items that are laid out. It is exact when all of them are.
+ *
+ * The scroll range of the list can't be used for this: it only counts items that are visible within the padding of
+ * the list, and the extra padding below the messages can be as high as the list itself. Then no item counts as
+ * visible, the range is 0, the list is taken for empty and keeps all of its padding for good.
+ *
+ * @param itemCount The number of items in the list.
+ * @param firstLaidOut The adapter position of the first item that is laid out.
+ * @param lastLaidOut The adapter position of the last item that is laid out.
+ * @param laidOutHeight The distance from the top of the first to the bottom of the last item that is laid out.
+ */
+internal fun estimateContentHeight(itemCount: Int, firstLaidOut: Int, lastLaidOut: Int, laidOutHeight: Int): Int {
+    val laidOutCount = lastLaidOut - firstLaidOut + 1
+
+    return when {
+        itemCount <= 0 || laidOutCount <= 0 -> 0
+        laidOutCount >= itemCount -> laidOutHeight
+        else -> (laidOutHeight.toFloat() / laidOutCount * itemCount).toInt()
+    }
 }
