@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="message_composer_signature_paste_action">Mit Formatierung einfügen</string>
+    <string name="message_composer_signature_paste_notices_title">Zum eingefügten Inhalt</string>
+    <string name="message_composer_signature_paste_active_content_removed">Skripte und anderer aktiver Inhalt wurden aus dem eingefügten Text entfernt.</string>
+    <plurals name="message_composer_signature_paste_images_not_downloaded">
+        <item quantity="one">%d Bild konnte nicht heruntergeladen werden und wurde weggelassen. Prüfe deine Verbindung und füge erneut ein.</item>
+        <item quantity="other">%d Bilder konnten nicht heruntergeladen werden und wurden weggelassen. Prüfe deine Verbindung und füge erneut ein.</item>
+    </plurals>
+    <plurals name="message_composer_signature_paste_images_unreadable">
+        <item quantity="one">%d Bild konnte nicht gelesen werden und wurde weggelassen.</item>
+        <item quantity="other">%d Bilder konnten nicht gelesen werden und wurden weggelassen.</item>
+    </plurals>
+    <plurals name="message_composer_signature_paste_images_too_large">
+        <item quantity="one">%1$d Bild wurde weggelassen, weil die Bilder einer Signatur zusammen höchstens %2$d KB groß sein dürfen.</item>
+        <item quantity="other">%1$d Bilder wurden weggelassen, weil die Bilder einer Signatur zusammen höchstens %2$d KB groß sein dürfen.</item>
+    </plurals>
+    <plurals name="message_composer_signature_paste_images_downscaled">
+        <item quantity="one">%d Bild wurde verkleinert, damit es in die Signatur passt.</item>
+        <item quantity="other">%d Bilder wurden verkleinert, damit sie in die Signatur passen.</item>
+    </plurals>
+    <string name="message_composer_signature_paste_nothing_usable">In der Zwischenablage ist nichts, was eine Signatur verwenden kann.</string>
+    <string name="message_composer_signature_paste_working">Wird eingefügt…</string>
+</resources>

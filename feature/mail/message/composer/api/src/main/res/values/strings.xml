@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="message_composer_signature_paste_action">Paste with formatting</string>
+    <string name="message_composer_signature_paste_notices_title">About the pasted content</string>
+    <string name="message_composer_signature_paste_active_content_removed">Scripts and other active content were removed from the pasted text.</string>
+    <plurals name="message_composer_signature_paste_images_not_downloaded">
+        <item quantity="one">%d image could not be downloaded and was left out. Check your connection and paste again.</item>
+        <item quantity="other">%d images could not be downloaded and were left out. Check your connection and paste again.</item>
+    </plurals>
+    <plurals name="message_composer_signature_paste_images_unreadable">
+        <item quantity="one">%d image could not be read and was left out.</item>
+        <item quantity="other">%d images could not be read and were left out.</item>
+    </plurals>
+    <plurals name="message_composer_signature_paste_images_too_large">
+        <item quantity="one">%1$d image was left out because the images of a signature may take up %2$d KB in total.</item>
+        <item quantity="other">%1$d images were left out because the images of a signature may take up %2$d KB in total.</item>
+    </plurals>
+    <plurals name="message_composer_signature_paste_images_downscaled">
+        <item quantity="one">%d image was made smaller to fit the signature.</item>
+        <item quantity="other">%d images were made smaller to fit the signature.</item>
+    </plurals>
+    <string name="message_composer_signature_paste_nothing_usable">The clipboard has nothing a signature can use.</string>
+    <string name="message_composer_signature_paste_working">Pasting…</string>
+</resources>
