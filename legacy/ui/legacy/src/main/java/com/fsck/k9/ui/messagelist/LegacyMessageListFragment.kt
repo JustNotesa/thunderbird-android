@@ -1,6 +1,9 @@
 package com.fsck.k9.ui.messagelist
 
 import android.app.SearchManager
+import android.animation.Animator
+import android.animation.AnimatorListenerAdapter
+import android.animation.ValueAnimator
 import android.content.Context
 import android.content.Intent
 import android.os.Build
@@ -13,6 +16,7 @@ import android.view.MenuInflater
 import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
+import android.view.animation.DecelerateInterpolator
 import android.widget.AutoCompleteTextView
 import android.widget.TextView
 import android.widget.Toast
@@ -258,8 +262,9 @@ class LegacyMessageListFragment :
     // The detent that holds the list back when it is pulled down from the first message's normal place
     private var isDetentArmed = false
     private var detentPull = 0f
-    private var detentCarry = 0f
     private var brokeThroughDetent = false
+    private var openingAnimator: ValueAnimator? = null
+    private var isScrollingByOpeningAnimation = false
 
     private lateinit var adapter: MessageListAdapter
 
@@ -706,7 +711,7 @@ class LegacyMessageListFragment :
         val isInPanel = isSearchStatusInBottomPanel()
 
         if (isInPanel && status != null) {
-            searchStatusPanel?.bind(status, searchScope)
+            searchStatusPanel?.bind(status, searchScope, searchScopeTitle())
         } else {
             searchStatusPanel?.hide()
         }
@@ -719,11 +724,23 @@ class LegacyMessageListFragment :
         adapter.viewItems = viewItems
     }
 
+    /**
+     * Where the search looks for messages, for the information area at the top.
+     */
+    private fun searchScopeTitle(): String? {
+        return when (searchScope) {
+            SearchScope.FOLDER -> currentFolder?.displayName?.let { getString(R.string.search_info_scope_folder, it) }
+            SearchScope.EVERYWHERE -> getString(R.string.search_info_scope_everywhere)
+            null -> null
+        }
+    }
+
     private fun initializeSearchStatusPanel(view: View) {
         val container = view.findViewById<ViewGroup>(R.id.bottom_banners)
         val panel = SearchStatusPanel.create(
             layoutInflater = layoutInflater,
             parent = container,
+            infoView = view.findViewById(R.id.search_info),
             onSearchMessageContentsClickListener = { onSearchMessageContentsClicked() },
             onSearchAttachmentsClickListener = { onSearchAttachmentsClicked() },
             onScopeSelected = { scope -> onSearchScopeSelected(scope) },
@@ -989,13 +1006,14 @@ class LegacyMessageListFragment :
                 override fun onScrollStateChanged(recyclerView: RecyclerView, newState: Int) {
                     if (newState == RecyclerView.SCROLL_STATE_DRAGGING) {
                         isUserScrollGesture = true
+                        cancelOpeningAnimation()
                         isSnappingToTop = false
                         armDetentIfAtTop()
                     }
                     if (newState == RecyclerView.SCROLL_STATE_IDLE) {
                         if (isUserScrollGesture) {
                             isUserScrollGesture = false
-                            snapToTopIfCloseToIt()
+                            settleAtRestPosition()
                             disarmDetent()
                         } else {
                             isSnappingToTop = false
@@ -1207,35 +1225,37 @@ class LegacyMessageListFragment :
         val layoutManager = recyclerView.layoutManager as? LinearLayoutManager ?: return
         val firstItemOffset = firstItemOffset(recyclerView, layoutManager)
 
-        val wasRevealed = isReachAreaRevealedByUser
         isReachAreaScrolledAwayByUser = MessageListReachArea.isScrolledAway(firstItemOffset, reachAreaHeight)
         isReachAreaRevealedByUser = MessageListReachArea.isRevealed(
             firstItemOffset = firstItemOffset,
             reachHeight = reachAreaHeight,
         )
-        if (wasRevealed && !isReachAreaRevealedByUser) {
-            recyclerView.performHapticFeedback(dockedHapticFeedbackConstant())
-        }
     }
 
     /**
-     * When the user lets go of the list shortly before the first message is back at its normal place, the list
-     * snaps there.
+     * The list only rests docked or open. When the user lets go of it in between, it moves to the rest position the
+     * gesture asked for: pushed up more than the threshold from open docks it, everything else opens it.
      */
-    private fun snapToTopIfCloseToIt() {
+    private fun settleAtRestPosition() {
         val recyclerView = recyclerView ?: return
         val layoutManager = recyclerView.layoutManager as? LinearLayoutManager ?: return
+        // The opening animation started during the gesture is on its way to the rest position.
+        if (openingAnimator != null) return
         val firstItemOffset = firstItemOffset(recyclerView, layoutManager)
 
-        val shouldSnap = MessageListReachArea.shouldSnapToTop(
+        val position = MessageListReachArea.restPositionAfterRelease(
             firstItemOffset = firstItemOffset,
             reachHeight = reachAreaHeight,
             brokeThroughDetent = brokeThroughDetent,
-            detentDistance = MessageListReachArea.detentDistance(detentThreshold(), detentThreshold()).toInt(),
-        )
-        if (shouldSnap && firstItemOffset != null) {
+            threshold = detentThreshold(),
+        ) ?: return
+        if (firstItemOffset == null) return
+
+        val dy = MessageListReachArea.scrollToRest(position, firstItemOffset, reachAreaHeight)
+        if (position == RestPosition.DOCKED) recyclerView.performHapticFeedback(detentHapticFeedbackConstant())
+        if (dy != 0) {
             isSnappingToTop = true
-            recyclerView.smoothScrollBy(0, firstItemOffset + reachAreaHeight)
+            recyclerView.smoothScrollBy(0, dy)
         }
     }
 
@@ -1256,23 +1276,24 @@ class LegacyMessageListFragment :
             !MessageListReachArea.isRevealed(firstItemOffset, reachAreaHeight) &&
             !MessageListReachArea.isScrolledAway(firstItemOffset, reachAreaHeight)
         detentPull = 0f
-        detentCarry = 0f
         brokeThroughDetent = false
     }
 
     private fun disarmDetent() {
         isDetentArmed = false
         detentPull = 0f
-        detentCarry = 0f
         brokeThroughDetent = false
     }
 
     /**
-     * Holds back the list while the finger pulls it down from the first message's normal place. It follows only a
-     * part of the finger until the pull passes the threshold; then it gives way with a tick and follows the finger.
+     * Holds the list at its docked rest position while the finger pulls it down: it doesn't move at all until the
+     * pull passes the threshold. Then there is a tick and the list opens with an animation.
      */
     private fun adjustScrollForDetent(dy: Int): Int {
         val recyclerView = recyclerView ?: return dy
+        if (isScrollingByOpeningAnimation) return dy
+        // The finger has no say while the list opens.
+        if (openingAnimator != null) return 0
         if (!isDetentArmed || brokeThroughDetent || recyclerView.scrollState != RecyclerView.SCROLL_STATE_DRAGGING) {
             return dy
         }
@@ -1285,22 +1306,64 @@ class LegacyMessageListFragment :
         detentPull = step.pull
         if (step.brokeThrough) {
             brokeThroughDetent = true
-            recyclerView.performHapticFeedback(dockedHapticFeedbackConstant())
+            recyclerView.performHapticFeedback(detentHapticFeedbackConstant())
+            startOpeningAnimation()
         }
 
-        val wanted = -step.contentDelta + detentCarry
-        val whole = wanted.toInt()
-        detentCarry = wanted - whole
-        return whole
+        return (-step.contentDelta).toInt()
     }
 
-    private fun dockedHapticFeedbackConstant(): Int {
+    /** Opens the reach area with an animation while the finger is still down. */
+    private fun startOpeningAnimation() {
+        val recyclerView = recyclerView ?: return
+        val layoutManager = recyclerView.layoutManager as? LinearLayoutManager ?: return
+        val firstItemOffset = firstItemOffset(recyclerView, layoutManager) ?: return
+        val distance = -MessageListReachArea.scrollToRest(RestPosition.OPEN, firstItemOffset, reachAreaHeight)
+        if (distance <= 0) return
+
+        isSnappingToTop = true
+        var scrolled = 0
+        openingAnimator = ValueAnimator.ofInt(0, distance).apply {
+            duration = OPENING_ANIMATION_DURATION_MS
+            interpolator = DecelerateInterpolator()
+            addUpdateListener { animator ->
+                val target = animator.animatedValue as Int
+                isScrollingByOpeningAnimation = true
+                recyclerView.scrollBy(0, -(target - scrolled))
+                isScrollingByOpeningAnimation = false
+                scrolled = target
+            }
+            addListener(
+                object : AnimatorListenerAdapter() {
+                    override fun onAnimationEnd(animation: Animator) {
+                        finishOpeningAnimation()
+                    }
+                },
+            )
+            start()
+        }
+    }
+
+    private fun cancelOpeningAnimation() {
+        openingAnimator?.cancel()
+    }
+
+    private fun finishOpeningAnimation() {
+        openingAnimator = null
+        isSnappingToTop = false
+        // From here the list is open, and the rest of the gesture is treated like one that started open.
+        brokeThroughDetent = false
+        isDetentArmed = false
+        updateReachAreaRevealedByUser()
+    }
+
+    private fun detentHapticFeedbackConstant(): Int {
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             HapticFeedbackConstants.GESTURE_THRESHOLD_ACTIVATE
         } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
             HapticFeedbackConstants.CONFIRM
         } else {
-            HapticFeedbackConstants.VIRTUAL_KEY
+            HapticFeedbackConstants.KEYBOARD_TAP
         }
     }
 
@@ -1472,6 +1535,8 @@ class LegacyMessageListFragment :
         areBannersAtBottom = atBottom
         view?.let { applyBannerPlacement(it) }
         updateSearchStatusPlacement()
+        updateSearchResultsSearchViewWidth()
+        invalidateMenu()
     }
 
     private fun setWindowProgress() {
@@ -1596,6 +1661,7 @@ class LegacyMessageListFragment :
     }
 
     override fun onDestroyView() {
+        cancelOpeningAnimation()
         commitPendingMessageAction()
 
         handler.removeCallbacks(stopRemoteSearchRunnable)
@@ -2229,8 +2295,6 @@ class LegacyMessageListFragment :
 
         if (isManualSearch) {
             // The search results display their query so it can be changed. Leave room for the other toolbar actions.
-            searchView.maxWidth = resources.displayMetrics.widthPixels -
-                resources.getDimensionPixelSize(R.dimen.messageListSearchResultsToolbarReservedWidth)
             searchView.setIconifiedByDefault(false)
             searchView.setQuery(initialSearchViewQuery ?: manualSearchQuery, false)
             searchView.clearFocus()
@@ -2240,6 +2304,23 @@ class LegacyMessageListFragment :
         }
 
         this.searchView = searchView
+        updateSearchResultsSearchViewWidth()
+    }
+
+    /**
+     * The search field of the search results leaves room for the other toolbar actions: the back arrow and the
+     * overflow menu, and with the toolbar at the bottom the extra back button next to the field.
+     */
+    private fun updateSearchResultsSearchViewWidth() {
+        if (!isManualSearch) return
+
+        val extraButtonWidth = if (areBannersAtBottom) {
+            resources.getDimensionPixelSize(R.dimen.messageListSearchResultsToolbarExtraButtonWidth)
+        } else {
+            0
+        }
+        searchView?.maxWidth = resources.displayMetrics.widthPixels -
+            resources.getDimensionPixelSize(R.dimen.messageListSearchResultsToolbarReservedWidth) - extraButtonWidth
     }
 
     /**
@@ -2320,6 +2401,7 @@ class LegacyMessageListFragment :
             menu.findItem(R.id.expunge).isVisible = false
         }
 
+        menu.findItem(R.id.search_back).isVisible = areBannersAtBottom && isManualSearch
         menu.findItem(R.id.search_remote).isVisible = !isRemoteSearch && isRemoteSearchAllowed
         menu.findItem(R.id.search_everywhere).isVisible = isManualSearch && !localSearch.searchAllAccounts()
     }
@@ -2377,6 +2459,7 @@ class LegacyMessageListFragment :
 
     private fun selectMenuItem(item: MenuItem): Boolean {
         when (item.itemId) {
+            R.id.search_back -> requireActivity().onBackPressedDispatcher.onBackPressed()
             R.id.search_remote -> onRemoteSearch()
             R.id.compose -> onCompose()
             R.id.set_sort_date -> changeSort(SortType.SORT_DATE)
@@ -4386,6 +4469,7 @@ class LegacyMessageListFragment :
     }
 
     companion object {
+        private const val OPENING_ANIMATION_DURATION_MS = 250L
         protected const val ARG_SEARCH = "searchObject"
         protected const val ARG_THREADED_LIST = "showingThreadedList"
         protected const val ARG_IS_THREAD_DISPLAY = "isThreadedDisplay"

@@ -4,6 +4,16 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     >
 
+    <!-- Search results with the toolbar at the bottom: the back arrow next to the search field, because the first
+         button of the toolbar is the one for the folders. -->
+    <item
+        android:id="@+id/search_back"
+        android:icon="@drawable/ic_arrow_back"
+        android:title="@string/search_back_action"
+        android:visible="false"
+        app:showAsAction="always"
+        />
+
     <item
         android:id="@+id/search"
         android:icon="@drawable/ic_search"

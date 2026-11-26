@@ -147,38 +147,107 @@ class MessageListReachAreaTest {
     }
 
     @Test
-    fun `shouldSnapToTop() close to the normal top should be true`() {
-        // 300 of 1000 pixels revealed
-        assertThat(testSubject.shouldSnapToTop(firstItemOffset = -700, reachHeight = 1000))
-            .isEqualTo(true)
+    fun `restPositionAfterRelease() with list pushed up less than the threshold should be open`() {
+        val result = testSubject.restPositionAfterRelease(
+            firstItemOffset = -100,
+            reachHeight = 900,
+            brokeThroughDetent = false,
+            threshold = 160f,
+        )
+
+        assertThat(result).isEqualTo(RestPosition.OPEN)
     }
 
     @Test
-    fun `shouldSnapToTop() exactly at the snap limit should be true`() {
-        assertThat(testSubject.shouldSnapToTop(firstItemOffset = -600, reachHeight = 1000))
-            .isEqualTo(true)
+    fun `restPositionAfterRelease() with list pushed up exactly the threshold should be open`() {
+        val result = testSubject.restPositionAfterRelease(
+            firstItemOffset = -160,
+            reachHeight = 900,
+            brokeThroughDetent = false,
+            threshold = 160f,
+        )
+
+        assertThat(result).isEqualTo(RestPosition.OPEN)
     }
 
     @Test
-    fun `shouldSnapToTop() further down than the snap limit should be false`() {
-        assertThat(testSubject.shouldSnapToTop(firstItemOffset = -500, reachHeight = 1000))
-            .isEqualTo(false)
-        assertThat(testSubject.shouldSnapToTop(firstItemOffset = 0, reachHeight = 1000))
-            .isEqualTo(false)
+    fun `restPositionAfterRelease() with list pushed up more than the threshold should be docked`() {
+        val result = testSubject.restPositionAfterRelease(
+            firstItemOffset = -161,
+            reachHeight = 900,
+            brokeThroughDetent = false,
+            threshold = 160f,
+        )
+
+        assertThat(result).isEqualTo(RestPosition.DOCKED)
     }
 
     @Test
-    fun `shouldSnapToTop() at the normal top should be false`() {
-        assertThat(testSubject.shouldSnapToTop(firstItemOffset = -1000, reachHeight = 1000))
-            .isEqualTo(false)
+    fun `restPositionAfterRelease() with list pushed up almost all the way should be docked`() {
+        val result = testSubject.restPositionAfterRelease(
+            firstItemOffset = -899,
+            reachHeight = 900,
+            brokeThroughDetent = false,
+            threshold = 160f,
+        )
+
+        assertThat(result).isEqualTo(RestPosition.DOCKED)
     }
 
     @Test
-    fun `shouldSnapToTop() with list scrolled down or without reach area should be false`() {
-        assertThat(testSubject.shouldSnapToTop(firstItemOffset = null, reachHeight = 1000))
-            .isEqualTo(false)
-        assertThat(testSubject.shouldSnapToTop(firstItemOffset = 0, reachHeight = 0))
-            .isEqualTo(false)
+    fun `restPositionAfterRelease() after breaking through the detent should be open`() {
+        val result = testSubject.restPositionAfterRelease(
+            firstItemOffset = -900,
+            reachHeight = 900,
+            brokeThroughDetent = true,
+            threshold = 160f,
+        )
+
+        assertThat(result).isEqualTo(RestPosition.OPEN)
+    }
+
+    @Test
+    fun `restPositionAfterRelease() with docked list that wasn't pulled through the detent should stay`() {
+        val result = testSubject.restPositionAfterRelease(
+            firstItemOffset = -900,
+            reachHeight = 900,
+            brokeThroughDetent = false,
+            threshold = 160f,
+        )
+
+        assertThat(result).isNull()
+    }
+
+    @Test
+    fun `restPositionAfterRelease() with list scrolled down or without reach area should be null`() {
+        assertThat(
+            testSubject.restPositionAfterRelease(
+                firstItemOffset = null,
+                reachHeight = 900,
+                brokeThroughDetent = false,
+                threshold = 160f,
+            ),
+        ).isNull()
+        assertThat(
+            testSubject.restPositionAfterRelease(
+                firstItemOffset = 0,
+                reachHeight = 0,
+                brokeThroughDetent = false,
+                threshold = 160f,
+            ),
+        ).isNull()
+    }
+
+    @Test
+    fun `scrollToRest() to docked should move the first item to its normal place`() {
+        assertThat(testSubject.scrollToRest(RestPosition.DOCKED, firstItemOffset = -100, reachHeight = 900))
+            .isEqualTo(800)
+    }
+
+    @Test
+    fun `scrollToRest() to open should move the first item to the end of the reach area`() {
+        assertThat(testSubject.scrollToRest(RestPosition.OPEN, firstItemOffset = -900, reachHeight = 900))
+            .isEqualTo(-900)
     }
 
     @Test
@@ -295,78 +364,45 @@ class MessageListReachAreaTest {
     }
 
     @Test
-    fun `detentDistance() before the threshold should follow only part of the finger`() {
-        val result = testSubject.detentDistance(pull = 100f, threshold = 160f)
-
-        assertThat(result).isEqualTo(35f)
-    }
-
-    @Test
-    fun `detentDistance() after the threshold should follow the finger one to one`() {
-        val result = testSubject.detentDistance(pull = 260f, threshold = 160f)
-
-        assertThat(result).isEqualTo(56f + 100f)
-    }
-
-    @Test
-    fun `pullThroughDetent() before the threshold should move the list damped`() {
+    fun `pullThroughDetent() before the threshold should not move the list`() {
         val result = testSubject.pullThroughDetent(pull = 0f, fingerDelta = 100f, threshold = 160f)
 
-        assertThat(result).isEqualTo(DetentStep(pull = 100f, contentDelta = 35f, brokeThrough = false))
+        assertThat(result).isEqualTo(DetentStep(pull = 100f, contentDelta = 0f, brokeThrough = false))
     }
 
     @Test
     fun `pullThroughDetent() across the threshold should break through`() {
         val result = testSubject.pullThroughDetent(pull = 150f, fingerDelta = 30f, threshold = 160f)
 
-        // 10 px damped to 3.5 px, 20 px one to one
-        assertThat(result).isEqualTo(DetentStep(pull = 180f, contentDelta = 23.5f, brokeThrough = true))
+        assertThat(result).isEqualTo(DetentStep(pull = 180f, contentDelta = 0f, brokeThrough = true))
+    }
+
+    @Test
+    fun `pullThroughDetent() exactly at the threshold should not break through yet`() {
+        val result = testSubject.pullThroughDetent(pull = 100f, fingerDelta = 60f, threshold = 160f)
+
+        assertThat(result).isEqualTo(DetentStep(pull = 160f, contentDelta = 0f, brokeThrough = false))
     }
 
     @Test
     fun `pullThroughDetent() after the threshold should not break through again`() {
         val result = testSubject.pullThroughDetent(pull = 180f, fingerDelta = 30f, threshold = 160f)
 
-        assertThat(result).isEqualTo(DetentStep(pull = 210f, contentDelta = 30f, brokeThrough = false))
+        assertThat(result.brokeThrough).isEqualTo(false)
     }
 
     @Test
-    fun `pullThroughDetent() pushing back up should move the list back damped`() {
+    fun `pullThroughDetent() pushing back up should not move the list`() {
         val result = testSubject.pullThroughDetent(pull = 100f, fingerDelta = -40f, threshold = 160f)
 
-        assertThat(result).isEqualTo(DetentStep(pull = 60f, contentDelta = -14f, brokeThrough = false))
+        assertThat(result).isEqualTo(DetentStep(pull = 60f, contentDelta = 0f, brokeThrough = false))
     }
 
     @Test
     fun `pullThroughDetent() pushing up beyond the start should pass the rest on in full`() {
         val result = testSubject.pullThroughDetent(pull = 20f, fingerDelta = -50f, threshold = 160f)
 
-        // 20 px back to the start, damped to 7 px, then 30 px further up one to one
-        assertThat(result).isEqualTo(DetentStep(pull = 0f, contentDelta = -37f, brokeThrough = false))
-    }
-
-    @Test
-    fun `shouldSnapToTop() after breaking through the detent should keep the list where it is`() {
-        val result = testSubject.shouldSnapToTop(
-            firstItemOffset = -900,
-            reachHeight = 1000,
-            brokeThroughDetent = true,
-            detentDistance = 56,
-        )
-
-        assertThat(result).isEqualTo(false)
-    }
-
-    @Test
-    fun `shouldSnapToTop() after breaking through the detent and pushing back should snap`() {
-        val result = testSubject.shouldSnapToTop(
-            firstItemOffset = -960,
-            reachHeight = 1000,
-            brokeThroughDetent = true,
-            detentDistance = 56,
-        )
-
-        assertThat(result).isEqualTo(true)
+        assertThat(result).isEqualTo(DetentStep(pull = 0f, contentDelta = -30f, brokeThrough = false))
     }
 
     @Test

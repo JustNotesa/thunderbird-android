@@ -38,6 +38,13 @@
                 android:orientation="vertical"
                 >
 
+                <!-- With one-handed mode: what the search displays for reading, in the top area of the screen -->
+                <include
+                    layout="@layout/message_list_search_info"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    />
+
                 <!-- The filters of the search. Only displayed for a search that supports a search on the server. -->
                 <include
                     android:id="@+id/search_filter_bar"

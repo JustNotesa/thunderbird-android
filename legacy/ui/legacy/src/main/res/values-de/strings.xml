@@ -1317,6 +1317,9 @@
     <string name="local_search_status">Suche auf diesem Gerät</string>
     <string name="search_scope_folder">Nur dieser Ordner</string>
     <string name="search_scope_everywhere">Alle Ordner</string>
+    <string name="search_info_scope_folder">Suche in „%1$s“</string>
+    <string name="search_info_scope_everywhere">Suche in allen Ordnern</string>
+    <string name="search_back_action">Zurück</string>
     <string name="remote_search_status_progress">Serversuche: Ordner %1$d von %2$d</string>
     <string name="remote_search_contents_status_progress">Inhaltssuche: Ordner %1$d von %2$d</string>
     <string name="remote_search_contents_action">Auch Nachrichtentexte durchsuchen</string>
