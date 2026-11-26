@@ -54,7 +54,6 @@ internal fun AboutUpdateInstallStatus(
     onInstallAgainClick: () -> Unit,
     onInstallDownloadedClick: () -> Unit,
     onCancelInstallClick: () -> Unit,
-    onRefreshDownloadClick: () -> Unit,
     onInstallFailureDismiss: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -70,7 +69,6 @@ internal fun AboutUpdateInstallStatus(
             is UpdateInstallState.Downloading -> {
                 AboutUpdateDownloadProgress(
                     install = install,
-                    onRefreshClick = onRefreshDownloadClick,
                     onCancelClick = onCancelInstallClick,
                 )
             }
@@ -88,6 +86,7 @@ internal fun AboutUpdateInstallStatus(
 
             UpdateInstallState.WaitingForConfirmation -> {
                 TextBodyMedium(text = stringResource(R.string.about_updates_waiting_for_confirmation))
+                TextBodyMedium(text = stringResource(R.string.about_updates_installing_hint))
                 Row(horizontalArrangement = Arrangement.spacedBy(BoltTheme.spacings.half)) {
                     DisableSelection {
                         ButtonFilled(
@@ -178,7 +177,6 @@ private fun AboutUpdateInstallFailure(
 @Composable
 private fun AboutUpdateDownloadProgress(
     install: UpdateInstallState.Downloading,
-    onRefreshClick: () -> Unit,
     onCancelClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -195,14 +193,13 @@ private fun AboutUpdateDownloadProgress(
         modifier = modifier,
         progress = status.percent?.let { it / PERCENT.toFloat() },
         waitingText = status.waitingTextRes?.let { stringResource(it) },
-        onRefreshClick = onRefreshClick,
         onCancelClick = onCancelClick,
     )
 }
 
 /**
  * Shows the progress of a running update step. The progress indicator is indeterminate when [progress] is `null`.
- * [waitingText] is shown below the progress. The buttons are only shown when their action isn't `null`.
+ * [waitingText] is shown below the progress. The cancel button is only shown when its action isn't `null`.
  */
 @Composable
 private fun AboutUpdateProgress(
@@ -210,7 +207,6 @@ private fun AboutUpdateProgress(
     modifier: Modifier = Modifier,
     progress: Float? = null,
     waitingText: String? = null,
-    onRefreshClick: (() -> Unit)? = null,
     onCancelClick: (() -> Unit)? = null,
 ) {
     Column(
@@ -234,24 +230,12 @@ private fun AboutUpdateProgress(
             TextBodyMedium(text = it)
         }
 
-        if (onRefreshClick != null || onCancelClick != null) {
-            Row(horizontalArrangement = Arrangement.spacedBy(BoltTheme.spacings.half)) {
-                onRefreshClick?.let { click ->
-                    DisableSelection {
-                        ButtonOutlined(
-                            text = stringResource(R.string.about_updates_check_status_button),
-                            onClick = click,
-                        )
-                    }
-                }
-                onCancelClick?.let { click ->
-                    DisableSelection {
-                        ButtonOutlined(
-                            text = stringResource(R.string.about_updates_cancel_button),
-                            onClick = click,
-                        )
-                    }
-                }
+        onCancelClick?.let { click ->
+            DisableSelection {
+                ButtonOutlined(
+                    text = stringResource(R.string.about_updates_cancel_button),
+                    onClick = click,
+                )
             }
         }
     }

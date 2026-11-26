@@ -9,8 +9,10 @@ import assertk.assertThat
 import assertk.assertions.contains
 import assertk.assertions.isEmpty
 import assertk.assertions.isEqualTo
+import assertk.assertions.isFalse
 import assertk.assertions.isNotNull
 import assertk.assertions.isNull
+import assertk.assertions.isTrue
 import kotlinx.coroutines.flow.MutableStateFlow
 import net.thunderbird.components.core.logging.testing.TestLogger
 import net.thunderbird.feature.updater.api.UpdateInstallState
@@ -56,6 +58,40 @@ class InstallProgressObserverTest {
     fun `the callback is registered for the watched session`() {
         // Assert
         assertThat(registrar.registered).contains(testSubject)
+    }
+
+    @Test
+    fun `a session that exists isn't gone`() {
+        // Act
+        val gone = testSubject.isSessionGone()
+
+        // Assert
+        assertThat(gone).isFalse()
+    }
+
+    @Test
+    fun `a session that doesn't exist anymore is gone`() {
+        // Arrange
+        registrar.sessionsExist = false
+
+        // Act
+        val gone = testSubject.isSessionGone()
+
+        // Assert
+        assertThat(gone).isTrue()
+    }
+
+    @Test
+    fun `no session is gone when none is watched`() {
+        // Arrange
+        registrar.sessionsExist = false
+        testSubject.stopWatching()
+
+        // Act
+        val gone = testSubject.isSessionGone()
+
+        // Assert
+        assertThat(gone).isFalse()
     }
 
     @Test
@@ -163,6 +199,9 @@ internal class FakeInstallSessionRegistrar : InstallSessionRegistrar {
 
     val registered = mutableListOf<PackageInstaller.SessionCallback>()
 
+    /** Whether the install sessions exist in the system. */
+    var sessionsExist = true
+
     override fun register(callback: PackageInstaller.SessionCallback) {
         registered.add(callback)
     }
@@ -170,6 +209,8 @@ internal class FakeInstallSessionRegistrar : InstallSessionRegistrar {
     override fun unregister(callback: PackageInstaller.SessionCallback) {
         registered.remove(callback)
     }
+
+    override fun sessionExists(sessionId: Int): Boolean = sessionsExist
 }
 
 /**

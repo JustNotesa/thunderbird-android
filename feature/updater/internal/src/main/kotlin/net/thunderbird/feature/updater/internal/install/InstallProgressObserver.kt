@@ -36,6 +36,11 @@ internal class InstallProgressObserver(
         registrar.register(this)
     }
 
+    /** Whether the watched install session doesn't exist anymore, `false` when no session is watched. */
+    fun isSessionGone(): Boolean {
+        return watching && !registrar.sessionExists(watchedSessionId)
+    }
+
     /** Stops watching the install session. */
     fun stopWatching() {
         if (!watching) return

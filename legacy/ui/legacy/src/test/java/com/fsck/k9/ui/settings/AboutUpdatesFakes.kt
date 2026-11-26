@@ -94,11 +94,17 @@ internal class FakeAppUpdateInstaller(
         private set
     var installDownloadedCount: Int = 0
         private set
+    var reopenAppAfterInstallCount: Int = 0
+        private set
 
     override fun canInstallPackages(): Boolean = this.canInstallPackages
 
     override fun openInstallPermissionSettings() {
         openInstallPermissionSettingsCount++
+    }
+
+    override fun reopenAppAfterInstall() {
+        reopenAppAfterInstallCount++
     }
 
     override suspend fun install(update: AppUpdate) {

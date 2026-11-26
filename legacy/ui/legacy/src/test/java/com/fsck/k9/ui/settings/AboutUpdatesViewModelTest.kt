@@ -387,12 +387,98 @@ class AboutUpdatesViewModelTest {
     }
 
     @Test
-    fun `checking the status of the download asks the installer to refresh`() {
+    fun `the installation continues when the screen is resumed after the permission was granted`() {
+        checker.checkResult = UpdateCheckResult.Available(update)
+        installer.canInstallPackages = false
+        val testSubject = createViewModel()
+        testSubject.event(AboutContract.Event.OnOpenInstallPermissionClick)
+
+        installer.canInstallPackages = true
+        testSubject.event(AboutContract.Event.OnScreenResumed)
+
+        assertThat(installer.installedUpdates).containsExactly(update)
+    }
+
+    @Test
+    fun `the installation doesn't continue when the permission is still missing`() {
+        checker.checkResult = UpdateCheckResult.Available(update)
+        installer.canInstallPackages = false
+        val testSubject = createViewModel()
+        testSubject.event(AboutContract.Event.OnOpenInstallPermissionClick)
+
+        testSubject.event(AboutContract.Event.OnScreenResumed)
+
+        assertThat(installer.installedUpdates).isEmpty()
+    }
+
+    @Test
+    fun `the installation waits for the permission only once`() {
+        checker.checkResult = UpdateCheckResult.Available(update)
+        installer.canInstallPackages = false
+        val testSubject = createViewModel()
+        testSubject.event(AboutContract.Event.OnOpenInstallPermissionClick)
+        testSubject.event(AboutContract.Event.OnScreenResumed)
+
+        installer.canInstallPackages = true
+        testSubject.event(AboutContract.Event.OnScreenResumed)
+
+        assertThat(installer.installedUpdates).isEmpty()
+    }
+
+    @Test
+    fun `the installation doesn't continue when the permission was opened without an available update`() {
+        installer.canInstallPackages = false
+        val testSubject = createViewModel()
+        testSubject.event(AboutContract.Event.OnOpenInstallPermissionClick)
+
+        installer.canInstallPackages = true
+        testSubject.event(AboutContract.Event.OnScreenResumed)
+
+        assertThat(installer.installedUpdates).isEmpty()
+    }
+
+    @Test
+    fun `the installation doesn't continue after the permission when an installation is running`() {
+        checker.checkResult = UpdateCheckResult.Available(update)
+        installer.canInstallPackages = false
+        val testSubject = createViewModel()
+        installer.setInstallState(UpdateInstallState.Downloading(downloadedBytes = 50, totalBytes = 100))
+        testSubject.event(AboutContract.Event.OnOpenInstallPermissionClick)
+
+        installer.canInstallPackages = true
+        testSubject.event(AboutContract.Event.OnScreenResumed)
+
+        assertThat(installer.installedUpdates).isEmpty()
+    }
+
+    @Test
+    fun `an installation started by the user asks the installer to reopen the app`() {
+        checker.checkResult = UpdateCheckResult.Available(update)
         val testSubject = createViewModel()
 
-        testSubject.event(AboutContract.Event.OnRefreshDownloadClick)
+        testSubject.event(AboutContract.Event.OnInstallClick)
 
-        assertThat(installer.refreshCount).isEqualTo(1)
+        assertThat(installer.reopenAppAfterInstallCount).isEqualTo(1)
+    }
+
+    @Test
+    fun `installing the downloaded update asks the installer to reopen the app`() {
+        val testSubject = createViewModel()
+
+        testSubject.event(AboutContract.Event.OnInstallDownloadedClick)
+
+        assertThat(installer.reopenAppAfterInstallCount).isEqualTo(1)
+    }
+
+    @Test
+    fun `an installation that isn't possible doesn't ask the installer to reopen the app`() {
+        installer.canInstallPackages = false
+        checker.checkResult = UpdateCheckResult.Available(update)
+        val testSubject = createViewModel()
+
+        testSubject.event(AboutContract.Event.OnInstallClick)
+
+        assertThat(installer.reopenAppAfterInstallCount).isEqualTo(0)
     }
 
     @Test

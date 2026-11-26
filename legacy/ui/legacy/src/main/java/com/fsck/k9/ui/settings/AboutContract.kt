@@ -33,7 +33,6 @@ internal interface AboutContract {
         data object OnCheckForUpdatesClick : Event
         data object OnInstallClick : Event
         data object OnInstallDownloadedClick : Event
-        data object OnRefreshDownloadClick : Event
         data object OnOpenInstallPermissionClick : Event
         data object OnScreenResumed : Event
         data object OnInstallFailureDismiss : Event

@@ -50,6 +50,8 @@ class AppUpdatedReceiverTest {
 
     private lateinit var checker: FakeUpdatedAppChecker
     private lateinit var testSubject: AppUpdatedReceiver
+    private val reopenMarker = FakeReopenMarker()
+    private val launcher = FakeAppLauncher()
     private val installerScope = CoroutineScope(SupervisorJob() + Dispatchers.Unconfined)
 
     @Before
@@ -63,6 +65,11 @@ class AppUpdatedReceiverTest {
                     single<AppUpdateChecker> { checker }
                     single { UpdateNotifier(application) }
                     single<AppUpdateInstaller> { FakeUpdatedAppInstaller() }
+                    single {
+                        ReopenAfterUpdate(marker = reopenMarker, launcher = launcher, logger = TestLogger(), clock = {
+                            MARKER_NOW_MILLIS
+                        })
+                    }
                 },
             )
         }
@@ -90,6 +97,34 @@ class AppUpdatedReceiverTest {
         assertThat(notification?.extras?.getCharSequence(Notification.EXTRA_TEXT)?.toString()).isEqualTo(
             application.getString(R.string.updater_updated_notification_text, checker.currentReleaseTag),
         )
+    }
+
+    @Test
+    fun `the app is opened again and the notification is still posted after the user's installation`() {
+        // Arrange
+        reopenMarker.mark()
+
+        // Act
+        testSubject.onReceive(application, Intent(Intent.ACTION_MY_PACKAGE_REPLACED))
+
+        // Assert
+        assertThat(launcher.launchCount).isEqualTo(1)
+        assertThat(reopenMarker.markedAtMillis()).isNull()
+        assertThat(
+            shadowOf(notificationManager()).getNotification(
+                UpdateNotifier.UPDATED_NOTIFICATION_TAG,
+                UpdateNotifier.UPDATED_NOTIFICATION_ID,
+            ),
+        ).isNotNull()
+    }
+
+    @Test
+    fun `the app isn't opened again without the marker of the user's installation`() {
+        // Act
+        testSubject.onReceive(application, Intent(Intent.ACTION_MY_PACKAGE_REPLACED))
+
+        // Assert
+        assertThat(launcher.launchCount).isEqualTo(0)
     }
 
     @Test
@@ -149,6 +184,11 @@ class AppUpdatedReceiverTest {
                     single<AppUpdateChecker> { checker }
                     single { UpdateNotifier(application) }
                     single<AppUpdateInstaller> { realInstaller }
+                    single {
+                        ReopenAfterUpdate(marker = reopenMarker, launcher = launcher, logger = TestLogger(), clock = {
+                            MARKER_NOW_MILLIS
+                        })
+                    }
                 },
             )
         }
@@ -216,6 +256,7 @@ class AppUpdatedReceiverTest {
     private companion object {
         const val RELEASE_TAG = "mein-thunderbird-2026-10-25"
         const val STALE_DOWNLOAD_ID = 42L
+        const val MARKER_NOW_MILLIS = 1_700_000_000_000L
     }
 }
 

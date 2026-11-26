@@ -1317,16 +1317,14 @@
     <string name="about_updates_downloading_waiting_retry">Der Download wird gleich erneut versucht…</string>
     <!-- Reason why Android paused the download of a newer release -->
     <string name="about_updates_downloading_waiting_paused">Android hat den Download angehalten…</string>
-    <!-- Button that asks for the current state of the download of a newer release -->
-    <string name="about_updates_check_status_button">Status prüfen</string>
     <!-- Message shown while the downloaded file is verified -->
     <string name="about_updates_verifying">Die heruntergeladene Datei wird überprüft…</string>
     <!-- Message shown while the user confirms the installation in the system dialog -->
-    <string name="about_updates_waiting_for_confirmation">Bestätige die Installation im Dialog von Android. Android schließt die App beim Installieren – öffne sie danach einfach wieder. Erscheint kein Dialog, tippe auf die Benachrichtigung. Fragt Google Play Protect nach, wähle „App scannen“ und dann „Installieren“.</string>
+    <string name="about_updates_waiting_for_confirmation">Bestätige die Installation im Dialog von Android. Erscheint kein Dialog, tippe auf die Benachrichtigung.</string>
     <!-- Message shown while Android is installing the update -->
     <string name="about_updates_installing_progress">Android installiert das Update…</string>
     <!-- Hint shown while Android installs the update -->
-    <string name="about_updates_installing_hint">Update wird installiert… Fragt Google Play Protect nach, wähle „App scannen“ und dann „Installieren“. Thunderbird wird danach geschlossen. Tippe dann auf die Benachrichtigung „Thunderbird wurde aktualisiert“, um es wieder zu öffnen.</string>
+    <string name="about_updates_installing_hint">Fragt Google Play Protect nach, wähle „App scannen“ und dann „Installieren“. Thunderbird wird während der Installation geschlossen. Tippe danach auf die Benachrichtigung „Thunderbird wurde aktualisiert“, um es wieder zu öffnen.</string>
     <!-- Button that starts the installation of the downloaded update again -->
     <string name="about_updates_install_again_button">Erneut installieren</string>
     <!-- Button that cancels a pending installation -->

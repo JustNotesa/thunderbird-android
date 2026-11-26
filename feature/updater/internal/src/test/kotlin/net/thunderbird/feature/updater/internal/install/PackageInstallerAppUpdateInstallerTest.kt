@@ -35,6 +35,7 @@ import net.thunderbird.feature.updater.api.AppUpdate
 import net.thunderbird.feature.updater.api.DownloadWaiting
 import net.thunderbird.feature.updater.api.UpdateInstallFailure
 import net.thunderbird.feature.updater.api.UpdateInstallState
+import net.thunderbird.feature.updater.internal.background.FakeReopenMarker
 import net.thunderbird.feature.updater.internal.background.UpdateNotifier
 import org.junit.After
 import org.junit.Before
@@ -59,6 +60,7 @@ private const val TIMEOUT_MILLIS = 30_000L
 private const val WAIT_INTERVAL_MILLIS = 10L
 private const val NOW_MILLIS = 1_700_000_000_000L
 
+@Suppress("LargeClass")
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class PackageInstallerAppUpdateInstallerTest {
@@ -72,6 +74,7 @@ class PackageInstallerAppUpdateInstallerTest {
     private lateinit var sessionWrites: MutableList<File>
     private lateinit var notifier: UpdateNotifier
     private lateinit var registrar: FakeInstallSessionRegistrar
+    private lateinit var reopenMarker: FakeReopenMarker
 
     @Before
     fun setUp() {
@@ -85,6 +88,7 @@ class PackageInstallerAppUpdateInstallerTest {
         sessionWrites = mutableListOf()
         notifier = UpdateNotifier(application)
         registrar = FakeInstallSessionRegistrar()
+        reopenMarker = FakeReopenMarker()
         shadowOf(application.packageManager).setCanRequestPackageInstalls(true)
         shadowOf(application).grantPermissions(Manifest.permission.POST_NOTIFICATIONS)
     }
@@ -641,6 +645,101 @@ class PackageInstallerAppUpdateInstallerTest {
     }
 
     @Test
+    fun `refresh reports a pending confirmation whose session is gone as cancelled`() = runTest {
+        // Arrange
+        val testSubject = createInstaller(backgroundScope)
+        downloads.status = SystemDownloadStatus.Successful(createDownloadedFile())
+        testSubject.install(createUpdate())
+        testSubject.onDownloadFinished(DOWNLOAD_ID)
+        registrar.sessionsExist = false
+
+        // Act
+        testSubject.refresh()
+
+        // Assert
+        assertThat(testSubject.state.value).isEqualTo(
+            UpdateInstallState.Failed(UpdateInstallFailure.CANCELLED, TAG, NOW_MILLIS),
+        )
+        assertThat(registrar.registered).isEmpty()
+    }
+
+    @Test
+    fun `refresh keeps a pending confirmation whose session still exists`() = runTest {
+        // Arrange
+        val testSubject = createInstaller(backgroundScope)
+        downloads.status = SystemDownloadStatus.Successful(createDownloadedFile())
+        testSubject.install(createUpdate())
+        testSubject.onDownloadFinished(DOWNLOAD_ID)
+
+        // Act
+        testSubject.refresh()
+
+        // Assert
+        assertThat(testSubject.state.value).isEqualTo(UpdateInstallState.WaitingForConfirmation)
+    }
+
+    @Test
+    fun `the marker to reopen the app is stored when the user's installation is handed to the system`() = runTest {
+        // Arrange
+        val testSubject = createInstaller(backgroundScope)
+        downloads.status = SystemDownloadStatus.Successful(createDownloadedFile())
+        testSubject.reopenAppAfterInstall()
+        testSubject.install(createUpdate())
+
+        // Act
+        testSubject.onDownloadFinished(DOWNLOAD_ID)
+
+        // Assert
+        assertThat(reopenMarker.markedAtMillis()).isEqualTo(NOW_MILLIS)
+    }
+
+    @Test
+    fun `no marker to reopen the app is stored for an installation that the user didn't start`() = runTest {
+        // Arrange
+        val testSubject = createInstaller(backgroundScope)
+        downloads.status = SystemDownloadStatus.Successful(createDownloadedFile())
+        testSubject.install(createUpdate())
+
+        // Act
+        testSubject.onDownloadFinished(DOWNLOAD_ID)
+
+        // Assert
+        assertThat(reopenMarker.markedAtMillis()).isNull()
+    }
+
+    @Test
+    fun `cancelling the installation removes the marker to reopen the app`() = runTest {
+        // Arrange
+        val testSubject = createInstaller(backgroundScope)
+        downloads.status = SystemDownloadStatus.Successful(createDownloadedFile())
+        testSubject.reopenAppAfterInstall()
+        testSubject.install(createUpdate())
+        testSubject.onDownloadFinished(DOWNLOAD_ID)
+
+        // Act
+        testSubject.resetState()
+
+        // Assert
+        assertThat(reopenMarker.markedAtMillis()).isNull()
+    }
+
+    @Test
+    fun `a failed installation removes the marker to reopen the app`() = runTest {
+        // Arrange
+        val testSubject = createInstaller(backgroundScope)
+        downloads.status = SystemDownloadStatus.Successful(createDownloadedFile())
+        testSubject.reopenAppAfterInstall()
+        testSubject.install(createUpdate())
+        testSubject.onDownloadFinished(DOWNLOAD_ID)
+
+        // Act
+        testSubject.onInstallStatus(PackageInstaller.STATUS_FAILURE_ABORTED)
+
+        // Assert
+        assertThat(reopenMarker.markedAtMillis()).isNull()
+    }
+
+    @Test
     fun `the download of the background is ready to install`() = runTest {
         // Arrange
         val testSubject = createInstaller(backgroundScope)
@@ -858,6 +957,7 @@ class PackageInstallerAppUpdateInstallerTest {
             sessionRegistrar = registrar,
             isNewerThanInstalled = isNewerThanInstalled,
             clock = { NOW_MILLIS },
+            reopenMarker = reopenMarker,
         )
     }
 

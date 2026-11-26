@@ -72,7 +72,6 @@ internal class AboutViewModel(
             Event.OnCancelInstallClick -> installController.onCancelInstallClick()
             Event.OnInstallFailureDismiss -> installController.onInstallFailureDismiss()
             Event.OnOpenInstallPermissionClick -> installController.onOpenInstallPermissionClick()
-            Event.OnRefreshDownloadClick -> installController.onRefreshDownloadClick()
             Event.OnScreenResumed -> installController.onScreenResumed()
             // The other events aren't handled here.
             else -> Unit

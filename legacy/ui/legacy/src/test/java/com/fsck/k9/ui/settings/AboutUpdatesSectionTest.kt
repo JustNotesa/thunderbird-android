@@ -214,19 +214,19 @@ class AboutUpdatesSectionUiTest {
     }
 
     @Test
-    fun `the status of the download can be checked while the update is downloading`() {
-        val refreshes = mutableListOf<Boolean>()
+    fun `the download doesn't offer a button to check the status`() {
         val composeView = createComposeView(
             install = UpdateInstallState.Downloading(downloadedBytes = 50, totalBytes = 100),
-            onRefreshDownloadClick = { refreshes.add(true) },
         )
 
-        val refreshNode = findTextNode(composeView, CHECK_STATUS_BUTTON_LABEL)
-        assertThat(refreshNode).isNotNull()
+        assertThat(findTextNode(composeView, CHECK_STATUS_BUTTON_LABEL)).isNull()
+    }
 
-        tap(composeView, refreshNode!!.boundsInRoot.center)
+    @Test
+    fun `the confirmation of the installation shows that the app is opened again afterwards`() {
+        val composeView = createComposeView(install = UpdateInstallState.WaitingForConfirmation)
 
-        assertThat(refreshes).containsExactly(true)
+        assertThat(findTextNode(composeView, REOPEN_HINT)).isNotNull()
     }
 
     @Test
@@ -273,6 +273,7 @@ class AboutUpdatesSectionUiTest {
 
         assertThat(progressNode).isNotNull()
         assertThat(hintNode).isNotNull()
+        assertThat(findTextNode(composeView, REOPEN_HINT)).isNotNull()
         assertThat(installButtonNode).isNull()
         assertThat(cancelNode).isNull()
     }
@@ -444,7 +445,6 @@ class AboutUpdatesSectionUiTest {
         availableReleaseNotes: String = "Release notes",
         onBackgroundDownloadChange: (Boolean) -> Unit = {},
         onCancelInstallClick: () -> Unit = {},
-        onRefreshDownloadClick: () -> Unit = {},
         onInstallDownloadedClick: () -> Unit = {},
         onInstalledNotesDismiss: () -> Unit = {},
     ): ComposeView {
@@ -474,7 +474,6 @@ class AboutUpdatesSectionUiTest {
                     onInstallClick = {},
                     onInstallDownloadedClick = onInstallDownloadedClick,
                     onCancelInstallClick = onCancelInstallClick,
-                    onRefreshDownloadClick = onRefreshDownloadClick,
                     onOpenInstallPermissionClick = {},
                     onInstallFailureDismiss = {},
                     onOpenUrl = {},
@@ -554,6 +553,7 @@ class AboutUpdatesSectionUiTest {
         const val FAILED_AT_MILLIS = 1_700_000_000_000L
         const val CANCEL_BUTTON_LABEL = "Cancel"
         const val CHECK_STATUS_BUTTON_LABEL = "Check status"
+        const val REOPEN_HINT = "to open it again"
         const val CLOSE_BUTTON_LABEL = "Close"
         const val INSTALL_BUTTON_LABEL = "Download and install"
         const val INSTALL_NOW_BUTTON_LABEL = "Install now"

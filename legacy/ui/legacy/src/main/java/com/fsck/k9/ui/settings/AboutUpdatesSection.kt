@@ -48,7 +48,6 @@ internal fun AboutUpdatesSection(
     onInstallClick: () -> Unit,
     onInstallDownloadedClick: () -> Unit,
     onCancelInstallClick: () -> Unit,
-    onRefreshDownloadClick: () -> Unit,
     onOpenInstallPermissionClick: () -> Unit,
     onInstallFailureDismiss: () -> Unit,
     onOpenUrl: (String) -> Unit,
@@ -96,7 +95,6 @@ internal fun AboutUpdatesSection(
                 onInstallAgainClick = onInstallClick,
                 onInstallDownloadedClick = onInstallDownloadedClick,
                 onCancelInstallClick = onCancelInstallClick,
-                onRefreshDownloadClick = onRefreshDownloadClick,
                 onInstallFailureDismiss = onInstallFailureDismiss,
             )
 

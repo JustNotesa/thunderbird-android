@@ -8,6 +8,7 @@ import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import java.io.File
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -25,6 +26,8 @@ import net.thunderbird.feature.updater.api.AppUpdate
 import net.thunderbird.feature.updater.api.AppUpdateInstaller
 import net.thunderbird.feature.updater.api.UpdateInstallFailure
 import net.thunderbird.feature.updater.api.UpdateInstallState
+import net.thunderbird.feature.updater.internal.background.ReopenMarker
+import net.thunderbird.feature.updater.internal.background.SharedPreferencesReopenMarker
 import net.thunderbird.feature.updater.internal.background.UpdateNotifier
 
 private const val TAG = "PackageInstallerAppUpdateInstaller"
@@ -44,6 +47,7 @@ private const val DEFAULT_POLL_INTERVAL_MILLIS = 500L
  * The download is watched in [coroutineScope], an app wide scope, so that it survives the caller: when the screen
  * that started the installation is closed, the download keeps running and the state keeps being updated.
  */
+@Suppress("TooManyFunctions")
 internal class PackageInstallerAppUpdateInstaller(
     private val context: Context,
     private val systemDownloads: SystemDownloads,
@@ -57,6 +61,7 @@ internal class PackageInstallerAppUpdateInstaller(
     private val sessionRegistrar: InstallSessionRegistrar = PackageInstallerSessionRegistrar(context),
     private val isNewerThanInstalled: (String) -> Boolean = { true },
     private val clock: () -> Long = System::currentTimeMillis,
+    private val reopenMarker: ReopenMarker = SharedPreferencesReopenMarker(context, clock),
 ) : AppUpdateInstaller {
 
     private val failures = InstallFailures(clock)
@@ -84,9 +89,15 @@ internal class PackageInstallerAppUpdateInstaller(
         logger = logger,
         state = _state,
         failures = failures,
-        writeSession = writeSession,
+        writeSession = { file ->
+            markReopenWhenRequested()
+            writeSession(file)
+        },
         onSessionCommitted = { sessionId -> progressObserver.watch(sessionId) },
     )
+
+    /** Whether the user started the installation, so that the app is opened again after the update. */
+    private val reopenRequested = AtomicBoolean(false)
 
     private val installMutex = Mutex()
     private val installJob = AtomicReference<Job?>(null)
@@ -181,7 +192,13 @@ internal class PackageInstallerAppUpdateInstaller(
             poll.stop()
         }
         progressObserver.stopWatching()
+        reopenRequested.set(false)
+        reopenMarker.clear()
         _state.value = UpdateInstallState.Idle
+    }
+
+    override fun reopenAppAfterInstall() {
+        reopenRequested.set(true)
     }
 
     override suspend fun install(update: AppUpdate) {
@@ -215,6 +232,12 @@ internal class PackageInstallerAppUpdateInstaller(
         withContext(Dispatchers.IO) {
             try {
                 logger.debug(TAG) { "The download of the app update is refreshed." }
+                if (_state.value is UpdateInstallState.WaitingForConfirmation && progressObserver.isSessionGone()) {
+                    // The user closed the dialog of the system, so there is nothing left to confirm.
+                    logger.warn(TAG) { "The install session of the app update is gone." }
+                    onInstallStatus(PackageInstaller.STATUS_FAILURE_ABORTED)
+                    return@withContext
+                }
                 // A download of a release that is installed already is dropped, not reported as failed.
                 staleDownloads.drop()
                 val pending = pendingDownloadStore.load()
@@ -261,6 +284,7 @@ internal class PackageInstallerAppUpdateInstaller(
 
         // The installation failed, so the session isn't watched anymore and the user is told about it.
         _state.value = failures.create(failure)
+        reopenMarker.clear()
         progressObserver.stopWatching()
         notifier.cancelInstalling()
     }
@@ -280,6 +304,13 @@ internal class PackageInstallerAppUpdateInstaller(
      */
     internal fun clearKeptApk() {
         keptApks.clear()
+    }
+
+    /** Stores the marker that reopens the app, right before the installation is handed to the system. */
+    private fun markReopenWhenRequested() {
+        if (reopenRequested.getAndSet(false)) {
+            reopenMarker.mark()
+        }
     }
 
     /**

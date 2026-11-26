@@ -2,6 +2,7 @@ package com.fsck.k9.ui.settings
 
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import net.thunderbird.feature.updater.api.AppUpdate
 import net.thunderbird.feature.updater.api.AppUpdateInstaller
 import net.thunderbird.feature.updater.api.UpdateInstallState
 
@@ -13,6 +14,9 @@ internal class AboutInstallController(
     private val stateHolder: AboutUpdatesStateHolder,
     private val scope: CoroutineScope,
 ) {
+    /** Whether the install permission was requested from the updater, so that the installation continues after it. */
+    private var installAfterPermissionGranted = false
+
     fun start() {
         stateHolder.update { it.copy(canInstallPackages = installer.canInstallPackages()) }
 
@@ -24,13 +28,8 @@ internal class AboutInstallController(
     }
 
     fun onInstallClick() {
-        val state = stateHolder.state.value
-        val update = (state?.check as? CheckStatus.Available)?.update
-        val installState = state?.install
-        val installPossible = installState is UpdateInstallState.Idle ||
-            installState is UpdateInstallState.Failed ||
-            installState is UpdateInstallState.WaitingForConfirmation
-        if (update == null || !installPossible) {
+        val update = installableUpdate()
+        if (update == null) {
             return
         }
 
@@ -39,10 +38,12 @@ internal class AboutInstallController(
             return
         }
 
+        installer.reopenAppAfterInstall()
         scope.launch { installer.install(update) }
     }
 
     fun onInstallDownloadedClick() {
+        installer.reopenAppAfterInstall()
         scope.launch { installer.installDownloaded() }
     }
 
@@ -64,15 +65,32 @@ internal class AboutInstallController(
     }
 
     fun onOpenInstallPermissionClick() {
+        // The installation continues by itself when the user comes back with the permission.
+        installAfterPermissionGranted = installableUpdate() != null
         installer.openInstallPermissionSettings()
     }
 
-    fun onRefreshDownloadClick() {
+    fun onScreenResumed() {
+        val canInstallPackages = installer.canInstallPackages()
+        stateHolder.update { it.copy(canInstallPackages = canInstallPackages) }
+
+        // The permission is only waited for once: without it the user has to ask for the installation again.
+        val continueInstall = installAfterPermissionGranted && canInstallPackages
+        installAfterPermissionGranted = false
+        if (continueInstall) {
+            onInstallClick()
+        }
+
         scope.launch { installer.refresh() }
     }
 
-    fun onScreenResumed() {
-        stateHolder.update { it.copy(canInstallPackages = installer.canInstallPackages()) }
-        scope.launch { installer.refresh() }
+    /** The available update, `null` when there is none or when no installation can be started right now. */
+    private fun installableUpdate(): AppUpdate? {
+        val state = stateHolder.state.value
+        val installState = state?.install
+        val installPossible = installState is UpdateInstallState.Idle ||
+            installState is UpdateInstallState.Failed ||
+            installState is UpdateInstallState.WaitingForConfirmation
+        return (state?.check as? CheckStatus.Available)?.update?.takeIf { installPossible }
     }
 }

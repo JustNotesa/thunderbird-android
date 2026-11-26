@@ -6,6 +6,10 @@ import net.thunderbird.feature.updater.api.AppUpdateConfig
 import net.thunderbird.feature.updater.api.AppUpdateInstaller
 import net.thunderbird.feature.updater.api.AppUpdateSettings
 import net.thunderbird.feature.updater.internal.background.AppUpdateScheduler
+import net.thunderbird.feature.updater.internal.background.ContextAppLauncher
+import net.thunderbird.feature.updater.internal.background.ReopenAfterUpdate
+import net.thunderbird.feature.updater.internal.background.ReopenMarker
+import net.thunderbird.feature.updater.internal.background.SharedPreferencesReopenMarker
 import net.thunderbird.feature.updater.internal.background.UpdateNotifier
 import net.thunderbird.feature.updater.internal.check.DefaultAppUpdateChecker
 import net.thunderbird.feature.updater.internal.check.GithubReleaseClient
@@ -59,6 +63,15 @@ val featureUpdaterModule = module {
             // installation is closed.
             coroutineScope = get(named("AppCoroutineScope")),
             isNewerThanInstalled = newerThanInstalled(get()),
+            reopenMarker = get(),
+        )
+    }
+    single<ReopenMarker> { SharedPreferencesReopenMarker(androidContext()) }
+    single {
+        ReopenAfterUpdate(
+            marker = get(),
+            launcher = ContextAppLauncher(androidContext()),
+            logger = get(),
         )
     }
     single { UpdateNotifier(androidContext()) }

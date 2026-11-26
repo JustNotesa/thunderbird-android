@@ -13,6 +13,13 @@ interface AppUpdateInstaller {
     fun openInstallPermissionSettings()
 
     /**
+     * Tells the installer that the next installation was started by the user, so that the app is opened again after
+     * it was replaced by the update. Installations without this call, like the one of the background, only show a
+     * notification. Does nothing by default.
+     */
+    fun reopenAppAfterInstall() = Unit
+
+    /**
      * Downloads, verifies and installs [update]. Progress and the outcome are reported through [state]; when the
      * installation succeeds Android replaces the running app. Never throws.
      */
@@ -35,8 +42,8 @@ interface AppUpdateInstaller {
     /**
      * Compares [state] with the download manager of the system and continues from there: a finished download is
      * verified and installed, a running download is watched again, a lost download is reported as failed. Called when
-     * the screen is shown again and when the user taps the button again while the download seems to hang. Never
-     * throws.
+     * the screen is shown again. A pending confirmation whose install session is gone is reported as cancelled.
+     * Never throws.
      */
     suspend fun refresh()
 

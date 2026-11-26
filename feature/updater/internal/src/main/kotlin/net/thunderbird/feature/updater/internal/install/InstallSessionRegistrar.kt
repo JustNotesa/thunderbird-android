@@ -16,6 +16,9 @@ internal interface InstallSessionRegistrar {
 
     /** Removes the [callback] from the install sessions of the system. */
     fun unregister(callback: PackageInstaller.SessionCallback)
+
+    /** Whether the install session with the id [sessionId] still exists. */
+    fun sessionExists(sessionId: Int): Boolean
 }
 
 /**
@@ -34,5 +37,9 @@ internal class PackageInstallerSessionRegistrar(context: Context) : InstallSessi
 
     override fun unregister(callback: PackageInstaller.SessionCallback) {
         packageInstaller.unregisterSessionCallback(callback)
+    }
+
+    override fun sessionExists(sessionId: Int): Boolean {
+        return packageInstaller.getSessionInfo(sessionId) != null
     }
 }
