@@ -12,6 +12,10 @@ data class ClipboardContent(
     val plainText: String? = null,
     val imageSources: List<String> = emptyList(),
 ) {
+    /** Whether there is formatting or an image to keep, which the normal paste of a text field would lose. */
+    val hasRichContent: Boolean
+        get() = !html.isNullOrBlank() || imageSources.isNotEmpty()
+
     val isEmpty: Boolean
         get() = html.isNullOrBlank() && plainText.isNullOrEmpty() && imageSources.isEmpty()
 }

@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="message_composer_signature_paste_action">Paste with formatting</string>
     <string name="message_composer_signature_paste_notices_title">About the pasted content</string>
     <string name="message_composer_signature_paste_active_content_removed">Scripts and other active content were removed from the pasted text.</string>
     <plurals name="message_composer_signature_paste_images_not_downloaded">

@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="message_composer_signature_paste_action">Mit Formatierung einfügen</string>
     <string name="message_composer_signature_paste_notices_title">Zum eingefügten Inhalt</string>
     <string name="message_composer_signature_paste_active_content_removed">Skripte und anderer aktiver Inhalt wurden aus dem eingefügten Text entfernt.</string>
     <plurals name="message_composer_signature_paste_images_not_downloaded">

@@ -116,7 +116,9 @@ internal class SignatureSettingsViewModel(
                 when (result) {
                     is PasteResult.Content -> state.copy(
                         isPasting = false,
-                        editor = state.editor?.let { editorMapper.onPasted(it, result.html) },
+                        editor = state.editor?.let {
+                            editorMapper.onPasted(it, result.html, event.selectionStart, event.selectionEnd)
+                        },
                         pasteNotices = result.notices.toImmutableList(),
                     )
 

@@ -116,6 +116,35 @@ internal data class RichTextEditorState(
         )
     }
 
+    /**
+     * Replaces the selection from [start] to [end] by [insertedText] with its own [insertedRanges] (relative to the
+     * start of [insertedText]) and puts the cursor behind it. The inserted text has only the formats it brings along.
+     */
+    fun replace(
+        start: Int,
+        end: Int,
+        insertedText: String,
+        insertedRanges: List<FormattedRange>,
+    ): RichTextEditorState {
+        val from = minOf(start, end).coerceIn(0, text.length)
+        val to = maxOf(start, end).coerceIn(from, text.length)
+        val insertedEnd = from + insertedText.length
+
+        var newRanges = ranges.mapNotNull { it.movedBy(from, to, insertedEnd) }
+        for (format in TextFormat.entries) {
+            newRanges = newRanges.withoutFormat(format, from, insertedEnd)
+        }
+        newRanges = newRanges + insertedRanges.map { it.copy(start = it.start + from, end = it.end + from) }
+
+        return copy(
+            text = text.substring(0, from) + insertedText + text.substring(to),
+            ranges = newRanges.normalized(),
+            selectionStart = insertedEnd,
+            selectionEnd = insertedEnd,
+            typingFormats = null,
+        )
+    }
+
     private fun formatsBefore(position: Int): Set<TextFormat> {
         return ranges.filter { it.start < position && position <= it.end }.map { it.format }.toSet()
     }

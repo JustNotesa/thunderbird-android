@@ -32,6 +32,8 @@ internal interface SignatureSettingsContract {
      * @param previewHtml The sanitized HTML the signature is sent as, only set in [EditorMode.Code].
      * @param isConfirmingFormattedMode Whether the user is being asked to confirm a switch to
      * [EditorMode.Formatted] that removes HTML the formatted editor can't show.
+     * @param cursor Where the cursor is put when the fields start over, `null` is the end of the text.
+     * @param revision Counts the changes that did not come from the fields, e.g. a paste, so they start over.
      */
     data class Editor(
         val signatureId: String? = null,
@@ -41,6 +43,8 @@ internal interface SignatureSettingsContract {
         val ranges: ImmutableList<FormattedRange> = persistentListOf(),
         val previewHtml: String? = null,
         val isConfirmingFormattedMode: Boolean = false,
+        val cursor: Int? = null,
+        val revision: Int = 0,
     ) {
         val canSave: Boolean
             get() = name.isNotBlank() && text.isNotBlank()
@@ -75,7 +79,7 @@ internal interface SignatureSettingsContract {
         data class OnModeChange(val mode: EditorMode) : EditorEvent
         data object OnFormattedModeConfirm : EditorEvent
         data object OnFormattedModeDismiss : EditorEvent
-        data class OnPaste(val content: ClipboardContent) : Event
+        data class OnPaste(val content: ClipboardContent, val selectionStart: Int, val selectionEnd: Int) : Event
         data object OnPasteNoticesDismiss : Event
         data object OnSaveClick : Event
         data class OnDeleteClick(val signatureId: String) : Event

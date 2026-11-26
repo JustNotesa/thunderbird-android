@@ -49,6 +49,8 @@ import net.thunderbird.components.ui.bolt.atom.text.TextBodySmall
 import net.thunderbird.components.ui.bolt.atom.text.TextLabelSmall
 import net.thunderbird.components.ui.bolt.atom.text.TextTitleMedium
 import net.thunderbird.components.ui.bolt.atom.textfield.TextFieldOutlined
+import net.thunderbird.components.ui.bolt.atom.textfield.TextFieldPasteHandler
+import net.thunderbird.components.ui.bolt.atom.textfield.pasteShortcut
 import net.thunderbird.components.ui.bolt.organism.AlertDialog
 import net.thunderbird.components.ui.bolt.organism.ModalBottomSheet
 import net.thunderbird.components.ui.bolt.theme.BoltTheme
@@ -101,34 +103,43 @@ internal fun HtmlSignatureEditorContent(
         )
 
         HtmlSourceFormatBar(
-            isPasting = isPasting,
             onFormat = { format ->
                 val result = value.toHtmlSourceText().withFormat(format)
                 value = result.toTextFieldValue()
             },
-            onPaste = {
+        )
+
+        // Pasting formatted text or images keeps them. The clipboard is read, and images are loaded, only now.
+        val paste = {
+            val content = context.readClipboardForSignature()
+            val isRich = content.hasRichContent && !isPasting
+            if (isRich) {
                 isPasting = true
-                // The clipboard is read, and images are loaded, only now that the user asked for it.
-                val content = context.readClipboardForSignature()
                 scope.launch {
                     val pasted = pasteInto(value, pasteProcessor, content)
                     value = pasted.value
                     notices = pasted.notices
                     isPasting = false
                 }
-            },
-        )
-
-        TextFieldOutlined(
-            value = value,
-            onValueChange = { value = it },
-            label = stringResource(R.string.message_compose_signature_html_source_label),
-            isSingleLine = false,
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = EDITOR_MIN_HEIGHT)
-                .testTag("SignatureHtmlSourceInput"),
-        )
+            }
+            isRich
+        }
+        TextFieldPasteHandler(onPaste = paste) {
+            TextFieldOutlined(
+                value = value,
+                onValueChange = { value = it },
+                label = stringResource(R.string.message_compose_signature_html_source_label),
+                isSingleLine = false,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = EDITOR_MIN_HEIGHT)
+                    .pasteShortcut(paste)
+                    .testTag("SignatureHtmlSourceInput"),
+            )
+        }
+        if (isPasting) {
+            TextLabelSmall(text = stringResource(ComposerR.string.message_composer_signature_paste_working))
+        }
 
         EditorButtons(onCancel = onCancel, onApply = { onApply(value.text) })
     }
@@ -193,9 +204,7 @@ private fun PasteNoticesDialog(notices: ImmutableList<PasteNotice>, onDismiss: (
 
 @Composable
 private fun HtmlSourceFormatBar(
-    isPasting: Boolean,
     onFormat: (HtmlSourceFormat) -> Unit,
-    onPaste: () -> Unit,
 ) {
     Row(
         horizontalArrangement = Arrangement.spacedBy(BoltTheme.spacings.default),
@@ -228,17 +237,6 @@ private fun HtmlSourceFormatBar(
             options = FONT_OPTIONS,
             optionTitle = { option -> stringResource(option.fontTitleRes()) },
             onSelect = { option -> option?.let(onFormat) },
-        )
-        ButtonOutlined(
-            text = stringResource(
-                if (isPasting) {
-                    ComposerR.string.message_composer_signature_paste_working
-                } else {
-                    ComposerR.string.message_composer_signature_paste_action
-                },
-            ),
-            onClick = onPaste,
-            enabled = !isPasting,
         )
     }
 }

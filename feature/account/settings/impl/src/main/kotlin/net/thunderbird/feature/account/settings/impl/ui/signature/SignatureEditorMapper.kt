@@ -21,6 +21,8 @@ internal class SignatureEditorMapper(
     private val htmlSignatureSanitizer: HtmlSignatureSanitizer,
     private val richTextHtmlConverter: RichTextHtmlConverter,
 ) {
+    private val editorPaste = SignatureEditorPaste(richTextHtmlConverter)
+
     fun toEditor(signature: AccountSignature): Editor {
         val editor = Editor(signatureId = signature.id, name = signature.name)
 
@@ -65,7 +67,7 @@ internal class SignatureEditorMapper(
             Event.OnFormattedModeDismiss -> editor.copy(isConfirmingFormattedMode = false)
         }
 
-        return withPreview(changedEditor)
+        return withPreview(changedEditor.copy(cursor = null))
     }
 
     /**
@@ -78,30 +80,16 @@ internal class SignatureEditorMapper(
     }
 
     /**
-     * Adds pasted HTML to the end of the signature. Text that formatted text can hold stays formatted text, anything
-     * else (images, tables) turns the editor into the HTML code mode, which loses nothing.
+     * Puts pasted HTML at the cursor of the signature, replacing the selection from [selectionStart] to
+     * [selectionEnd]. Text that formatted text can hold stays formatted text, anything else (images, tables) turns
+     * the editor into the HTML code mode, which loses nothing.
      */
-    fun onPasted(editor: Editor, html: String): Editor {
-        val pasteIntoFormatted = editor.mode == EditorMode.Formatted && richTextHtmlConverter.canRepresent(html)
-        if (pasteIntoFormatted) {
-            val pasted = richTextHtmlConverter.fromHtmlFragment(html)
-            val separator = if (editor.text.isEmpty() || editor.text.endsWith("\n")) "" else "\n"
-            val offset = editor.text.length + separator.length
-            val movedRanges = pasted.ranges.map { it.copy(start = it.start + offset, end = it.end + offset) }
+    fun onPasted(editor: Editor, html: String, selectionStart: Int, selectionEnd: Int): Editor {
+        val start = minOf(selectionStart, selectionEnd).coerceIn(0, editor.text.length)
+        val end = maxOf(selectionStart, selectionEnd).coerceIn(start, editor.text.length)
+        val pasted = editorPaste.paste(editor, html, start, end)
 
-            return withPreview(
-                editor.copy(
-                    text = editor.text + separator + pasted.text,
-                    ranges = (editor.ranges + movedRanges).toImmutableList(),
-                ),
-            )
-        }
-
-        val existing = toHtml(editor)
-        val separator = if (existing.isBlank()) "" else "\n"
-        return withPreview(
-            editor.copy(mode = EditorMode.Code, text = existing + separator + html, ranges = persistentListOf()),
-        )
+        return withPreview(pasted.copy(revision = editor.revision + 1))
     }
 
     /**

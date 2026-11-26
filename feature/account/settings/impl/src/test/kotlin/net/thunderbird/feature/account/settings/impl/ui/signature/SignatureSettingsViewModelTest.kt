@@ -433,14 +433,15 @@ class SignatureSettingsViewModelTest {
         testSubject.event(Event.OnFormattedTextChange("Jane", emptyList()))
 
         // Act
-        testSubject.event(Event.OnPaste(ClipboardContent(html = "<b>pasted</b>")))
+        testSubject.event(Event.OnPaste(ClipboardContent(html = "<b>pasted</b>"), 4, 4))
         advanceUntilIdle()
 
         // Assert
         val state = testSubject.state.value
         assertThat(state.editor!!.mode).isEqualTo(EditorMode.Formatted)
-        assertThat(state.editor!!.text).isEqualTo("Jane\ntext of <b>pasted</b>")
-        assertThat(state.editor!!.ranges).containsExactly(FormattedRange(5, 9, TextFormat.Bold))
+        assertThat(state.editor!!.text).isEqualTo("Janetext of <b>pasted</b>")
+        assertThat(state.editor!!.cursor).isEqualTo(4 + "text of <b>pasted</b>".length)
+        assertThat(state.editor!!.ranges).containsExactly(FormattedRange(4, 8, TextFormat.Bold))
         assertThat(state.pasteNotices).containsExactly(PasteNotice.ActiveContentRemoved)
         assertThat(state.isPasting).isFalse()
         assertThat(usedBytes).containsExactly(0)
@@ -457,13 +458,13 @@ class SignatureSettingsViewModelTest {
         testSubject.event(Event.OnFormattedTextChange("Jane", emptyList()))
 
         // Act
-        testSubject.event(Event.OnPaste(ClipboardContent(html = "x")))
+        testSubject.event(Event.OnPaste(ClipboardContent(html = "x"), 2, 4))
         advanceUntilIdle()
 
         // Assert
         val editor = testSubject.state.value.editor!!
         assertThat(editor.mode).isEqualTo(EditorMode.Code)
-        assertThat(editor.text).isEqualTo("html[Jane|]\n<a href=\"x\">link</a>")
+        assertThat(editor.text).isEqualTo("html[Ja<a href=\"x\">link</a>|]")
         assertThat(editor.previewHtml).isNotNull()
     }
 
@@ -475,7 +476,7 @@ class SignatureSettingsViewModelTest {
         testSubject.event(Event.OnAddClick)
 
         // Act
-        testSubject.event(Event.OnPaste(ClipboardContent()))
+        testSubject.event(Event.OnPaste(ClipboardContent(), 0, 0))
         advanceUntilIdle()
 
         // Assert
@@ -500,7 +501,7 @@ class SignatureSettingsViewModelTest {
         testSubject.event(Event.OnTextChange("<img src=\"data:image/png;base64,AAAA\">"))
 
         // Act
-        testSubject.event(Event.OnPaste(ClipboardContent(plainText = "x")))
+        testSubject.event(Event.OnPaste(ClipboardContent(plainText = "x"), 0, 0))
         advanceUntilIdle()
 
         // Assert
