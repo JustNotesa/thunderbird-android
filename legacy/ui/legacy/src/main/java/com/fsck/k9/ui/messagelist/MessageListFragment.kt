@@ -1420,7 +1420,7 @@ class MessageListFragment :
         val folderId = when {
             isThreadDisplay -> messages.first().folderId
             isSingleFolderMode -> currentFolder!!.databaseId
-            else -> null
+            else -> commonFolderId(messages)
         }
 
         displayFolderChoice(
@@ -1441,7 +1441,7 @@ class MessageListFragment :
         val folderId = when {
             isThreadDisplay -> messages.first().folderId
             isSingleFolderMode -> currentFolder!!.databaseId
-            else -> null
+            else -> commonFolderId(messages)
         }
 
         displayFolderChoice(
