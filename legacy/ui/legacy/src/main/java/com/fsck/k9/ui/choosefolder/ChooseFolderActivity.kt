@@ -4,8 +4,14 @@ import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.os.Bundle
+import android.text.Editable
+import android.text.TextWatcher
+import android.view.LayoutInflater
 import android.view.Menu
 import android.view.MenuItem
+import android.view.View
+import android.widget.EditText
+import android.widget.LinearLayout
 import androidx.appcompat.widget.SearchView
 import androidx.recyclerview.widget.RecyclerView
 import app.k9mail.core.ui.legacy.designsystem.atom.icon.Icons
@@ -16,6 +22,7 @@ import app.k9mail.legacy.ui.folder.FolderNameFormatter
 import com.fsck.k9.controller.MessagingController
 import com.fsck.k9.ui.R
 import com.fsck.k9.ui.base.BaseActivity
+import com.fsck.k9.ui.messageview.LastSelectedFolderStore
 import com.mikepenz.fastadapter.FastAdapter
 import com.mikepenz.fastadapter.adapters.ItemAdapter
 import java.util.Locale
@@ -32,6 +39,7 @@ class ChooseFolderActivity : BaseActivity() {
     private val messagingController: MessagingController by inject()
     private val folderNameFormatter: FolderNameFormatter by inject()
     private val folderIconProvider: FolderIconProvider by inject { parametersOf(theme) }
+    private val lastSelectedFolderStore: LastSelectedFolderStore by inject()
 
     private lateinit var recyclerView: RecyclerView
     private lateinit var itemAdapter: ItemAdapter<FolderListItem>
@@ -40,6 +48,11 @@ class ChooseFolderActivity : BaseActivity() {
     private var currentFolderId: Long? = null
     private var scrollToFolderId: Long? = null
     private var messageReference: String? = null
+    private var folderFilterText: CharSequence = ""
+    private var sourceFolderName: String? = null
+    private var recentFolders: List<FolderListItem> = emptyList()
+
+    override val supportsOneHandedMode = true
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -58,6 +71,7 @@ class ChooseFolderActivity : BaseActivity() {
 
         initializeActionBar()
         initializeFolderList()
+        initializeOneHandedMode()
 
         viewModel.getFolders().observe(this) { folders ->
             updateFolderList(folders)
@@ -93,6 +107,64 @@ class ChooseFolderActivity : BaseActivity() {
         actionBar.setHomeAsUpIndicator(Icons.Outlined.Close)
     }
 
+    /**
+     * With the toolbar at the bottom, the filter field and the recently used folders go above it, and the header at
+     * the top tells what happens to the messages. The toolbar then only carries the cancel action.
+     */
+    private fun initializeOneHandedMode() {
+        if (!isInOneHandedMode) return
+
+        supportActionBar?.setTitle(com.fsck.k9.ui.base.R.string.cancel_action)
+        updateOneHandedTexts()
+
+        findViewById<View>(R.id.folderBottomPanel).visibility = View.VISIBLE
+        findViewById<EditText>(R.id.folderFilter).addTextChangedListener(
+            object : TextWatcher {
+                override fun beforeTextChanged(text: CharSequence?, start: Int, count: Int, after: Int) = Unit
+
+                override fun onTextChanged(text: CharSequence?, start: Int, before: Int, count: Int) = Unit
+
+                override fun afterTextChanged(editable: Editable?) {
+                    folderFilterText = editable ?: ""
+                    itemAdapter.filter(folderFilterText)
+                    updateRecentFolders()
+                }
+            },
+        )
+    }
+
+    private fun updateOneHandedTexts() {
+        val title = getString(
+            when (action) {
+                Action.MOVE -> R.string.choose_folder_move_title
+                Action.COPY -> R.string.choose_folder_copy_title
+                Action.CHOOSE -> R.string.choose_folder_title
+            },
+        )
+        val source = sourceFolderName?.let { getString(R.string.choose_folder_source, it) }
+        setThumbZoneTexts(title, source)
+    }
+
+    /** Shows the folders the user chose most recently, as long as the filter does not narrow the list down. */
+    private fun updateRecentFolders() {
+        if (!isInOneHandedMode) return
+
+        val container = findViewById<LinearLayout>(R.id.recentFolders)
+        container.removeAllViews()
+
+        val folders = if (folderFilterText.isEmpty()) recentFolders else emptyList()
+        findViewById<View>(R.id.recentFoldersLabel).visibility = if (folders.isEmpty()) View.GONE else View.VISIBLE
+
+        val inflater = LayoutInflater.from(this)
+        folders.forEach { folder ->
+            val row = inflater.inflate(R.layout.folder_list_item, container, false)
+            val holder = FolderListViewHolder(row)
+            folder.bindView(holder, emptyList())
+            row.setOnClickListener { returnResult(folder.databaseId, folder.displayName) }
+            container.addView(row)
+        }
+    }
+
     private fun initializeFolderList() {
         itemAdapter = ItemAdapter()
         itemAdapter.itemFilter.filterPredicate = ::folderListFilter
@@ -124,6 +196,16 @@ class ChooseFolderActivity : BaseActivity() {
 
         itemAdapter.set(folderListItems)
 
+        sourceFolderName = displayFolders.firstOrNull { it.folder.id == currentFolderId }
+            ?.let { folderNameFormatter.displayName(it.folder) }
+        if (isInOneHandedMode) {
+            updateOneHandedTexts()
+            recentFolders = lastSelectedFolderStore.getRecent(accountId)
+                .mapNotNull { folderId -> folderListItems.firstOrNull { it.databaseId == folderId } }
+                .take(MAX_RECENT_FOLDERS_SHOWN)
+            updateRecentFolders()
+        }
+
         scrollToFolder(folderListItems)
     }
 
@@ -147,7 +229,11 @@ class ChooseFolderActivity : BaseActivity() {
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
         super.onCreateOptionsMenu(menu)
         menuInflater.inflate(R.menu.choose_folder_option, menu)
-        configureFolderSearchView(menu)
+        if (isInOneHandedMode) {
+            menu.removeItem(R.id.filter_folders)
+        } else {
+            configureFolderSearchView(menu)
+        }
         return true
     }
 
@@ -236,6 +322,7 @@ class ChooseFolderActivity : BaseActivity() {
     }
 
     companion object {
+        private const val MAX_RECENT_FOLDERS_SHOWN = 3
         private const val STATE_SCROLL_TO_FOLDER_ID = "scrollToFolderId"
         private const val STATE_SHOW_HIDDEN_FOLDERS = "showHiddenFolders"
         private const val EXTRA_ACCOUNT = "accountUuid"
