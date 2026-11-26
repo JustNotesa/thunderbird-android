@@ -50,6 +50,8 @@ import org.mockito.ArgumentCaptor;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -407,6 +409,45 @@ public class MessageBuilderTest extends RobolectricTest {
         List<BodyPart> related = ((MimeMultipart) parts.get(1).getBody()).getBodyParts();
         assertEquals(2, related.size());
         assertEquals("kept@thunderbird.local", related.get(1).getContentId());
+    }
+
+    @Test
+    public void build_withHtmlSignatureWithEmbeddedImage_shouldSendTheImageAsRelatedPart() throws Exception {
+        String signature = "<p>Max <img src=\"data:image/png;base64,iVBORw0KGgo=\"></p>";
+        MessageBuilder messageBuilder = createHtmlMessageBuilder()
+                .setIdentity(createIdentity().withSignatureUse(true).withSignatureIsHtml(true))
+                .setSignature(signature)
+                .setTextHtml("<div>text</div>");
+
+        messageBuilder.buildAsync(callback);
+        pendingWork.runAllTasks();
+
+        MimeMessage message = getMessageFromCallback();
+        List<BodyPart> parts = ((MimeMultipart) message.getBody()).getBodyParts();
+        assertEquals("multipart/related", parts.get(1).getMimeType());
+        List<BodyPart> related = ((MimeMultipart) parts.get(1).getBody()).getBodyParts();
+        assertEquals(2, related.size());
+        assertEquals("image/png", related.get(1).getMimeType());
+        java.io.ByteArrayOutputStream htmlOut = new java.io.ByteArrayOutputStream();
+        related.get(0).getBody().writeTo(htmlOut);
+        String html = htmlOut.toString("UTF-8");
+        assertTrue(html.contains("cid:"));
+        assertFalse(html.contains("base64"));
+    }
+
+    @Test
+    public void build_withHtmlSignatureWithoutImage_shouldNotUseMultipartRelated() throws Exception {
+        MessageBuilder messageBuilder = createHtmlMessageBuilder()
+                .setIdentity(createIdentity().withSignatureUse(true).withSignatureIsHtml(true))
+                .setSignature("<p>Max</p>")
+                .setTextHtml("<div>text</div>");
+
+        messageBuilder.buildAsync(callback);
+        pendingWork.runAllTasks();
+
+        MimeMessage message = getMessageFromCallback();
+        List<BodyPart> parts = ((MimeMultipart) message.getBody()).getBodyParts();
+        assertEquals("text/html", parts.get(1).getMimeType());
     }
 
     @Test

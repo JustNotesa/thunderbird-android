@@ -12,9 +12,10 @@ import androidx.compose.material3.ModalBottomSheet as MaterialModalBottomSheet
 fun ModalBottomSheet(
     onDismissRequest: () -> Unit,
     modifier: Modifier = Modifier,
+    skipPartiallyExpanded: Boolean = false,
     content: @Composable ColumnScope.() -> Unit,
 ) {
-    val sheetState = rememberModalBottomSheetState()
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = skipPartiallyExpanded)
 
     MaterialModalBottomSheet(
         onDismissRequest = onDismissRequest,

@@ -14,8 +14,9 @@ internal fun SignatureSettingsScreen(
     accountId: AccountId,
     onBack: () -> Unit,
     initialSignatureId: String? = null,
+    startNew: Boolean = false,
     viewModel: SignatureSettingsContract.ViewModel = koinViewModel<SignatureSettingsViewModel> {
-        parametersOf(accountId, initialSignatureId)
+        parametersOf(accountId, initialSignatureId, startNew)
     },
 ) {
     val (state, dispatch) = viewModel.observe { effect ->

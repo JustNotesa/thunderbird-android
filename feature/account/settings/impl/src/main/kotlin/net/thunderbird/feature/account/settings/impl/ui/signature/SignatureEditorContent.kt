@@ -1,5 +1,6 @@
 package net.thunderbird.feature.account.settings.impl.ui.signature
 
+import android.content.Context
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -18,6 +19,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
@@ -39,6 +41,8 @@ import net.thunderbird.components.ui.bolt.atom.button.ButtonOutlined
 import net.thunderbird.components.ui.bolt.atom.button.ButtonSegmentedSingleChoice
 import net.thunderbird.components.ui.bolt.atom.text.TextLabelSmall
 import net.thunderbird.components.ui.bolt.atom.textfield.TextFieldOutlined
+import net.thunderbird.components.ui.bolt.atom.textfield.TextFieldPasteHandler
+import net.thunderbird.components.ui.bolt.atom.textfield.pasteShortcut
 import net.thunderbird.components.ui.bolt.molecule.input.TextInput
 import net.thunderbird.components.ui.bolt.organism.AlertDialog
 import net.thunderbird.components.ui.bolt.theme.BoltTheme
@@ -48,6 +52,9 @@ import net.thunderbird.feature.account.settings.impl.ui.signature.SignatureSetti
 import net.thunderbird.feature.account.settings.impl.ui.signature.SignatureSettingsContract.Event
 import net.thunderbird.feature.mail.message.composer.richtext.FormattedRange
 import net.thunderbird.feature.mail.message.composer.richtext.TextFormat
+import net.thunderbird.feature.mail.message.composer.signature.ClipboardContent
+import net.thunderbird.feature.mail.message.composer.signature.readClipboardForSignature
+import net.thunderbird.feature.mail.message.composer.R as PasteR
 
 private val SIGNATURE_TEXT_MIN_HEIGHT = 160.dp
 private val EDITOR_MODES = persistentListOf(EditorMode.Formatted, EditorMode.Code)
@@ -65,6 +72,7 @@ internal fun SignatureEditor(
     editor: Editor,
     onEvent: (Event) -> Unit,
     modifier: Modifier = Modifier,
+    isPasting: Boolean = false,
 ) {
     Column(
         verticalArrangement = Arrangement.spacedBy(BoltTheme.spacings.default),
@@ -92,8 +100,14 @@ internal fun SignatureEditor(
             selectedOption = editor.mode,
             modifier = Modifier.padding(horizontal = BoltTheme.spacings.double),
         )
+        if (isPasting) {
+            TextLabelSmall(
+                text = stringResource(PasteR.string.message_composer_signature_paste_working),
+                modifier = Modifier.padding(horizontal = BoltTheme.spacings.double),
+            )
+        }
         // The fields keep the selection themselves. A new mode means new text, so they have to start over.
-        key(editor.mode) {
+        key(editor.mode, editor.revision) {
             when (editor.mode) {
                 EditorMode.Formatted -> FormattedSignatureField(editor = editor, onEvent = onEvent)
                 EditorMode.Code -> HtmlCodeSignatureField(editor = editor, onEvent = onEvent)
@@ -114,6 +128,18 @@ internal fun SignatureEditor(
     }
 }
 
+/**
+ * Pastes with formatting and images if there are any on the clipboard. The clipboard is read, and images are loaded,
+ * only now that the user pastes. Returns `false` for plain text, which the text field pastes by itself.
+ */
+private fun pasteRichContent(context: Context, onPaste: (ClipboardContent) -> Unit): Boolean {
+    val content = context.readClipboardForSignature()
+    if (!content.hasRichContent) return false
+
+    onPaste(content)
+    return true
+}
+
 @Composable
 private fun FormattedSignatureField(
     editor: Editor,
@@ -125,8 +151,8 @@ private fun FormattedSignatureField(
             RichTextEditorState(
                 text = editor.text,
                 ranges = editor.ranges,
-                selectionStart = editor.text.length,
-                selectionEnd = editor.text.length,
+                selectionStart = editor.cursor ?: editor.text.length,
+                selectionEnd = editor.cursor ?: editor.text.length,
             ),
         )
     }
@@ -144,24 +170,33 @@ private fun FormattedSignatureField(
         modifier = modifier.padding(horizontal = BoltTheme.spacings.double),
     ) {
         TextFormatBar(richText = richText, onRichTextChange = { update(it) })
-        TextFieldOutlined(
-            value = TextFieldValue(
-                annotatedString = richText.toAnnotatedString(),
-                selection = TextRange(richText.selectionStart, richText.selectionEnd),
-                composition = composition,
-            ),
-            onValueChange = { newValue ->
-                composition = newValue.composition
-                update(richText.onTextFieldChange(newValue.text, newValue.selection.start, newValue.selection.end))
-            },
-            label = stringResource(R.string.account_settings_signatures_text_label),
-            isRequired = true,
-            isSingleLine = false,
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = SIGNATURE_TEXT_MIN_HEIGHT)
-                .testTag(SignatureSettingsTestTags.TEXT_INPUT),
-        )
+        val context = LocalContext.current
+        val paste = {
+            pasteRichContent(context) { content ->
+                onEvent(Event.OnPaste(content, richText.selectionStart, richText.selectionEnd))
+            }
+        }
+        TextFieldPasteHandler(onPaste = paste) {
+            TextFieldOutlined(
+                value = TextFieldValue(
+                    annotatedString = richText.toAnnotatedString(),
+                    selection = TextRange(richText.selectionStart, richText.selectionEnd),
+                    composition = composition,
+                ),
+                onValueChange = { newValue ->
+                    composition = newValue.composition
+                    update(richText.onTextFieldChange(newValue.text, newValue.selection.start, newValue.selection.end))
+                },
+                label = stringResource(R.string.account_settings_signatures_text_label),
+                isRequired = true,
+                isSingleLine = false,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = SIGNATURE_TEXT_MIN_HEIGHT)
+                    .pasteShortcut(paste)
+                    .testTag(SignatureSettingsTestTags.TEXT_INPUT),
+            )
+        }
     }
 }
 
@@ -281,7 +316,9 @@ private fun HtmlCodeSignatureField(
     modifier: Modifier = Modifier,
 ) {
     // The text field keeps the selection, which the formatting buttons need. The text itself lives in the state.
-    var fieldValue by remember { mutableStateOf(TextFieldValue(editor.text)) }
+    var fieldValue by remember {
+        mutableStateOf(TextFieldValue(editor.text, editor.cursor?.let { TextRange(it) } ?: TextRange.Zero))
+    }
     if (fieldValue.text != editor.text) {
         fieldValue = fieldValue.copy(text = editor.text)
     }
@@ -297,17 +334,26 @@ private fun HtmlCodeSignatureField(
     ) {
         TextLabelSmall(text = stringResource(R.string.account_settings_signatures_is_html_summary))
         HtmlFormatBar(onFormatClick = { format -> onFieldValueChange(fieldValue.applyHtmlFormat(format)) })
-        TextFieldOutlined(
-            value = fieldValue,
-            onValueChange = onFieldValueChange,
-            label = stringResource(R.string.account_settings_signatures_html_text_label),
-            isRequired = true,
-            isSingleLine = false,
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = SIGNATURE_TEXT_MIN_HEIGHT)
-                .testTag(SignatureSettingsTestTags.TEXT_INPUT),
-        )
+        val context = LocalContext.current
+        val paste = {
+            pasteRichContent(context) { content ->
+                onEvent(Event.OnPaste(content, fieldValue.selection.start, fieldValue.selection.end))
+            }
+        }
+        TextFieldPasteHandler(onPaste = paste) {
+            TextFieldOutlined(
+                value = fieldValue,
+                onValueChange = onFieldValueChange,
+                label = stringResource(R.string.account_settings_signatures_html_text_label),
+                isRequired = true,
+                isSingleLine = false,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = SIGNATURE_TEXT_MIN_HEIGHT)
+                    .pasteShortcut(paste)
+                    .testTag(SignatureSettingsTestTags.TEXT_INPUT),
+            )
+        }
         editor.previewHtml?.takeIf { editor.text.isNotBlank() }?.let { previewHtml ->
             TextLabelSmall(
                 text = stringResource(R.string.account_settings_signatures_preview_label),

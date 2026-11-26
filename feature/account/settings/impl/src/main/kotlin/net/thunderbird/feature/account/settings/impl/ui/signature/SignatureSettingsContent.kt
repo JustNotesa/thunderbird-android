@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -36,6 +37,9 @@ import net.thunderbird.feature.account.settings.R
 import net.thunderbird.feature.account.settings.impl.ui.signature.SignatureSettingsContract.Error
 import net.thunderbird.feature.account.settings.impl.ui.signature.SignatureSettingsContract.Event
 import net.thunderbird.feature.account.settings.impl.ui.signature.SignatureSettingsContract.State
+import net.thunderbird.feature.mail.message.composer.signature.PasteNotice
+import net.thunderbird.feature.mail.message.composer.signature.message
+import net.thunderbird.feature.mail.message.composer.R as PasteR
 
 private const val SIGNATURE_PREVIEW_MAX_LINES = 2
 
@@ -66,7 +70,7 @@ internal fun SignatureSettingsContent(
                     onEvent = onEvent,
                 )
             } else {
-                SignatureEditor(editor = editor, onEvent = onEvent)
+                SignatureEditor(editor = editor, onEvent = onEvent, isPasting = state.isPasting)
             }
         }
     }
@@ -82,6 +86,8 @@ internal fun SignatureSettingsContent(
             onDismissRequest = { onEvent(Event.OnDeleteDismiss) },
         )
     }
+
+    PasteNoticesDialog(notices = state.pasteNotices, onDismiss = { onEvent(Event.OnPasteNoticesDismiss) })
 
     state.error?.let { error ->
         AlertDialog(
@@ -99,6 +105,23 @@ internal fun SignatureSettingsContent(
             onDismissRequest = { onEvent(Event.OnErrorDismiss) },
         )
     }
+}
+
+@Composable
+private fun PasteNoticesDialog(
+    notices: ImmutableList<PasteNotice>,
+    onDismiss: () -> Unit,
+) {
+    if (notices.isEmpty()) return
+
+    val context = LocalContext.current
+    AlertDialog(
+        title = stringResource(PasteR.string.message_composer_signature_paste_notices_title),
+        text = notices.joinToString(separator = "\n\n") { notice -> notice.message(context) },
+        confirmText = stringResource(R.string.account_settings_okay_action),
+        onConfirmClick = onDismiss,
+        onDismissRequest = onDismiss,
+    )
 }
 
 @Composable

@@ -2,6 +2,7 @@ package net.thunderbird.feature.account.settings.impl.ui.signature
 
 import androidx.lifecycle.viewModelScope
 import java.util.UUID
+import kotlinx.collections.immutable.persistentListOf
 import kotlinx.collections.immutable.toImmutableList
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -25,6 +26,9 @@ import net.thunderbird.feature.account.settings.impl.ui.signature.SignatureSetti
 import net.thunderbird.feature.account.settings.impl.ui.signature.SignatureSettingsContract.State
 import net.thunderbird.feature.mail.message.composer.richtext.RichTextHtmlConverter
 import net.thunderbird.feature.mail.message.composer.signature.HtmlSignatureSanitizer
+import net.thunderbird.feature.mail.message.composer.signature.PasteNotice
+import net.thunderbird.feature.mail.message.composer.signature.PasteResult
+import net.thunderbird.feature.mail.message.composer.signature.SignaturePasteProcessor
 
 private const val TAG = "SignatureSettingsViewModel"
 
@@ -35,8 +39,10 @@ internal class SignatureSettingsViewModel(
     private val updateSignatures: UseCase.UpdateSignatures,
     private val logger: Logger,
     htmlSignatureSanitizer: HtmlSignatureSanitizer,
+    private val signaturePasteProcessor: SignaturePasteProcessor,
     richTextHtmlConverter: RichTextHtmlConverter,
     private val initialSignatureId: String? = null,
+    private val startNew: Boolean = false,
     private val dispatcher: CoroutineDispatcher = Dispatchers.Main,
     private val signatureIdGenerator: () -> String = { UUID.randomUUID().toString() },
     initialState: State = State(),
@@ -66,6 +72,10 @@ internal class SignatureSettingsViewModel(
                 state.copy(editor = state.editor?.let { editorMapper.onEvent(it, event) })
             }
 
+            is Event.OnPaste -> paste(event)
+
+            Event.OnPasteNoticesDismiss -> updateState { it.copy(pasteNotices = persistentListOf()) }
+
             Event.OnSaveClick -> saveSignature()
 
             is Event.OnDeleteClick -> updateState { state ->
@@ -93,6 +103,32 @@ internal class SignatureSettingsViewModel(
     private fun editSignature(signatureId: String) {
         val signature = state.value.signatures.find { it.id == signatureId } ?: return
         updateState { it.copy(editor = editorMapper.toEditor(signature)) }
+    }
+
+    private fun paste(event: Event.OnPaste) {
+        val editor = state.value.editor ?: return
+        if (state.value.isPasting) return
+        updateState { it.copy(isPasting = true) }
+
+        viewModelScope.launch(dispatcher) {
+            val result = signaturePasteProcessor.process(event.content, editorMapper.embeddedImageBytes(editor))
+            updateState { state ->
+                when (result) {
+                    is PasteResult.Content -> state.copy(
+                        isPasting = false,
+                        editor = state.editor?.let {
+                            editorMapper.onPasted(it, result.html, event.selectionStart, event.selectionEnd)
+                        },
+                        pasteNotices = result.notices.toImmutableList(),
+                    )
+
+                    is PasteResult.NothingToPaste -> state.copy(
+                        isPasting = false,
+                        pasteNotices = result.notices.ifEmpty { listOf(PasteNotice.NothingUsable) }.toImmutableList(),
+                    )
+                }
+            }
+        }
     }
 
     private fun saveSignature() {
@@ -154,6 +190,9 @@ internal class SignatureSettingsViewModel(
                     if (initialSignatureId != null && account.signatures.any { it.id == initialSignatureId }) {
                         isEditingInitialSignature = true
                         editSignature(initialSignatureId)
+                    } else if (startNew && initialSignatureId == null) {
+                        isEditingInitialSignature = true
+                        updateState { it.copy(editor = Editor()) }
                     }
                 },
                 onFailure = { handleError(it, Error.LoadFailed) },

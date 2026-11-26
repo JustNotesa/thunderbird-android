@@ -6,6 +6,8 @@ import kotlinx.collections.immutable.persistentListOf
 import net.thunderbird.core.android.account.AccountSignature
 import net.thunderbird.core.ui.contract.mvi.UnidirectionalViewModel
 import net.thunderbird.feature.mail.message.composer.richtext.FormattedRange
+import net.thunderbird.feature.mail.message.composer.signature.ClipboardContent
+import net.thunderbird.feature.mail.message.composer.signature.PasteNotice
 
 internal interface SignatureSettingsContract {
     interface ViewModel : UnidirectionalViewModel<State, Event, Effect>
@@ -18,6 +20,8 @@ internal interface SignatureSettingsContract {
         val editor: Editor? = null,
         val signaturePendingDeletion: AccountSignature? = null,
         val error: Error? = null,
+        val isPasting: Boolean = false,
+        val pasteNotices: ImmutableList<PasteNotice> = persistentListOf(),
     )
 
     /**
@@ -28,6 +32,8 @@ internal interface SignatureSettingsContract {
      * @param previewHtml The sanitized HTML the signature is sent as, only set in [EditorMode.Code].
      * @param isConfirmingFormattedMode Whether the user is being asked to confirm a switch to
      * [EditorMode.Formatted] that removes HTML the formatted editor can't show.
+     * @param cursor Where the cursor is put when the fields start over, `null` is the end of the text.
+     * @param revision Counts the changes that did not come from the fields, e.g. a paste, so they start over.
      */
     data class Editor(
         val signatureId: String? = null,
@@ -37,6 +43,8 @@ internal interface SignatureSettingsContract {
         val ranges: ImmutableList<FormattedRange> = persistentListOf(),
         val previewHtml: String? = null,
         val isConfirmingFormattedMode: Boolean = false,
+        val cursor: Int? = null,
+        val revision: Int = 0,
     ) {
         val canSave: Boolean
             get() = name.isNotBlank() && text.isNotBlank()
@@ -71,6 +79,8 @@ internal interface SignatureSettingsContract {
         data class OnModeChange(val mode: EditorMode) : EditorEvent
         data object OnFormattedModeConfirm : EditorEvent
         data object OnFormattedModeDismiss : EditorEvent
+        data class OnPaste(val content: ClipboardContent, val selectionStart: Int, val selectionEnd: Int) : Event
+        data object OnPasteNoticesDismiss : Event
         data object OnSaveClick : Event
         data class OnDeleteClick(val signatureId: String) : Event
         data object OnDeleteConfirm : Event

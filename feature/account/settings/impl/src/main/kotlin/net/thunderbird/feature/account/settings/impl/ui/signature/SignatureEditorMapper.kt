@@ -9,6 +9,7 @@ import net.thunderbird.feature.account.settings.impl.ui.signature.SignatureSetti
 import net.thunderbird.feature.account.settings.impl.ui.signature.SignatureSettingsContract.Event
 import net.thunderbird.feature.mail.message.composer.richtext.RichTextHtmlConverter
 import net.thunderbird.feature.mail.message.composer.signature.HtmlSignatureSanitizer
+import net.thunderbird.feature.mail.message.composer.signature.SignatureImageLimits
 
 /**
  * Translates between a saved signature and what the signature editor shows in its two modes.
@@ -20,6 +21,8 @@ internal class SignatureEditorMapper(
     private val htmlSignatureSanitizer: HtmlSignatureSanitizer,
     private val richTextHtmlConverter: RichTextHtmlConverter,
 ) {
+    private val editorPaste = SignatureEditorPaste(richTextHtmlConverter)
+
     fun toEditor(signature: AccountSignature): Editor {
         val editor = Editor(signatureId = signature.id, name = signature.name)
 
@@ -64,7 +67,29 @@ internal class SignatureEditorMapper(
             Event.OnFormattedModeDismiss -> editor.copy(isConfirmingFormattedMode = false)
         }
 
-        return withPreview(changedEditor)
+        return withPreview(changedEditor.copy(cursor = null))
+    }
+
+    /**
+     * The size of the images the signature in [editor] embeds, which count towards the limit for pasted images.
+     */
+    fun embeddedImageBytes(editor: Editor): Int {
+        if (editor.mode != EditorMode.Code) return 0
+
+        return SignatureImageLimits.embeddedImageBytes(editor.text)
+    }
+
+    /**
+     * Puts pasted HTML at the cursor of the signature, replacing the selection from [selectionStart] to
+     * [selectionEnd]. Text that formatted text can hold stays formatted text, anything else (images, tables) turns
+     * the editor into the HTML code mode, which loses nothing.
+     */
+    fun onPasted(editor: Editor, html: String, selectionStart: Int, selectionEnd: Int): Editor {
+        val start = minOf(selectionStart, selectionEnd).coerceIn(0, editor.text.length)
+        val end = maxOf(selectionStart, selectionEnd).coerceIn(start, editor.text.length)
+        val pasted = editorPaste.paste(editor, html, start, end)
+
+        return withPreview(pasted.copy(revision = editor.revision + 1))
     }
 
     /**

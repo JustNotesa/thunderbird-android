@@ -2,6 +2,7 @@ package net.thunderbird.feature.account.settings.impl.ui.signature
 
 import assertk.assertThat
 import assertk.assertions.containsExactly
+import assertk.assertions.containsExactlyInAnyOrder
 import assertk.assertions.isEmpty
 import assertk.assertions.isEqualTo
 import kotlin.test.Test
@@ -270,6 +271,42 @@ class RichTextEditorStateTest {
         assertThat(result.ranges).containsExactly(
             FormattedRange(0, 6, TextFormat.SizeSmall),
             FormattedRange(6, 7, TextFormat.SizeLarge),
+        )
+    }
+
+    @Test
+    fun `should replace the selection by pasted text with its own formats`() {
+        val testSubject = RichTextEditorState(
+            text = "Hello big world",
+            ranges = listOf(FormattedRange(0, 5, TextFormat.Bold), FormattedRange(10, 15, TextFormat.Italic)),
+        )
+
+        val result = testSubject.replace(
+            start = 6,
+            end = 9,
+            insertedText = "small",
+            insertedRanges = listOf(FormattedRange(0, 5, TextFormat.Underline)),
+        )
+
+        assertThat(result.text).isEqualTo("Hello small world")
+        assertThat(result.ranges).containsExactlyInAnyOrder(
+            FormattedRange(0, 5, TextFormat.Bold),
+            FormattedRange(6, 11, TextFormat.Underline),
+            FormattedRange(12, 17, TextFormat.Italic),
+        )
+        assertThat(result.selectionStart).isEqualTo(11)
+        assertThat(result.selectionEnd).isEqualTo(11)
+    }
+
+    @Test
+    fun `should not give pasted text the format of the text around it`() {
+        val testSubject = RichTextEditorState(text = "abcd", ranges = listOf(FormattedRange(0, 4, TextFormat.Bold)))
+
+        val result = testSubject.replace(start = 2, end = 2, insertedText = "XY", insertedRanges = emptyList())
+
+        assertThat(result.ranges).containsExactlyInAnyOrder(
+            FormattedRange(0, 2, TextFormat.Bold),
+            FormattedRange(4, 6, TextFormat.Bold),
         )
     }
 }

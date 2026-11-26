@@ -56,10 +56,8 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.StringRes;
 import androidx.appcompat.widget.Toolbar;
-import android.text.InputType;
 import android.view.GestureDetector;
 import android.view.MotionEvent;
-import android.widget.FrameLayout;
 import com.fsck.k9.ui.compose.AppBarScrollTint;
 import com.fsck.k9.ui.compose.image.InlineImageController;
 import com.fsck.k9.ui.compose.richtext.ImageSource;
@@ -85,6 +83,16 @@ import net.thunderbird.core.android.account.LegacyAccount;
 import net.thunderbird.core.android.account.LegacyAccountManager;
 import net.thunderbird.feature.account.AccountIdFactory;
 import net.thunderbird.feature.mail.message.composer.signature.HtmlSignatureSanitizer;
+import net.thunderbird.feature.mail.message.composer.signature.SignaturePasteProcessor;
+import com.fsck.k9.activity.compose.signature.MessageSignature;
+import com.fsck.k9.activity.compose.signature.SignatureChip;
+import com.fsck.k9.activity.compose.signature.SignatureChipBar;
+import com.fsck.k9.activity.compose.signature.SignatureChipState;
+import com.fsck.k9.activity.compose.signature.SignatureChooserModel;
+import com.fsck.k9.activity.compose.signature.SignatureSheet;
+import com.fsck.k9.activity.compose.signature.SignatureSheetController;
+import com.fsck.k9.activity.compose.signature.SignatureSheetListener;
+import androidx.compose.ui.platform.ComposeView;
 import com.fsck.k9.ui.helper.DisplayHtmlUiFactory;
 import com.fsck.k9.view.MessageWebView;
 import com.fsck.k9.view.PinchListener;
@@ -320,6 +328,13 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
      */
     private AccountSignature signatureOpenedForEditing;
     private String appliedSignatureId;
+    /**
+     * The ids of the saved signatures when the user went to create a new one. The signature that is new when coming
+     * back is put into the message.
+     */
+    private Set<String> signatureIdsBeforeCreating;
+    private SignatureChipBar signatureChipBar;
+    private SignatureSheetController signatureSheets;
 
     // relates to the message being replied to, forwarded, or edited TODO split up?
     private MessageReference relatedMessageReference;
@@ -518,6 +533,7 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
             public void onTextChanged(CharSequence s, int start, int before, int count) {
                 changesMadeSinceLastSave = true;
                 signatureChanged = true;
+                updateSignatureChip();
             }
         };
 
@@ -639,6 +655,7 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
         SignaturePreviewWebView.configureForSignaturePreview(
                 signatureHtmlPreview, webViewConfigProvider.createForMessageCompose());
         setUpHtmlSignatureEditing();
+        setUpSignatureChip();
         updateSignature();
         signatureView.addTextChangedListener(signTextWatcher);
 
@@ -1574,6 +1591,7 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
             signatureView.setVisibility(View.GONE);
             signatureHtmlPreview.setVisibility(View.GONE);
         }
+        updateSignatureChip();
     }
 
     @Override
@@ -1677,8 +1695,6 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
             showPopupMenu(attachmentMenuAnchor);
         } else if (id == R.id.read_receipt) {
             onReadReceipt();
-        } else if (id == R.id.choose_signature) {
-            showChooseSignatureDialog();
         } else if (id == R.id.edit_as_html_source) {
             editAsHtmlSource();
         } else if (id == R.id.edit_as_formatted_text) {
@@ -1713,8 +1729,6 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
 
         recipientPresenter.onPrepareOptionsMenu(menu);
 
-        menu.findItem(R.id.choose_signature).setVisible(!account.getSignatures().isEmpty());
-
         boolean isHtmlMessage = currentMessageFormat == SimpleMessageFormat.HTML;
         boolean isHtmlSourceMode = messageFormattingToolbar.isHtmlSourceMode();
         menu.findItem(R.id.edit_as_html_source).setVisible(isHtmlMessage && !isHtmlSourceMode);
@@ -1723,53 +1737,170 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
         return true;
     }
 
-    private void showChooseSignatureDialog() {
-        final List<AccountSignature> signatures = getSavedSignatures();
-        final Identity defaultIdentity = findAccountIdentity();
-        final boolean hasDefaultSignature = defaultIdentity.getSignatureUse();
-        final int firstSavedSignatureIndex = hasDefaultSignature ? 1 : 0;
+    private void setUpSignatureChip() {
+        final boolean before = account.isSignatureBeforeQuotedText();
+        final SignatureChipBar upperChipBar = new SignatureChipBar(findViewById(R.id.upper_signature_chip_bar));
+        final SignatureChipBar lowerChipBar = new SignatureChipBar(findViewById(R.id.lower_signature_chip_bar));
+        upperChipBar.setVisible(before);
+        lowerChipBar.setVisible(!before);
+        signatureChipBar = before ? upperChipBar : lowerChipBar;
 
-        final List<String> labels = new ArrayList<>();
-        if (hasDefaultSignature) {
-            labels.add(getString(R.string.message_compose_choose_signature_default));
-        }
-        for (AccountSignature signature : signatures) {
-            labels.add(signature.getName());
-        }
-        labels.add(getString(R.string.message_compose_choose_signature_none));
-
-        final AlertDialog dialog = new MaterialAlertDialogBuilder(this)
-                .setTitle(R.string.message_compose_choose_signature_action)
-                .setItems(labels.toArray(new String[0]), (dialogInterface, which) -> {
-                    if (which == labels.size() - 1) {
-                        removeSignature();
-                    } else if (which < firstSavedSignatureIndex) {
+        signatureSheets = new SignatureSheetController(
+                findViewById(R.id.signature_sheet_compose_view),
+                new SignatureSheetListener() {
+                    @Override
+                    public void onDefaultChosen() {
+                        Identity defaultIdentity = findAccountIdentity();
                         applySignature(defaultIdentity.getSignature(), defaultIdentity.getSignatureIsHtml());
                         appliedSignatureId = null;
-                    } else {
-                        AccountSignature signature = signatures.get(which - firstSavedSignatureIndex);
-                        applySignature(signature.getText(), signature.isHtml());
-                        appliedSignatureId = signature.getId();
+                        updateSignatureChip();
                     }
-                })
-                .setNegativeButton(com.fsck.k9.ui.base.R.string.cancel_action, null)
-                .create();
 
-        // A long press on a saved signature opens it for editing.
-        dialog.getListView().setOnItemLongClickListener((parent, view, position, id) -> {
-            int signatureIndex = position - firstSavedSignatureIndex;
-            if (signatureIndex < 0 || signatureIndex >= signatures.size()) {
-                return false;
-            }
+                    @Override
+                    public void onSavedChosen(@NonNull String id) {
+                        for (AccountSignature signature : getSavedSignatures()) {
+                            if (signature.getId().equals(id)) {
+                                applySignature(signature.getText(), signature.isHtml());
+                                appliedSignatureId = signature.getId();
+                                updateSignatureChip();
+                                return;
+                            }
+                        }
+                    }
 
-            dialog.dismiss();
-            editSignature(signatures.get(signatureIndex));
-            return true;
-        });
+                    @Override
+                    public void onNoneChosen() {
+                        removeSignature();
+                    }
 
-        dialog.show();
+                    @Override
+                    public void onCreateRequested() {
+                        createSignature();
+                    }
+
+                    @Override
+                    public void onEditSavedRequested(@NonNull String id) {
+                        for (AccountSignature signature : getSavedSignatures()) {
+                            if (signature.getId().equals(id)) {
+                                editSignature(signature);
+                                return;
+                            }
+                        }
+                    }
+
+                    @Override
+                    public void onEditHtmlForMessageRequested() {
+                        signatureSheets.show(new SignatureSheet.HtmlEditor(signatureView.getText().toString()));
+                    }
+
+                    @Override
+                    public void onChooseOtherRequested() {
+                        showSignatureChooser();
+                    }
+
+                    @Override
+                    public void onEditAppliedSavedRequested() {
+                        String id = getSignatureChipState().getId();
+                        if (id != null) {
+                            onEditSavedRequested(id);
+                        } else {
+                            showSignatureChooser();
+                        }
+                    }
+
+                    @Override
+                    public void onHtmlEdited(@NonNull String html) {
+                        if (html.trim().isEmpty()) {
+                            removeSignature();
+                        } else {
+                            // Only this message gets the changed signature, the saved one stays as it is.
+                            applySignature(html, true);
+                        }
+                    }
+
+                    @Override
+                    public void onSheetDismissed() {
+                        // Nothing changes when a sheet is closed without a choice.
+                    }
+                },
+                featureThemeProvider,
+                DI.get(SignaturePasteProcessor.class));
     }
 
+    private SignatureChipState getSignatureChipState() {
+        final Identity defaultIdentity = findAccountIdentity();
+        final MessageSignature messageSignature = new MessageSignature(
+                identity.getSignatureUse(),
+                CrLfConverter.toLf(signatureView.getText()).toString(),
+                identity.getSignatureIsHtml(),
+                appliedSignatureId,
+                defaultIdentity.getSignatureUse() ? CrLfConverter.toLf(defaultIdentity.getSignature()) : null,
+                defaultIdentity.getSignatureIsHtml());
+
+        return SignatureChip.stateOf(messageSignature, getSavedSignatures());
+    }
+
+    /**
+     * Shows what the signature of the message is called above it. The line is always there, also for an account
+     * without a saved signature, where it offers to create one.
+     */
+    private void updateSignatureChip() {
+        if (signatureChipBar == null) {
+            return;
+        }
+
+        signatureChipBar.bind(
+                getSignatureChipState(),
+                this::showSignatureChooser,
+                this::showHtmlSignatureActions);
+    }
+
+    private void showSignatureChooser() {
+        final Identity defaultIdentity = findAccountIdentity();
+        final boolean hasDefaultSignature = defaultIdentity.getSignatureUse();
+
+        signatureSheets.show(new SignatureSheet.Choose(SignatureChooserModel.of(
+                getSavedSignatures(),
+                hasDefaultSignature ? CrLfConverter.toLf(defaultIdentity.getSignature()) : null,
+                defaultIdentity.getSignatureIsHtml(),
+                getString(R.string.message_compose_choose_signature_default),
+                getSignatureChipState())));
+    }
+
+    /**
+     * What can be done with the HTML signature of the message. A plain text signature is edited in place instead.
+     */
+    private void showHtmlSignatureActions() {
+        final SignatureChipState state = getSignatureChipState();
+        if (!identity.getSignatureUse() || !identity.getSignatureIsHtml()) {
+            showSignatureChooser();
+            return;
+        }
+
+        String name;
+        switch (state.getKind()) {
+            case Saved:
+                name = state.getName();
+                break;
+            case Default:
+                name = getString(R.string.message_compose_choose_signature_default);
+                break;
+            default:
+                name = getString(R.string.message_compose_signature_chip_custom);
+                break;
+        }
+        signatureSheets.show(new SignatureSheet.HtmlActions(name));
+    }
+
+    private void createSignature() {
+        final Set<String> ids = new HashSet<>();
+        for (AccountSignature signature : getSavedSignatures()) {
+            ids.add(signature.getId());
+        }
+        signatureIdsBeforeCreating = ids;
+        FeatureLauncherActivity.launch(
+                this, new FeatureLauncherTarget.AccountSignatureSettings(account.getId(), null, true));
+    }
     /**
      * The saved signatures are read from the preferences rather than from {@link #account}, so signatures changed
      * while this screen is open are picked up.
@@ -1782,7 +1913,7 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
     private void editSignature(AccountSignature signature) {
         signatureOpenedForEditing = signature;
         FeatureLauncherActivity.launch(
-                this, new FeatureLauncherTarget.AccountSignatureSettings(account.getId(), signature.getId()));
+                this, new FeatureLauncherTarget.AccountSignatureSettings(account.getId(), signature.getId(), false));
     }
 
     /**
@@ -1790,6 +1921,8 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
      * part of this message, is put into the message as it is now.
      */
     private void applyEditedSignature() {
+        applyCreatedSignature();
+
         final AccountSignature before = signatureOpenedForEditing;
         if (before == null) {
             return;
@@ -1800,10 +1933,33 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
             if (signature.getId().equals(before.getId())) {
                 boolean changed = !signature.equals(before);
                 boolean inUse = signature.getId().equals(appliedSignatureId);
-                if (changed || (inUse && identity.getSignatureUse())) {
+                // A signature the user changed for this message only stays as it is if the saved one didn't change.
+                boolean unchangedInMessage = CrLfConverter.toLf(signatureView.getText()).toString()
+                        .trim().equals(CrLfConverter.toLf(before.getText()).toString().trim());
+                if (changed || (inUse && identity.getSignatureUse() && unchangedInMessage)) {
                     applySignature(signature.getText(), signature.isHtml());
                     appliedSignatureId = signature.getId();
                 }
+                return;
+            }
+        }
+    }
+
+    /**
+     * Called when coming back from creating a signature. The signature that is new now is put into the message.
+     */
+    private void applyCreatedSignature() {
+        final Set<String> idsBefore = signatureIdsBeforeCreating;
+        if (idsBefore == null) {
+            return;
+        }
+        signatureIdsBeforeCreating = null;
+
+        for (AccountSignature signature : getSavedSignatures()) {
+            if (!idsBefore.contains(signature.getId())) {
+                applySignature(signature.getText(), signature.isHtml());
+                appliedSignatureId = signature.getId();
+                updateSignatureChip();
                 return;
             }
         }
@@ -1830,54 +1986,25 @@ public class MessageCompose extends BaseActivity implements OnClickListener,
     }
 
     /**
-     * An HTML signature is shown rendered, so it can't be edited in place like a plain text one. Tapping it opens its
-     * source instead.
+     * An HTML signature is shown rendered, so it can't be edited in place like a plain text one. Tapping it opens
+     * what can be done with it instead.
      */
     @SuppressLint("ClickableViewAccessibility")
     private void setUpHtmlSignatureEditing() {
         final GestureDetector gestureDetector = new GestureDetector(this, new GestureDetector.SimpleOnGestureListener() {
             @Override
             public boolean onSingleTapUp(@NonNull MotionEvent event) {
-                showEditHtmlSignatureDialog();
+                showHtmlSignatureActions();
                 return true;
             }
         });
         signatureHtmlPreview.setOnTouchListener((view, event) -> {
-            // Two fingers zoom the message area this preview belongs to; one finger opens the source of the signature.
+            // Two fingers zoom the message area this preview belongs to; one finger opens what can be done with it.
             PinchListener pinchListener = signatureHtmlPreview.getPinchListener();
             boolean pinching = pinchListener != null && pinchListener.onPinch(event);
             return pinching || gestureDetector.onTouchEvent(event);
         });
         signatureHtmlPreview.setContentDescription(getString(R.string.message_compose_edit_signature_title));
-    }
-
-    private void showEditHtmlSignatureDialog() {
-        final int padding = getResources().getDimensionPixelSize(R.dimen.message_compose_edit_signature_padding);
-        final EditText input = new EditText(this);
-        input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE
-                | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
-        input.setText(signatureView.getText());
-        applyIncognitoKeyboardSetting(input);
-
-        final FrameLayout container = new FrameLayout(this);
-        container.setPadding(padding, padding, padding, 0);
-        container.addView(input);
-
-        new MaterialAlertDialogBuilder(this)
-                .setTitle(R.string.message_compose_edit_signature_title)
-                .setView(container)
-                .setPositiveButton(com.fsck.k9.ui.base.R.string.okay_action, (dialog, which) -> {
-                    String signature = input.getText().toString();
-                    if (signature.trim().isEmpty()) {
-                        removeSignature();
-                    } else {
-                        // Only this message gets the changed signature, the saved one stays as it is.
-                        applySignature(signature, true);
-                        appliedSignatureId = null;
-                    }
-                })
-                .setNegativeButton(com.fsck.k9.ui.base.R.string.cancel_action, null)
-                .show();
     }
 
     private void removeSignature() {

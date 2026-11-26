@@ -10,6 +10,7 @@ dependencies {
     implementation(projects.feature.mail.message.composer.api)
 
     implementation(libs.ksoup)
+    implementation(libs.okhttp)
     implementation(projects.core.common)
     implementation(projects.core.ui.theme.api)
 }

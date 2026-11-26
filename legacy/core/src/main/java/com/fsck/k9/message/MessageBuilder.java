@@ -34,6 +34,7 @@ import com.fsck.k9.mail.internet.MimeMessageHelper;
 import com.fsck.k9.mail.internet.MimeMultipart;
 import com.fsck.k9.mail.internet.MimeUtility;
 import com.fsck.k9.mail.internet.TextBody;
+import com.fsck.k9.mailstore.MemoryAttachmentBody;
 import com.fsck.k9.mailstore.TempFileBody;
 import com.fsck.k9.message.quote.InsertableHtmlContent;
 import net.thunderbird.core.preference.GeneralSettingsManager;
@@ -81,6 +82,9 @@ public abstract class MessageBuilder {
 
     private final GeneralSettingsManager settingsManager;
     private final HtmlSignatureSanitizer htmlSignatureSanitizer;
+    private final SignatureImageExtractor signatureImageExtractor = new SignatureImageExtractor();
+    /** The images of an HTML signature, sent as parts of the HTML body instead of embedded as data addresses. */
+    private List<SignatureImagePart> signatureImageParts = Collections.emptyList();
 
     protected MessageBuilder(MessageIdGenerator messageIdGenerator,
             BoundaryGenerator boundaryGenerator,
@@ -186,11 +190,12 @@ public abstract class MessageBuilder {
             composedMimeMessage.addBodyPart(MimeBodyPart.create(bodyPlain, "text/plain"));
             MimeBodyPart htmlPart = MimeBodyPart.create(body, "text/html");
             Map<String, Attachment> usedInlineAttachments = getReferencedInlineAttachments();
-            if (!usedInlineAttachments.isEmpty()) {
+            if (!usedInlineAttachments.isEmpty() || !signatureImageParts.isEmpty()) {
                 MimeMultipart htmlPartWithInlineImages = new MimeMultipart("multipart/related",
                         boundaryGenerator.generateBoundary());
                 htmlPartWithInlineImages.addBodyPart(htmlPart);
                 addInlineAttachmentsToMessage(htmlPartWithInlineImages, usedInlineAttachments);
+                addSignatureImagesToMessage(htmlPartWithInlineImages);
                 composedMimeMessage.addBodyPart(MimeBodyPart.create(htmlPartWithInlineImages));
             } else {
                 composedMimeMessage.addBodyPart(htmlPart);
@@ -303,6 +308,18 @@ public abstract class MessageBuilder {
         }
     }
 
+    private void addSignatureImagesToMessage(MimeMultipart mp) throws MessagingException {
+        for (SignatureImagePart image : signatureImageParts) {
+            MimeBodyPart bp = MimeBodyPart.create(new MemoryAttachmentBody(image.getData()));
+
+            addContentType(bp, image.getContentType(), image.getFileName());
+            addContentDisposition(bp, "inline", image.getFileName(), (long) image.getData().length);
+            bp.addHeader(MimeHeader.HEADER_CONTENT_ID, "<" + image.getContentId() + ">");
+
+            mp.addBodyPart(bp);
+        }
+    }
+
     private void addContentType(MimeBodyPart bodyPart, String contentType, String name) throws MessagingException {
         String value = Headers.contentType(contentType, name);
         bodyPart.addHeader(MimeHeader.HEADER_CONTENT_TYPE, value);
@@ -379,7 +396,14 @@ public abstract class MessageBuilder {
         boolean useSignature = (!isDraft && identity.getSignatureUse());
         if (useSignature) {
             textBodyBuilder.setAppendSignature(true);
-            textBodyBuilder.setSignature(signature);
+            String signatureForBody = signature;
+            if (simpleMessageFormat == SimpleMessageFormat.HTML && identity.getSignatureIsHtml()
+                    && signature != null) {
+                ExtractedSignature extracted = signatureImageExtractor.extract(signature);
+                signatureForBody = extracted.getHtml();
+                signatureImageParts = extracted.getParts();
+            }
+            textBodyBuilder.setSignature(signatureForBody);
             textBodyBuilder.setSignatureIsHtml(identity.getSignatureIsHtml());
             textBodyBuilder.setSignatureBeforeQuotedText(isSignatureBeforeQuotedText);
         } else {
