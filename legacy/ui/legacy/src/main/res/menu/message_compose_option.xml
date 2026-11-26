@@ -20,10 +20,6 @@
         android:title="@string/add_from_contacts"
         />
     <item
-        android:id="@+id/choose_signature"
-        android:title="@string/message_compose_choose_signature_action"
-        />
-    <item
         android:id="@+id/edit_as_html_source"
         android:title="@string/message_compose_edit_as_html_source_action"
         />
