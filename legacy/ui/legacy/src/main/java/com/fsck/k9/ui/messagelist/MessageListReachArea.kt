@@ -9,14 +9,11 @@ package com.fsck.k9.ui.messagelist
 internal object MessageListReachArea {
     const val LIST_HEIGHT_FRACTION = 0.45f
 
-    /** The part of the reach area, counted from the normal top, in which the list snaps to the top. */
-    const val SNAP_FRACTION = 0.4f
-
-    /** How far, in dp, the finger has to pull down from the first message's normal place before the list gives way. */
+    /**
+     * How far, in dp, the finger has to move to switch between the two rest positions: pulling down from the docked
+     * list to open the reach area, or pushing up from the open list to dock it.
+     */
     const val DETENT_PULL_DP = 64
-
-    /** The part of the finger's movement the list follows while it resists. */
-    const val DETENT_DAMPING = 0.35f
 
     /** How far, in pixels, the first message may be from its normal place and still count as being there. */
     private const val AT_TOP_TOLERANCE = 2
@@ -112,24 +109,39 @@ internal object MessageListReachArea {
     }
 
     /**
-     * Whether the list should snap to the first message's normal place at the top after the user let go of it. That
-     * is the case when the reach area is shown but only its lower part, [SNAP_FRACTION] of it or less, is left above
-     * the normal place.
+     * Where the list comes to rest after the user let go of it. There are only two rest positions: [DOCKED], with the
+     * first message at its normal place, and [OPEN], with the reach area fully shown.
      *
-     * When the user pulled the list through the detent ([pullThroughDetent]) in this gesture, the list stays wherever
-     * it is, unless it was pushed back up to within the distance the detent let it move ([detentDistance]).
+     * @param firstItemOffset The top of the first item relative to the top padding edge of the list, or null when the
+     *   first item isn't displayed.
+     * @param brokeThroughDetent Whether the user pulled the docked list down through the detent in this gesture.
+     * @param threshold How far the list has to be pushed up from open to dock, see [detentThreshold].
+     * @return The rest position the list has to move to, or null when it is scrolled away from its start (or has no
+     *   reach area), where it isn't held by either rest position.
      */
-    fun shouldSnapToTop(
+    fun restPositionAfterRelease(
         firstItemOffset: Int?,
         reachHeight: Int,
-        brokeThroughDetent: Boolean = false,
-        detentDistance: Int = 0,
-    ): Boolean {
-        if (!isRevealed(firstItemOffset, reachHeight) || firstItemOffset == null) return false
+        brokeThroughDetent: Boolean,
+        threshold: Float,
+    ): RestPosition? {
+        return when {
+            reachHeight <= 0 || firstItemOffset == null -> null
+            brokeThroughDetent -> RestPosition.OPEN
+            !isRevealed(firstItemOffset, reachHeight) -> null
+            -firstItemOffset > threshold -> RestPosition.DOCKED
+            else -> RestPosition.OPEN
+        }
+    }
 
-        val distanceToTop = firstItemOffset + reachHeight
-        val snapDistance = if (brokeThroughDetent) detentDistance.toFloat() else reachHeight * SNAP_FRACTION
-        return distanceToTop <= snapDistance
+    /**
+     * How far the list has to scroll to rest at [position], positive when the messages move up.
+     */
+    fun scrollToRest(position: RestPosition, firstItemOffset: Int, reachHeight: Int): Int {
+        return when (position) {
+            RestPosition.DOCKED -> firstItemOffset + reachHeight
+            RestPosition.OPEN -> firstItemOffset
+        }
     }
 
     /**
@@ -141,34 +153,22 @@ internal object MessageListReachArea {
     }
 
     /**
-     * How far the list has moved when the finger pulled [pull] pixels from the first message's normal place: only
-     * [DETENT_DAMPING] of the finger's movement up to [threshold], the full movement after that.
-     */
-    fun detentDistance(pull: Float, threshold: Float): Float {
-        val clamped = pull.coerceAtLeast(0f)
-        return if (clamped <= threshold) {
-            clamped * DETENT_DAMPING
-        } else {
-            threshold * DETENT_DAMPING + (clamped - threshold)
-        }
-    }
-
-    /**
-     * Applies a movement of the finger to the list while it is held back by the detent at the top.
+     * Applies a movement of the finger to the list while it is held at its docked rest position. The list doesn't
+     * move at all until the pull passes the threshold.
      *
      * @param pull How far the finger has pulled down so far, never negative.
      * @param fingerDelta How far the finger moved now, positive when it moves down.
-     * @param threshold The pull at which the list gives way, see [detentThreshold].
+     * @param threshold The pull at which the list opens, see [detentThreshold].
      */
     fun pullThroughDetent(pull: Float, fingerDelta: Float, threshold: Float): DetentStep {
         val newPull = pull + fingerDelta
         // Pushing up beyond the start scrolls the list as usual, so the part below zero is passed on in full.
         val beyondStart = newPull.coerceAtMost(0f)
-        val contentDelta = detentDistance(newPull, threshold) - detentDistance(pull, threshold) + beyondStart
+        val brokeThrough = pull <= threshold && newPull > threshold
         return DetentStep(
             pull = newPull.coerceAtLeast(0f),
-            contentDelta = contentDelta,
-            brokeThrough = pull <= threshold && newPull > threshold,
+            contentDelta = beyondStart,
+            brokeThrough = brokeThrough,
         )
     }
 
@@ -183,6 +183,15 @@ internal object MessageListReachArea {
  * @property brokeThrough Whether this movement took the pull past the threshold.
  */
 internal data class DetentStep(val pull: Float, val contentDelta: Float, val brokeThrough: Boolean)
+
+/** The two rest positions of the message list in one-handed mode. */
+internal enum class RestPosition {
+    /** The first message is at its normal place at the top, the reach area isn't visible. */
+    DOCKED,
+
+    /** The reach area is fully shown, the list starts below it. */
+    OPEN,
+}
 
 /** The top edge and the height of an item of the list, in pixels. */
 internal data class ItemBounds(val top: Int, val height: Int)

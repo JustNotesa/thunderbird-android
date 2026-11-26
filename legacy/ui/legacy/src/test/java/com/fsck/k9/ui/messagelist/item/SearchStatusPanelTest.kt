@@ -46,10 +46,46 @@ class SearchStatusPanelTest : RobolectricTest() {
 
         val view = testSubject.view
         assertThat(view.isVisible).isTrue()
-        assertThat(view.statusText.text.toString()).isEqualTo("Server search finished")
+        assertThat(testSubject.infoView.statusText.text.toString()).isEqualTo("Server search finished")
         assertThat(view.contentsButton.isVisible).isTrue()
         assertThat(view.attachmentsButton.isVisible).isTrue()
-        assertThat(view.spinner.isVisible).isFalse()
+        assertThat(testSubject.infoView.spinner.isVisible).isFalse()
+    }
+
+    @Test
+    fun `status should be displayed in the info area and not in the panel for the bottom area`() {
+        val testSubject = createPanel()
+
+        testSubject.bind(ServerSearchStatus.Running(title = "Server search: folder 1 of 3"), scope = null)
+
+        assertThat(testSubject.infoView.isVisible).isTrue()
+        assertThat(testSubject.view.findViewById<View>(R.id.search_status_text) == null).isTrue()
+        assertThat(testSubject.view.isVisible).isFalse()
+    }
+
+    @Test
+    fun `scope title should be displayed in the info area`() {
+        val testSubject = createPanel()
+
+        testSubject.bind(
+            ServerSearchStatus.Running(title = "Server search"),
+            scope = SearchScope.FOLDER,
+            scopeTitle = "Searching in Inbox",
+        )
+
+        val title = testSubject.infoView.findViewById<TextView>(R.id.search_info_scope)
+        assertThat(title.isVisible).isTrue()
+        assertThat(title.text.toString()).isEqualTo("Searching in Inbox")
+    }
+
+    @Test
+    fun `hide should hide the info area too`() {
+        val testSubject = createPanel()
+        testSubject.bind(ServerSearchStatus.Running(title = "Server search"), scope = null)
+
+        testSubject.hide()
+
+        assertThat(testSubject.infoView.isVisible).isFalse()
     }
 
     @Test
@@ -59,7 +95,7 @@ class SearchStatusPanelTest : RobolectricTest() {
         testSubject.bind(ServerSearchStatus.Running(title = "Sending query to server"), scope = null)
 
         val view = testSubject.view
-        assertThat(view.spinner.isVisible).isTrue()
+        assertThat(testSubject.infoView.spinner.isVisible).isTrue()
         assertThat(view.buttons.isVisible).isFalse()
     }
 
@@ -107,6 +143,7 @@ class SearchStatusPanelTest : RobolectricTest() {
         return SearchStatusPanel.create(
             layoutInflater = LayoutInflater.from(context),
             parent = LinearLayout(context),
+            infoView = LayoutInflater.from(context).inflate(R.layout.message_list_search_info, null),
             onSearchMessageContentsClickListener = { searchMessageContentsClickCount++ },
             onSearchAttachmentsClickListener = { searchAttachmentsClickCount++ },
             onScopeSelected = { selectedScopes.add(it) },

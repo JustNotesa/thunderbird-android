@@ -29,8 +29,10 @@ internal val AppBarPlacement.isAtBottom: Boolean
     get() = this != AppBarPlacement.TOP
 
 /**
- * Decides where the toolbar goes for the given [screen]. With the setting off, or in the split view, it stays at the
- * top.
+ * Decides where the toolbar goes for the given [screen]. With the setting off it stays at the top.
+ *
+ * The split view has one toolbar across the width of both panes. It is drawn over the lower end of the content, like
+ * in the single pane message list. The message pane has to leave room for it.
  */
 internal fun appBarPlacement(isBottomAppBarEnabled: Boolean, screen: AppBarScreen): AppBarPlacement {
     if (!isBottomAppBarEnabled) return AppBarPlacement.TOP
@@ -38,7 +40,7 @@ internal fun appBarPlacement(isBottomAppBarEnabled: Boolean, screen: AppBarScree
     return when (screen) {
         AppBarScreen.MESSAGE_LIST -> AppBarPlacement.BOTTOM_OVER_CONTENT
         AppBarScreen.MESSAGE_VIEW -> AppBarPlacement.BOTTOM_BELOW_CONTENT
-        AppBarScreen.SPLIT_VIEW -> AppBarPlacement.TOP
+        AppBarScreen.SPLIT_VIEW -> AppBarPlacement.BOTTOM_OVER_CONTENT
     }
 }
 
@@ -51,7 +53,8 @@ internal fun shouldPinMessageHeaderAtBottom(isBottomAppBarEnabled: Boolean, scre
 }
 
 /**
- * The height the message list reserves for the toolbar at the bottom.
+ * The height the message list reserves for the toolbar at the bottom, also in the split view where the list is the
+ * left pane.
  *
  * The list stays alive, but hidden, while a message is displayed. It keeps its reserved height then, as changing it
  * would throw the list's layout (the reach area above the first message and the space below the messages) out of
@@ -61,7 +64,6 @@ internal fun listBottomBarHeight(isBottomAppBarEnabled: Boolean, screen: AppBarS
     if (!isBottomAppBarEnabled) return 0
 
     return when (screen) {
-        AppBarScreen.MESSAGE_LIST, AppBarScreen.MESSAGE_VIEW -> appBarHeight
-        AppBarScreen.SPLIT_VIEW -> 0
+        AppBarScreen.MESSAGE_LIST, AppBarScreen.MESSAGE_VIEW, AppBarScreen.SPLIT_VIEW -> appBarHeight
     }
 }

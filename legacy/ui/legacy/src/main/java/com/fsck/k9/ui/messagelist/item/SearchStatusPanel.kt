@@ -20,19 +20,22 @@ import androidx.appcompat.R as AppCompatR
 import com.google.android.material.R as MaterialR
 
 /**
- * Displays the state of the server search in the bottom area (one-handed mode): one line of text, and below it the
- * buttons for searching the contents and the attachments of the messages, side by side.
+ * The server search with one-handed mode. What is only read, the title of the scope and the state of the search, is
+ * displayed in [infoView] at the top of the screen. What is operated, the choice of the scope and the buttons for
+ * searching the contents and the attachments of the messages, is in [view] in the bottom area.
  */
 class SearchStatusPanel(
     val view: View,
+    val infoView: View,
     onScopeSelected: (SearchScope) -> Unit,
 ) {
+    private val scopeTitle: TextView = infoView.findViewById(R.id.search_info_scope)
     private val scopeGroup: View = view.findViewById(R.id.search_scope)
     private val scopeFolder: Chip = view.findViewById(R.id.search_scope_folder)
     private val scopeEverywhere: Chip = view.findViewById(R.id.search_scope_everywhere)
-    private val spinner: View = view.findViewById(R.id.search_status_spinner)
-    private val icon: ImageView = view.findViewById(R.id.search_status_icon)
-    private val text: TextView = view.findViewById(R.id.search_status_text)
+    private val spinner: View = infoView.findViewById(R.id.search_status_spinner)
+    private val icon: ImageView = infoView.findViewById(R.id.search_status_icon)
+    private val text: TextView = infoView.findViewById(R.id.search_status_text)
     private val buttons: View = view.findViewById(R.id.search_status_buttons)
     private val contentsButton: View = view.findViewById(R.id.search_contents_button)
     private val attachmentsButton: View = view.findViewById(R.id.search_attachments_button)
@@ -42,8 +45,14 @@ class SearchStatusPanel(
         scopeEverywhere.setOnClickListener { onScopeSelected(SearchScope.EVERYWHERE) }
     }
 
-    fun bind(status: ServerSearchStatus, scope: SearchScope?) {
-        view.isVisible = true
+    /**
+     * @param scopeTitle Where the search looks for messages, e.g. the name of the folder, or null to not display it.
+     */
+    fun bind(status: ServerSearchStatus, scope: SearchScope?, scopeTitle: String? = null) {
+        infoView.isVisible = true
+
+        this.scopeTitle.text = scopeTitle
+        this.scopeTitle.isVisible = scopeTitle != null
 
         scopeGroup.isVisible = scope != null
         scopeFolder.isChecked = scope == SearchScope.FOLDER
@@ -60,6 +69,8 @@ class SearchStatusPanel(
             null -> Unit
         }
 
+        // Nothing to operate: the bottom area stays free.
+        view.isVisible = scope != null || state.hasButtons
         buttons.isVisible = state.hasButtons
         contentsButton.isVisible = state.isContentsButtonVisible
         attachmentsButton.isVisible = state.isAttachmentsButtonVisible
@@ -67,6 +78,7 @@ class SearchStatusPanel(
 
     fun hide() {
         view.isVisible = false
+        infoView.isVisible = false
     }
 
     private fun setIcon(drawable: Int, colorAttribute: Int) {
@@ -79,6 +91,7 @@ class SearchStatusPanel(
         fun create(
             layoutInflater: LayoutInflater,
             parent: ViewGroup,
+            infoView: View,
             onSearchMessageContentsClickListener: View.OnClickListener,
             onSearchAttachmentsClickListener: View.OnClickListener,
             onScopeSelected: (SearchScope) -> Unit,
@@ -88,7 +101,7 @@ class SearchStatusPanel(
                 .setOnClickListener(onSearchMessageContentsClickListener)
             view.findViewById<View>(R.id.search_attachments_button)
                 .setOnClickListener(onSearchAttachmentsClickListener)
-            return SearchStatusPanel(view, onScopeSelected)
+            return SearchStatusPanel(view, infoView, onScopeSelected)
         }
     }
 }

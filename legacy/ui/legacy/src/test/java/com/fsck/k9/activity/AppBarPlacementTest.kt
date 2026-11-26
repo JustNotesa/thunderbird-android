@@ -31,8 +31,15 @@ class AppBarPlacementTest {
     }
 
     @Test
-    fun `split view should keep the toolbar at the top`() {
+    fun `split view should put the toolbar at the bottom over the content`() {
         val result = appBarPlacement(isBottomAppBarEnabled = true, screen = AppBarScreen.SPLIT_VIEW)
+
+        assertThat(result).isEqualTo(AppBarPlacement.BOTTOM_OVER_CONTENT)
+    }
+
+    @Test
+    fun `split view with the setting off should keep the toolbar at the top`() {
+        val result = appBarPlacement(isBottomAppBarEnabled = false, screen = AppBarScreen.SPLIT_VIEW)
 
         assertThat(result).isEqualTo(AppBarPlacement.TOP)
     }
@@ -81,8 +88,13 @@ class AppBarPlacementTest {
     }
 
     @Test
-    fun `list should reserve nothing with the toolbar at the top or in the split view`() {
+    fun `list should reserve nothing with the toolbar at the top`() {
         assertThat(listBottomBarHeight(false, AppBarScreen.MESSAGE_LIST, appBarHeight = 240)).isEqualTo(0)
-        assertThat(listBottomBarHeight(true, AppBarScreen.SPLIT_VIEW, appBarHeight = 240)).isEqualTo(0)
+        assertThat(listBottomBarHeight(false, AppBarScreen.SPLIT_VIEW, appBarHeight = 240)).isEqualTo(0)
+    }
+
+    @Test
+    fun `list should reserve the toolbar height in the split view`() {
+        assertThat(listBottomBarHeight(true, AppBarScreen.SPLIT_VIEW, appBarHeight = 240)).isEqualTo(240)
     }
 }

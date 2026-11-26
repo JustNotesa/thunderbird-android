@@ -22,6 +22,7 @@ import androidx.appcompat.view.ActionMode
 import androidx.core.view.ViewCompat
 import androidx.core.view.isGone
 import androidx.core.view.isInvisible
+import androidx.core.view.updatePadding
 import androidx.drawerlayout.widget.DrawerLayout
 import androidx.drawerlayout.widget.DrawerLayout.DrawerListener
 import androidx.fragment.app.Fragment
@@ -215,8 +216,7 @@ open class MessageHomeActivity :
         openedFrom = FolderOrigin.entries.find { it.name == openedFromName }
         isOriginFolderDisplayed = savedInstanceState?.getBoolean(STATE_ORIGIN_FOLDER_DISPLAYED) ?: (openedFrom != null)
 
-        isBottomAppBarEnabled = !useSplitView() &&
-            generalSettingsManager.getConfig().display.inboxSettings.isMessageListBottomAppBar
+        isBottomAppBarEnabled = generalSettingsManager.getConfig().display.inboxSettings.isMessageListBottomAppBar
 
         if (useSplitView()) {
             setLayout(R.layout.split_message_list)
@@ -250,6 +250,7 @@ open class MessageHomeActivity :
         initializeFragments()
         displayViews()
         initializeFoldableObserver()
+        openDrawerIfRequested(savedInstanceState)
 
         val backPressedCallback = object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
@@ -257,6 +258,16 @@ open class MessageHomeActivity :
             }
         }
         onBackPressedDispatcher.addCallback(this, backPressedCallback)
+    }
+
+    /**
+     * The folder button in the toolbar of the search results (one-handed mode) leads here, with the drawer open.
+     */
+    private fun openDrawerIfRequested(savedInstanceState: Bundle?) {
+        if (savedInstanceState != null || !isDrawerEnabled) return
+        if (!intent.getBooleanExtra(EXTRA_OPEN_DRAWER, false)) return
+
+        findViewById<View>(R.id.coordinator_layout).post { navigationDrawer?.open() }
     }
 
     private fun initializeFoldableObserver() {
@@ -708,10 +719,9 @@ open class MessageHomeActivity :
      * The bar hides the lower edge of the message list, so the list needs to know how much space the bar takes up.
      */
     private fun initializeBottomBar() {
-        if (useSplitView()) return
-
         val appBar = findViewById<View>(R.id.app_bar_layout)
-        bottomBarScrollHider = BottomBarScrollHider(appBar)
+        // The split view has no hiding toolbar: the message pane next to the list keeps room for it
+        if (!useSplitView()) bottomBarScrollHider = BottomBarScrollHider(appBar)
 
         appBar.addOnLayoutChangeListener { _, _, top, _, bottom, _, oldTop, _, oldBottom ->
             if (bottom - top != oldBottom - oldTop) {
@@ -742,13 +752,11 @@ open class MessageHomeActivity :
      * back to the top.
      */
     private fun initializeToolbarTitleSwipe() {
-        if (useSplitView()) return
-
         val appBar = findViewById<View>(R.id.app_bar_layout)
         ToolbarTitleSwipeController(
             appBar = appBar,
             titleView = findViewById(R.id.toolbarTitleContainer),
-            canToggle = { displayMode == DisplayMode.MESSAGE_LIST && !isActionModeActive },
+            canToggle = { displayMode != DisplayMode.MESSAGE_VIEW && !isActionModeActive },
             isAtBottom = { isAppBarAtBottom },
             toggle = { turnOn -> setOneHandedMode(turnOn) },
             onDocked = { turnedOn ->
@@ -796,6 +804,38 @@ open class MessageHomeActivity :
     private fun updateBottomBarHeight() {
         messageListFragment?.setBannersAtBottom(isBottomAppBarEnabled)
         messageListFragment?.setBottomBarHeight(currentBottomBarHeight())
+        updateMessagePaneBottomPadding()
+        updateSearchToolbarHomeButton()
+    }
+
+    /**
+     * In the split view the toolbar at the bottom lies over the message pane as well, so the pane keeps its content
+     * above the toolbar.
+     */
+    private fun updateMessagePaneBottomPadding() {
+        if (displayMode != DisplayMode.SPLIT_VIEW) return
+
+        val barHeight = if (isAppBarAtBottom) findViewById<View>(R.id.app_bar_layout).height else 0
+        findViewById<View>(R.id.message_view_container)?.updatePadding(bottom = barHeight)
+    }
+
+    /**
+     * The search results have no folder drawer, so their toolbar only has the back arrow. With the toolbar at the
+     * bottom the menu button comes first, and the back arrow follows as an action next to the search field.
+     */
+    private val isFolderButtonInSearchToolbar: Boolean
+        get() = !isDrawerEnabled && isAppBarAtBottom && displayMode != DisplayMode.MESSAGE_VIEW
+
+    private fun updateSearchToolbarHomeButton() {
+        if (isDrawerEnabled) return
+
+        // 0 brings back the default back arrow
+        actionBar.setHomeAsUpIndicator(if (isFolderButtonInSearchToolbar) Icons.Outlined.Menu else 0)
+    }
+
+    private fun openFolderDrawerFromSearch() {
+        collapseSearchView()
+        startActivity(Intent(this, MessageHomeActivity::class.java).putExtra(EXTRA_OPEN_DRAWER, true))
     }
 
     /**
@@ -1259,7 +1299,9 @@ open class MessageHomeActivity :
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         val id = item.itemId
         if (id == android.R.id.home) {
-            if (displayMode != DisplayMode.MESSAGE_VIEW && !isAdditionalMessageListDisplayed) {
+            if (isFolderButtonInSearchToolbar) {
+                openFolderDrawerFromSearch()
+            } else if (displayMode != DisplayMode.MESSAGE_VIEW && !isAdditionalMessageListDisplayed) {
                 if (isDrawerEnabled) {
                     if (navigationDrawer!!.isOpen) {
                         navigationDrawer!!.close()
@@ -1851,6 +1893,7 @@ open class MessageHomeActivity :
         private const val EXTRA_MESSAGE_REFERENCE = "message_reference"
         private const val EXTRA_MESSAGE_VIEW_ONLY = "message_view_only"
         private const val EXTRA_OPENED_FROM = "opened_from"
+        private const val EXTRA_OPEN_DRAWER = "open_drawer"
 
         // used for remote search
         const val EXTRA_SEARCH_ACCOUNT = "com.fsck.k9.search_account"
