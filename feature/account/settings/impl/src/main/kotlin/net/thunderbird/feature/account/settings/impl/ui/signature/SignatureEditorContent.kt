@@ -18,6 +18,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
@@ -48,6 +49,8 @@ import net.thunderbird.feature.account.settings.impl.ui.signature.SignatureSetti
 import net.thunderbird.feature.account.settings.impl.ui.signature.SignatureSettingsContract.Event
 import net.thunderbird.feature.mail.message.composer.richtext.FormattedRange
 import net.thunderbird.feature.mail.message.composer.richtext.TextFormat
+import net.thunderbird.feature.mail.message.composer.signature.readClipboardForSignature
+import net.thunderbird.feature.mail.message.composer.R as PasteR
 
 private val SIGNATURE_TEXT_MIN_HEIGHT = 160.dp
 private val EDITOR_MODES = persistentListOf(EditorMode.Formatted, EditorMode.Code)
@@ -65,6 +68,7 @@ internal fun SignatureEditor(
     editor: Editor,
     onEvent: (Event) -> Unit,
     modifier: Modifier = Modifier,
+    isPasting: Boolean = false,
 ) {
     Column(
         verticalArrangement = Arrangement.spacedBy(BoltTheme.spacings.default),
@@ -92,6 +96,7 @@ internal fun SignatureEditor(
             selectedOption = editor.mode,
             modifier = Modifier.padding(horizontal = BoltTheme.spacings.double),
         )
+        PasteButton(isPasting = isPasting, onEvent = onEvent)
         // The fields keep the selection themselves. A new mode means new text, so they have to start over.
         key(editor.mode) {
             when (editor.mode) {
@@ -112,6 +117,33 @@ internal fun SignatureEditor(
             onDismissRequest = { onEvent(Event.OnFormattedModeDismiss) },
         )
     }
+}
+
+/**
+ * The text is read from the clipboard only now, when the user asks for it, and images are only loaded then.
+ */
+@Composable
+private fun PasteButton(
+    isPasting: Boolean,
+    onEvent: (Event) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val context = LocalContext.current
+
+    ButtonOutlined(
+        text = stringResource(
+            if (isPasting) {
+                PasteR.string.message_composer_signature_paste_working
+            } else {
+                PasteR.string.message_composer_signature_paste_action
+            },
+        ),
+        onClick = { onEvent(Event.OnPaste(context.readClipboardForSignature())) },
+        enabled = !isPasting,
+        modifier = modifier
+            .padding(horizontal = BoltTheme.spacings.double)
+            .testTag(SignatureSettingsTestTags.PASTE_BUTTON),
+    )
 }
 
 @Composable
@@ -351,4 +383,5 @@ internal object SignatureSettingsTestTags {
     const val SAVE_BUTTON = "SignatureSettingsSaveButton"
     const val NAME_INPUT = "SignatureSettingsNameInput"
     const val TEXT_INPUT = "SignatureSettingsTextInput"
+    const val PASTE_BUTTON = "SignatureSettingsPasteButton"
 }

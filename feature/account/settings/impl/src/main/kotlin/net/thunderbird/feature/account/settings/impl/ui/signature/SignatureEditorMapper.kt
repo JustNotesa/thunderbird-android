@@ -9,6 +9,7 @@ import net.thunderbird.feature.account.settings.impl.ui.signature.SignatureSetti
 import net.thunderbird.feature.account.settings.impl.ui.signature.SignatureSettingsContract.Event
 import net.thunderbird.feature.mail.message.composer.richtext.RichTextHtmlConverter
 import net.thunderbird.feature.mail.message.composer.signature.HtmlSignatureSanitizer
+import net.thunderbird.feature.mail.message.composer.signature.SignatureImageLimits
 
 /**
  * Translates between a saved signature and what the signature editor shows in its two modes.
@@ -65,6 +66,42 @@ internal class SignatureEditorMapper(
         }
 
         return withPreview(changedEditor)
+    }
+
+    /**
+     * The size of the images the signature in [editor] embeds, which count towards the limit for pasted images.
+     */
+    fun embeddedImageBytes(editor: Editor): Int {
+        if (editor.mode != EditorMode.Code) return 0
+
+        return SignatureImageLimits.embeddedImageBytes(editor.text)
+    }
+
+    /**
+     * Adds pasted HTML to the end of the signature. Text that formatted text can hold stays formatted text, anything
+     * else (images, tables) turns the editor into the HTML code mode, which loses nothing.
+     */
+    fun onPasted(editor: Editor, html: String): Editor {
+        val pasteIntoFormatted = editor.mode == EditorMode.Formatted && richTextHtmlConverter.canRepresent(html)
+        if (pasteIntoFormatted) {
+            val pasted = richTextHtmlConverter.fromHtmlFragment(html)
+            val separator = if (editor.text.isEmpty() || editor.text.endsWith("\n")) "" else "\n"
+            val offset = editor.text.length + separator.length
+            val movedRanges = pasted.ranges.map { it.copy(start = it.start + offset, end = it.end + offset) }
+
+            return withPreview(
+                editor.copy(
+                    text = editor.text + separator + pasted.text,
+                    ranges = (editor.ranges + movedRanges).toImmutableList(),
+                ),
+            )
+        }
+
+        val existing = toHtml(editor)
+        val separator = if (existing.isBlank()) "" else "\n"
+        return withPreview(
+            editor.copy(mode = EditorMode.Code, text = existing + separator + html, ranges = persistentListOf()),
+        )
     }
 
     /**

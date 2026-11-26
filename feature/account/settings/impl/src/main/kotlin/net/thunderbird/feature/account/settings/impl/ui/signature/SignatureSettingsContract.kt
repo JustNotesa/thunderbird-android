@@ -6,6 +6,8 @@ import kotlinx.collections.immutable.persistentListOf
 import net.thunderbird.core.android.account.AccountSignature
 import net.thunderbird.core.ui.contract.mvi.UnidirectionalViewModel
 import net.thunderbird.feature.mail.message.composer.richtext.FormattedRange
+import net.thunderbird.feature.mail.message.composer.signature.ClipboardContent
+import net.thunderbird.feature.mail.message.composer.signature.PasteNotice
 
 internal interface SignatureSettingsContract {
     interface ViewModel : UnidirectionalViewModel<State, Event, Effect>
@@ -18,6 +20,8 @@ internal interface SignatureSettingsContract {
         val editor: Editor? = null,
         val signaturePendingDeletion: AccountSignature? = null,
         val error: Error? = null,
+        val isPasting: Boolean = false,
+        val pasteNotices: ImmutableList<PasteNotice> = persistentListOf(),
     )
 
     /**
@@ -71,6 +75,8 @@ internal interface SignatureSettingsContract {
         data class OnModeChange(val mode: EditorMode) : EditorEvent
         data object OnFormattedModeConfirm : EditorEvent
         data object OnFormattedModeDismiss : EditorEvent
+        data class OnPaste(val content: ClipboardContent) : Event
+        data object OnPasteNoticesDismiss : Event
         data object OnSaveClick : Event
         data class OnDeleteClick(val signatureId: String) : Event
         data object OnDeleteConfirm : Event

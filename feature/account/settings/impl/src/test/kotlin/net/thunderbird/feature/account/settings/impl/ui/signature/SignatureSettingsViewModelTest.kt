@@ -42,6 +42,10 @@ import net.thunderbird.feature.mail.message.composer.richtext.FormattedRange
 import net.thunderbird.feature.mail.message.composer.richtext.FormattedText
 import net.thunderbird.feature.mail.message.composer.richtext.RichTextHtmlConverter
 import net.thunderbird.feature.mail.message.composer.richtext.TextFormat
+import net.thunderbird.feature.mail.message.composer.signature.ClipboardContent
+import net.thunderbird.feature.mail.message.composer.signature.PasteNotice
+import net.thunderbird.feature.mail.message.composer.signature.PasteResult
+import net.thunderbird.feature.mail.message.composer.signature.SignaturePasteProcessor
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class SignatureSettingsViewModelTest {
@@ -415,6 +419,113 @@ class SignatureSettingsViewModelTest {
     }
 
     @Test
+    fun `should add pasted text that formatted text can hold to the formatted text`() = runTest {
+        // Arrange
+        val usedBytes = mutableListOf<Int>()
+        val testSubject = createTestSubject(
+            signaturePasteProcessor = { _, used ->
+                usedBytes += used
+                PasteResult.Content("<b>pasted</b>", listOf(PasteNotice.ActiveContentRemoved))
+            },
+        )
+        advanceUntilIdle()
+        testSubject.event(Event.OnAddClick)
+        testSubject.event(Event.OnFormattedTextChange("Jane", emptyList()))
+
+        // Act
+        testSubject.event(Event.OnPaste(ClipboardContent(html = "<b>pasted</b>")))
+        advanceUntilIdle()
+
+        // Assert
+        val state = testSubject.state.value
+        assertThat(state.editor!!.mode).isEqualTo(EditorMode.Formatted)
+        assertThat(state.editor!!.text).isEqualTo("Jane\ntext of <b>pasted</b>")
+        assertThat(state.editor!!.ranges).containsExactly(FormattedRange(5, 9, TextFormat.Bold))
+        assertThat(state.pasteNotices).containsExactly(PasteNotice.ActiveContentRemoved)
+        assertThat(state.isPasting).isFalse()
+        assertThat(usedBytes).containsExactly(0)
+    }
+
+    @Test
+    fun `should switch to html code when the pasted html holds more than formatted text can`() = runTest {
+        // Arrange
+        val testSubject = createTestSubject(
+            signaturePasteProcessor = { _, _ -> PasteResult.Content("<a href=\"x\">link</a>", emptyList()) },
+        )
+        advanceUntilIdle()
+        testSubject.event(Event.OnAddClick)
+        testSubject.event(Event.OnFormattedTextChange("Jane", emptyList()))
+
+        // Act
+        testSubject.event(Event.OnPaste(ClipboardContent(html = "x")))
+        advanceUntilIdle()
+
+        // Assert
+        val editor = testSubject.state.value.editor!!
+        assertThat(editor.mode).isEqualTo(EditorMode.Code)
+        assertThat(editor.text).isEqualTo("html[Jane|]\n<a href=\"x\">link</a>")
+        assertThat(editor.previewHtml).isNotNull()
+    }
+
+    @Test
+    fun `should tell the user when nothing could be pasted`() = runTest {
+        // Arrange
+        val testSubject = createTestSubject()
+        advanceUntilIdle()
+        testSubject.event(Event.OnAddClick)
+
+        // Act
+        testSubject.event(Event.OnPaste(ClipboardContent()))
+        advanceUntilIdle()
+
+        // Assert
+        assertThat(testSubject.state.value.pasteNotices).containsExactly(PasteNotice.NothingUsable)
+        testSubject.event(Event.OnPasteNoticesDismiss)
+        assertThat(testSubject.state.value.pasteNotices).isEmpty()
+    }
+
+    @Test
+    fun `should count the images of the signature towards the limit of pasted images`() = runTest {
+        // Arrange
+        val usedBytes = mutableListOf<Int>()
+        val testSubject = createTestSubject(
+            signaturePasteProcessor = { _, used ->
+                usedBytes += used
+                PasteResult.NothingToPaste()
+            },
+        )
+        advanceUntilIdle()
+        testSubject.event(Event.OnAddClick)
+        testSubject.event(Event.OnModeChange(EditorMode.Code))
+        testSubject.event(Event.OnTextChange("<img src=\"data:image/png;base64,AAAA\">"))
+
+        // Act
+        testSubject.event(Event.OnPaste(ClipboardContent(plainText = "x")))
+        advanceUntilIdle()
+
+        // Assert
+        assertThat(usedBytes).containsExactly(3)
+    }
+
+    @Test
+    fun `should open the editor for a new signature right away and leave the screen with it`() = runTest {
+        // Arrange
+        val testSubject = createTestSubject(startNew = true)
+
+        // Act
+        advanceUntilIdle()
+
+        // Assert
+        assertThat(testSubject.state.value.editor).isNotNull()
+        assertThat(testSubject.state.value.editor!!.signatureId).isNull()
+        testSubject.effect.test {
+            testSubject.event(Event.OnBackPressed)
+            assertThat(awaitItem()).isEqualTo(Effect.NavigateBack)
+            cancelAndIgnoreRemainingEvents()
+        }
+    }
+
+    @Test
     fun `should show the list when the signature the screen was opened for is gone`() = runTest {
         // Arrange
         val testSubject = createTestSubject(signatures = listOf(WORK_SIGNATURE), initialSignatureId = "unknown")
@@ -430,11 +541,15 @@ class SignatureSettingsViewModelTest {
     private fun createTestSubject(
         signatures: List<AccountSignature> = emptyList(),
         initialSignatureId: String? = null,
+        startNew: Boolean = false,
         defaultSignature: AccountSignature? = null,
         getLegacyAccount: UseCase.GetLegacyAccount = UseCase.GetLegacyAccount { accountId ->
             Outcome.success(createLegacyAccount(accountId, signatures, defaultSignature))
         },
         updateSignatures: UseCase.UpdateSignatures = fakeUpdateSignatures(signatures),
+        signaturePasteProcessor: SignaturePasteProcessor = SignaturePasteProcessor { _, _ ->
+            PasteResult.NothingToPaste()
+        },
     ): SignatureSettingsViewModel {
         return SignatureSettingsViewModel(
             accountId = AccountIdFactory.create(),
@@ -446,8 +561,10 @@ class SignatureSettingsViewModelTest {
             },
             logger = TestLogger(),
             htmlSignatureSanitizer = { html -> "sanitized:$html" },
+            signaturePasteProcessor = signaturePasteProcessor,
             richTextHtmlConverter = FakeRichTextHtmlConverter(),
             initialSignatureId = initialSignatureId,
+            startNew = startNew,
             dispatcher = mainDispatcher.testDispatcher,
             signatureIdGenerator = { GENERATED_ID },
         )
