@@ -6,6 +6,7 @@ import com.fsck.k9.ui.settings.account.AccountSettingsViewModel
 import com.fsck.k9.ui.settings.account.getSystemVibrator
 import com.fsck.k9.ui.settings.export.SettingsExportViewModel
 import com.fsck.k9.ui.settings.general.GeneralSettingsDataStore
+import com.fsck.k9.ui.settings.search.SettingsSearchIndexProvider
 import com.fsck.k9.ui.settings.general.GeneralSettingsViewModel
 import com.fsck.k9.ui.settings.offline.OfflineSettingsViewModel
 import java.util.concurrent.Executors
@@ -29,6 +30,17 @@ val settingsUiModule = module {
             generalSettingsManager = get(),
             telemetryManager = get(),
             searchHistory = get(),
+        )
+    }
+    factory {
+        SettingsSearchIndexProvider(
+            featureFlagProvider = get(),
+            telemetryManager = get(),
+            messagingController = get(),
+            vibrator = get(),
+            accountDataStoreFactory = get(),
+            generalDataStore = get(),
+            logger = get(),
         )
     }
     single(named("SaveSettingsExecutorService")) {

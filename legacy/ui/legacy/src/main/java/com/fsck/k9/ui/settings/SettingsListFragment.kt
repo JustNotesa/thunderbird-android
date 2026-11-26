@@ -20,6 +20,7 @@ import androidx.core.view.MenuHost
 import androidx.core.view.MenuProvider
 import androidx.fragment.app.Fragment
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -31,6 +32,11 @@ import app.k9mail.feature.migration.launcher.api.MigrationManager
 import com.fsck.k9.ui.R
 import com.fsck.k9.ui.observe
 import com.fsck.k9.ui.settings.account.AccountSettingsActivity
+import com.fsck.k9.ui.settings.general.GeneralSettingsActivity
+import com.fsck.k9.ui.settings.search.SettingsScope
+import com.fsck.k9.ui.settings.search.SettingsSearchController
+import com.fsck.k9.ui.settings.search.SettingsSearchEntry
+import com.fsck.k9.ui.settings.search.SettingsSearchIndexProvider
 import com.fsck.k9.view.DraggableFrameLayout
 import com.mikepenz.fastadapter.FastAdapter
 import com.mikepenz.fastadapter.GenericItem
@@ -38,8 +44,10 @@ import com.mikepenz.fastadapter.adapters.ItemAdapter
 import com.mikepenz.fastadapter.drag.ItemTouchCallback
 import com.mikepenz.fastadapter.drag.SimpleDragCallback
 import com.mikepenz.fastadapter.utils.DragDropUtil
+import net.thunderbird.components.core.logging.Logger
 import net.thunderbird.core.android.account.LegacyAccount
 import net.thunderbird.core.common.provider.BrandNameProvider
+import net.thunderbird.core.preference.GeneralSettingsManager
 import net.thunderbird.feature.account.AccountIdFactory
 import net.thunderbird.feature.funding.api.FundingManager
 import net.thunderbird.feature.funding.api.FundingType
@@ -52,8 +60,13 @@ class SettingsListFragment : Fragment(), ItemTouchCallback {
     private val fundingManager: FundingManager by inject()
     private val brandNameProvider: BrandNameProvider by inject()
     private val migrationManager: MigrationManager by inject()
+    private val generalSettingsManager: GeneralSettingsManager by inject()
+    private val searchIndexProvider: SettingsSearchIndexProvider by inject()
+    private val logger: Logger by inject()
 
     private lateinit var itemAdapter: ItemAdapter<GenericItem>
+
+    private var searchController: SettingsSearchController? = null
 
     private var dragCallback: SimpleDragCallback? = null
     private var actionMode: ActionMode? = null
@@ -73,6 +86,13 @@ class SettingsListFragment : Fragment(), ItemTouchCallback {
         }
     }
 
+    // Back first ends an active search; only a second Back leaves the screen
+    private val searchBackPressedCallback = object : OnBackPressedCallback(false) {
+        override fun handleOnBackPressed() {
+            searchController?.clearSearch()
+        }
+    }
+
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
         return inflater.inflate(R.layout.fragment_settings_list, container, false)
     }
@@ -85,11 +105,54 @@ class SettingsListFragment : Fragment(), ItemTouchCallback {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         isAccountsExpanded = savedInstanceState?.getBoolean(STATE_ACCOUNTS_EXPANDED) ?: isAccountsExpanded
         initializeSettingsList(recyclerView = view.findViewById(R.id.settings_list))
+        initializeSearch(view)
         observeAccounts()
         observeAccountSelection()
         addOptionsMenu()
         listenForDeleteConfirmation()
         requireActivity().onBackPressedDispatcher.addCallback(viewLifecycleOwner, backPressedCallback)
+        requireActivity().onBackPressedDispatcher.addCallback(viewLifecycleOwner, searchBackPressedCallback)
+    }
+
+    override fun onStart() {
+        super.onStart()
+        // Settings might have been changed on the screens opened from the search results
+        searchController?.invalidateIndex()
+    }
+
+    override fun onDestroyView() {
+        super.onDestroyView()
+        searchController = null
+    }
+
+    private fun initializeSearch(view: View) {
+        searchController = SettingsSearchController(
+            root = view,
+            isFieldAtBottom = generalSettingsManager.getConfig().display.inboxSettings.isMessageListBottomAppBar,
+            scope = viewLifecycleOwner.lifecycleScope,
+            loadIndex = { searchIndexProvider.load(requireContext(), accounts) },
+            openEntry = ::openSearchEntry,
+            onMessage = { messageResId -> Toast.makeText(requireContext(), messageResId, Toast.LENGTH_LONG).show() },
+            onSearchActiveChanged = { active -> searchBackPressedCallback.isEnabled = active },
+            logger = logger,
+        )
+    }
+
+    private fun openSearchEntry(entry: SettingsSearchEntry) {
+        when (val scope = entry.scope) {
+            SettingsScope.General -> GeneralSettingsActivity.start(
+                context = requireContext(),
+                screenKey = entry.screenKey,
+                highlightKey = entry.highlightKey,
+            )
+
+            is SettingsScope.Account -> AccountSettingsActivity.start(
+                context = requireActivity(),
+                accountUuid = scope.accountId,
+                startScreenKey = entry.screenKey,
+                highlightKey = entry.highlightKey,
+            )
+        }
     }
 
     private fun initializeSettingsList(recyclerView: RecyclerView) {
