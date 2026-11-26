@@ -1598,4 +1598,22 @@ You can keep this message and use it as a backup for your secret key. If you wan
     <string name="about_updates_open_settings_button">Open settings</string>
     <!-- Button that dismisses a message about a failed installation -->
     <string name="about_updates_dismiss_button">Dismiss</string>
+
+    <!-- Hint of the field on the settings start screen that searches all settings -->
+    <string name="settings_search_hint">Search settings …</string>
+    <!-- Content description of the button that clears the settings search -->
+    <string name="settings_search_clear">Clear search</string>
+    <!-- Shown when no setting matches the settings search -->
+    <string name="settings_search_no_results">No setting found</string>
+    <!-- Number of settings found; %1$d is the number, %2$s the search term -->
+    <plurals name="settings_search_result_count">
+        <item quantity="one">%1$d hit for “%2$s”</item>
+        <item quantity="other">%1$d hits for “%2$s”</item>
+    </plurals>
+    <!-- Shown when the settings of the general settings or of an account could not be searched -->
+    <string name="settings_search_index_failed">Some settings could not be searched.</string>
+    <!-- Shown when a setting could not be changed from the search results -->
+    <string name="settings_search_toggle_failed">The setting could not be changed.</string>
+    <!-- Shown when the setting chosen in the search is not on the opened screen -->
+    <string name="settings_search_highlight_failed">The setting could not be found on this screen.</string>
 </resources>

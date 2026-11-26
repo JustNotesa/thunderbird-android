@@ -25,6 +25,7 @@ class AccountSettingsActivity : BaseActivity(), OnPreferenceStartScreenCallback 
     private val accountViewModel: AccountSettingsViewModel by viewModel()
     private lateinit var accountId: AccountId
     private var startScreenKey: String? = null
+    private var highlightKey: String? = null
     private var fragmentAdded = false
 
     private lateinit var accountSpinner: AccountSelectionSpinner
@@ -75,6 +76,7 @@ class AccountSettingsActivity : BaseActivity(), OnPreferenceStartScreenCallback 
         accountId = intent.getStringExtra(ARG_ACCOUNT_UUID)
             ?.let { AccountIdFactory.of(it) } ?: return false
         startScreenKey = intent.getStringExtra(ARG_START_SCREEN_KEY)
+        highlightKey = intent.getStringExtra(ARG_HIGHLIGHT_KEY)
         return true
     }
 
@@ -98,7 +100,7 @@ class AccountSettingsActivity : BaseActivity(), OnPreferenceStartScreenCallback 
             fragmentTransaction {
                 add(
                     R.id.accountSettingsContainer,
-                    AccountSettingsFragment.create(accountId.toString(), startScreenKey),
+                    AccountSettingsFragment.create(accountId.toString(), startScreenKey, highlightKey),
                 )
             }
         }
@@ -135,13 +137,20 @@ class AccountSettingsActivity : BaseActivity(), OnPreferenceStartScreenCallback 
     companion object {
         private const val ARG_ACCOUNT_UUID = "accountUuid"
         private const val ARG_START_SCREEN_KEY = "startScreen"
+        private const val ARG_HIGHLIGHT_KEY = "highlightKey"
 
         @JvmStatic
         @JvmOverloads
-        fun start(context: Context, accountUuid: String, startScreenKey: String? = null) {
+        fun start(
+            context: Context,
+            accountUuid: String,
+            startScreenKey: String? = null,
+            highlightKey: String? = null,
+        ) {
             val intent = Intent(context, AccountSettingsActivity::class.java).apply {
                 putExtra(ARG_ACCOUNT_UUID, accountUuid)
                 startScreenKey?.let { putExtra(ARG_START_SCREEN_KEY, it) }
+                highlightKey?.let { putExtra(ARG_HIGHLIGHT_KEY, it) }
             }
             context.startActivity(intent)
         }
