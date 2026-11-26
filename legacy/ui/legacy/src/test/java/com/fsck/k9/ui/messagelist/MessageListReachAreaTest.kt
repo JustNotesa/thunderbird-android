@@ -73,6 +73,61 @@ class MessageListReachAreaTest {
     }
 
     @Test
+    fun `estimateContentHeight() with all items laid out should be their height`() {
+        val result = testSubject.estimateContentHeight(
+            itemCount = 5,
+            firstLaidOut = 0,
+            lastLaidOut = 4,
+            laidOutHeight = 1200,
+        )
+
+        assertThat(result).isEqualTo(1200)
+    }
+
+    @Test
+    fun `estimateContentHeight() with some items laid out should extrapolate to all items`() {
+        val result = testSubject.estimateContentHeight(
+            itemCount = 20,
+            firstLaidOut = 5,
+            lastLaidOut = 9,
+            laidOutHeight = 1000,
+        )
+
+        assertThat(result).isEqualTo(4000)
+    }
+
+    @Test
+    fun `estimateContentHeight() with no items laid out should be zero`() {
+        val result = testSubject.estimateContentHeight(
+            itemCount = 20,
+            firstLaidOut = 0,
+            lastLaidOut = -1,
+            laidOutHeight = 0,
+        )
+
+        assertThat(result).isEqualTo(0)
+    }
+
+    @Test
+    fun `extraBottomPadding() with long list measured by its laid out items should be zero`() {
+        val contentHeight = testSubject.estimateContentHeight(
+            itemCount = 22,
+            firstLaidOut = 18,
+            lastLaidOut = 21,
+            laidOutHeight = 960,
+        )
+
+        val result = testSubject.extraBottomPadding(
+            listHeight = 2326,
+            topPadding = 0,
+            contentHeight = contentHeight,
+            bottomPadding = 471,
+        )
+
+        assertThat(result).isEqualTo(0)
+    }
+
+    @Test
     fun `isRevealed() with first item pulled down should be true`() {
         assertThat(testSubject.isRevealed(firstItemOffset = -100, reachHeight = 900))
             .isEqualTo(true)

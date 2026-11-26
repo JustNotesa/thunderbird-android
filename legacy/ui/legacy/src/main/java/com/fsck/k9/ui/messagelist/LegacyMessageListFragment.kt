@@ -1377,7 +1377,7 @@ class LegacyMessageListFragment :
             MessageListReachArea.extraBottomPadding(
                 listHeight = recyclerView.height,
                 topPadding = bannerTopPadding,
-                contentHeight = recyclerView.computeVerticalScrollRange(),
+                contentHeight = laidOutContentHeight(recyclerView),
                 bottomPadding = listBottomPadding(),
             )
         } else {
@@ -1387,6 +1387,19 @@ class LegacyMessageListFragment :
 
         reachAreaExtraBottomPadding = newExtra
         recyclerView.updatePadding(bottom = listBottomPadding() + newExtra)
+    }
+
+    private fun laidOutContentHeight(recyclerView: RecyclerView): Int {
+        val layoutManager = recyclerView.layoutManager as? LinearLayoutManager ?: return 0
+        val firstChild = layoutManager.getChildAt(0) ?: return 0
+        val lastChild = layoutManager.getChildAt(layoutManager.childCount - 1) ?: return 0
+
+        return MessageListReachArea.estimateContentHeight(
+            itemCount = adapter.itemCount,
+            firstLaidOut = layoutManager.getPosition(firstChild),
+            lastLaidOut = layoutManager.getPosition(lastChild),
+            laidOutHeight = layoutManager.getDecoratedBottom(lastChild) - layoutManager.getDecoratedTop(firstChild),
+        )
     }
 
     private fun listBottomPadding(): Int {
