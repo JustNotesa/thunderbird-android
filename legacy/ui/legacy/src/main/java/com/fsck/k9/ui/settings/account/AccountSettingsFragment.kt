@@ -38,6 +38,7 @@ import com.fsck.k9.ui.settings.onClick
 import com.fsck.k9.ui.settings.oneTimeClickListener
 import com.fsck.k9.ui.settings.remove
 import com.fsck.k9.ui.settings.removeEntry
+import com.fsck.k9.ui.settings.scrollToAndHighlightPreference
 import com.takisoft.preferencex.PreferenceFragmentCompat
 import net.thunderbird.core.android.account.AccountDefaultsProvider.Companion.NO_OPENPGP_KEY
 import net.thunderbird.core.android.account.LegacyAccount
@@ -129,6 +130,10 @@ class AccountSettingsFragment : PreferenceFragmentCompat(), ConfirmationDialogFr
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
+
+        if (savedInstanceState == null) {
+            arguments?.getString(ARG_HIGHLIGHT_KEY)?.let { scrollToAndHighlightPreference(it) }
+        }
 
         val menuHost: MenuHost = requireActivity()
         menuHost.addMenuProvider(
@@ -633,9 +638,13 @@ class AccountSettingsFragment : PreferenceFragmentCompat(), ConfirmationDialogFr
         private const val REQUEST_DELETE_ACCOUNT = 1
         private const val TAG_DELETE_ACCOUNT_CONFIRMATION = "delete_account_confirmation"
 
-        fun create(accountUuid: String, rootKey: String?) = AccountSettingsFragment().withArguments(
-            ARG_ACCOUNT_UUID to accountUuid,
-            ARG_PREFERENCE_ROOT to rootKey,
-        )
+        private const val ARG_HIGHLIGHT_KEY = "highlightKey"
+
+        fun create(accountUuid: String, rootKey: String?, highlightKey: String? = null) =
+            AccountSettingsFragment().withArguments(
+                ARG_ACCOUNT_UUID to accountUuid,
+                ARG_PREFERENCE_ROOT to rootKey,
+                ARG_HIGHLIGHT_KEY to highlightKey,
+            )
     }
 }

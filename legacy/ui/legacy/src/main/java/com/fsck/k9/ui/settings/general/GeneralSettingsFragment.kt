@@ -27,6 +27,7 @@ import com.fsck.k9.ui.observe
 import com.fsck.k9.ui.settings.notificationactions.NotificationActionsSettingsActivity
 import com.fsck.k9.ui.settings.offline.OfflineSettingsActivity
 import com.fsck.k9.ui.settings.remove
+import com.fsck.k9.ui.settings.scrollToAndHighlightPreference
 import com.google.android.material.snackbar.Snackbar
 import com.takisoft.preferencex.PreferenceFragmentCompat
 import java.text.SimpleDateFormat
@@ -166,6 +167,10 @@ class GeneralSettingsFragment : PreferenceFragmentCompat() {
         super.onViewCreated(view, savedInstanceState)
         activity?.title = preferenceScreen.title
 
+        if (savedInstanceState == null) {
+            arguments?.getString(ARG_HIGHLIGHT_KEY)?.let { scrollToAndHighlightPreference(it) }
+        }
+
         val menuHost = requireActivity()
         menuHost.addMenuProvider(
             object : MenuProvider {
@@ -288,6 +293,11 @@ class GeneralSettingsFragment : PreferenceFragmentCompat() {
         private const val PREFERENCE_DATA_COLLECTION = "data_collection"
         const val DEFAULT_SYNC_FILENAME = "thunderbird-sync-logs"
 
-        fun create(rootKey: String? = null) = GeneralSettingsFragment().withArguments(ARG_PREFERENCE_ROOT to rootKey)
+        private const val ARG_HIGHLIGHT_KEY = "highlightKey"
+
+        fun create(rootKey: String? = null, highlightKey: String? = null) = GeneralSettingsFragment().withArguments(
+            ARG_PREFERENCE_ROOT to rootKey,
+            ARG_HIGHLIGHT_KEY to highlightKey,
+        )
     }
 }

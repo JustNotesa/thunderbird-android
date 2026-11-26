@@ -27,23 +27,7 @@ class GeneralSettingsActivity : BaseActivity(), OnPreferenceStartScreenCallback,
     private var searchEnabled = false
 
     private val featureFlagProvider: FeatureFlagProvider by inject()
-    private val fontPreferenceKeys = listOf(
-        "font_size",
-        "message_list_fonts",
-        "message_list_subject_font",
-        "message_list_sender_font",
-        "message_list_date_font",
-        "message_list_preview_font",
-        "message_view_fonts",
-        "message_view_account_name_font",
-        "message_view_subject_font",
-        "message_view_sender_font",
-        "message_view_date_font",
-        "message_view_recipients_font",
-        "message_view_content_font_slider",
-        "message_compose_fonts",
-        "message_compose_input_font",
-    )
+    private val fontPreferenceKeys = GENERAL_FONT_PREFERENCE_KEYS
 
     override val supportsOneHandedMode = true
 
@@ -55,7 +39,13 @@ class GeneralSettingsActivity : BaseActivity(), OnPreferenceStartScreenCallback,
 
         if (savedInstanceState == null) {
             fragmentTransaction {
-                add(R.id.generalSettingsContainer, GeneralSettingsFragment.create())
+                add(
+                    R.id.generalSettingsContainer,
+                    GeneralSettingsFragment.create(
+                        rootKey = intent.getStringExtra(EXTRA_SCREEN_KEY),
+                        highlightKey = intent.getStringExtra(EXTRA_HIGHLIGHT_KEY),
+                    ),
+                )
             }
         } else {
             searchQuery = savedInstanceState.getString(KEY_SEARCH_QUERY, "")
@@ -161,8 +151,18 @@ class GeneralSettingsActivity : BaseActivity(), OnPreferenceStartScreenCallback,
     companion object {
         private const val KEY_SEARCH_QUERY = "search_query"
         private const val KEY_SEARCH_ENABLED = "search_enabled"
-        fun start(context: Context) {
-            val intent = Intent(context, GeneralSettingsActivity::class.java)
+        private const val EXTRA_SCREEN_KEY = "screenKey"
+        private const val EXTRA_HIGHLIGHT_KEY = "highlightKey"
+
+        /**
+         * @param screenKey The key of the screen to open, or `null` for the first screen.
+         * @param highlightKey The key of a preference on that screen to scroll to and highlight.
+         */
+        fun start(context: Context, screenKey: String? = null, highlightKey: String? = null) {
+            val intent = Intent(context, GeneralSettingsActivity::class.java).apply {
+                screenKey?.let { putExtra(EXTRA_SCREEN_KEY, it) }
+                highlightKey?.let { putExtra(EXTRA_HIGHLIGHT_KEY, it) }
+            }
             context.startActivity(intent)
         }
     }

@@ -1349,4 +1349,22 @@
     <string name="search_no_results">Keine Nachrichten gefunden</string>
     <string name="remote_search_no_results">Keine Nachrichten auf dem Server gefunden</string>
     <string name="search_no_results_search_server_prompt">Keine Nachrichten auf diesem Gerät gefunden. Tippe, um auf dem Server zu suchen.</string>
+
+    <!-- Hint of the field on the settings start screen that searches all settings -->
+    <string name="settings_search_hint">Einstellung suchen …</string>
+    <!-- Content description of the button that clears the settings search -->
+    <string name="settings_search_clear">Suche löschen</string>
+    <!-- Shown when no setting matches the settings search -->
+    <string name="settings_search_no_results">Keine Einstellung gefunden</string>
+    <!-- Number of settings found; %1$d is the number, %2$s the search term -->
+    <plurals name="settings_search_result_count">
+        <item quantity="one">%1$d Treffer für „%2$s“</item>
+        <item quantity="other">%1$d Treffer für „%2$s“</item>
+    </plurals>
+    <!-- Shown when the settings of the general settings or of an account could not be searched -->
+    <string name="settings_search_index_failed">Einige Einstellungen konnten nicht durchsucht werden.</string>
+    <!-- Shown when a setting could not be changed from the search results -->
+    <string name="settings_search_toggle_failed">Die Einstellung konnte nicht geändert werden.</string>
+    <!-- Shown when the setting chosen in the search is not on the opened screen -->
+    <string name="settings_search_highlight_failed">Die Einstellung wurde auf dieser Seite nicht gefunden.</string>
 </resources>
