@@ -36,6 +36,8 @@ abstract class AccountList : BaseListActivity(), OnItemClickListener {
 
     private val accountManager: LegacyAccountManager by inject()
 
+    override val supportsOneHandedMode = true
+
     public override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setResult(RESULT_CANCELED)

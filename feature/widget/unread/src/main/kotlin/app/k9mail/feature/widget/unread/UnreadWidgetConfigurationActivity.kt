@@ -16,6 +16,8 @@ class UnreadWidgetConfigurationActivity : BaseActivity() {
 
     private val logger: Logger by inject()
 
+    override val supportsOneHandedMode = true
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setLayout(R.layout.activity_unread_widget_configuration)

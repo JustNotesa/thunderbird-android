@@ -29,6 +29,8 @@ class AccountSettingsActivity : BaseActivity(), OnPreferenceStartScreenCallback 
 
     private lateinit var accountSpinner: AccountSelectionSpinner
 
+    override val supportsOneHandedMode = true
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setLayout(R.layout.activity_account_settings)

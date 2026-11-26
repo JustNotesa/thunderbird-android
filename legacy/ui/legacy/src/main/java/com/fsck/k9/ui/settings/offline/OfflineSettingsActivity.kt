@@ -11,6 +11,8 @@ import com.fsck.k9.ui.base.extensions.fragmentTransaction
  * Hosts the settings for the messages that are available offline.
  */
 class OfflineSettingsActivity : BaseActivity() {
+    override val supportsOneHandedMode = true
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setLayout(R.layout.general_settings)

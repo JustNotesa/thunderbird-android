@@ -40,6 +40,8 @@ class AutocryptKeyTransferActivity : BaseActivity() {
     private lateinit var transferProgressGenerating: StatusIndicator
     private lateinit var transferProgressSending: StatusIndicator
 
+    override val supportsOneHandedMode = true
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setLayout(R.layout.crypto_key_transfer)

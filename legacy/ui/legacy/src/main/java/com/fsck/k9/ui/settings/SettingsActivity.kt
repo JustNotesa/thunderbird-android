@@ -13,6 +13,8 @@ import com.fsck.k9.ui.base.extensions.findNavController
 class SettingsActivity : BaseActivity() {
     private lateinit var navController: NavController
 
+    override val supportsOneHandedMode = true
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setLayout(R.layout.activity_settings)

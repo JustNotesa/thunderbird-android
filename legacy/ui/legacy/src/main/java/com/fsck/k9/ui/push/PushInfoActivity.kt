@@ -8,6 +8,8 @@ import com.fsck.k9.ui.R
 import com.fsck.k9.ui.base.BaseActivity
 
 class PushInfoActivity : BaseActivity() {
+    override val supportsOneHandedMode = true
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setTitle(R.string.push_info_title)

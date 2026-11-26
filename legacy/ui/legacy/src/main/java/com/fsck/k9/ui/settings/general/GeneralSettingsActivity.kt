@@ -45,6 +45,8 @@ class GeneralSettingsActivity : BaseActivity(), OnPreferenceStartScreenCallback,
         "message_compose_input_font",
     )
 
+    override val supportsOneHandedMode = true
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setLayout(R.layout.general_settings)
