@@ -505,6 +505,9 @@ open class MessageHomeActivity :
 
                 setDrawerLockState()
                 onMessageListDisplayed()
+
+                // The other display modes do this when they show their views, the split view is shown right away
+                updateAppBarPosition()
             }
         }
     }
