@@ -5,6 +5,7 @@ import net.thunderbird.feature.updater.api.AppUpdateChecker
 import net.thunderbird.feature.updater.api.AppUpdateConfig
 import net.thunderbird.feature.updater.api.AppUpdateInstaller
 import net.thunderbird.feature.updater.api.AppUpdateSettings
+import net.thunderbird.feature.updater.internal.background.AppLauncher
 import net.thunderbird.feature.updater.internal.background.AppUpdateScheduler
 import net.thunderbird.feature.updater.internal.background.ContextAppLauncher
 import net.thunderbird.feature.updater.internal.background.ReopenAfterUpdate
@@ -67,10 +68,11 @@ val featureUpdaterModule = module {
         )
     }
     single<ReopenMarker> { SharedPreferencesReopenMarker(androidContext()) }
+    single<AppLauncher> { ContextAppLauncher(androidContext()) }
     single {
         ReopenAfterUpdate(
             marker = get(),
-            launcher = ContextAppLauncher(androidContext()),
+            launcher = get(),
             logger = get(),
         )
     }
